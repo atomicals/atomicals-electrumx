@@ -29,6 +29,7 @@ from electrumx.lib.enum import Enumeration
 from electrumx.lib.util import unpack_le_uint16_from, unpack_le_uint32_from, \
     pack_le_uint16, pack_le_uint32
 
+SCRIPTHASH_LEN = 32
 
 class ScriptError(Exception):
     '''Exception used for script errors.'''

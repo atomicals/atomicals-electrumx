@@ -30,13 +30,25 @@ from aiorpcx import (Event, JSONRPCAutoDetect, JSONRPCConnection,
 
 import electrumx
 import electrumx.lib.util as util
-from electrumx.lib.util import OldTaskGroup
+from electrumx.lib.util import OldTaskGroup, unpack_le_uint64
+from electrumx.lib.util_atomicals import (
+    calculate_subrealm_rules_list_as_of_height, 
+    format_name_type_candidates_to_rpc, 
+    SUBREALM_MINT_PATH, 
+    MINT_SUBREALM_RULES_BECOME_EFFECTIVE_IN_BLOCKS, 
+    convert_db_mint_info_to_rpc_mint_info_format, 
+    compact_to_location_id_bytes, 
+    location_id_bytes_to_compact, 
+    is_compact_atomical_id,
+    format_name_type_candidates_to_rpc_for_subrealm
+)
 from electrumx.lib.hash import (HASHX_LEN, Base58Error, hash_to_hex_str,
-                                hex_str_to_hash, sha256)
+                                hex_str_to_hash, sha256, double_sha256)
 from electrumx.lib.merkle import MerkleCache
 from electrumx.lib.text import sessions_lines
 from electrumx.server.daemon import DaemonError
 from electrumx.server.peers import PeerManager
+from electrumx.lib.script import SCRIPTHASH_LEN
 
 if TYPE_CHECKING:
     from electrumx.server.db import DB
@@ -49,7 +61,6 @@ if TYPE_CHECKING:
 BAD_REQUEST = 1
 DAEMON_ERROR = 2
 
-
 def scripthash_to_hashX(scripthash):
     try:
         bin_hash = hex_str_to_hash(scripthash)
@@ -58,7 +69,6 @@ def scripthash_to_hashX(scripthash):
     except (ValueError, TypeError):
         pass
     raise RPCError(BAD_REQUEST, f'{scripthash} is not a valid script hash')
-
 
 def non_negative_integer(value):
     '''Return param value it is or can be converted to a non-negative
@@ -72,13 +82,11 @@ def non_negative_integer(value):
     raise RPCError(BAD_REQUEST,
                    f'{value} should be a non-negative integer')
 
-
 def assert_boolean(value):
     '''Return param value it is boolean otherwise raise an RPCError.'''
     if value in (False, True):
         return value
     raise RPCError(BAD_REQUEST, f'{value} should be a boolean value')
-
 
 def assert_tx_hash(value):
     '''Raise an RPCError if the value is not a valid hexadecimal transaction hash.
@@ -93,6 +101,23 @@ def assert_tx_hash(value):
         pass
     raise RPCError(BAD_REQUEST, f'{value} should be a transaction hash')
 
+def assert_atomical_id(value):
+    '''Raise an RPCError if the value is not a valid atomical id
+    If it is valid, return it as 32-byte binary hash.
+    '''
+    try:
+        if value == None or value == "":
+            raise RPCError(BAD_REQUEST, f'atomical_id required')
+        index_of_i = value.find("i")
+        if index_of_i != 64: 
+            raise RPCError(BAD_REQUEST, f'{value} should be an atomical_id')
+        raw_hash = hex_str_to_hash(value[ : 64])
+        if len(raw_hash) == 32:
+            return raw_hash
+    except (ValueError, TypeError):
+        pass
+
+    raise RPCError(BAD_REQUEST, f'{value} should be an atomical_id')
 
 @attr.s(slots=True)
 class SessionGroup:
@@ -204,6 +229,7 @@ class SessionManager:
                 self.logger.error(f'{kind} server failed to listen on {service.address}: {e}')
             else:
                 self.logger.info(f'{kind} server listening on {service.address}')
+
 
     async def _start_external_servers(self):
         '''Start listening on TCP and SSL ports, but only if the respective
@@ -1166,9 +1192,113 @@ class ElectrumX(SessionBase):
 
         return [{'tx_hash': hash_to_hex_str(utxo.tx_hash),
                  'tx_pos': utxo.tx_pos,
-                 'height': utxo.height, 'value': utxo.value}
+                 'height': utxo.height, 
+                 'value': utxo.value}
                 for utxo in utxos
                 if (utxo.tx_hash, utxo.tx_pos) not in spends]
+
+    # Get atomical_id from an atomical inscription number
+    def get_atomical_id_by_atomical_number(self, atomical_number):
+        return self.db.get_atomical_id_by_atomical_number(atomical_number)
+
+    # Get atomicals base information from db or placeholder information if mint is still in the mempool and unconfirmed
+    async def atomical_id_get(self, compact_atomical_id):
+        atomical_id = compact_to_location_id_bytes(compact_atomical_id)
+        atomical = await self.session_mgr.bp.get_base_mint_info_rpc_format_by_atomical_id(atomical_id)
+        if atomical:
+            return atomical
+        # Check mempool
+        atomical_in_mempool = await self.mempool.get_atomical_mint(atomical_id)
+        if atomical_in_mempool == None: 
+            raise RPCError(BAD_REQUEST, f'"{compact_atomical_id}" is not found')
+        return atomical_in_mempool
+
+    async def atomical_id_get_state_by_path(self, compact_atomical_id, path, Verbose=False):
+        atomical_id = compact_to_location_id_bytes(compact_atomical_id)
+        atomical = await self.atomical_id_get(compact_atomical_id)
+        self.db.populate_extended_mod_state_path_latest_atomical_info(atomical_id, atomical, path, Verbose)
+        return atomical
+
+    async def atomical_id_get_state_history(self, compact_atomical_id):
+        atomical_id = compact_to_location_id_bytes(compact_atomical_id)
+        atomical = await self.atomical_id_get(compact_atomical_id)
+        self.db.populate_extended_mod_state_history_atomical_info(atomical_id, atomical)
+        return atomical
+
+    async def atomical_id_get_events_by_path(self, compact_atomical_id, path):
+        atomical_id = compact_to_location_id_bytes(compact_atomical_id)
+        atomical = await self.atomical_id_get(compact_atomical_id)
+        self.db.populate_extended_events_by_path_atomical_info(atomical_id, atomical, path)
+        return atomical
+        
+    async def atomical_id_get_events(self, compact_atomical_id):
+        atomical_id = compact_to_location_id_bytes(compact_atomical_id)
+        atomical = await self.atomical_id_get(compact_atomical_id)
+        self.db.populate_extended_events_atomical_info(atomical_id, atomical)
+        return atomical
+ 
+    async def atomical_id_get_tx_history(self, compact_atomical_id):
+        atomical_id = compact_to_location_id_bytes(compact_atomical_id)
+        atomical = await self.atomical_id_get(compact_atomical_id)
+        history = await self.scripthash_get_history(hash_to_hex_str(double_sha256(atomical_id)))
+        history.sort(key=lambda x: x['height'], reverse=True)
+
+        atomical['tx'] = {
+            'history': history
+        }
+        return atomical
+
+    async def atomical_id_get_location(self, compact_atomical_id):
+        atomical_id = compact_to_location_id_bytes(compact_atomical_id)
+        atomical = await self.atomical_id_get(compact_atomical_id)
+        await self.db.populate_extended_location_atomical_info(atomical_id, atomical)
+        return atomical
+
+    async def get_summary_info(self, Verbose=False):
+        db_height = self.db.db_height
+        last_block_hash = self.db.get_atomicals_block_hash(db_height)
+        ret = {
+            'coin': self.env.coin.__name__,
+            'network': self.coin.NET,
+            'height': db_height,
+            'block_tip': hash_to_hex_str(self.db.db_tip),
+            'server_time': datetime.datetime.now().isoformat(),
+            'atomicals_block_tip': last_block_hash,
+            'atomical_count': self.db.db_atomical_count
+        }
+        if Verbose:
+            lastblock = last_block_hash
+            last2block = self.db.get_atomicals_block_hash(db_height - 1)
+            last3block = self.db.get_atomicals_block_hash(db_height - 2)
+            last4block = self.db.get_atomicals_block_hash(db_height - 3)
+            last5block = self.db.get_atomicals_block_hash(db_height - 4)
+            last6block = self.db.get_atomicals_block_hash(db_height - 5)
+            last7block = self.db.get_atomicals_block_hash(db_height - 6)
+            last8block = self.db.get_atomicals_block_hash(db_height - 7)
+            last9block = self.db.get_atomicals_block_hash(db_height - 8)
+            last10block = self.db.get_atomicals_block_hash(db_height - 9)
+
+            ret['atomicals_block_hashes'] = {}
+            ret['atomicals_block_hashes'][db_height] = lastblock
+            ret['atomicals_block_hashes'][db_height - 1] = last2block
+            ret['atomicals_block_hashes'][db_height - 2] = last3block
+            ret['atomicals_block_hashes'][db_height - 3] = last4block
+            ret['atomicals_block_hashes'][db_height - 4] = last5block
+            ret['atomicals_block_hashes'][db_height - 5] = last6block
+            ret['atomicals_block_hashes'][db_height - 6] = last7block
+            ret['atomicals_block_hashes'][db_height - 7] = last8block
+            ret['atomicals_block_hashes'][db_height - 8] = last9block
+            ret['atomicals_block_hashes'][db_height - 9] = last10block
+
+        return ret
+
+    async def atomicals_list_get(self, limit, offset, asc):
+        atomicals = await self.db.get_atomicals_list(limit, offset, asc)
+        atomicals_populated = []
+        for atomical_id in atomicals: 
+            atomical = await self.atomical_id_get(location_id_bytes_to_compact(atomical_id))
+            atomicals_populated.append(atomical)
+        return {'global': await self.get_summary_info(), 'result': atomicals_populated }
 
     async def hashX_subscribe(self, hashX, alias):
         # Store the subscription only after address_status succeeds
@@ -1205,6 +1335,464 @@ class ElectrumX(SessionBase):
         conf = [{'tx_hash': hash_to_hex_str(tx_hash), 'height': height}
                 for tx_hash, height in history]
         return conf + await self.unconfirmed_history(hashX)
+    
+    async def atomicals_listscripthash(self, scripthash, Verbose=False):
+        '''Return the list of Atomical UTXOs for an address'''
+        hashX = scripthash_to_hashX(scripthash)
+        return await self.hashX_listscripthash_atomicals(hashX, Verbose)
+
+    async def atomicals_list(self, offset, limit, asc):
+        '''Return the list of atomicals order by reverse atomical number'''
+        return await self.atomicals_list_get(offset, limit, asc)
+
+    async def atomicals_get(self, compact_atomical_id_or_atomical_number):
+        compact_atomical_id = self.atomical_resolve_id(compact_atomical_id_or_atomical_number)
+        return {'global': await self.get_summary_info(), 'result': await self.atomical_id_get(compact_atomical_id)} 
+
+    async def atomicals_get_global(self, Verbose=False):
+        return {'global': await self.get_summary_info(Verbose)} 
+
+    async def atomicals_get_location(self, compact_atomical_id_or_atomical_number):
+        compact_atomical_id = self.atomical_resolve_id(compact_atomical_id_or_atomical_number)
+        return {'global': await self.get_summary_info(), 'result': await self.atomical_id_get_location(compact_atomical_id)} 
+ 
+    async def atomical_get_state_by_path(self, compact_atomical_id_or_atomical_number, path, Verbose=False):
+        compact_atomical_id = self.atomical_resolve_id(compact_atomical_id_or_atomical_number)
+        return {'global': await self.get_summary_info(), 'result': await self.atomical_id_get_state_by_path(compact_atomical_id, path, Verbose)} 
+    
+    async def atomical_get_state_history(self, compact_atomical_id_or_atomical_number):
+        compact_atomical_id = self.atomical_resolve_id(compact_atomical_id_or_atomical_number)
+        return {'global': await self.get_summary_info(), 'result': await self.atomical_id_get_state_history(compact_atomical_id)} 
+
+    async def atomical_get_events_by_path(self, compact_atomical_id_or_atomical_number, path, Verbose=False):
+        compact_atomical_id = self.atomical_resolve_id(compact_atomical_id_or_atomical_number)
+        return {'global': await self.get_summary_info(), 'result': await self.atomical_id_get_events_by_path(compact_atomical_id, path, Verbose)} 
+    
+    async def atomical_get_events(self, compact_atomical_id_or_atomical_number):
+        compact_atomical_id = self.atomical_resolve_id(compact_atomical_id_or_atomical_number)
+        return {'global': await self.get_summary_info(), 'result': await self.atomical_id_get_events(compact_atomical_id)} 
+
+    def atomical_resolve_id(self, compact_atomical_id_or_atomical_number):
+        compact_atomical_id = compact_atomical_id_or_atomical_number
+        if not isinstance(compact_atomical_id_or_atomical_number, int) and is_compact_atomical_id(compact_atomical_id_or_atomical_number):
+            assert_atomical_id(compact_atomical_id)
+        else:
+            found_atomical_id = self.get_atomical_id_by_atomical_number(compact_atomical_id_or_atomical_number)
+            if not found_atomical_id:
+                raise RPCError(BAD_REQUEST, f'not found atomical: {compact_atomical_id_or_atomical_number}')
+            compact_atomical_id = location_id_bytes_to_compact(found_atomical_id)
+        return compact_atomical_id
+
+    async def atomicals_get_tx_history(self, compact_atomical_id_or_atomical_number):
+        '''Return the history of an Atomical```
+        atomical_id: the mint transaction hash + 'i'<index> of the atomical id
+        verbose: to determine whether to print extended information
+        '''
+        compact_atomical_id = compact_atomical_id_or_atomical_number
+        if isinstance(compact_atomical_id_or_atomical_number, int) != True and is_compact_atomical_id(compact_atomical_id_or_atomical_number):
+            assert_atomical_id(compact_atomical_id)
+        else:
+            compact_atomical_id = location_id_bytes_to_compact(self.get_atomical_id_by_atomical_number(compact_atomical_id_or_atomical_number))
+        return {'global': await self.get_summary_info(), 'result': await self.atomical_id_get_tx_history(compact_atomical_id)} 
+
+    async def atomicals_get_by_ticker(self, ticker):
+        status, candidate_atomical_id, all_entries = self.session_mgr.bp.get_effective_ticker(ticker)
+        formatted_entries = format_name_type_candidates_to_rpc(all_entries, self.session_mgr.bp.build_atomical_id_to_candidate_map(all_entries))
+        
+        if candidate_atomical_id:
+            candidate_atomical_id = location_id_bytes_to_compact(candidate_atomical_id)
+        
+        found_atomical_id = None
+        if status == 'verified':
+            found_atomical_id = candidate_atomical_id
+        
+        return_result = {
+            'status': status, 
+            'candidate_atomical_id': candidate_atomical_id, 
+            'atomical_id': found_atomical_id, 
+            'candidates': formatted_entries, 
+            'type': 'ticker'
+        }
+        return {
+            'result': return_result
+        }
+    async def atomicals_get_by_container(self, container):
+        status, candidate_atomical_id, all_entries = self.session_mgr.bp.get_effective_container(container)
+        formatted_entries = format_name_type_candidates_to_rpc(all_entries, self.session_mgr.bp.build_atomical_id_to_candidate_map(all_entries))
+        
+        if candidate_atomical_id:
+            candidate_atomical_id = location_id_bytes_to_compact(candidate_atomical_id)
+        
+        found_atomical_id = None
+        if status == 'verified':
+            found_atomical_id = candidate_atomical_id
+        
+        return_result = {
+            'status': status, 
+            'candidate_atomical_id': candidate_atomical_id, 
+            'atomical_id': found_atomical_id, 
+            'candidates': formatted_entries, 
+            'type': 'container'
+        }
+        return {
+            'result': return_result
+        }
+
+    async def atomicals_get_by_realm(self, name):
+        status, candidate_atomical_id, all_entries = self.session_mgr.bp.get_effective_realm(name)
+        formatted_entries = format_name_type_candidates_to_rpc(all_entries, self.session_mgr.bp.build_atomical_id_to_candidate_map(all_entries))
+        
+        if candidate_atomical_id:
+            candidate_atomical_id = location_id_bytes_to_compact(candidate_atomical_id)
+        
+        found_atomical_id = None
+        if status == 'verified':
+            found_atomical_id = candidate_atomical_id
+        
+        return_result = {
+            'status': status, 
+            'candidate_atomical_id': candidate_atomical_id, 
+            'atomical_id': found_atomical_id, 
+            'candidates': formatted_entries, 
+            'type': 'realm'
+        }
+        return {
+            'result': return_result
+        }
+
+    async def atomicals_get_by_subrealm(self, parent_compact_atomical_id_or_atomical_number, name):
+        compact_atomical_id_parent = self.atomical_resolve_id(parent_compact_atomical_id_or_atomical_number)
+        atomical_id_parent = compact_to_location_id_bytes(compact_atomical_id_parent)
+        status, candidate_atomical_id, all_entries = self.session_mgr.bp.get_effective_subrealm(atomical_id_parent, name)
+        formatted_entries = format_name_type_candidates_to_rpc(all_entries)
+
+        if candidate_atomical_id:
+            candidate_atomical_id = location_id_bytes_to_compact(candidate_atomical_id)
+        
+        found_atomical_id = None
+        if status == 'verified':
+            found_atomical_id = candidate_atomical_id
+        
+        return_result = {
+            'status': status, 
+            'candidate_atomical_id': candidate_atomical_id, 
+            'atomical_id': found_atomical_id, 
+            'candidates': formatted_entries, 
+            'type': 'subrealm'
+        }
+        return {
+            'result': return_result
+        }
+
+    # Get a summary view of a realm and if it's allowing mints and what parts already existed of a subrealm
+    async def atomicals_get_realm_info(self, full_name, Verbose=False):
+        if not full_name or not isinstance(full_name, str):
+            raise RPCError(BAD_REQUEST, f'invalid input full_name: {full_name}')
+        full_name = full_name.lower()
+        split_names = full_name.split('.')
+        total_name_parts = len(split_names)
+        level = 0
+        last_found_realm_atomical_id = None
+        last_found_realm = None
+        realms_path = []
+        latest_all_entries_candidates = []
+        for name_part in split_names:
+            if level == 0:
+                realm_status, last_found_realm, latest_all_entries_candidates = self.session_mgr.bp.get_effective_realm(name_part)
+            else: 
+                self.logger.info(f'atomicals_get_realm_info {last_found_realm} {name_part}')
+                realm_status, last_found_realm, latest_all_entries_candidates = self.session_mgr.bp.get_effective_subrealm(last_found_realm, name_part)
+            # stops when it does not found the realm component
+            if realm_status != 'verified':
+                break
+            # Save the latest realm (could be the top level realm, or the parent of a subrealm, or even the subrealm itself)
+            last_found_realm_atomical_id = last_found_realm
+            # Add it to the list of paths
+            realms_path.append({
+                'atomical_id': location_id_bytes_to_compact(last_found_realm),
+                'name_part': name_part,
+                'candidates': latest_all_entries_candidates
+            })
+            level += 1
+
+        joined_name = ''
+        is_first_name_part = True
+        for name_element in realms_path:
+            if is_first_name_part:
+                is_first_name_part = False
+            else:
+                joined_name += '.'
+            joined_name +=  name_element['name_part']
+        # Nothing was found
+        realms_path_len = len(realms_path)
+        if realms_path_len == 0:
+            return {'result': {
+                    'atomical_id': None, 
+                    'top_level_realm_atomical_id': None, 
+                    'top_level_realm_name': None, 
+                    'nearest_parent_realm_atomical_id': None, 
+                    'nearest_parent_realm_name': None, 
+                    'request_full_realm_name': full_name, 
+                    'found_full_realm_name': None, 
+                    'missing_name_parts': full_name,
+                    'candidates': format_name_type_candidates_to_rpc(latest_all_entries_candidates, self.session_mgr.bp.build_atomical_id_to_candidate_map(latest_all_entries_candidates)) }
+                }
+        # Populate the subrealm minting rules for a parent atomical
+        that = self 
+        def populate_rules_response_struct(parent_atomical_id, struct_to_populate, Verbose):
+            subrealm_mint_modpath_history = that.db.get_mod_path_history(parent_atomical_id, SUBREALM_MINT_PATH)
+            current_height = that.session_mgr.bp.height
+            current_height_rules = calculate_subrealm_rules_list_as_of_height(current_height, subrealm_mint_modpath_history)
+            next_height = current_height + 1
+            next_height_rules = calculate_subrealm_rules_list_as_of_height(next_height, subrealm_mint_modpath_history)
+            next_2_height = current_height + 2
+            next_2_height_rules = calculate_subrealm_rules_list_as_of_height(next_2_height, subrealm_mint_modpath_history)
+            next_3_height = current_height + 3
+            next_3_height_rules = calculate_subrealm_rules_list_as_of_height(next_3_height, subrealm_mint_modpath_history)
+            nearest_parent_realm_subrealm_mint_allowed = False
+            struct_to_populate['nearest_parent_realm_subrealm_mint_rules'] = {
+                'nearest_parent_realm_atomical_id': location_id_bytes_to_compact(parent_atomical_id),
+                'note': f'Updated rules become effective only after {MINT_SUBREALM_RULES_BECOME_EFFECTIVE_IN_BLOCKS} block confirmations. The \'upcoming_rules\' map key indicates the anticipated height the rule update become effective.',
+                'current_height': current_height,
+                'current_height_rules': current_height_rules,
+                'next_height': next_height,
+                'next_height_rules': next_height_rules,
+                'next_2_height': next_2_height,
+                'next_2_height_rules': next_2_height_rules,
+                'next_3_height': next_3_height,
+                'next_3_height_rules': next_3_height_rules
+            }
+            if Verbose:
+                struct_to_populate['nearest_parent_realm_subrealm_mint_rules']['rules_history'] = subrealm_mint_modpath_history
+            if next_height_rules and len(next_height_rules) > 0:
+                nearest_parent_realm_subrealm_mint_allowed = True
+            struct_to_populate['nearest_parent_realm_subrealm_mint_allowed'] = nearest_parent_realm_subrealm_mint_allowed
+        #
+        #
+        #
+        # At least the top level realm was found if we got this far
+        #
+        #
+        # The number of realms returned and name components is equal, therefore the subrealm was found correctly
+        if realms_path_len == total_name_parts:
+            nearest_parent_realm_atomical_id = None 
+            nearest_parent_realm_name = None
+            top_level_realm = realms_path[0]['atomical_id']
+            top_level_realm_name = realms_path[0]['name_part']
+            if realms_path_len >= 2:
+                nearest_parent_realm_atomical_id = realms_path[-2]['atomical_id']
+                nearest_parent_realm_name = realms_path[-2]['name_part']
+            elif realms_path_len == 1:
+                nearest_parent_realm_atomical_id = top_level_realm
+                nearest_parent_realm_name = top_level_realm_name
+            final_subrealm_name = split_names[-1]
+            applicable_rule_map = self.session_mgr.bp.build_applicable_rule_map(latest_all_entries_candidates, compact_to_location_id_bytes(nearest_parent_realm_atomical_id), final_subrealm_name)
+            return_struct = {
+                'atomical_id': realms_path[-1]['atomical_id'], 
+                'top_level_realm_atomical_id': top_level_realm, 
+                'top_level_realm_name': top_level_realm_name, 
+                'nearest_parent_realm_atomical_id': nearest_parent_realm_atomical_id, 
+                'nearest_parent_realm_name': nearest_parent_realm_name,
+                'request_full_realm_name': full_name,
+                'found_full_realm_name': joined_name,
+                'missing_name_parts': None,
+                'candidates': format_name_type_candidates_to_rpc(latest_all_entries_candidates, self.session_mgr.bp.build_atomical_id_to_candidate_map(latest_all_entries_candidates))
+            }
+            populate_rules_response_struct(compact_to_location_id_bytes(nearest_parent_realm_atomical_id), return_struct, Verbose)
+            return {'result': return_struct}
+        
+        # The number of realms and components do not match, that is because at least the top level realm or intermediate subrealm was found
+        # But the final subrealm does not exist yet
+        # if realms_path_len < total_name_parts:
+        # It is known if we got this far that realms_path_len < total_name_parts
+        nearest_parent_realm_atomical_id = None 
+        nearest_parent_realm_name = None
+        top_level_realm = realms_path[0]['atomical_id']
+        top_level_realm_name = realms_path[0]['name_part']
+        if realms_path_len >= 2:
+            nearest_parent_realm_atomical_id = realms_path[-1]['atomical_id']
+            nearest_parent_realm_name = realms_path[-1]['name_part']
+        elif realms_path_len == 1:
+            nearest_parent_realm_atomical_id = top_level_realm
+            nearest_parent_realm_name = top_level_realm_name
+
+        missing_name_parts = '.'.join(split_names[ len(realms_path):])
+        final_subrealm_name = split_names[-1]
+        applicable_rule_map = self.session_mgr.bp.build_applicable_rule_map(latest_all_entries_candidates, compact_to_location_id_bytes(nearest_parent_realm_atomical_id), final_subrealm_name)
+        return_struct = {
+            'atomical_id': None, 
+            'top_level_realm_atomical_id': top_level_realm, 
+            'top_level_realm_name': top_level_realm_name, 
+            'nearest_parent_realm_atomical_id': nearest_parent_realm_atomical_id, 
+            'nearest_parent_realm_name': nearest_parent_realm_name,
+            'request_full_realm_name': full_name,
+            'found_full_realm_name': joined_name,
+            'missing_name_parts': missing_name_parts,
+            'final_subrealm_name': final_subrealm_name,
+            'candidates': format_name_type_candidates_to_rpc_for_subrealm(latest_all_entries_candidates, self.session_mgr.bp.build_atomical_id_to_candidate_map(latest_all_entries_candidates))
+        }
+        if Verbose:
+            populate_rules_response_struct(compact_to_location_id_bytes(nearest_parent_realm_atomical_id), return_struct, Verbose)
+        return {'result': return_struct}
+
+    # Perform a search for tickers, containers, and realms  
+    def atomicals_search_name_template(self, db_prefix, name_type_str, prefix=None, Reverse=False, Limit=100, Offset=0):
+        search_prefix = b''
+        if prefix:
+            search_prefix = prefix.encode()
+        db_entries = self.db.get_name_entries_template_limited(db_prefix, search_prefix, Reverse, Limit, Offset)
+        formatted_results = []
+        for item in db_entries:
+            obj = {
+                'atomical_id': location_id_bytes_to_compact(item['atomical_id']),
+                'tx_num': item['tx_num']
+            }
+            obj[name_type_str] = item['name']
+            formatted_results.append(obj)
+        return {'result': formatted_results}
+
+    async def atomicals_search_tickers(self, prefix=None, Reverse=False, Limit=100, Offset=0):
+        return self.atomicals_search_name_template(b'tick', 'ticker', prefix, Reverse, Limit, Offset)
+
+    async def atomicals_search_realms(self, prefix=None, Reverse=False, Limit=100, Offset=0):
+        return self.atomicals_search_name_template(b'rlm', 'realm', prefix, Reverse, Limit, Offset)
+
+    async def atomicals_search_subrealms(self, parent_realm_id_compact, prefix=None, Reverse=False, Limit=100, Offset=0):
+        parent_realm_id_long_form = compact_to_location_id_bytes(parent_realm_id_compact)
+        return self.atomicals_search_name_template(b'srlm', 'subrealm', parent_realm_id_long_form + prefix, Reverse, Limit, Offset)
+    
+    async def atomicals_search_containers(self, prefix=None, Reverse=False, Limit=100, Offset=0):
+        return self.atomicals_search_name_template(b'co', 'collection', prefix, Reverse, Limit, Offset)
+ 
+    async def atomicals_at_location(self, compact_location_id):
+        '''Return the Atomicals at a specific location id```
+        '''
+        atomical_basic_infos = []
+        atomicals_found_at_location = self.db.get_atomicals_by_location_extended_info_long_form(compact_to_location_id_bytes(compact_location_id))
+        # atomicals_found_at_location['atomicals']
+        # atomicals_found_at_location['atomicals'].sort(key=lambda x: x['atomical_number'])
+        for atomical_id in atomicals_found_at_location['atomicals']:
+            atomical_basic_info = self.session_mgr.bp.get_atomicals_id_mint_info_basic_struct(atomical_id)
+            atomical_basic_infos.append(atomical_basic_info)
+        return {
+            'location_info': atomicals_found_at_location['location_info'],
+            'atomicals': atomical_basic_infos
+        }
+
+    async def hashX_listscripthash_atomicals(self, hashX, Verbose=False):
+        utxos = await self.db.all_utxos(hashX)
+        utxos = sorted(utxos)
+        # Comment out the utxos for now and add it in later
+        # utxos.extend(await self.mempool.unordered_UTXOs(hashX))
+        self.bump_cost(1.0 + len(utxos) / 50)
+        spends = [] # await self.mempool.potential_spends(hashX)
+        returned_utxos = []
+        atomicals_id_map = {}
+        for utxo in utxos:
+            if (utxo.tx_hash, utxo.tx_pos) in spends:
+                continue
+            atomicals = self.db.get_atomicals_by_utxo(utxo, True)
+            atomicals_basic_infos = []
+            for atomical_id in atomicals: 
+                # This call is efficient in that it's cached underneath
+                # For now we only show the atomical id because it can always be fetched seperately and it will be more efficient
+                atomical_basic_info = await self.session_mgr.bp.get_base_mint_info_rpc_format_by_atomical_id(atomical_id) 
+                atomical_id_compact = location_id_bytes_to_compact(atomical_id)
+                atomicals_id_map[atomical_id_compact] = atomical_basic_info
+                atomicals_basic_infos.append(atomical_id_compact)
+            if Verbose or len(atomicals) > 0:
+                returned_utxos.append({'txid': hash_to_hex_str(utxo.tx_hash),
+                'index': utxo.tx_pos,
+                'vout': utxo.tx_pos,
+                'height': utxo.height, 
+                'value': utxo.value,
+                'atomicals': atomicals_basic_infos})
+ 
+        # Aggregate balances
+        return_struct = {
+            'global': await self.get_summary_info(),
+            'atomicals': {},
+            'utxos': returned_utxos
+        }
+
+        for returned_utxo in returned_utxos: 
+            for atomical_id_entry_compact in returned_utxo['atomicals']:
+                self.logger.info(f'atomical_id_entry_compact {atomical_id_entry_compact}')
+                atomical_id_basic_info = atomicals_id_map[atomical_id_entry_compact]
+                self.logger.info(f'atomical_id_basic_info {atomical_id_basic_info}')
+                atomical_id_ref = atomical_id_basic_info['atomical_id']
+                if return_struct['atomicals'].get(atomical_id_ref) == None: 
+                    return_struct['atomicals'][atomical_id_ref] = {
+                        'atomical_id': atomical_id_ref,
+                        'atomical_number': atomical_id_basic_info['atomical_number'],
+                        'type': atomical_id_basic_info['type'],
+                        'confirmed': 0,
+                        # 'subtype': atomical_id_basic_info.get('subtype'),
+                        'data': atomical_id_basic_info
+                    } 
+                    if atomical_id_basic_info.get('$realm'):
+                        return_struct['atomicals'][atomical_id_ref]['subtype'] = atomical_id_basic_info.get('subtype')
+                        return_struct['atomicals'][atomical_id_ref]['request_realm_status'] = atomical_id_basic_info.get('$request_realm_status')
+                        return_struct['atomicals'][atomical_id_ref]['request_realm'] = atomical_id_basic_info.get('$request_realm')
+                        return_struct['atomicals'][atomical_id_ref]['realm'] = atomical_id_basic_info.get('$realm')
+                        return_struct['atomicals'][atomical_id_ref]['full_realm_name'] = atomical_id_basic_info.get('$full_realm_name')
+                        return_struct['atomicals'][atomical_id_ref]['relns'] = atomical_id_basic_info.get('$relns')
+                    elif atomical_id_basic_info.get('$subrealm'):
+                        return_struct['atomicals'][atomical_id_ref]['subtype'] = atomical_id_basic_info.get('subtype')
+                        return_struct['atomicals'][atomical_id_ref]['request_subrealm_status'] = atomical_id_basic_info.get('$request_subrealm_status')
+                        return_struct['atomicals'][atomical_id_ref]['request_subrealm'] = atomical_id_basic_info.get('$request_subrealm')
+                        return_struct['atomicals'][atomical_id_ref]['parent_realm'] = atomical_id_basic_info.get('$parent_realm')
+                        return_struct['atomicals'][atomical_id_ref]['subrealm'] = atomical_id_basic_info.get('$subrealm')
+                        return_struct['atomicals'][atomical_id_ref]['full_realm_name'] = atomical_id_basic_info.get('$full_realm_name')
+                        return_struct['atomicals'][atomical_id_ref]['relns'] = atomical_id_basic_info.get('$relns')
+                    elif atomical_id_basic_info.get('$ticker'):
+                        return_struct['atomicals'][atomical_id_ref]['subtype'] = atomical_id_basic_info.get('subtype')
+                        return_struct['atomicals'][atomical_id_ref]['ticker_candidates'] = atomical_id_basic_info.get('$ticker_candidates')
+                        return_struct['atomicals'][atomical_id_ref]['request_ticker_status'] =  atomical_id_basic_info.get('$request_ticker_status')
+                        return_struct['atomicals'][atomical_id_ref]['request_ticker'] = atomical_id_basic_info.get('$request_ticker')
+                        return_struct['atomicals'][atomical_id_ref]['ticker'] = atomical_id_basic_info.get('$ticker')
+                    elif atomical_id_basic_info.get('$container'):
+                        return_struct['atomicals'][atomical_id_ref]['subtype'] = atomical_id_basic_info.get('subtype')
+                        return_struct['atomicals'][atomical_id_ref]['request_container_status'] = atomical_id_basic_info.get('$request_container_status')
+                        return_struct['atomicals'][atomical_id_ref]['container'] = atomical_id_basic_info.get('$container')
+                        return_struct['atomicals'][atomical_id_ref]['request_container'] = atomical_id_basic_info.get('$request_container')
+                        return_struct['atomicals'][atomical_id_ref]['relns'] = atomical_id_basic_info.get('$relns')
+                    # Label them as candidates if they were candidates
+                    elif atomical_id_basic_info.get('subtype') == 'request_realm':
+                        return_struct['atomicals'][atomical_id_ref]['subtype'] = atomical_id_basic_info.get('subtype')
+                        return_struct['atomicals'][atomical_id_ref]['request_realm_status'] = atomical_id_basic_info.get('$request_realm_status')
+                        return_struct['atomicals'][atomical_id_ref]['request_realm'] = atomical_id_basic_info.get('$request_realm')
+                        return_struct['atomicals'][atomical_id_ref]['realm_candidates'] = atomical_id_basic_info.get('$realm_candidates')
+                        return_struct['atomicals'][atomical_id_ref]['relns'] = atomical_id_basic_info.get('$relns')
+                    elif atomical_id_basic_info.get('subtype') == 'request_subrealm':
+                        return_struct['atomicals'][atomical_id_ref]['subtype'] = atomical_id_basic_info.get('subtype')
+                        return_struct['atomicals'][atomical_id_ref]['subrealm_candidates'] = atomical_id_basic_info.get('$subrealm_candidates')
+                        return_struct['atomicals'][atomical_id_ref]['request_subrealm_status'] = atomical_id_basic_info.get('$request_subrealm_status')
+                        return_struct['atomicals'][atomical_id_ref]['request_full_realm_name'] = atomical_id_basic_info.get('$request_full_realm_name')
+                        return_struct['atomicals'][atomical_id_ref]['request_subrealm'] = atomical_id_basic_info.get('$request_subrealm')
+                        return_struct['atomicals'][atomical_id_ref]['parent_realm'] = atomical_id_basic_info.get('$parent_realm')
+                        return_struct['atomicals'][atomical_id_ref]['relns'] = atomical_id_basic_info.get('$relns')
+                    elif atomical_id_basic_info.get('subtype') == 'request_container':
+                        return_struct['atomicals'][atomical_id_ref]['subtype'] = atomical_id_basic_info.get('subtype')
+                        return_struct['atomicals'][atomical_id_ref]['container_candidates'] = atomical_id_basic_info.get('$container_candidates')
+                        return_struct['atomicals'][atomical_id_ref]['request_container_status'] = atomical_id_basic_info.get('$request_container_status')
+                        return_struct['atomicals'][atomical_id_ref]['request_container'] = atomical_id_basic_info.get('$request_container')
+                        return_struct['atomicals'][atomical_id_ref]['relns'] = atomical_id_basic_info.get('$relns')
+                    elif atomical_id_basic_info.get('$request_ticker_status'):
+                        return_struct['atomicals'][atomical_id_ref]['subtype'] = atomical_id_basic_info.get('subtype')
+                        return_struct['atomicals'][atomical_id_ref]['ticker_candidates'] = atomical_id_basic_info.get('$ticker_candidates')
+                        return_struct['atomicals'][atomical_id_ref]['request_ticker_status'] =  atomical_id_basic_info.get('$request_ticker_status')
+                        return_struct['atomicals'][atomical_id_ref]['request_ticker'] = atomical_id_basic_info.get('$request_ticker')
+                
+                if returned_utxo['height'] <= 0:
+                    return_struct['atomicals'][atomical_id_ref]['unconfirmed'] += returned_utxo['value']
+                else:
+                    return_struct['atomicals'][atomical_id_ref]['confirmed'] += returned_utxo['value']
+        
+        return return_struct 
+
+    async def atomicals_get_tx(self, txids):
+        return await self.atomical_get_tx(txids)
 
     async def scripthash_get_history(self, scripthash):
         '''Return the confirmed and unconfirmed history of a scripthash.'''
@@ -1527,7 +2115,6 @@ class ElectrumX(SessionBase):
 
     def set_request_handlers(self, ptuple):
         self.protocol_tuple = ptuple
-
         handlers = {
             'blockchain.block.header': self.block_header,
             'blockchain.block.headers': self.block_headers,
@@ -1551,13 +2138,31 @@ class ElectrumX(SessionBase):
             'server.peers.subscribe': self.peers_subscribe,
             'server.ping': self.ping,
             'server.version': self.server_version,
+            # The Atomicals era has begun
+            'blockchain.atomicals.listscripthash': self.atomicals_listscripthash,
+            'blockchain.atomicals.list': self.atomicals_list,
+            'blockchain.atomicals.at_location': self.atomicals_at_location,
+            'blockchain.atomicals.get_location': self.atomicals_get_location,
+            'blockchain.atomicals.get': self.atomicals_get,
+            'blockchain.atomicals.get_global': self.atomicals_get_global,
+            'blockchain.atomicals.get_state_by_path': self.atomical_get_state_by_path,
+            'blockchain.atomicals.get_state_history': self.atomical_get_state_history,
+            'blockchain.atomicals.get_events_by_path': self.atomical_get_events_by_path,
+            'blockchain.atomicals.get_events': self.atomical_get_events,
+            'blockchain.atomicals.get_tx_history': self.atomicals_get_tx_history,
+            'blockchain.atomicals.get_realm_info': self.atomicals_get_realm_info,
+            'blockchain.atomicals.get_by_realm': self.atomicals_get_by_realm,
+            'blockchain.atomicals.get_by_subrealm': self.atomicals_get_by_subrealm,
+            'blockchain.atomicals.get_by_ticker': self.atomicals_get_by_ticker,
+            'blockchain.atomicals.get_by_container': self.atomicals_get_by_container,
+            'blockchain.atomicals.find_tickers': self.atomicals_search_tickers,
+            'blockchain.atomicals.find_realms': self.atomicals_search_realms,
+            'blockchain.atomicals.find_subrealms': self.atomicals_search_subrealms,
+            'blockchain.atomicals.find_containers': self.atomicals_search_containers
         }
-
         if ptuple >= (1, 4, 2):
             handlers['blockchain.scripthash.unsubscribe'] = self.scripthash_unsubscribe
-
         self.request_handlers = handlers
-
 
 class LocalRPC(SessionBase):
     '''A local TCP RPC server session.'''

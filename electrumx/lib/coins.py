@@ -210,7 +210,6 @@ class Coin:
         verlen = len(raw) - 20
         if verlen > 0:
             verbyte, hash160 = raw[:verlen], raw[verlen:]
-
         if verbyte == cls.P2PKH_VERBYTE:
             return cls.hash160_to_P2PKH_script(hash160)
         if verbyte in cls.P2SH_VERBYTES:
@@ -663,6 +662,7 @@ class Bitcoin(BitcoinMixin, Coin):
         'v7o2hkemnt677k3jxcbosmjjxw3p5khjyu7jwv7orfy6rwtkizbshwqd.onion t57001'
         'nf365b5sbzk5j4jreimskffwnfpka7qtamyni5doohoom3g63o5tldad.onion t'
     ]
+    ATOMICALS_ACTIVATION_HEIGHT = 808080
 
     @classmethod
     def warn_old_client_on_tx_broadcast(cls, client_ver):

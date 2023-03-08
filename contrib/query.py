@@ -52,7 +52,7 @@ def arg_to_hashX(coin, arg):
         print(f'Address: {arg}')
         return hashX
     except Base58Error:
-        print(f'Ingoring unknown arg: {arg}')
+        print(f'Ignoring unknown arg: {arg}')
         return None
 
 
