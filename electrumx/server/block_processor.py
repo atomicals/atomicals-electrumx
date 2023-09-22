@@ -1533,18 +1533,39 @@ class BlockProcessor:
         return atomical 
 
     # Get the atomical details base info CACHED wrapper
+    # todo here
     async def get_base_mint_info_rpc_format_by_atomical_id(self, atomical_id):
-        atomical_result = None
-        try:
-            atomical_result = self.atomicals_rpc_format_cache[atomical_id]
-        except KeyError:
-            atomical_result = await self.get_base_mint_info_by_atomical_id_async(atomical_id)
-            # format for the wire format
-            if not atomical_result:
-                return None
-            convert_db_mint_info_to_rpc_mint_info_format(self.coin.header_hash, atomical_result)
-            self.populate_extended_field_summary_atomical_info(atomical_id, atomical_result)
-            self.atomicals_rpc_format_cache[atomical_id] = atomical_result
+        # atomical_result = None
+        # try:
+        #    atomical_result = self.atomicals_rpc_format_cache[atomical_id]
+        # except KeyError:
+        atomical_result = await self.get_base_mint_info_by_atomical_id_async(atomical_id)
+        # format for the wire format
+        if not atomical_result:
+            return None
+        convert_db_mint_info_to_rpc_mint_info_format(self.coin.header_hash, atomical_result)
+        self.populate_extended_field_summary_atomical_info(atomical_id, atomical_result)
+        #     self.atomicals_rpc_format_cache[atomical_id] = atomical_result
+        return atomical_result 
+
+    # Get the atomical details base info CACHED wrapper
+    async def get_dft_mint_info_rpc_format_by_atomical_id(self, atomical_id):
+        # atomical_result = None
+        # try:
+        #    atomical_result = self.atomicals_rpc_format_cache[atomical_id]
+        # except KeyError:
+        atomical_result = await self.get_base_mint_info_by_atomical_id_async(atomical_id)
+        # format for the wire format
+        if not atomical_result:
+            return None
+
+        if atomical_result['type'] != 'FT':
+            raise ValueError(f'get_ft_mint_info_rpc_format_by_atomical_id works only with FT types')
+            return None 
+
+        convert_db_mint_info_to_rpc_mint_info_format(self.coin.header_hash, atomical_result)
+        # self.populate_extended_field_summary_atomical_info(atomical_id, atomical_result)
+        # self.atomicals_rpc_format_cache[atomical_id] = atomical_result
         return atomical_result 
 
     # Get the raw stored mint info in the db
@@ -1865,6 +1886,16 @@ class BlockProcessor:
         mint_height = mint_info_for_ticker['$mint_height']
         if height < mint_height:
             self.logger.info(f'create_or_delete_decentralized_mint_outputs found premature mint operation in {hash_to_hex_str(tx_hash)} for {ticker} in {height} before {mint_height}. Ignoring...')
+            return None
+
+        commit_txid = atomicals_operations_found_at_inputs['commit_txid']
+        commit_tx_num, commit_tx_height = self.get_tx_num_height_from_tx_hash(commit_txid)
+        if not commit_tx_num:
+            self.logger.info(f'create_or_delete_decentralized_mint_output: commit_txid not found for distmint reveal_tx {hash_to_hex_str(commit_txid)}. Skipping...')
+            return None
+        if commit_tx_height < mint_height:
+            raise IndexError('commit tx violation')
+            self.logger.info(f'create_or_delete_decentralized_mint_output: commit_tx_height={commit_tx_height} is less than ATOMICALS_ACTIVATION_HEIGHT. Skipping...')
             return None
 
         expected_output_index = 0

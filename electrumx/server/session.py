@@ -1213,6 +1213,17 @@ class ElectrumX(SessionBase):
             raise RPCError(BAD_REQUEST, f'"{compact_atomical_id}" is not found')
         return atomical_in_mempool
 
+    async def atomical_id_get_dft_info(self, compact_atomical_id):
+        atomical_id = compact_to_location_id_bytes(compact_atomical_id)
+        atomical = await self.session_mgr.bp.get_dft_mint_info_rpc_format_by_atomical_id(atomical_id)
+        if atomical:
+            return atomical
+        # Check mempool
+        atomical_in_mempool = await self.mempool.get_atomical_mint(atomical_id)
+        if atomical_in_mempool == None: 
+            raise RPCError(BAD_REQUEST, f'"{compact_atomical_id}" is not found')
+        return atomical_in_mempool
+
     async def atomical_id_get_state_by_path(self, compact_atomical_id, path, Verbose=False):
         atomical_id = compact_to_location_id_bytes(compact_atomical_id)
         atomical = await self.atomical_id_get(compact_atomical_id)
@@ -1254,7 +1265,11 @@ class ElectrumX(SessionBase):
         await self.db.populate_extended_location_atomical_info(atomical_id, atomical)
         return atomical
 
-    async def get_summary_info(self, Verbose=False):
+    async def get_summary_info(self, atomical_hash_count=10):
+
+        if atomical_hash_count and atomical_hash_count > 2000:
+                atomical_hash_count = 2000
+
         db_height = self.db.db_height
         last_block_hash = self.db.get_atomicals_block_hash(db_height)
         ret = {
@@ -1266,30 +1281,14 @@ class ElectrumX(SessionBase):
             'atomicals_block_tip': last_block_hash,
             'atomical_count': self.db.db_atomical_count
         }
-        if Verbose:
-            lastblock = last_block_hash
-            last2block = self.db.get_atomicals_block_hash(db_height - 1)
-            last3block = self.db.get_atomicals_block_hash(db_height - 2)
-            last4block = self.db.get_atomicals_block_hash(db_height - 3)
-            last5block = self.db.get_atomicals_block_hash(db_height - 4)
-            last6block = self.db.get_atomicals_block_hash(db_height - 5)
-            last7block = self.db.get_atomicals_block_hash(db_height - 6)
-            last8block = self.db.get_atomicals_block_hash(db_height - 7)
-            last9block = self.db.get_atomicals_block_hash(db_height - 8)
-            last10block = self.db.get_atomicals_block_hash(db_height - 9)
 
-            ret['atomicals_block_hashes'] = {}
-            ret['atomicals_block_hashes'][db_height] = lastblock
-            ret['atomicals_block_hashes'][db_height - 1] = last2block
-            ret['atomicals_block_hashes'][db_height - 2] = last3block
-            ret['atomicals_block_hashes'][db_height - 3] = last4block
-            ret['atomicals_block_hashes'][db_height - 4] = last5block
-            ret['atomicals_block_hashes'][db_height - 5] = last6block
-            ret['atomicals_block_hashes'][db_height - 6] = last7block
-            ret['atomicals_block_hashes'][db_height - 7] = last8block
-            ret['atomicals_block_hashes'][db_height - 8] = last9block
-            ret['atomicals_block_hashes'][db_height - 9] = last10block
-
+        list_hashes = {}
+        ret['atomicals_block_hashes'] = {}
+        # ret['atomicals_block_hashes'][db_height] = last_block_hash
+        for i in range(atomical_hash_count):
+            next_db_height = db_height - i
+            nextblockhash = self.db.get_atomicals_block_hash(next_db_height)
+            ret['atomicals_block_hashes'][next_db_height] = nextblockhash
         return ret
 
     async def atomicals_list_get(self, limit, offset, asc):
@@ -1349,8 +1348,16 @@ class ElectrumX(SessionBase):
         compact_atomical_id = self.atomical_resolve_id(compact_atomical_id_or_atomical_number)
         return {'global': await self.get_summary_info(), 'result': await self.atomical_id_get(compact_atomical_id)} 
 
-    async def atomicals_get_global(self, Verbose=False):
-        return {'global': await self.get_summary_info(Verbose)} 
+    async def atomicals_dump(self):
+        self.db.dump()
+        return {'result': True} 
+
+    async def atomicals_get_dft_info(self, compact_atomical_id_or_atomical_number):
+        compact_atomical_id = self.atomical_resolve_id(compact_atomical_id_or_atomical_number)
+        return {'global': await self.get_summary_info(), 'result': await self.atomical_id_get_dft_info(compact_atomical_id)} 
+
+    async def atomicals_get_global(self, hashes=10):
+        return {'global': await self.get_summary_info(hashes)} 
 
     async def atomicals_get_location(self, compact_atomical_id_or_atomical_number):
         compact_atomical_id = self.atomical_resolve_id(compact_atomical_id_or_atomical_number)
@@ -2141,6 +2148,7 @@ class ElectrumX(SessionBase):
             # The Atomicals era has begun
             'blockchain.atomicals.listscripthash': self.atomicals_listscripthash,
             'blockchain.atomicals.list': self.atomicals_list,
+            'blockchain.atomicals.dump': self.atomicals_dump,
             'blockchain.atomicals.at_location': self.atomicals_at_location,
             'blockchain.atomicals.get_location': self.atomicals_get_location,
             'blockchain.atomicals.get': self.atomicals_get,
@@ -2155,6 +2163,7 @@ class ElectrumX(SessionBase):
             'blockchain.atomicals.get_by_subrealm': self.atomicals_get_by_subrealm,
             'blockchain.atomicals.get_by_ticker': self.atomicals_get_by_ticker,
             'blockchain.atomicals.get_by_container': self.atomicals_get_by_container,
+            'blockchain.atomicals.get_dft_info': self.atomicals_get_dft_info,
             'blockchain.atomicals.find_tickers': self.atomicals_search_tickers,
             'blockchain.atomicals.find_realms': self.atomicals_search_realms,
             'blockchain.atomicals.find_subrealms': self.atomicals_search_subrealms,

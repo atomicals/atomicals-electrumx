@@ -1267,6 +1267,11 @@ class DB:
                 'value': last_value
             }
         return {
+            'location_info_obj': {
+                'locations': [
+                    location_info
+                ]
+            },
             'location_info': location_info,
             'atomicals': atomicals_at_location
         }
@@ -1312,12 +1317,14 @@ class DB:
     # In the case of FTs, there can be an unbounded nu mber of maximum active locations (one for each UTXO for all holders)
     # This makees it easy to get all top holders and locations of the token to audit the supply
     async def populate_extended_location_atomical_info(self, atomical_id, atomical):
-        self.logger.info(f'populate_extended_location_atomical_info {atomical_id}')
+        # self.logger.info(f'populate_ext ended_location_atomical_info {atomical_id}')
         def query_location():
-            location_info = []
+            locations = []
             atomical_active_location_key_prefix = b'a' + atomical_id
+            limit = 50
+            counter = 0
             for atomical_active_location_key, atomical_active_location_value in self.utxo_db.iterator(prefix=atomical_active_location_key_prefix):
-                self.logger.info(f'populate_extended_location_atomical_info with value {atomical_id} {atomical_active_location_value}')
+                # self.logger.info(f'populate_extended_location_atomical_info with value {atomical_id} {atomical_active_location_value}')
                 if atomical_active_location_value:
                     location = atomical_active_location_key[1 + ATOMICAL_ID_LEN : 1 + ATOMICAL_ID_LEN + ATOMICAL_ID_LEN]
                     atomical_output_script_key = b'po' + location
@@ -1331,22 +1338,84 @@ class DB:
                     txnum_padding = bytes(8-TXNUM_LEN)
                     tx_num_padded, = unpack_le_uint64(tx_numb + txnum_padding)
                     atomicals_at_location = self.get_atomicals_by_location(location)
-                    location_info.append({
-                        'location': location_id_bytes_to_compact(location),
-                        'txid': hash_to_hex_str(location_tx_hash),
-                        'index': atomical_location_idx,
-                        'scripthash': hash_to_hex_str(location_scripthash),
-                        'value': location_value,
-                        'script': location_script.hex(),
-                        'atomicals_at_location': atomicals_at_location,
-                        'tx_num': tx_num_padded
-                    })
+                    if counter < limit:
+                        locations.append({
+                            'location': location_id_bytes_to_compact(location),
+                            'txid': hash_to_hex_str(location_tx_hash),
+                            'index': atomical_location_idx,
+                            'scripthash': hash_to_hex_str(location_scripthash),
+                            'value': location_value,
+                            'script': location_script.hex(),
+                            'atomicals_at_location': atomicals_at_location,
+                            'tx_num': tx_num_padded
+                        })
+                counter += 1 
+
             # Sort by most recent transactions first
             location_info.sort(key=lambda x: x['tx_num'], reverse=True)
-            atomical['location_info'] = location_info 
+            atomical['location_info_obj'] = {
+                'locations': locations 
+            }
+            atomical['location_info'] = locations
+            atomical['location_counts'] = counter
             self.logger.info(f'populate_extended_location_atomical_info atomical{atomical}')
             return atomical
         return await run_in_thread(query_location)
+
+    def dump(self):
+        i_prefix = b'i'
+        # Print sorted highscores print to file
+        arr = []
+        arrlocs = []
+       
+        file = open('/home/ubuntu/i_prefix.txt', 'w') #write to file
+        for location_key, location_result_value in self.utxo_db.iterator(prefix=i_prefix):
+            arr.append(location_key.hex() + '-' + location_result_value.hex())
+            arrlocs.append(location_key)
+        for item in arr:
+            file.write(item + '\n')
+            
+        file.close() #close file
+
+        filelocs = open('/home/ubuntu/i_prefix_locs.txt', 'w') #write to file
+        counter = 0
+        for item in arrlocs:
+            atomid = item[ 1 + ATOMICAL_ID_LEN : 1 + ATOMICAL_ID_LEN + ATOMICAL_ID_LEN]
+            locid = item[ 1 : 1 + ATOMICAL_ID_LEN]
+            filelocs.write(str(counter) + ': ' + ' locfirst:' + location_id_bytes_to_compact(atomid) + ' for ' +  location_id_bytes_to_compact(locid) + '\n')
+            counter += 1
+        filelocs.close() #close file
+
+        gi_prefix = b'gi'
+        # Print sorted highscores print to file
+        arr = []
+        gfile = open('/home/ubuntu/gi_prefix.txt', 'w') #write to file
+        for location_key, location_result_value in self.utxo_db.iterator(prefix=i_prefix):
+            arr.append(location_key.hex() + '-' + location_result_value.hex())
+        for item in arr:
+            gfile.write(item + '\n')
+        gfile.close() #close file
+
+        gi_prefix = b'a'
+        # Print sorted highscores print to file
+        arr = []
+        arrlocs = []
+        afile = open('/home/ubuntu/a_prefix.txt', 'w') #write to file
+        for location_key, location_result_value in self.utxo_db.iterator(prefix=i_prefix):
+            arr.append(location_key.hex() + '-' + location_result_value.hex())
+            arrlocs.append(location_key)
+        for item in arr:
+            afile.write(item + '\n')
+        afile.close() #close file
+
+        afilelocs = open('/home/ubuntu/a_prefix_locs.txt', 'w') #write to file
+        counter = 0
+        for item in arrlocs:
+            locid = item[ 1 + ATOMICAL_ID_LEN : 1 + ATOMICAL_ID_LEN + ATOMICAL_ID_LEN]
+            atomid = item[ 1 : 1 + ATOMICAL_ID_LEN]
+            afilelocs.write(str(counter) + ': ' + ' atomfirst: ' + location_id_bytes_to_compact(atomid) + ' @ ' +  location_id_bytes_to_compact(locid) + '\n')
+            counter += 1
+        afilelocs.close() #close file
 
     # Populate the latest state of an atomical for a path
     def get_mod_state_path_latest(self, atomical_id, path, Verbose=False):
