@@ -1403,7 +1403,8 @@ class ElectrumX(SessionBase):
         return {'global': await self.get_summary_info(), 'result': await self.atomical_id_get_tx_history(compact_atomical_id)} 
 
     async def atomicals_get_by_ticker(self, ticker):
-        status, candidate_atomical_id, all_entries = self.session_mgr.bp.get_effective_ticker(ticker)
+        height = that.session_mgr.bp.height
+        status, candidate_atomical_id, all_entries = self.session_mgr.bp.get_effective_ticker(ticker, height)
         formatted_entries = format_name_type_candidates_to_rpc(all_entries, self.session_mgr.bp.build_atomical_id_to_candidate_map(all_entries))
         
         if candidate_atomical_id:
@@ -1424,7 +1425,8 @@ class ElectrumX(SessionBase):
             'result': return_result
         }
     async def atomicals_get_by_container(self, container):
-        status, candidate_atomical_id, all_entries = self.session_mgr.bp.get_effective_container(container)
+        height = that.session_mgr.bp.height
+        status, candidate_atomical_id, all_entries = self.session_mgr.bp.get_effective_container(container, height)
         formatted_entries = format_name_type_candidates_to_rpc(all_entries, self.session_mgr.bp.build_atomical_id_to_candidate_map(all_entries))
         
         if candidate_atomical_id:
@@ -1446,7 +1448,8 @@ class ElectrumX(SessionBase):
         }
 
     async def atomicals_get_by_realm(self, name):
-        status, candidate_atomical_id, all_entries = self.session_mgr.bp.get_effective_realm(name)
+        height = that.session_mgr.bp.height
+        status, candidate_atomical_id, all_entries = self.session_mgr.bp.get_effective_realm(name, height)
         formatted_entries = format_name_type_candidates_to_rpc(all_entries, self.session_mgr.bp.build_atomical_id_to_candidate_map(all_entries))
         
         if candidate_atomical_id:
@@ -1468,9 +1471,10 @@ class ElectrumX(SessionBase):
         }
 
     async def atomicals_get_by_subrealm(self, parent_compact_atomical_id_or_atomical_number, name):
+        height = that.session_mgr.bp.height
         compact_atomical_id_parent = self.atomical_resolve_id(parent_compact_atomical_id_or_atomical_number)
         atomical_id_parent = compact_to_location_id_bytes(compact_atomical_id_parent)
-        status, candidate_atomical_id, all_entries = self.session_mgr.bp.get_effective_subrealm(atomical_id_parent, name)
+        status, candidate_atomical_id, all_entries = self.session_mgr.bp.get_effective_subrealm(atomical_id_parent, name, height)
         formatted_entries = format_name_type_candidates_to_rpc(all_entries)
 
         if candidate_atomical_id:

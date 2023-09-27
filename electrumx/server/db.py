@@ -218,7 +218,7 @@ class DB:
         # Value: location
         # "maps whether atomical id was sealed at a location"
         # ---
-        # Key: b'ah' + height
+        # Key: b'tt' + height
         # Value: atomical header
         # "maps block height to an atomical header"
         #
@@ -1286,7 +1286,7 @@ class DB:
 
     # Get atomicals hash by height
     def get_atomicals_block_hash(self, height):
-        atomicals_block_hash_key = b'ah' + pack_le_uint32(height)
+        atomicals_block_hash_key = b'tt' + pack_le_uint32(height)
         abh = self.utxo_db.get(atomicals_block_hash_key)
         if abh:
             return hash_to_hex_str(abh)

@@ -53,8 +53,6 @@ from electrumx.lib.util_atomicals import (
     is_atomical_id_long_form_string, 
     unpack_mint_info, 
     parse_protocols_operations_from_witness_array, 
-    get_expected_output_index_of_atomical_nft, 
-    get_expected_output_indexes_of_atomical_ft, 
     location_id_bytes_to_compact, 
     is_valid_subrealm_string_name, 
     is_valid_realm_string_name, 
@@ -62,8 +60,10 @@ from electrumx.lib.util_atomicals import (
     get_mint_info_op_factory,
     convert_db_mint_info_to_rpc_mint_info_format,
     create_collapsed_height_to_mod_path_history_items_map,
-    calculate_subrealm_rules_list_as_of_height,
-    validate_subrealm_rules_outputs_format
+    calculate_subrealm_rules_list_as_of_height, 
+    validate_subrealm_rules_outputs_format,
+    calculate_outputs_to_color_for_atomical_ids,
+    build_reverse_output_to_atomical_id_map
 )
 
 if TYPE_CHECKING:
@@ -843,7 +843,7 @@ class BlockProcessor:
             return unpacked_tx_num, unpacked_height
         return self.db.get_tx_num_height_from_tx_hash(tx_hash)
 
-    def create_or_delete_realm_entry_if_requested(self, mint_info, Delete=False):
+    def create_or_delete_realm_entry_if_requested(self, mint_info, height, Delete=False):
         request_realm = mint_info.get('$request_realm')
         if not request_realm:
             # No name was requested, consider the operation successful noop
@@ -851,7 +851,7 @@ class BlockProcessor:
         if not is_valid_realm_string_name(request_realm):
             return False 
         # Also check that there is no candidates already committed earlier than the current one
-        status, atomical_id, candidates = self.get_effective_realm(request_realm)
+        status, atomical_id, candidates = self.get_effective_realm(request_realm, height)
         for candidate in candidates:
             if candidate['tx_num'] < mint_info['commit_tx_num']:
                 return False
@@ -861,7 +861,7 @@ class BlockProcessor:
             self.put_name_element_template(b'rlm', b'', request_realm, mint_info['commit_tx_num'], mint_info['id'], self.realm_data_cache)
         return True 
     
-    def create_or_delete_container_entry_if_requested(self, mint_info, Delete=False):
+    def create_or_delete_container_entry_if_requested(self, mint_info, height, Delete=False):
         request_container = mint_info.get('$request_container')
         if not request_container:
             # No name was requested, consider the operation successful noop
@@ -871,7 +871,7 @@ class BlockProcessor:
             return False 
         
         # Also check that there is no candidates already committed earlier than the current one
-        status, atomical_id, candidates = self.get_effective_container(request_container)
+        status, atomical_id, candidates = self.get_effective_container(request_container, height)
         for candidate in candidates:
             if candidate['tx_num'] < mint_info['commit_tx_num']:
                 return False
@@ -881,7 +881,7 @@ class BlockProcessor:
             self.put_name_element_template(b'co', b'', request_container, mint_info['commit_tx_num'], mint_info['id'], self.container_data_cache)
         return True 
 
-    def create_or_delete_ticker_entry_if_requested(self, mint_info, Delete=False):
+    def create_or_delete_ticker_entry_if_requested(self, mint_info, height, Delete=False):
         request_ticker = mint_info.get('$request_ticker')
         if not request_ticker:
             # No name was requested, consider the operation successful noop
@@ -892,7 +892,7 @@ class BlockProcessor:
         
         self.logger.info(f'create_or_delete_ticker_entry_if_requested: request_ticker={request_ticker}')
         # Also check that there is no candidates already committed earlier than the current one
-        status, atomical_id, candidates = self.get_effective_ticker(request_ticker)
+        status, atomical_id, candidates = self.get_effective_ticker(request_ticker, height)
         for candidate in candidates:
             candidate_tx_num = candidate['tx_num']
             mint_info_commit_tx_num = mint_info['commit_tx_num']
@@ -906,13 +906,13 @@ class BlockProcessor:
         return True 
  
     # Create the subrealm entry if requested correctly
-    def create_or_delete_subrealm_entry_if_requested(self, mint_info, atomicals_spent_at_inputs, Delete=False): 
+    def create_or_delete_subrealm_entry_if_requested(self, mint_info, atomicals_spent_at_inputs, height, Delete=False): 
         parent_realm_id, initiated_by_parent = self.get_subrealm_parent_realm_info(mint_info, atomicals_spent_at_inputs)
         if parent_realm_id:
             request_subrealm = mint_info.get('$request_subrealm')
             self.logger.info(f'create_or_delete_subrealm_entry_if_requested: request_subrealm={request_subrealm}')
             # Also check that there is no candidates already committed earlier than the current one
-            status, atomical_id, candidates = self.get_effective_subrealm(parent_realm_id, request_subrealm)
+            status, atomical_id, candidates = self.get_effective_subrealm(parent_realm_id, request_subrealm, height)
             if status and status == 'verified':
                 self.logger.info(f'create_or_delete_subrealm_entry_if_requested: verified_already_exists, parent_realm_id {parent_realm_id}, request_subrealm={request_subrealm} ')
                 # Do not attempt to mint subrealm if there is one verified already
@@ -1051,13 +1051,13 @@ class BlockProcessor:
                     return None
 
             # Ensure that the creates are noops or successful
-            if not self.create_or_delete_realm_entry_if_requested(mint_info, Delete):
+            if not self.create_or_delete_realm_entry_if_requested(mint_info, height, Delete):
                 return None
 
-            if not self.create_or_delete_container_entry_if_requested(mint_info, Delete):
+            if not self.create_or_delete_container_entry_if_requested(mint_info, height, Delete):
                 return None
 
-            if not self.create_or_delete_subrealm_entry_if_requested(mint_info, atomicals_spent_at_inputs, Delete):
+            if not self.create_or_delete_subrealm_entry_if_requested(mint_info, atomicals_spent_at_inputs, height, Delete):
                 return None
 
             if not Delete:
@@ -1072,7 +1072,7 @@ class BlockProcessor:
             else: 
                 mint_info['$max_supply'] = txout.value
             
-            if not self.create_or_delete_ticker_entry_if_requested(mint_info, Delete):
+            if not self.create_or_delete_ticker_entry_if_requested(mint_info, height, Delete):
                 return None
             
             if not Delete:
@@ -1229,17 +1229,140 @@ class BlockProcessor:
                     0,
                     Delete
                 )
-             
-    # Apply the rules to color the outputs of the atomicals
-    def color_atomicals_outputs(self, operations_found_at_inputs, atomicals_spent_at_inputs, tx, tx_hash, tx_num, height, is_unspendable):
+
+    # Color the NFT atomicals with splat command
+    def color_nft_atomicals_splat(self, nft_atomicals, tx_hash, tx, tx_num, atomical_ids_touched):
+        # Splat takes all of the NFT atomicals across all inputs (including multiple atomicals at the same utxo) 
+        # and then seperates them into their own distinctive output such that the result of the operation is no two atomicals
+        # will share a resulting output. This operation requires that there are at least as many outputs as there are NFT atomicals
+        # If there are not enough, then this is considered a noop. 
+        # If there are enough outputs, then the earliest atomical (sorted lexicographically in ascending order) goes to the 0'th output,
+        # then the second atomical goes to the 1'st output, etc until all atomicals are assigned to their own output.
+        expected_output_index_incrementing = 0 # Begin assigning splatted atomicals at the 0'th index
+        for atomical_id, mint_info in sorted(nft_atomicals.items()):
+            expected_output_index = expected_output_index_incrementing
+            if expected_output_index_incrementing >= len(tx.outputs) or is_unspendable_genesis(tx.outputs[expected_output_index_incrementing].pk_script):
+                expected_output_index = 0
+            output_idx_le = pack_le_uint32(expected_output_index)
+            location = tx_hash + output_idx_le
+            txout = tx.outputs[expected_output_index]
+            scripthash = double_sha256(txout.pk_script)
+            hashX = self.coin.hashX_from_script(txout.pk_script)
+            value_sats = pack_le_uint64(txout.value)
+            put_general_data = self.general_data_cache.__setitem__
+            put_general_data(b'po' + location, txout.pk_script)
+            tx_numb = pack_le_uint64(tx_num)[:TXNUM_LEN]
+            self.put_atomicals_utxo(location, atomical_id, hashX + scripthash + value_sats + tx_numb)
+            atomical_ids_touched.append(atomical_id)
+            expected_output_index_incrementing += 1 
+
+    def color_nft_atomicals_regular(self, operations_found_at_inputs, nft_atomicals, tx_hash, tx, tx_num, atomical_ids_touched, height):
+        put_general_data = self.general_data_cache.__setitem__
+        # Process NFTs the normal way if splat was not requested or if the splat is invalid because there were not enough outputs
+        for atomical_id, mint_info in nft_atomicals.items():
+            if len(mint_info['input_indexes']) > 1:
+                raise IndexError(f'atomical location len is greater than 1. Critical developer or index error. AtomicalId={atomical_id.hex()}')
+            # The expected output index is equal to the input index...
+            expected_output_index = mint_info['input_indexes'][0]
+            # If it was unspendable output, then just set it to the 0th location
+            # ...and never allow an NFT atomical to be burned accidentally by having insufficient number of outputs either
+            # The expected output index will become the 0'th index if the 'x' extract operation was specified or there are insufficient outputs
+            if expected_output_index >= len(tx.outputs) or is_unspendable_genesis(tx.outputs[expected_output_index].pk_script):
+                expected_output_index = 0
+            # If this was the 'split' (y) command, then also move them to the 0th output
+            if operations_found_at_inputs and operations_found_at_inputs.get('op') == 'y' and operations_found_at_inputs.get('input_index') == 0:
+                expected_output_index = 0
+                
+            output_idx_le = pack_le_uint32(expected_output_index)
+            location = tx_hash + output_idx_le
+            txout = tx.outputs[expected_output_index]
+            scripthash = double_sha256(txout.pk_script)
+            hashX = self.coin.hashX_from_script(txout.pk_script)
+            value_sats = pack_le_uint64(txout.value)
+            put_general_data(b'po' + location, txout.pk_script)
+            self.put_or_delete_state_updates(operations_found_at_inputs, mint_info['atomical_id'], tx_num, tx_hash, output_idx_le, height, 0)
+            self.put_or_delete_state_updates(operations_found_at_inputs, mint_info['atomical_id'], tx_num, tx_hash, output_idx_le, height, 1)
+            # Only allow NFTs to be sealed.
+            # Useful for locking container collections, locking parent realms, and even locking any NFT atomical permanently
+            was_sealed = self.put_or_delete_sealed(operations_found_at_inputs, mint_info['atomical_id'], location)
+            if not was_sealed:
+                # Only advance the UTXO if it was not sealed
+                tx_numb = pack_le_uint64(tx_num)[:TXNUM_LEN]
+                self.put_atomicals_utxo(location, atomical_id, hashX + scripthash + value_sats + tx_numb)
+            atomical_ids_touched.append(atomical_id)
+
+    def color_ft_atomicals_split(self, ft_atomicals, tx_hash, tx, operations_found_at_inputs, atomical_ids_touched):
+        for atomical_id, mint_info in sorted(ft_atomicals.items()):
+            expected_output_indexes = []
+            remaining_value = mint_info['value']
+            # The FT type has the 'skip' (y) method which allows us to selectively skip a certain total number of token units (satoshis)
+            # before beginning to color the outputs.
+            # Essentially this makes it possible to "split" out multiple FT's located at the same input
+            # If the input at index 0 has the skip operation, then it will apply for the atomical token generally across all inputs and the first output will be skipped
+            total_amount_to_skip = 0
+            # Uses the compact form of atomical id as the keys for developer convenience
+            compact_atomical_id = location_id_bytes_to_compact(atomical_id)
+            total_amount_to_skip_potential = operations_found_at_inputs.get('payload').get(compact_atomical_id)
+            # Sanity check to ensure it is a non-negative integer
+            if isinstance(total_amount_to_skip_potential, int) and total_amount_to_skip_potential >= 0:
+                total_amount_to_skip = total_amount_to_skip_potential
+            total_skipped_so_far = 0
+            for out_idx, txout in enumerate(tx.outputs): 
+                # If the first output should be skipped and we have not yet done so, then skip/ignore it
+                if total_amount_to_skip > 0 and total_skipped_so_far < total_amount_to_skip:
+                    total_skipped_so_far += txout.value 
+                    continue 
+                # For all remaining outputs attach colors as long as there is adequate remaining_value left to cover the entire output value
+                if txout.value <= remaining_value:
+                    expected_output_indexes.append(out_idx)
+                    remaining_value -= txout.value
+                # Exit case when we have no more remaining_value to assign or the next output is greater than what we have in remaining_value
+                if txout.value > remaining_value or remaining_value <= 0:
+                    break
+            # For each expected output to be colored, check for state-like updates
+            for expected_output_index in expected_output_indexes:
+                self.build_put_atomicals_utxo(atomical_id, tx_hash, tx, tx_num, expected_output_index)
+            atomical_ids_touched.append(atomical_id)
+    
+    def color_ft_atomicals_regular(self, ft_atomicals, tx_hash, tx, tx_num, operations_found_at_inputs, atomical_ids_touched):
+        atomical_id_to_expected_outs_map = calculate_outputs_to_color_for_atomical_ids(ft_atomicals, tx)
+        if not atomical_id_to_expected_outs_map:
+            return 
+        sanity_check_sums = {}
+        for atomical_id, outputs_to_color in atomical_id_to_expected_outs_map.items():
+            sanity_check_sums[atomical_id] = 0
+            for expected_output_index in outputs_to_color:
+                self.build_put_atomicals_utxo(atomical_id, tx_hash, tx, tx_num, expected_output_index)
+                sanity_check_sums[atomical_id] += tx.outputs[expected_output_index].value
+            atomical_ids_touched.append(atomical_id)
+        # Sanity check that there can be no inflation
+        for atomical_id, ft_info in sorted(ft_atomicals.items()):
+            sum_out_value = sanity_check_sums.get(atomical_id)
+            input_value = ft_info['value']
+            if sum_out_value and sum_out_value > input_value:
+                atomical_id_compact = location_id_bytes_to_compact(atomical_id)
+                self.logger.info(f'atomical_id={atomical_id_compact} input_value={input_value} sum_out_value={sum_out_value} {hash_to_hex_str(tx_hash)}')
+                raise IndexError(f'Fatal error the output sum of outputs is greater than input sum for Atomical: atomical_id={atomical_id_compact} input_value={input_value} sum_out_value={sum_out_value} {hash_to_hex_str(tx_hash)}')
+
+    def build_put_atomicals_utxo(self, atomical_id, tx_hash, tx, tx_num, out_idx):
+        output_idx_le = pack_le_uint32(out_idx)
+        location = tx_hash + output_idx_le
+        txout = tx.outputs[out_idx]
+        scripthash = double_sha256(txout.pk_script)
+        hashX = self.coin.hashX_from_script(txout.pk_script)
+        value_sats = pack_le_uint64(txout.value)
+        put_general_data = self.general_data_cache.__setitem__
+        put_general_data(b'po' + location, txout.pk_script)
+        tx_numb = pack_le_uint64(tx_num)[:TXNUM_LEN]
+        self.put_atomicals_utxo(location, atomical_id, hashX + scripthash + value_sats + tx_numb)
+    
+    def build_atomical_type_structs(self, atomicals_spent_at_inputs):
         put_general_data = self.general_data_cache.__setitem__
         map_atomical_ids_to_info = {}
-        atomical_ids_touched = []
         for txin_index, atomicals_entry_list in atomicals_spent_at_inputs.items():
             # Accumulate the total input value by atomical_id
             # The value will be used below to determine the amount of input we can allocate for FT's
             self.build_atomical_id_info_map(map_atomical_ids_to_info, atomicals_entry_list, txin_index)
-        
         # Group the atomicals by NFT and FT for easier handling
         # Also store them in a dict 
         nft_atomicals = {}
@@ -1251,145 +1374,29 @@ class BlockProcessor:
                 ft_atomicals[atomical_id] = mint_info
             else:
                 raise IndexError(f'color_atomicals_outputs: Invalid type. IndexError')
-        
-        splat_nft_atomicals = operations_found_at_inputs and operations_found_at_inputs['op'] == 'x' and operations_found_at_inputs['input_index'] == 0
-        if splat_nft_atomicals and len(nft_atomicals.keys()) > 0:
-            # Splat takes all of the NFT atomicals across all inputs (including multiple atomicals at the same utxo) 
-            # and then seperates them into their own distinctive output such that the result of the operation is no two atomicals
-            # will share a resulting output. This operation requires that there are at least as many outputs as there are NFT atomicals
-            # If there are not enough, then this is considered a noop. 
-            # If there are enough outputs, then the earliest atomical (sorted lexicographically in ascending order) goes to the 0'th output,
-            # then the second atomical goes to the 1'st output, etc until all atomicals are assigned to their own output.
-            expected_output_index_incrementing = 0 # Begin assigning splatted atomicals at the 0'th index
-            for atomical_id, mint_info in sorted(nft_atomicals.items()):
-                expected_output_index = expected_output_index_incrementing
-                if expected_output_index_incrementing >= len(tx.outputs) or is_unspendable(tx.outputs[expected_output_index_incrementing].pk_script):
-                    expected_output_index = 0
-                output_idx_le = pack_le_uint32(expected_output_index)
-                location = tx_hash + output_idx_le
-                txout = tx.outputs[expected_output_index]
-                scripthash = double_sha256(txout.pk_script)
-                hashX = self.coin.hashX_from_script(txout.pk_script)
-                value_sats = pack_le_uint64(txout.value)
-                put_general_data(b'po' + location, txout.pk_script)
-                tx_numb = pack_le_uint64(tx_num)[:TXNUM_LEN]
-                self.put_atomicals_utxo(location, atomical_id, hashX + scripthash + value_sats + tx_numb)
+        return nft_atomicals,ft_atomicals 
+          
+    # Apply the rules to color the outputs of the atomicals
+    def color_atomicals_outputs(self, operations_found_at_inputs, atomicals_spent_at_inputs, tx, tx_hash, tx_num, height, is_unspendable):
+        # Get the nft atomicals versus ft atomical
+        nft_atomicals, ft_atomicals =  self.build_atomical_type_structs(atomicals_spent_at_inputs)
 
-                expected_output_index_incrementing += 1 
-        else: 
-            # Process NFTs the normal way if splat was not requested or if the splat is invalid because there were not enough outputs
-            for atomical_id, mint_info in nft_atomicals.items():
-                if len(mint_info['input_indexes']) > 1:
-                    raise IndexError(f'atomical location len is greater than 1. Critical developer or index error. AtomicalId={atomical_id.hex()}')
-                # The expected output index is equal to the input index...
-                expected_output_index = mint_info['input_indexes'][0]
-                # If it was unspendable output, then just set it to the 0th location
-                # ...and never allow an NFT atomical to be burned accidentally by having insufficient number of outputs either
-                # The expected output index will become the 0'th index if the 'x' extract operation was specified or there are insufficient outputs
-                if expected_output_index >= len(tx.outputs) or is_unspendable(tx.outputs[expected_output_index].pk_script):
-                    expected_output_index = 0
-                # If this was the 'split' (y) command, then also move them to the 0th output
-                if operations_found_at_inputs and operations_found_at_inputs.get('op') == 'y' and operations_found_at_inputs.get('input_index') == 0:
-                    expected_output_index = 0
-                    
-                output_idx_le = pack_le_uint32(expected_output_index)
-                location = tx_hash + output_idx_le
-                txout = tx.outputs[expected_output_index]
-                scripthash = double_sha256(txout.pk_script)
-                hashX = self.coin.hashX_from_script(txout.pk_script)
-                value_sats = pack_le_uint64(txout.value)
-                put_general_data(b'po' + location, txout.pk_script)
-                self.put_or_delete_state_updates(operations_found_at_inputs, mint_info['atomical_id'], tx_num, tx_hash, output_idx_le, height, 0)
-                self.put_or_delete_state_updates(operations_found_at_inputs, mint_info['atomical_id'], tx_num, tx_hash, output_idx_le, height, 1)
-                # Only allow NFTs to be sealed.
-                # Useful for locking container collections, locking parent realms, and even locking any NFT atomical permanently
-                was_sealed = self.put_or_delete_sealed(operations_found_at_inputs, mint_info['atomical_id'], location)
-                if not was_sealed:
-                    # Only advance the UTXO if it was not sealed
-                    tx_numb = pack_le_uint64(tx_num)[:TXNUM_LEN]
-                    self.put_atomicals_utxo(location, atomical_id, hashX + scripthash + value_sats + tx_numb)
-                atomical_ids_touched.append(atomical_id)
-
-        # Handle the FTs for the split case
-        if operations_found_at_inputs and operations_found_at_inputs.get('op') == 'y' and operations_found_at_inputs.get('input_index') == 0 and operations_found_at_inputs.get('payload'):  
-            self.logger.info(f'split_utxo_ft')
-            for atomical_id, mint_info in sorted(ft_atomicals.items()):
-                expected_output_indexes = []
-                remaining_value = mint_info['value']
-                # The FT type has the 'skip' (y) method which allows us to selectively skip a certain total number of token units (satoshis)
-                # before beginning to color the outputs.
-                # Essentially this makes it possible to "split" out multiple FT's located at the same input
-                # If the input at index 0 has the skip operation, then it will apply for the atomical token generally across all inputs and the first output will be skipped
-                total_amount_to_skip = 0
-                # Uses the compact form of atomical id as the keys for developer convenience
-                compact_atomical_id = location_id_bytes_to_compact(atomical_id)
-                total_amount_to_skip_potential = operations_found_at_inputs.get('payload').get(compact_atomical_id)
-                # Sanity check to ensure it is a non-negative integer
-                if isinstance(total_amount_to_skip_potential, int) and total_amount_to_skip_potential >= 0:
-                    total_amount_to_skip = total_amount_to_skip_potential
-                total_skipped_so_far = 0
-                for out_idx, txout in enumerate(tx.outputs): 
-                    # If the first output should be skipped and we have not yet done so, then skip/ignore it
-                    if total_amount_to_skip > 0 and total_skipped_so_far < total_amount_to_skip:
-                        total_skipped_so_far += txout.value 
-                        continue 
-                    # For all remaining outputs attach colors as long as there is adequate remaining_value left to cover the entire output value
-                    if txout.value <= remaining_value:
-                        expected_output_indexes.append(out_idx)
-                        remaining_value -= txout.value
-                    else: 
-                        # Since one of the inputs was not less than or equal to the remaining value, then stop assigning outputs. The remaining coins are burned. RIP.
-                        break
-                # For each expected output to be colored, check for state-like updates
-                for expected_output_index in expected_output_indexes:
-                    output_idx_le = pack_le_uint32(expected_output_index)
-                    location = tx_hash + output_idx_le
-                    txout = tx.outputs[expected_output_index]
-                    scripthash = double_sha256(txout.pk_script)
-                    hashX = self.coin.hashX_from_script(txout.pk_script)
-                    value_sats = pack_le_uint64(txout.value)
-                    put_general_data(b'po' + location, txout.pk_script)
-                    tx_numb = pack_le_uint64(tx_num)[:TXNUM_LEN]
-                    self.put_atomicals_utxo(location, atomical_id, hashX + scripthash + value_sats + tx_numb)
-                atomical_ids_touched.append(atomical_id)
+        atomical_ids_touched = []
+        should_splat_nft_atomicals = operations_found_at_inputs and operations_found_at_inputs['op'] == 'x' and operations_found_at_inputs['input_index'] == 0
+        if should_splat_nft_atomicals and len(nft_atomicals.keys()) > 0:
+            self.color_nft_atomicals_splat(nft_atomicals, tx_hash, tx, tx_num, atomical_ids_touched)  
         else:
-            total_amount_to_skip = 0
-            fts_count = 0
-            for atomical_id, mint_info in sorted(ft_atomicals.items()):
-                fts_count += 1
-                expected_output_indexes = []
-                remaining_value = mint_info['value']
-                total_skipped_so_far = 0
-                for out_idx, txout in enumerate(tx.outputs): 
-                    # If the first output should be skipped and we have not yet done so, then skip/ignore it
-                    if total_amount_to_skip > 0 and total_skipped_so_far < total_amount_to_skip:
-                        total_skipped_so_far += txout.value 
-                        continue 
-                    # For all remaining outputs attach colors as long as there is adequate remaining_value left to cover the entire output value
-                    if txout.value <= remaining_value:
-                        expected_output_indexes.append(out_idx)
-                        remaining_value -= txout.value
-                    else: 
-                        # Since one of the inputs was not less than or equal to the remaining value, then stop assigning outputs. The remaining coins are burned. RIP.
-                        break
-                # For each expected output to be colored, check for state-like updates
-                for expected_output_index in expected_output_indexes:
-                    output_idx_le = pack_le_uint32(expected_output_index)
-                    location = tx_hash + output_idx_le
-                    txout = tx.outputs[expected_output_index]
-                    scripthash = double_sha256(txout.pk_script)
-                    hashX = self.coin.hashX_from_script(txout.pk_script)
-                    value_sats = pack_le_uint64(txout.value)
-                    put_general_data(b'po' + location, txout.pk_script)
-                    tx_numb = pack_le_uint64(tx_num)[:TXNUM_LEN]
-                    self.put_atomicals_utxo(location, atomical_id, hashX + scripthash + value_sats + tx_numb)
-                atomical_ids_touched.append(atomical_id)
-                total_amount_to_skip += mint_info['value']
-                self.logger.info(f'fts_count_loop {location_id_bytes_to_compact(atomical_id)}')
-            if fts_count > 1:
-                self.logger.info(f'critical_fts_count_gt {hash_to_hex_str(tx_hash)} {fts_count}')
+            self.color_nft_atomicals_regular(operations_found_at_inputs, nft_atomicals, tx_hash, tx, tx_num, atomical_ids_touched, height)  
+            
+        # Handle the FTs for the split case
+        should_split_ft_atomicals = operations_found_at_inputs and operations_found_at_inputs.get('op') == 'y' and operations_found_at_inputs.get('input_index') == 0 and operations_found_at_inputs.get('payload')
+        if should_split_ft_atomicals:
+            self.color_ft_atomicals_split(ft_atomicals, tx_hash, tx, tx_num, operations_found_at_inputs, atomical_ids_touched)
+        else:
+            self.color_ft_atomicals_regular(ft_atomicals, tx_hash, tx, tx_num, operations_found_at_inputs, atomical_ids_touched)
+        
         return atomical_ids_touched
-    
+
     # Create or delete data that was found at the location
     def create_or_delete_data_location(self, tx_hash, operations_found_at_inputs, Delete=False):
         if not operations_found_at_inputs or operations_found_at_inputs['op'] != 'dat':
@@ -1473,20 +1480,20 @@ class BlockProcessor:
         return pow_result['pow_commit'] or pow_result['pow_reveal'] 
 
     # Get the effective realm considering cache and database
-    def get_effective_realm(self, realm_name):
-        return self.get_effective_name_template(b'rlm', realm_name, self.realm_data_cache)
+    def get_effective_realm(self, realm_name, height):
+        return self.get_effective_name_template(b'rlm', realm_name, height, self.realm_data_cache)
 
     # Get the effective container considering cache and database
-    def get_effective_container(self, container_name):
-        return self.get_effective_name_template(b'co', container_name, self.container_data_cache)
+    def get_effective_container(self, container_name, height):
+        return self.get_effective_name_template(b'co', container_name, height, self.container_data_cache)
     
     # Get the effective ticker considering cache and database
-    def get_effective_ticker(self, ticker_name):
-        return self.get_effective_name_template(b'tick', ticker_name, self.ticker_data_cache)
+    def get_effective_ticker(self, ticker_name, height):
+        return self.get_effective_name_template(b'tick', ticker_name, height, self.ticker_data_cache)
 
     # Get the effective subrealm
-    def get_effective_subrealm(self, parent_realm_id, subrealm_name):
-        current_height = self.height
+    def get_effective_subrealm(self, parent_realm_id, subrealm_name, height):
+        current_height = height
         db_prefix = b'srlm'
         # Get the effective name entries from the database
         all_entries = []
@@ -1545,8 +1552,8 @@ class BlockProcessor:
         return None, None, all_entries
 
     # Get the effective name for realms, containers, and tickers. Does NOT work for subrealms, use the get_effective_subrealm method directly
-    def get_effective_name_template(self, db_prefix, subject, name_data_cache):
-        current_height = self.height
+    def get_effective_name_template(self, db_prefix, subject, height, name_data_cache):
+        current_height = height
         # Get the effective name entries from the database
         all_entries = []
         # ex: Key: b'rlm' + name bytes + commit_tx_num
@@ -1574,6 +1581,8 @@ class BlockProcessor:
             # Only consider the name as valid if the required MINT_REALM_CONTAINER_TICKER_COMMIT_REVEAL_DELAY_BLOCKS has elapsed from the earliest
             # commit. We use this technique to ensure that any front running problems would have been resolved by then
             # And anyone who committed a name transaction had sufficient time to reveal it.
+            ch = mint_info['commit_height']
+            self.logger.info(f'get_effective_name_template ch={ch} current_height={current_height} {MINT_REALM_CONTAINER_TICKER_COMMIT_REVEAL_DELAY_BLOCKS}')
             if mint_info['commit_height'] <= current_height - MINT_REALM_CONTAINER_TICKER_COMMIT_REVEAL_DELAY_BLOCKS:
                 return 'verified', atomical_id, all_entries
             else: 
@@ -1837,7 +1846,8 @@ class BlockProcessor:
         if not request_name:
             self.logger.info(f'populate_name_subtype_specific_fields: not request_name')
             return None, None
-        status, candidate_id, raw_candidate_entries = get_effective_name_func(request_name)
+        height = self.height
+        status, candidate_id, raw_candidate_entries = get_effective_name_func(request_name, height)
         atomical['$' + type_str + '_candidates'] = format_name_type_candidates_to_rpc(raw_candidate_entries, self.build_atomical_id_to_candidate_map(raw_candidate_entries))
         atomical['$request_' + type_str + '_status'] = get_name_request_candidate_status(self.height, atomical, status, candidate_id, type_str)  
         # Populate the request specific fields
@@ -1852,7 +1862,8 @@ class BlockProcessor:
             return None, None
         pid_compact = atomical['mint_info']['$parent_realm'] 
         pid = compact_to_location_id_bytes(pid_compact)  
-        status, candidate_id, raw_candidate_entries = self.get_effective_subrealm(pid, request_subrealm)
+        height = self.height
+        status, candidate_id, raw_candidate_entries = self.get_effective_subrealm(pid, request_subrealm, height)
         atomical['subtype'] = 'request_subrealm' # Will change to 'subrealm' if it is found to be valid
         # Populate the requested full realm name
         self.populate_request_full_realm_name(atomical, pid, request_subrealm)
@@ -1940,7 +1951,7 @@ class BlockProcessor:
         
         # get the potential dmt (distributed mint) atomical_id from the ticker given
         ticker = dmt_return_struct['$mint_ticker']
-        status, potential_dmt_atomical_id, all_entries = self.get_effective_ticker(ticker)
+        status, potential_dmt_atomical_id, all_entries = self.get_effective_ticker(ticker, height)
         if status != 'verified':
             self.logger.info(f'create_or_delete_decentralized_mint_output: potential_dmt_atomical_id not found for dmt operation in {hash_to_hex_str(tx_hash)}. Attempt was made for invalid ticker mint info. Ignoring...')
             return None 
@@ -1950,6 +1961,8 @@ class BlockProcessor:
             raise IndexError(f'create_or_delete_decentralized_mint_outputs: mint_info_for_ticker not found for expected atomical={atomical_id}')
 
         if mint_info_for_ticker['subtype'] != 'decentralized':
+            if currentlocation == sample1 or currentlocation == sample2:
+                self.logger.info(f'yoshi_create_or_delete_decentralized_mint_output {currentlocation} SEQ3')
             self.logger.info(f'create_or_delete_decentralized_mint_outputs: Detected invalid mint attempt in {hash_to_hex_str(tx_hash)} for ticker {ticker} which is not a decentralized mint type. Ignoring...')
             return None 
 
@@ -2067,7 +2080,7 @@ class BlockProcessor:
                 self.logger.info(f'Atomicals Genesis Block Hash: {hash_to_hex_str(block_header_hash)}')
                 concatenation_of_tx_hashes_with_valid_atomical_operation = block_header_hash
             elif height > self.coin.ATOMICALS_ACTIVATION_HEIGHT:
-                prev_atomicals_block_hash = self.get_general_data_with_cache(b'ah' + pack_le_uint32(height - 1))
+                prev_atomicals_block_hash = self.get_general_data_with_cache(b'tt' + pack_le_uint32(height - 1))
                 concatenation_of_tx_hashes_with_valid_atomical_operation = block_header_hash + prev_atomicals_block_hash
         # Use local vars for speed in the loops
         undo_info = []
@@ -2210,7 +2223,7 @@ class BlockProcessor:
         if self.is_atomicals_activated(height):
             # Save the atomicals hash for the current block
             current_height_atomicals_block_hash = self.coin.header_hash(concatenation_of_tx_hashes_with_valid_atomical_operation)
-            put_general_data(b'ah' + pack_le_uint32(height), current_height_atomicals_block_hash)
+            put_general_data(b'tt' + pack_le_uint32(height), current_height_atomicals_block_hash)
             self.logger.info(f'Calculated Atomicals Block Hash: height={height}, atomicals_block_hash={hash_to_hex_str(current_height_atomicals_block_hash)}')   
         
         return undo_info, atomicals_undo_info
@@ -2237,10 +2250,18 @@ class BlockProcessor:
             expected_payment_outputs = matched_price_point['matched_rule']['o']
             if not isinstance(expected_payment_outputs, dict) or len(expected_payment_outputs.keys()) < 1:
                 return None
+            
             # Each of the elements in the expected script output map must be satisfied for it to be a valid payment
+            nft_atomicals, ft_atomicals = self.build_atomical_type_structs(atomicals_spent_at_inputs)
+            atomical_id_to_output_index_map = calculate_outputs_to_color_for_atomical_ids(ft_atomicals, tx)
+            output_idx_to_atomical_id_map = build_reverse_output_to_atomical_id_map(atomical_id_to_output_index_map)
             expected_output_keys_satisfied = {}
-            for output_script_key in expected_payment_outputs.keys():
-                expected_output_keys_satisfied[output_script_key] = False
+            for output_script_key, output_script_details in expected_payment_outputs.items():
+                if output_script_details.get('id'):
+                    expected_output_keys_satisfied[output_script_key] = False
+                else: 
+                    atomical_id_expected_color_long_from = compact_to_location_id_bytes(output_script_details.get('id'))
+                    expected_output_keys_satisfied[output_script_key + atomical_id_expected_color_long_from] = False
             expected_payment_regex = matched_price_point['matched_rule']['p']
             # Sanity check that request_subrealm_name matches the regex
             # intentionally assume regex pattern is valid and name matches because the logic path should have already been checked
@@ -2255,15 +2276,29 @@ class BlockProcessor:
                 output_script_hex = txout.pk_script.hex()
                 expected_output_payment_value_dict = expected_payment_outputs.get(output_script_hex)
                 expected_output_payment_value = expected_output_payment_value_dict['v']
-                expected_output_payment_id_type = expected_output_payment_value_dict.get('id')
                 if not expected_output_payment_value or expected_output_payment_value < SUBREALM_MINT_MIN_PAYMENT_DUST_LIMIT:
                     continue 
                 if txout.value >= expected_output_payment_value:
-                    expected_output_keys_satisfied[output_script_hex] = True # Mark that the output was matched at least once
+                    self.logger.info(f'create_or_delete_subrealm_payment_output_if_valid gt_expected_output_payment_value')
+                    expected_output_payment_id_type = expected_output_payment_value_dict.get('id')
+                    # If there was a required color for the payment, then check it here
+                    if expected_output_payment_id_type:
+                        self.logger.info(f'create_or_delete_subrealm_payment_output_if_valid expected_output_payment_id_type={expected_output_payment_id_type}')
+                        expected_output_payment_id_type_long_form = compact_to_location_id_bytes(expected_output_payment_id_type)
+                        # Check in the reverse map if the current output idx is colored with the expected color
+                        if output_idx_to_atomical_id_map.get(idx) and output_idx_to_atomical_id_map[idx] and output_idx_to_atomical_id_map[idx].get(expected_output_payment_id_type_long_form):
+                            self.logger.info(f'create_or_delete_subrealm_payment_output_if_valid found_type_id_payment expected_output_payment_id_type={expected_output_payment_id_type}')
+                            expected_output_keys_satisfied[output_script_hex + expected_output_payment_id_type_long_form] = True # Mark that the output was matched at least once
+                    else: 
+                        self.logger.info(f'create_or_delete_subrealm_payment_output_if_valid no_type_id_needed')
+                        # Normal satoshis payment
+                        expected_output_keys_satisfied[output_script_hex] = True # Mark that the output was matched at least once
+
             is_all_outputs_matched = True
             for expected_output_script, satisfied in expected_output_keys_satisfied.items():
                 if not satisfied:
                     is_all_outputs_matched = False
+                    self.logger.info(f'create_or_delete_subrealm_payment_output_if_valid is_all_outputs_matched_not_satisfied={expected_output_keys_satisfied}')
                     break
             if is_all_outputs_matched:
                 # Delete or create he record based on whether we are reorg rollback or creating new
@@ -2325,26 +2360,6 @@ class BlockProcessor:
             self.put_or_delete_sealed(operations_found_at_inputs, atomical_id, location_id, True)
         return hashXs, spent_atomicals
 
-    # Rollback any distributed mints
-    def rollback_decentralized_mint_data(self, tx_hash, operations_found_at_inputs):
-        if not operations_found_at_inputs:
-            return
-        dmt_valid, dmt_return_struct = is_valid_dmt_op_format(tx_hash, operations_found_at_inputs)
-        if dmt_valid: 
-            ticker = dmt_return_struct['$mint_ticker']
-            self.logger.info(f'rollback_decentralized_mint_data: dmt found in tx, tx_hash={hash_to_hex_str(tx_hash)}, ticker={ticker}')
-            # get the potential dmt (distributed mint) atomical_id from the ticker given
-            status, potential_dmt_atomical_id, ticker_entries = self.get_effective_ticker(dmt_return_struct['$mint_ticker'])
-            if status == 'verified':
-                self.logger.info(f'rollback_decentralized_mint_data: potential_dmt_atomical_id is True, tx_hash={hash_to_hex_str(tx_hash)}, ticker={ticker}')
-                output_index_packed = pack_le_uint32(idx)
-                location = tx_hash + output_index_packed
-                self.delete_decentralized_mint_data(potential_dmt_atomical_id, location)
-                # remove the b'a' atomicals entry at the mint location
-                self.delete_general_data(b'a' + potential_dmt_atomical_id + location)
-                # remove the b'i' atomicals entry at the mint location
-                self.delete_general_data(b'i' + location + potential_dmt_atomical_id)
-     
     # Query all the modpath history properties and return them sorted descending by tx_num by default
     # Uses cache and combines it with db results
     def get_mod_path_history(self, parent_atomical_id, path, prefix_key = b'modpath'):
@@ -2413,7 +2428,7 @@ class BlockProcessor:
             # check for a dict of outputs
             if not validate_subrealm_rules_outputs_format(outputs):
                 # Should never happen because we already validated in calculate_subrealm_rules_list_as_of_height that the format is good
-                continue  
+                raise IndexError(f'get_applicable_subrealm_mint_rule_by_height: fatal_invalid_index_rules height={height} proposed_subrealm_name={proposed_subrealm_name}')
             try:
                 # Compile the regular expression
                 valid_pattern = re.compile(rf"{regex_pattern}")
@@ -2429,6 +2444,7 @@ class BlockProcessor:
                     'matched_rule': regex_price_point
                 }
             except Exception as e: 
+                print_applicable_subrealm_log(f'get_applicable_subrealm_mint_rule_by_height: exception matching pattern e={e}. Continuing...')
                 # If it failed, then try the next matches if any
                 pass
         return None
@@ -2444,7 +2460,7 @@ class BlockProcessor:
         self.atomicals_rpc_format_cache.clear()
 
         # Delete the Atomicals hash for the current height as we are rolling back
-        self.delete_general_data(b'ah' + pack_le_uint32(self.height))
+        self.delete_general_data(b'tt' + pack_le_uint32(self.height))
 
         # Prevout values, in order down the block (coinbase first if present)
         # undo_info is in reverse block order
