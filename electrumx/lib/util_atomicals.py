@@ -567,11 +567,9 @@ def get_mint_info_op_factory(coin, tx, tx_hash, op_found_struct, atomicals_spent
         return None, None
 
     # Enforce that parents must be included
-    print(f'parents_enforced ----------')
     parents_enforced = mint_info['args'].get('parents')
-    print(f'parents_enforced {parents_enforced}  {tx_hash}')
     if parents_enforced:
-        print(f'parents_enforced true {parents_enforced}')
+        print(f'parents_enforced true {parents_enforced} {tx_hash}')
         if not isinstance(parents_enforced, dict):
             print(f'Ignoring operation due to invalid parent dict')
             return None, None
@@ -1138,7 +1136,34 @@ def create_collapsed_height_to_mod_path_history_items_map(subrealm_mint_modpath_
 # Log an item with a prefix
 def print_subrealm_calculate_log(item):
     print(f'calculate_subrealm_rules_list_as_of_height {item}')
- 
+
+# Validate subrealm rules outputs format
+def validate_subrealm_rules_outputs_format(outputs):
+    # Validate all of the outputs
+    if not isinstance(outputs, dict) or len(outputs.keys()) <= 0:
+        print_subrealm_calculate_log(f'validate_subrealm_rules_outputs_format: outputs is not a dict or is empty')
+        return False
+    for expected_output_script, expected_output_value in outputs.items():
+        # Check that expected_output_value value is a dict
+        if not isinstance(expected_output_value, dict):
+            print_subrealm_calculate_log(f'validate_subrealm_rules_outputs_format: invalid expected output dict')
+            return False # Reject if one of the entries expects less than the minimum payment amount
+        expected_output_id = expected_output_value.get('id')
+        expected_output_qty = expected_output_value.get('v')
+        if not isinstance(expected_output_qty, int) or expected_output_qty < SUBREALM_MINT_MIN_PAYMENT_DUST_LIMIT:
+            print_subrealm_calculate_log(f'validate_subrealm_rules_outputs_format: invalid expected output value')
+            return False # Reject if one of the entries expects less than the minimum payment amount
+        # If there is a type restriction on the payment type then ensure it is a valid atomical id
+        if expected_output_id:
+            if not isinstance(expected_output_id, str) or not is_compact_atomical_id(expected_output_id):
+                print_subrealm_calculate_log(f'validate_subrealm_rules_outputs_format: invalid expected id value')
+                return False
+        # script must be paid to mint a subrealm
+        if not is_hex_string(expected_output_script):
+            print_subrealm_calculate_log(f'validate_subrealm_rules_outputs_format: expected output script is not a valid hex string')
+            return False # Reject if one of the payment output script is not a valid hex  
+    return True
+    
 # Get the price regex list for a subrealm atomical
 # Returns the most recent value sorted by height descending
 def calculate_subrealm_rules_list_as_of_height(height, subrealm_mint_modpath_history):
@@ -1188,7 +1213,7 @@ def calculate_subrealm_rules_list_as_of_height(height, subrealm_mint_modpath_his
         # It is at least a dictionary
         rules = modpath_item['data'].get('rules')
         if not rules:
-            print_subrealm_calculate_log(f'price not found')
+            print_subrealm_calculate_log(f'rules not found')
             return None # Reject if no rules were provided
         # There is a path rules that exists
         if not isinstance(rules, list):
@@ -1228,18 +1253,9 @@ def calculate_subrealm_rules_list_as_of_height(height, subrealm_mint_modpath_his
                     print_subrealm_calculate_log(f'outputs is not a dict or is empty')
                     return None # Reject if one of the payment outputs is not a valid list
 
-                # Validate all of the outputs
-                for expected_output_script, expected_output_value in outputs.items():
-                    # Check that expected_output_value value is greater than 0
-                    if not isinstance(expected_output_value, int) or expected_output_value < SUBREALM_MINT_MIN_PAYMENT_DUST_LIMIT:
-                        print_subrealm_calculate_log(f'invalid expected output value')
-                        return None # Reject if one of the entries expects less than the minimum payment amount
-
-                    # script must be paid to mint a subrealm
-                    if not is_hex_string(expected_output_script):
-                        print_subrealm_calculate_log(f'expected output script is not a valid hex string')
-                        return None # Reject if one of the payment output script is not a valid hex  
-
+                if not validate_subrealm_rules_outputs_format(outputs):
+                    return None 
+             
                 # Check that regex is a valid regex pattern
                 try:
                     valid_pattern = re.compile(rf"{regex_pattern}")

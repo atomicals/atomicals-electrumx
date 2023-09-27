@@ -1352,7 +1352,7 @@ class DB:
                 counter += 1 
 
             # Sort by most recent transactions first
-            location_info.sort(key=lambda x: x['tx_num'], reverse=True)
+            locations.sort(key=lambda x: x['tx_num'], reverse=True)
             atomical['location_info_obj'] = {
                 'locations': locations 
             }
@@ -1368,7 +1368,7 @@ class DB:
         arr = []
         arrlocs = []
        
-        file = open('/home/ubuntu/i_prefix.txt', 'w') #write to file
+        file = open('/home/ubuntu/dbdump/i_prefix.txt', 'w') #write to file
         for location_key, location_result_value in self.utxo_db.iterator(prefix=i_prefix):
             arr.append(location_key.hex() + '-' + location_result_value.hex())
             arrlocs.append(location_key)
@@ -1377,45 +1377,101 @@ class DB:
             
         file.close() #close file
 
-        filelocs = open('/home/ubuntu/i_prefix_locs.txt', 'w') #write to file
+        filelocs = open('/home/ubuntu/dbdump/i_prefix_locs.txt', 'w') #write to file
         counter = 0
         for item in arrlocs:
             atomid = item[ 1 + ATOMICAL_ID_LEN : 1 + ATOMICAL_ID_LEN + ATOMICAL_ID_LEN]
             locid = item[ 1 : 1 + ATOMICAL_ID_LEN]
-            filelocs.write(str(counter) + ': ' + ' locfirst:' + location_id_bytes_to_compact(atomid) + ' for ' +  location_id_bytes_to_compact(locid) + '\n')
+            filelocs.write('locfirst:' + location_id_bytes_to_compact(atomid) + ' for ' +  location_id_bytes_to_compact(locid) + '\n')
             counter += 1
         filelocs.close() #close file
 
         gi_prefix = b'gi'
         # Print sorted highscores print to file
         arr = []
-        gfile = open('/home/ubuntu/gi_prefix.txt', 'w') #write to file
-        for location_key, location_result_value in self.utxo_db.iterator(prefix=i_prefix):
-            arr.append(location_key.hex() + '-' + location_result_value.hex())
+        gfile = open('/home/ubuntu/dbdump/gi_prefix.txt', 'w') #write to file
+        for location_key, location_result_value in self.utxo_db.iterator(prefix=gi_prefix):
+            arr.append(location_id_bytes_to_compact(location_key[2: 2 + ATOMICAL_ID_LEN]) + '-' + location_id_bytes_to_compact(location_key[2 + ATOMICAL_ID_LEN: 2 + ATOMICAL_ID_LEN + ATOMICAL_ID_LEN]))
         for item in arr:
             gfile.write(item + '\n')
         gfile.close() #close file
 
-        gi_prefix = b'a'
+        a_prefix = b'a'
         # Print sorted highscores print to file
         arr = []
         arrlocs = []
-        afile = open('/home/ubuntu/a_prefix.txt', 'w') #write to file
-        for location_key, location_result_value in self.utxo_db.iterator(prefix=i_prefix):
+        afile = open('/home/ubuntu/dbdump/a_prefix.txt', 'w') #write to file
+        for location_key, location_result_value in self.utxo_db.iterator(prefix=a_prefix):
             arr.append(location_key.hex() + '-' + location_result_value.hex())
             arrlocs.append(location_key)
         for item in arr:
             afile.write(item + '\n')
         afile.close() #close file
 
-        afilelocs = open('/home/ubuntu/a_prefix_locs.txt', 'w') #write to file
+        afilelocs = open('/home/ubuntu/dbdump/a_prefix_locs.txt', 'w') #write to file
         counter = 0
         for item in arrlocs:
             locid = item[ 1 + ATOMICAL_ID_LEN : 1 + ATOMICAL_ID_LEN + ATOMICAL_ID_LEN]
             atomid = item[ 1 : 1 + ATOMICAL_ID_LEN]
-            afilelocs.write(str(counter) + ': ' + ' atomfirst: ' + location_id_bytes_to_compact(atomid) + ' @ ' +  location_id_bytes_to_compact(locid) + '\n')
+            # afilelocs.write('atomfirst: ' + location_id_bytes_to_compact(atomid) + ' @ ' +  location_id_bytes_to_compact(locid) + '\n')
             counter += 1
         afilelocs.close() #close file
+
+        # realms
+        arr = []
+        arrlocs = []
+        realmsfile = open('/home/ubuntu/dbdump/rlm_prefix.txt', 'w') 
+        rlm_prefix = b'rlm'
+        for the_key, the_value in self.utxo_db.iterator(prefix=rlm_prefix):
+            arr.append(the_key.hex() + '-' + the_value.hex())
+        for item in arr:
+            realmsfile.write(item + '\n')
+        realmsfile.close() 
+
+        # subrealms
+        arr = []
+        arrlocs = []
+        subrealmsfile = open('/home/ubuntu/dbdump/srlm_prefix.txt', 'w') 
+        srlm_prefix = b'srlm'
+        for the_key, the_value in self.utxo_db.iterator(prefix=srlm_prefix):
+            arr.append(the_key.hex() + '-' + the_value.hex())
+        for item in arr:
+            subrealmsfile.write(item + '\n')
+        subrealmsfile.close() 
+
+        # payments
+        arr = []
+        arrlocs = []
+        spayfile = open('/home/ubuntu/dbdump/spay_prefix.txt', 'w') 
+        spay_prefix = b'spay'
+        for the_key, the_value in self.utxo_db.iterator(prefix=spay_prefix):
+            arr.append(the_key.hex() + '-' + the_value.hex())
+        for item in arr:
+            spayfile.write(item + '\n')
+        spayfile.close() 
+
+        # mod
+        arr = []
+        arrlocs = []
+        modfile = open('/home/ubuntu/dbdump/mod_prefix.txt', 'w') 
+        mod_prefix = b'mod'
+        for the_key, the_value in self.utxo_db.iterator(prefix=mod_prefix):
+            arr.append(the_key.hex() + '-' + the_value.hex())
+        for item in arr:
+            modfile.write(item + '\n')
+        modfile.close() 
+
+        # tick
+        arr = []
+        arrlocs = []
+        tickfile = open('/home/ubuntu/dbdump/tick_prefix.txt', 'w') 
+        tick_prefix = b'tick'
+        for the_key, the_value in self.utxo_db.iterator(prefix=tick_prefix):
+            arr.append(the_key.hex() + '-' + the_value.hex())
+        for item in arr:
+            tickfile.write(item + '\n')
+        tickfile.close() 
+
 
     # Populate the latest state of an atomical for a path
     def get_mod_state_path_latest(self, atomical_id, path, Verbose=False):

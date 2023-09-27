@@ -62,7 +62,8 @@ from electrumx.lib.util_atomicals import (
     get_mint_info_op_factory,
     convert_db_mint_info_to_rpc_mint_info_format,
     create_collapsed_height_to_mod_path_history_items_map,
-    calculate_subrealm_rules_list_as_of_height
+    calculate_subrealm_rules_list_as_of_height,
+    validate_subrealm_rules_outputs_format
 )
 
 if TYPE_CHECKING:
@@ -1309,22 +1310,84 @@ class BlockProcessor:
                     self.put_atomicals_utxo(location, atomical_id, hashX + scripthash + value_sats + tx_numb)
                 atomical_ids_touched.append(atomical_id)
 
-        # Handle the FTs
-        for atomical_id, mint_info in ft_atomicals.items():
-            found_match = False
-            expected_output_indexes = get_expected_output_indexes_of_atomical_ft(mint_info, tx, atomical_id, operations_found_at_inputs) 
-            # For each expected output to be colored, check for state-like updates
-            for expected_output_index in expected_output_indexes:
-                output_idx_le = pack_le_uint32(expected_output_index)
-                location = tx_hash + output_idx_le
-                txout = tx.outputs[expected_output_index]
-                scripthash = double_sha256(txout.pk_script)
-                hashX = self.coin.hashX_from_script(txout.pk_script)
-                value_sats = pack_le_uint64(txout.value)
-                put_general_data(b'po' + location, txout.pk_script)
-                tx_numb = pack_le_uint64(tx_num)[:TXNUM_LEN]
-                self.put_atomicals_utxo(location, atomical_id, hashX + scripthash + value_sats + tx_numb)
-            atomical_ids_touched.append(atomical_id)
+        # Handle the FTs for the split case
+        if operations_found_at_inputs and operations_found_at_inputs.get('op') == 'y' and operations_found_at_inputs.get('input_index') == 0 and operations_found_at_inputs.get('payload'):  
+            self.logger.info(f'split_utxo_ft')
+            for atomical_id, mint_info in sorted(ft_atomicals.items()):
+                expected_output_indexes = []
+                remaining_value = mint_info['value']
+                # The FT type has the 'skip' (y) method which allows us to selectively skip a certain total number of token units (satoshis)
+                # before beginning to color the outputs.
+                # Essentially this makes it possible to "split" out multiple FT's located at the same input
+                # If the input at index 0 has the skip operation, then it will apply for the atomical token generally across all inputs and the first output will be skipped
+                total_amount_to_skip = 0
+                # Uses the compact form of atomical id as the keys for developer convenience
+                compact_atomical_id = location_id_bytes_to_compact(atomical_id)
+                total_amount_to_skip_potential = operations_found_at_inputs.get('payload').get(compact_atomical_id)
+                # Sanity check to ensure it is a non-negative integer
+                if isinstance(total_amount_to_skip_potential, int) and total_amount_to_skip_potential >= 0:
+                    total_amount_to_skip = total_amount_to_skip_potential
+                total_skipped_so_far = 0
+                for out_idx, txout in enumerate(tx.outputs): 
+                    # If the first output should be skipped and we have not yet done so, then skip/ignore it
+                    if total_amount_to_skip > 0 and total_skipped_so_far < total_amount_to_skip:
+                        total_skipped_so_far += txout.value 
+                        continue 
+                    # For all remaining outputs attach colors as long as there is adequate remaining_value left to cover the entire output value
+                    if txout.value <= remaining_value:
+                        expected_output_indexes.append(out_idx)
+                        remaining_value -= txout.value
+                    else: 
+                        # Since one of the inputs was not less than or equal to the remaining value, then stop assigning outputs. The remaining coins are burned. RIP.
+                        break
+                # For each expected output to be colored, check for state-like updates
+                for expected_output_index in expected_output_indexes:
+                    output_idx_le = pack_le_uint32(expected_output_index)
+                    location = tx_hash + output_idx_le
+                    txout = tx.outputs[expected_output_index]
+                    scripthash = double_sha256(txout.pk_script)
+                    hashX = self.coin.hashX_from_script(txout.pk_script)
+                    value_sats = pack_le_uint64(txout.value)
+                    put_general_data(b'po' + location, txout.pk_script)
+                    tx_numb = pack_le_uint64(tx_num)[:TXNUM_LEN]
+                    self.put_atomicals_utxo(location, atomical_id, hashX + scripthash + value_sats + tx_numb)
+                atomical_ids_touched.append(atomical_id)
+        else:
+            total_amount_to_skip = 0
+            fts_count = 0
+            for atomical_id, mint_info in sorted(ft_atomicals.items()):
+                fts_count += 1
+                expected_output_indexes = []
+                remaining_value = mint_info['value']
+                total_skipped_so_far = 0
+                for out_idx, txout in enumerate(tx.outputs): 
+                    # If the first output should be skipped and we have not yet done so, then skip/ignore it
+                    if total_amount_to_skip > 0 and total_skipped_so_far < total_amount_to_skip:
+                        total_skipped_so_far += txout.value 
+                        continue 
+                    # For all remaining outputs attach colors as long as there is adequate remaining_value left to cover the entire output value
+                    if txout.value <= remaining_value:
+                        expected_output_indexes.append(out_idx)
+                        remaining_value -= txout.value
+                    else: 
+                        # Since one of the inputs was not less than or equal to the remaining value, then stop assigning outputs. The remaining coins are burned. RIP.
+                        break
+                # For each expected output to be colored, check for state-like updates
+                for expected_output_index in expected_output_indexes:
+                    output_idx_le = pack_le_uint32(expected_output_index)
+                    location = tx_hash + output_idx_le
+                    txout = tx.outputs[expected_output_index]
+                    scripthash = double_sha256(txout.pk_script)
+                    hashX = self.coin.hashX_from_script(txout.pk_script)
+                    value_sats = pack_le_uint64(txout.value)
+                    put_general_data(b'po' + location, txout.pk_script)
+                    tx_numb = pack_le_uint64(tx_num)[:TXNUM_LEN]
+                    self.put_atomicals_utxo(location, atomical_id, hashX + scripthash + value_sats + tx_numb)
+                atomical_ids_touched.append(atomical_id)
+                total_amount_to_skip += mint_info['value']
+                self.logger.info(f'fts_count_loop {location_id_bytes_to_compact(atomical_id)}')
+            if fts_count > 1:
+                self.logger.info(f'critical_fts_count_gt {hash_to_hex_str(tx_hash)} {fts_count}')
         return atomical_ids_touched
     
     # Create or delete data that was found at the location
@@ -1535,17 +1598,16 @@ class BlockProcessor:
     # Get the atomical details base info CACHED wrapper
     # todo here
     async def get_base_mint_info_rpc_format_by_atomical_id(self, atomical_id):
-        # atomical_result = None
-        # try:
-        #    atomical_result = self.atomicals_rpc_format_cache[atomical_id]
-        # except KeyError:
-        atomical_result = await self.get_base_mint_info_by_atomical_id_async(atomical_id)
-        # format for the wire format
-        if not atomical_result:
-            return None
-        convert_db_mint_info_to_rpc_mint_info_format(self.coin.header_hash, atomical_result)
-        self.populate_extended_field_summary_atomical_info(atomical_id, atomical_result)
-        #     self.atomicals_rpc_format_cache[atomical_id] = atomical_result
+        atomical_result = None
+        try:
+            atomical_result = self.atomicals_rpc_format_cache[atomical_id]
+        except KeyError:
+            atomical_result = await self.get_base_mint_info_by_atomical_id_async(atomical_id)
+            if not atomical_result:
+                return None
+            convert_db_mint_info_to_rpc_mint_info_format(self.coin.header_hash, atomical_result)
+            self.populate_extended_field_summary_atomical_info(atomical_id, atomical_result)
+            self.atomicals_rpc_format_cache[atomical_id] = atomical_result
         return atomical_result 
 
     # Get the atomical details base info CACHED wrapper
@@ -1566,6 +1628,17 @@ class BlockProcessor:
         convert_db_mint_info_to_rpc_mint_info_format(self.coin.header_hash, atomical_result)
         # self.populate_extended_field_summary_atomical_info(atomical_id, atomical_result)
         # self.atomicals_rpc_format_cache[atomical_id] = atomical_result
+        atomical_result['dft_info'] = {
+            'mint_count': 0
+        }
+        atomical_dft_mint_info_key = b'gi' + atomical_id
+        mint_count = 0
+        for location_key, location_result_value in self.db.utxo_db.iterator(prefix=atomical_dft_mint_info_key):
+            o = location_id_bytes_to_compact(location_key[2 : 2 + ATOMICAL_ID_LEN])
+            o += ' - ' + location_id_bytes_to_compact(location_key[2 + ATOMICAL_ID_LEN: 2 + ATOMICAL_ID_LEN + ATOMICAL_ID_LEN])
+            atomical_result['dft_info']['mint_locations'].append(o)
+            mint_count += 1
+        atomical_result['dft_info']['mint_count'] = mint_count
         return atomical_result 
 
     # Get the raw stored mint info in the db
@@ -1864,7 +1937,7 @@ class BlockProcessor:
         dmt_valid, dmt_return_struct = is_valid_dmt_op_format(tx_hash, atomicals_operations_found_at_inputs)
         if not dmt_valid:
             return None
-
+        
         # get the potential dmt (distributed mint) atomical_id from the ticker given
         ticker = dmt_return_struct['$mint_ticker']
         status, potential_dmt_atomical_id, all_entries = self.get_effective_ticker(ticker)
@@ -1880,7 +1953,6 @@ class BlockProcessor:
             self.logger.info(f'create_or_delete_decentralized_mint_outputs: Detected invalid mint attempt in {hash_to_hex_str(tx_hash)} for ticker {ticker} which is not a decentralized mint type. Ignoring...')
             return None 
 
-        self.logger.info(f'create_or_delete_decentralized_mint_output: mint_info_for_ticker={mint_info_for_ticker}, potential_dmt_atomical_id={potential_dmt_atomical_id}')
         max_mints = mint_info_for_ticker['$max_mints']
         mint_amount = mint_info_for_ticker['$mint_amount']
         mint_height = mint_info_for_ticker['$mint_height']
@@ -1894,7 +1966,6 @@ class BlockProcessor:
             self.logger.info(f'create_or_delete_decentralized_mint_output: commit_txid not found for distmint reveal_tx {hash_to_hex_str(commit_txid)}. Skipping...')
             return None
         if commit_tx_height < mint_height:
-            raise IndexError('commit tx violation')
             self.logger.info(f'create_or_delete_decentralized_mint_output: commit_tx_height={commit_tx_height} is less than ATOMICALS_ACTIVATION_HEIGHT. Skipping...')
             return None
 
@@ -1905,7 +1976,6 @@ class BlockProcessor:
         scripthash = double_sha256(txout.pk_script)
         hashX = self.coin.hashX_from_script(txout.pk_script)
         value_sats = pack_le_uint64(txout.value)
-        
         # Mint is valid and active if the value is what is expected
         if mint_amount == txout.value:
             # Count the number of existing b'gi' entries and ensure it is strictly less than max_mints
@@ -2183,7 +2253,9 @@ class BlockProcessor:
             for idx, txout in enumerate(tx.outputs):
                 # Found the required payment amount and script
                 output_script_hex = txout.pk_script.hex()
-                expected_output_payment_value = expected_payment_outputs.get(output_script_hex)
+                expected_output_payment_value_dict = expected_payment_outputs.get(output_script_hex)
+                expected_output_payment_value = expected_output_payment_value_dict['v']
+                expected_output_payment_id_type = expected_output_payment_value_dict.get('id')
                 if not expected_output_payment_value or expected_output_payment_value < SUBREALM_MINT_MIN_PAYMENT_DUST_LIMIT:
                     continue 
                 if txout.value >= expected_output_payment_value:
@@ -2311,14 +2383,14 @@ class BlockProcessor:
         cache_mod_path_history.sort(key=lambda x: x['tx_num'], reverse=True)
         return cache_mod_path_history
 
+
     # Get a matched price point (if any) for a subrealm name for the parent atomical taking into account the height
     # Recall that the 'modpath' (contract) values will take effect only after 6 blocks have passed after the height in
     # which the update 'modpath' operation was mined.
     def get_applicable_subrealm_mint_rule_by_height(self, parent_atomical_id, proposed_subrealm_name, height):
         # Log an item with a prefix
         def print_applicable_subrealm_log(item):
-            self.logger.info(f'get_applicable_subrealm_mint_rule_by_height: {item}. parent_atomical_id={parent_atomical_id.hex()}, proposed_subrealm_name={proposed_subrealm_name}, height={height}')
-            
+            self.logger.info(f'get_applicable_subrealm_mint_rule_by_height: {item}. parent_atomical_id={parent_atomical_id.hex()}, proposed_subrealm_name={proposed_subrealm_name}, height={height}')   
         # Note: we must query the modpath history with the cache in case we have not yet flushed to disk
         # db_key = b'modpath' + atomical_id + mod_path_padded + tx_numb + output_idx_le + height_packed 
         subrealm_mint_modpath_history = self.get_mod_path_history(parent_atomical_id, SUBREALM_MINT_PATH)
@@ -2332,35 +2404,16 @@ class BlockProcessor:
             print_applicable_subrealm_log(f'get_applicable_subrealm_mint_rule_by_height: processing rule item regex_price_point={regex_price_point}')
             # Perform some sanity checks just in case
             regex_pattern = regex_price_point.get('p', None)
-            
             # Make sure the variables are defined
             if not regex_pattern:
                 print_applicable_subrealm_log(f'get_applicable_subrealm_mint_rule_by_height: empty pattern')
                 continue 
-
             # Outputs are the output script that must be paid to mint the subrealm
             outputs = regex_price_point.get('o', None)
-
             # check for a dict of outputs
-            if not isinstance(outputs, dict) or len(outputs.keys()) <= 0:
-                print_applicable_subrealm_log(f'get_applicable_subrealm_mint_rule_by_height: outputs is not a dict or is empty')
-                continue
-            # Validate all of the outputs
-            for output_item in outputs:
-                if not isinstance(output_item, dict):
-                    print_applicable_subrealm_log(f'get_applicable_subrealm_mint_rule_by_height: outputs item is not a dict')
-                    continue
-                # value is the price that must be paid to mint a subrealm
-                satoshis = output_item.get('v')
-                # Check that satoshis value is greater than 0
-                if not isinstance(satoshis, int) or satoshis < SUBREALM_MINT_MIN_PAYMENT_DUST_LIMIT:
-                    print_applicable_subrealm_log(f'get_applicable_subrealm_mint_rule_by_height: invalid satoshis value')
-                    continue
-                # script must be paid to mint a subrealm
-                script = output_item.get('s')
-                if not isinstance(output, str) or not is_hex_string(script):
-                    print_applicable_subrealm_log(f'get_applicable_subrealm_mint_rule_by_height: script is not a valid hex string')
-                    continue  
+            if not validate_subrealm_rules_outputs_format(outputs):
+                # Should never happen because we already validated in calculate_subrealm_rules_list_as_of_height that the format is good
+                continue  
             try:
                 # Compile the regular expression
                 valid_pattern = re.compile(rf"{regex_pattern}")
