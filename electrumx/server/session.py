@@ -1213,11 +1213,20 @@ class ElectrumX(SessionBase):
             raise RPCError(BAD_REQUEST, f'"{compact_atomical_id}" is not found')
         return atomical_in_mempool
 
-    async def atomical_id_get_dft_info(self, compact_atomical_id):
+    async def atomical_id_get_ft_info(self, compact_atomical_id):
         atomical_id = compact_to_location_id_bytes(compact_atomical_id)
-        atomical = await self.session_mgr.bp.get_dft_mint_info_rpc_format_by_atomical_id(atomical_id)
+        atomical = await self.session_mgr.bp.get_base_mint_info_rpc_format_by_atomical_id(atomical_id)
+
+        if atomical['subtype'] == 'decentralized':
+            atomical = await self.session_mgr.bp.get_dft_mint_info_rpc_format_by_atomical_id(atomical_id)
+        elif atomical['subtype'] == 'direct': 
+            atomical = await self.session_mgr.bp.get_ft_mint_info_rpc_format_by_atomical_id(atomical_id)
+        else: 
+            raise RPCError(BAD_REQUEST, f'"{compact_atomical_id}" is not a fungible token (FT)')
+        
         if atomical:
             return atomical
+        
         # Check mempool
         atomical_in_mempool = await self.mempool.get_atomical_mint(atomical_id)
         if atomical_in_mempool == None: 
@@ -1352,9 +1361,9 @@ class ElectrumX(SessionBase):
         self.db.dump()
         return {'result': True} 
 
-    async def atomicals_get_dft_info(self, compact_atomical_id_or_atomical_number):
+    async def atomicals_get_ft_info(self, compact_atomical_id_or_atomical_number):
         compact_atomical_id = self.atomical_resolve_id(compact_atomical_id_or_atomical_number)
-        return {'global': await self.get_summary_info(), 'result': await self.atomical_id_get_dft_info(compact_atomical_id)} 
+        return {'global': await self.get_summary_info(), 'result': await self.atomical_id_get_ft_info(compact_atomical_id)} 
 
     async def atomicals_get_global(self, hashes=10):
         return {'global': await self.get_summary_info(hashes)} 
@@ -2150,7 +2159,7 @@ class ElectrumX(SessionBase):
             'server.peers.subscribe': self.peers_subscribe,
             'server.ping': self.ping,
             'server.version': self.server_version,
-            # The Atomicals era has begun
+            # The Atomicals era has begun #
             'blockchain.atomicals.listscripthash': self.atomicals_listscripthash,
             'blockchain.atomicals.list': self.atomicals_list,
             'blockchain.atomicals.dump': self.atomicals_dump,
@@ -2168,7 +2177,7 @@ class ElectrumX(SessionBase):
             'blockchain.atomicals.get_by_subrealm': self.atomicals_get_by_subrealm,
             'blockchain.atomicals.get_by_ticker': self.atomicals_get_by_ticker,
             'blockchain.atomicals.get_by_container': self.atomicals_get_by_container,
-            'blockchain.atomicals.get_dft_info': self.atomicals_get_dft_info,
+            'blockchain.atomicals.get_ft_info': self.atomicals_get_ft_info,
             'blockchain.atomicals.find_tickers': self.atomicals_search_tickers,
             'blockchain.atomicals.find_realms': self.atomicals_search_realms,
             'blockchain.atomicals.find_subrealms': self.atomicals_search_subrealms,

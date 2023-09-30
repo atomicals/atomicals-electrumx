@@ -84,8 +84,8 @@ DFT_MINT_AMOUNT_MAX = 100000000
 
 # The minimum number of DFT max_mints. Set at 1
 DFT_MINT_MAX_MIN_COUNT = 1
-# The maximum number of DFT max_mints. Set at 100,000 mints mainly for efficieny reasons. Could be expanded in the future
-DFT_MINT_MAX_MAX_COUNT = 100000
+# The maximum number of DFT max_mints. Set at 200,000 mints mainly for efficieny reasons. Could be expanded in the future
+DFT_MINT_MAX_MAX_COUNT = 200000
 
 # This would never change, but we put it as a constant for clarity
 DFT_MINT_HEIGHT_MIN = 0
@@ -1230,15 +1230,16 @@ def calculate_subrealm_rules_list_as_of_height(height, subrealm_mint_modpath_his
 # Returns the sequence of output indexes that matches until the final one that matched
 # Also returns whether it fit cleanly in (ie: exact with no left overs or under)
 def assign_expected_outputs_basic(atomical_id, ft_value, tx, start_out_idx):
-    # Color the first FT in a predictable manner
     expected_output_indexes = []
     remaining_value = ft_value
     idx_count = 0
     if start_out_idx >= len(tx.outputs):
         return False, expected_output_indexes
+    
     for out_idx, txout in enumerate(tx.outputs): 
         # Only consider outputs from the starting index
         if idx_count < start_out_idx:
+            idx_count += 1
             continue
         # For all remaining outputs attach colors as long as there is adequate remaining_value left to cover the entire output value
         if txout.value <= remaining_value:
@@ -1246,13 +1247,16 @@ def assign_expected_outputs_basic(atomical_id, ft_value, tx, start_out_idx):
             remaining_value -= txout.value
             if remaining_value == 0:
                 # The token input was fully exhausted cleanly into the outputs
+                print(f'assign_expected_outputs_basic return_success atomical_id={location_id_bytes_to_compact(atomical_id)} expected_output_indexes={expected_output_indexes}')
                 return True, expected_output_indexes
         # Exit case output is greater than what we have in remaining_value
         else:
+            print(f'assign_expected_outputs_basic return_middle  atomical_id={location_id_bytes_to_compact(atomical_id)} expected_output_indexes={expected_output_indexes}')
             # There was still some token units left, but the next output was greater than the amount. Therefore we burned the remainder tokens.
-            False, expected_output_indexes
+            return False, expected_output_indexes
         idx_count += 1
     # There was still some token units left, but there were no more outputs to take the quantity. Tokens were burned.
+    print(f'assign_expected_outputs_basic return_ending with  atomical_id={location_id_bytes_to_compact(atomical_id)} expected_output_indexes={expected_output_indexes}')
     return False, expected_output_indexes 
 
 def build_reverse_output_to_atomical_id_map(atomical_id_to_output_index_map):
@@ -1270,14 +1274,13 @@ def calculate_outputs_to_color_for_atomical_ids(ft_atomicals, tx_hash, tx):
     num_fts = len(ft_atomicals.keys())
     if num_fts == 0:
         return {} 
-    print(f'calculate_outputs_to_color_for_atomical_ids boshi tx_hash={hash_to_hex_str(tx_hash)} ft_atomicals={ft_atomicals} ')
     atomical_list = []
     for atomical_id, ft_info in sorted(ft_atomicals.items()):
         atomical_list.append({
             'atomical_id': atomical_id,
             'ft_info': ft_info
         })
-    print(f'calculate_outputs_to_color_for_atomical_ids sorted_list_ft_info tx_hash={hash_to_hex_str(tx_hash)} atomical_list={atomical_list}')
+        print(f'calculate_outputs_to_color_for_atomical_ids found_ft_atomical_inputs atomical_id={location_id_bytes_to_compact(atomical_id)}, ft_info={ft_info} tx_hash={hash_to_hex_str(tx_hash)}')
     next_start_out_idx = 0
     potential_atomical_ids_to_output_idxs_map = {}
     non_clean_output_slots = False
@@ -1288,10 +1291,10 @@ def calculate_outputs_to_color_for_atomical_ids(ft_atomicals, tx_hash, tx):
         print(f'calculate_outputs_to_color_for_atomical_ids check_if_cleanly_assigned cleanly_assigned={cleanly_assigned} tx_hash={hash_to_hex_str(tx_hash)} atomical_id={location_id_bytes_to_compact(atomical_id)} v={v} next_start_out_idx={next_start_out_idx}')
         if cleanly_assigned and len(expected_outputs) > 0:
             next_start_out_idx = expected_outputs[-1] + 1
-            print(f'calculate_outputs_to_color_for_atomical_ids check_if_cleanly_assigned_after_in_if cleanly_assigned={cleanly_assigned} tx_hash={hash_to_hex_str(tx_hash)} atomical_id={location_id_bytes_to_compact(atomical_id)} v={v} next_start_out_idx={next_start_out_idx} expected_outputs={expected_outputs}')
+            print(f'calculate_outputs_to_color_for_atomical_ids check_if_cleanly_assigned_after_in_if cleanly_assigned={cleanly_assigned} tx_hash={hash_to_hex_str(tx_hash)} atomical_id={location_id_bytes_to_compact(atomical_id)} value={v} next_start_out_idx={next_start_out_idx} expected_outputs={expected_outputs}')
             potential_atomical_ids_to_output_idxs_map[atomical_id] = expected_outputs
         else:
-            print(f'calculate_outputs_to_color_for_atomical_ids check_if_cleanly_assigned_after_in_if was_not_cleanly_assigned_else cleanly_assigned={cleanly_assigned} tx_hash={hash_to_hex_str(tx_hash)} atomical_id={location_id_bytes_to_compact(atomical_id)} v={v} next_start_out_idx={next_start_out_idx} expected_outputs={expected_outputs}')
+            print(f'calculate_outputs_to_color_for_atomical_ids check_if_cleanly_assigned_after_in_if was_not_cleanly_assigned_else cleanly_assigned={cleanly_assigned} tx_hash={hash_to_hex_str(tx_hash)} atomical_id={location_id_bytes_to_compact(atomical_id)} value={v} next_start_out_idx={next_start_out_idx} expected_outputs={expected_outputs}')
             # Erase the potential for safety
             potential_atomical_ids_to_output_idxs_map = {}
             non_clean_output_slots = True
@@ -1307,6 +1310,7 @@ def calculate_outputs_to_color_for_atomical_ids(ft_atomicals, tx_hash, tx):
         print(f'calculate_outputs_to_color_for_atomical_ids non_clean_output_slots_finally_assignment_map {non_clean_output_slots} tx_hash={hash_to_hex_str(tx_hash)} {ft_atomicals} potential_atomical_ids_to_output_idxs_map={potential_atomical_ids_to_output_idxs_map}')
         return potential_atomical_ids_to_output_idxs_map
     else:
+        print(f'calculate_outputs_to_color_for_atomical_ids underflow_val potential_atomical_ids_to_output_idxs_map={potential_atomical_ids_to_output_idxs_map}')
         return potential_atomical_ids_to_output_idxs_map 
 
 # Get the candidate name request status for tickers, containers and realms (not subrealms though)

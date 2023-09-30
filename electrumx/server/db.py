@@ -1311,7 +1311,8 @@ class DB:
                 # tx_numb = atomical_active_location_value[-TXNUM_LEN:]  
                 # txnum_padding = bytes(8-TXNUM_LEN)
                 #tx_num_padded, = unpack_le_uint64(tx_numb + txnum_padding)
-        return active_supply       
+        return active_supply   
+            
     # Get the atomical details with location information added
     # In the case of NFTs, there will only be every 1 maximum active location
     # In the case of FTs, there can be an unbounded nu mber of maximum active locations (one for each UTXO for all holders)

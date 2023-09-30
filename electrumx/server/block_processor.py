@@ -609,14 +609,14 @@ class BlockProcessor:
     # Save distributed mint infromation for the atomical
     # Mints are only stored if they are less than the max_mints amount
     def put_decentralized_mint_data(self, atomical_id, location_id, value): 
-        self.logger.info(f'put_decentralized_mint_data: atomical_id={atomical_id.hex()}, location_id={location_id.hex()}, value={value}')
+        self.logger.info(f'put_decentralized_mint_data: atomical_id={atomical_id.hex()}, location_id={location_id.hex()}, value={value.hex()}')
         if self.distmint_data_cache.get(atomical_id) == None: 
             self.distmint_data_cache[atomical_id] = {}
         self.distmint_data_cache[atomical_id][location_id] = value
 
     # Save atomicals UTXO to cache that will be flushed to db
     def put_atomicals_utxo(self, location_id, atomical_id, value): 
-        self.logger.info(f'put_atomicals_utxo: atomical_id={location_id_bytes_to_compact(atomical_id)}, location_id={location_id_bytes_to_compact(location_id)}, value={value}')
+        self.logger.info(f'put_atomicals_utxo: atomical_id={location_id_bytes_to_compact(atomical_id)}, location_id={location_id_bytes_to_compact(location_id)}, value={value.hex()}')
         if self.atomicals_utxo_cache.get(location_id) == None: 
             self.atomicals_utxo_cache[location_id] = {}
         # Use a tombstone to mark deleted because even if it's removed we must
@@ -655,7 +655,7 @@ class BlockProcessor:
         location_id = tx_hash + idx_packed
         cache_map = self.atomicals_utxo_cache.get(location_id)
         if cache_map:
-            self.logger.info(f'spend_atomicals_utxo: cache_map. location_id={location_id.hex()} has Atomicals...')
+            self.logger.info(f'spend_atomicals_utxo: cache_map. location_id={location_id_bytes_to_compact(location_id)} has Atomicals...')
             atomicals_data_list_cached = []
             for key in cache_map.keys(): 
                 value_with_tombstone = cache_map[key]
@@ -666,7 +666,7 @@ class BlockProcessor:
                     'data': value
                 })
                 value_with_tombstone['deleted'] = True  # Flag it as deleted so the b'a' active location will not be written on flushed
-                self.logger.info(f'spend_atomicals_utxo: cache_map. key={key}, location_id={location_id.hex()} atomical_id={key.hex()}, value={value}')
+                self.logger.info(f'spend_atomicals_utxo: cache_map. key={key}, location_id={location_id_bytes_to_compact(location_id)} atomical_id={location_id_bytes_to_compact(key)}, value={value}')
             if len(atomicals_data_list_cached) > 0:
                 return atomicals_data_list_cached
         # Search the locations of existing atomicals
@@ -683,7 +683,7 @@ class BlockProcessor:
             for atomical_a_db_key, atomical_a_db_value in self.db.utxo_db.iterator(prefix=prefix):
                 found_at_least_one = True
             if found_at_least_one == False: 
-                raise IndexError(f'Did not find expected at least one entry for atomicals table for atomical: {atomical_id.hex()} at location {location.hex()}')
+                raise IndexError(f'Did not find expected at least one entry for atomicals table for atomical: {location_id_bytes_to_compact(atomical_id)} at location {location_id_bytes_to_compact(location)}')
 
             self.delete_general_data(b'a' + atomical_id + location_id)
             atomicals_data_list.append({
@@ -691,7 +691,7 @@ class BlockProcessor:
                 'location_id': location_id,
                 'data': atomical_i_db_value
             })
-            self.logger.info(f'spend_atomicals_utxo: utxo_db. atomical_i_db_key={atomical_i_db_key}, location_id={location_id.hex()} atomical_id={atomical_id.hex()}, value={atomical_i_db_value}')
+            self.logger.info(f'spend_atomicals_utxo: utxo_db. location_id={location_id_bytes_to_compact(location_id)} atomical_id={location_id_bytes_to_compact(atomical_id)}, value={atomical_i_db_value}')
             # Return all of the atomicals spent at the address
         return atomicals_data_list
 
@@ -1580,8 +1580,7 @@ class BlockProcessor:
             # Only consider the name as valid if the required MINT_REALM_CONTAINER_TICKER_COMMIT_REVEAL_DELAY_BLOCKS has elapsed from the earliest
             # commit. We use this technique to ensure that any front running problems would have been resolved by then
             # And anyone who committed a name transaction had sufficient time to reveal it.
-            ch = mint_info['commit_height']
-            self.logger.info(f'get_effective_name_template ch={ch} current_height={current_height} {MINT_REALM_CONTAINER_TICKER_COMMIT_REVEAL_DELAY_BLOCKS}')
+            commit_height = mint_info['commit_height']
             if mint_info['commit_height'] <= current_height - MINT_REALM_CONTAINER_TICKER_COMMIT_REVEAL_DELAY_BLOCKS:
                 return 'verified', atomical_id, all_entries
             else: 
@@ -1630,7 +1629,6 @@ class BlockProcessor:
             return None
 
         if atomical_result['type'] != 'FT':
-            raise ValueError(f'get_ft_mint_info_rpc_format_by_atomical_id works only with FT types')
             return None 
 
         convert_db_mint_info_to_rpc_mint_info_format(self.coin.header_hash, atomical_result)
@@ -1642,11 +1640,47 @@ class BlockProcessor:
         atomical_dft_mint_info_key = b'gi' + atomical_id
         mint_count = 0
         for location_key, location_result_value in self.db.utxo_db.iterator(prefix=atomical_dft_mint_info_key):
-            o = location_id_bytes_to_compact(location_key[2 : 2 + ATOMICAL_ID_LEN])
-            o += ' - ' + location_id_bytes_to_compact(location_key[2 + ATOMICAL_ID_LEN: 2 + ATOMICAL_ID_LEN + ATOMICAL_ID_LEN])
-            atomical_result['dft_info']['mint_locations'].append(o)
             mint_count += 1
         atomical_result['dft_info']['mint_count'] = mint_count
+        atomical_result['location_summary'] = {}
+        self.populate_location_info_summary(atomical_id, atomical_result['location_summary'])
+        return atomical_result 
+
+    # Populate location information
+    def populate_location_info_summary(self, atomical_id, atomical_result):
+        unique_holders = {}
+        active_supply = 0
+        atomical_active_location_key_prefix = b'a' + atomical_id
+        for atomical_active_location_key, atomical_active_location_value in self.db.utxo_db.iterator(prefix=atomical_active_location_key_prefix):
+            location = atomical_active_location_key[1 + ATOMICAL_ID_LEN : 1 + ATOMICAL_ID_LEN + ATOMICAL_ID_LEN]
+            location_value, = unpack_le_uint64(atomical_active_location_value[HASHX_LEN + SCRIPTHASH_LEN : HASHX_LEN + SCRIPTHASH_LEN + 8])
+            active_supply += location_value
+            scripthash = atomical_active_location_value[HASHX_LEN : HASHX_LEN + SCRIPTHASH_LEN]  
+            unique_holders[scripthash] = True
+        atomical_result['unique_holders'] = len(unique_holders)
+        atomical_result['circulating_supply'] = active_supply
+
+    # Get the atomical details base info CACHED wrapper
+    async def get_ft_mint_info_rpc_format_by_atomical_id(self, atomical_id):
+        # atomical_result = None
+        # try:
+        #    atomical_result = self.atomicals_rpc_format_cache[atomical_id]
+        # except KeyError:
+        atomical_result = await self.get_base_mint_info_by_atomical_id_async(atomical_id)
+        # format for the wire format
+        if not atomical_result:
+            return None
+
+        if atomical_result['type'] != 'FT':
+            return None 
+
+        convert_db_mint_info_to_rpc_mint_info_format(self.coin.header_hash, atomical_result)
+        # self.populate_extended_field_summary_atomical_info(atomical_id, atomical_result)
+        # self.atomicals_rpc_format_cache[atomical_id] = atomical_result
+        atomical_result['ft_info'] = {
+        }
+        atomical_result['location_summary'] = {}
+        self.populate_location_info_summary(atomical_id, atomical_result['location_summary'])
         return atomical_result 
 
     # Get the raw stored mint info in the db
@@ -1960,8 +1994,6 @@ class BlockProcessor:
             raise IndexError(f'create_or_delete_decentralized_mint_outputs: mint_info_for_ticker not found for expected atomical={atomical_id}')
 
         if mint_info_for_ticker['subtype'] != 'decentralized':
-            if currentlocation == sample1 or currentlocation == sample2:
-                self.logger.info(f'yoshi_create_or_delete_decentralized_mint_output {currentlocation} SEQ3')
             self.logger.info(f'create_or_delete_decentralized_mint_outputs: Detected invalid mint attempt in {hash_to_hex_str(tx_hash)} for ticker {ticker} which is not a decentralized mint type. Ignoring...')
             return None 
 
@@ -2257,7 +2289,7 @@ class BlockProcessor:
             output_idx_to_atomical_id_map = build_reverse_output_to_atomical_id_map(atomical_id_to_output_index_map)
             expected_output_keys_satisfied = {}
             for output_script_key, output_script_details in expected_payment_outputs.items():
-                if output_script_details.get('id'):
+                if not output_script_details.get('id'):
                     expected_output_keys_satisfied[output_script_key] = False
                 else: 
                     atomical_id_expected_color_long_from = compact_to_location_id_bytes(output_script_details.get('id'))
