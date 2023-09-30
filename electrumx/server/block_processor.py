@@ -1324,7 +1324,7 @@ class BlockProcessor:
             atomical_ids_touched.append(atomical_id)
     
     def color_ft_atomicals_regular(self, ft_atomicals, tx_hash, tx, tx_num, operations_found_at_inputs, atomical_ids_touched):
-        atomical_id_to_expected_outs_map = calculate_outputs_to_color_for_atomical_ids(ft_atomicals, tx)
+        atomical_id_to_expected_outs_map = calculate_outputs_to_color_for_atomical_ids(ft_atomicals, tx_hash, tx)
         if not atomical_id_to_expected_outs_map:
             return 
         sanity_check_sums = {}
@@ -2080,7 +2080,8 @@ class BlockProcessor:
                 concatenation_of_tx_hashes_with_valid_atomical_operation = block_header_hash
             elif height > self.coin.ATOMICALS_ACTIVATION_HEIGHT:
                 prev_atomicals_block_hash = self.get_general_data_with_cache(b'tt' + pack_le_uint32(height - 1))
-                concatenation_of_tx_hashes_with_valid_atomical_operation = block_header_hash + prev_atomicals_block_hash
+                if prev_atomicals_block_hash:
+                    concatenation_of_tx_hashes_with_valid_atomical_operation = block_header_hash + prev_atomicals_block_hash
         # Use local vars for speed in the loops
         undo_info = []
         atomicals_undo_info = []
@@ -2252,7 +2253,7 @@ class BlockProcessor:
             
             # Each of the elements in the expected script output map must be satisfied for it to be a valid payment
             nft_atomicals, ft_atomicals = self.build_atomical_type_structs(atomicals_spent_at_inputs)
-            atomical_id_to_output_index_map = calculate_outputs_to_color_for_atomical_ids(ft_atomicals, tx)
+            atomical_id_to_output_index_map = calculate_outputs_to_color_for_atomical_ids(ft_atomicals, tx_hash, tx)
             output_idx_to_atomical_id_map = build_reverse_output_to_atomical_id_map(atomical_id_to_output_index_map)
             expected_output_keys_satisfied = {}
             for output_script_key, output_script_details in expected_payment_outputs.items():

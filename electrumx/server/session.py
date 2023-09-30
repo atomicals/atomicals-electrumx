@@ -1507,12 +1507,13 @@ class ElectrumX(SessionBase):
         last_found_realm = None
         realms_path = []
         latest_all_entries_candidates = []
+        height = self.session_mgr.bp.height
         for name_part in split_names:
             if level == 0:
-                realm_status, last_found_realm, latest_all_entries_candidates = self.session_mgr.bp.get_effective_realm(name_part)
+                realm_status, last_found_realm, latest_all_entries_candidates = self.session_mgr.bp.get_effective_realm(name_part, height)
             else: 
                 self.logger.info(f'atomicals_get_realm_info {last_found_realm} {name_part}')
-                realm_status, last_found_realm, latest_all_entries_candidates = self.session_mgr.bp.get_effective_subrealm(last_found_realm, name_part)
+                realm_status, last_found_realm, latest_all_entries_candidates = self.session_mgr.bp.get_effective_subrealm(last_found_realm, name_part, height)
             # stops when it does not found the realm component
             if realm_status != 'verified':
                 break

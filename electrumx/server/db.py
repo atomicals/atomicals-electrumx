@@ -1411,9 +1411,11 @@ class DB:
         afilelocs = open('/home/ubuntu/dbdump/a_prefix_locs.txt', 'w') #write to file
         counter = 0
         for item in arrlocs:
+            if len(item) < 1 + ATOMICAL_ID_LEN + ATOMICAL_ID_LEN:
+                continue
             locid = item[ 1 + ATOMICAL_ID_LEN : 1 + ATOMICAL_ID_LEN + ATOMICAL_ID_LEN]
             atomid = item[ 1 : 1 + ATOMICAL_ID_LEN]
-            # afilelocs.write('atomfirst: ' + location_id_bytes_to_compact(atomid) + ' @ ' +  location_id_bytes_to_compact(locid) + '\n')
+            afilelocs.write('atomfirst: ' + location_id_bytes_to_compact(atomid) + ' @ ' +  location_id_bytes_to_compact(locid) + '\n')
             counter += 1
         afilelocs.close() #close file
 
