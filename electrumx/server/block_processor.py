@@ -1271,8 +1271,7 @@ class BlockProcessor:
                 expected_output_index = 0
             # If this was the 'split' (y) command, then also move them to the 0th output
             if operations_found_at_inputs and operations_found_at_inputs.get('op') == 'y' and operations_found_at_inputs.get('input_index') == 0:
-                expected_output_index = 0
-                
+                expected_output_index = 0 
             output_idx_le = pack_le_uint32(expected_output_index)
             location = tx_hash + output_idx_le
             txout = tx.outputs[expected_output_index]
