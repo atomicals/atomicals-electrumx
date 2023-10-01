@@ -1478,17 +1478,8 @@ class DB:
 
     # Populate the latest state of an atomical for a path
     def get_mod_state_path_latest(self, atomical_id, path, Verbose=False):
-        # check if a modify element is still locked according to the field lock map
-        # This is used to prohibit any changes to fields until after the locked block height has passed
-        def is_field_still_locked(field_lock_map, field_name, mod_element):
-            field_locked_upto = field_lock_map.get(field_name)
-            if field_locked_upto and mod_element['height'] <= field_locked_upto:
-                return True, field_locked_upto
-            return False, 0
         history_for_path = self.get_mod_path_history(atomical_id, path, False)
         latest_state = {}
-        # map the property name that is locked upto a specific height
-        prop_locked_unto_height_map = {}
         for element in history_for_path:
             has_action_prop = element['data'].get('$action')
             action_to_perform = 'set'
@@ -1499,46 +1490,7 @@ class DB:
             # For each property apply the state set update or delete the key
             # Take care below not to ever delete the $path or $action props
             for prop, value in element['data'].items():
-                # Not allowed to update in anyway the locked field until the block height elapsed
-                field_locked, locked_upto = is_field_still_locked(prop_locked_unto_height_map, prop, element)
-                if field_locked:
-                    continue 
-                # Whether a lock was requested at the current update
-                successfully_locked_property = False
-                # If a property starts with a caret ^ such as example: ^myvariable 
-                # Then it means the property is immutable and impossible to update or delete forever after setting it the first time
-                if prop.startswith('^'):
-                    if latest_state.get(prop) != None:
-                        continue 
-                else: 
-                    # If it starts with a '@' then it is a lockable (or freezable property)
-                    if prop.startswith('@'):
-                        # On the other hand if it didn't have a caret, but it has an @<integer> at the end, then it indicates
-                        # that the property is not allowed to be updated until after that provided block height indicated by the integer
-                        # Example: somevar@900000 means somevar cannot be updated/deleted until at least block height 900001
-                        field_block_height = prop.split(':')
-                        # There should be exactly 2 components like: [ 'fieldname', 'integer' ]
-                        if len(field_block_height) == 2:
-                            # Update the property to exclude the number part and only keep the part before the '@' sign
-                            prop = field_block_height[0]
-                            # Not allowed to update in anyway the locked field until the block height elapsed
-                            field_locked, locked_upto = is_field_still_locked(prop_locked_unto_height_map, prop, element)
-                            if field_locked:
-                                continue 
-                            request_locked_until_block_height = field_block_height[1]
-                            try:
-                                request_locked_until_block_height = int(request_locked_until_block_height) # Throws ValueError if it cannot be validated as integer
-                                # Sanity check to limit under 10,000,000 blocks. Because if it's larger then the user probably was using it as unixtime
-                                # And to save them, we just prevent the field from being locked
-                                if request_locked_until_block_height > element['height'] and request_locked_until_block_height < 10000000:
-                                    # If we got this far then it means the field property value is locked from further changes
-                                    prop_locked_unto_height_map[prop] = request_locked_until_block_height
-                                    successfully_locked_property = True
-                            except (ValueError, TypeError):
-                                # ignore the attempt to lock if it's invalid
-                                pass
                 # Update the latest state, save metadata such as height, txid, tx_num, and location
-                # Note, that when request_locked_until_block_height is set the first time
                 if action_to_perform == 'set':
                     latest_state[prop] = {
                         'height': element['height'],
@@ -1547,9 +1499,6 @@ class DB:
                         'index': element['index'],
                         'value': value
                     }
-                    if successfully_locked_property:
-                        latest_state[prop]['frozen_until'] = prop_locked_unto_height_map.get(prop)
-                        
                 elif action_to_perform == 'delete':
                     # Take special care not to delete the $path or $action if they are provided
                     # Because these are meta control properties names and we still want to maintain them for posterity and inspection
