@@ -1325,7 +1325,6 @@ class DB:
             limit = 50
             counter = 0
             for atomical_active_location_key, atomical_active_location_value in self.utxo_db.iterator(prefix=atomical_active_location_key_prefix):
-                # self.logger.info(f'populate_extended_location_atomical_info with value {atomical_id} {atomical_active_location_value}')
                 if atomical_active_location_value:
                     location = atomical_active_location_key[1 + ATOMICAL_ID_LEN : 1 + ATOMICAL_ID_LEN + ATOMICAL_ID_LEN]
                     atomical_output_script_key = b'po' + location
