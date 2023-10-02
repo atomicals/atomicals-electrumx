@@ -1280,8 +1280,8 @@ class ElectrumX(SessionBase):
 
     async def get_summary_info(self, atomical_hash_count=10):
 
-        if atomical_hash_count and atomical_hash_count > 2000:
-                atomical_hash_count = 2000
+        if atomical_hash_count and atomical_hash_count > 5000:
+                atomical_hash_count = 5000
 
         db_height = self.db.db_height
         last_block_hash = self.db.get_atomicals_block_hash(db_height)
