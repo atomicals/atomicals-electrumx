@@ -1457,10 +1457,15 @@ class DB:
         arrlocs = []
         modfile = open('/home/ubuntu/dbdump/mod_prefix.txt', 'w') 
         mod_prefix = b'mod'
+        modobjs = []
         for the_key, the_value in self.utxo_db.iterator(prefix=mod_prefix):
             arr.append(the_key.hex() + '-' + the_value.hex())
+            modobjs.append(the_value)
         for item in arr:
             modfile.write(item + '\n')
+        for modobj in modobjs:
+            modfile.write(f'{loads(modobj)}\n')
+        
         modfile.close() 
 
         # tick
@@ -1474,6 +1479,55 @@ class DB:
             tickfile.write(item + '\n')
         tickfile.close() 
 
+        arr = []
+        arrlocs = []
+        mintfile = open('/home/ubuntu/dbdump/mddata.txt', 'w') 
+        mint_prefix = b'md'
+        for the_key, the_value in self.utxo_db.iterator(prefix=mint_prefix):
+            arr.append(the_key.hex() + '-' + the_value.hex())
+        for item in arr:
+            mintfile.write(item + '\n')
+        mintfile.close() 
+
+        arr = []
+        arrlocs = []
+        mintinfofile = open('/home/ubuntu/dbdump/midata.txt', 'w') 
+        mintinfo_prefix = b'mi'
+        for the_key, the_value in self.utxo_db.iterator(prefix=mintinfo_prefix):
+            arr.append(the_key.hex() + '-' + the_value.hex())
+        for item in arr:
+            mintinfofile.write(item + '\n')
+        mintinfofile.close() 
+
+        arr = []
+        arrlocs = []
+        sealedfile = open('/home/ubuntu/dbdump/sealed.txt', 'w') 
+        sealed_prefix = b'sealed'
+        for the_key, the_value in self.utxo_db.iterator(prefix=sealed_prefix):
+            arr.append(the_key.hex() + '-' + the_value.hex())
+        for item in arr:
+            sealedfile.write(item + '\n')
+        sealedfile.close() 
+
+        arr = []
+        arrlocs = []
+        nfile = open('/home/ubuntu/dbdump/n.txt', 'w') 
+        n_prefix = b'n'
+        for the_key, the_value in self.utxo_db.iterator(prefix=n_prefix):
+            arr.append(the_key.hex() + '-' + the_value.hex())
+        for item in arr:
+            nfile.write(item + '\n')
+        nfile.close() 
+
+        arr = []
+        arrlocs = []
+        lundofile = open('/home/ubuntu/dbdump/Lundo.txt', 'w') 
+        L_prefix = b'L'
+        for the_key, the_value in self.utxo_db.iterator(prefix=L_prefix):
+            arr.append(the_key.hex() + '-' + the_value.hex())
+        for item in arr:
+            lundofile.write(item + '\n')
+        lundofile.close() 
 
     # Populate the latest state of an atomical for a path
     def get_mod_state_path_latest(self, atomical_id, path, Verbose=False):

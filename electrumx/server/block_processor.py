@@ -1208,28 +1208,54 @@ class BlockProcessor:
         atomical_id = mint_info['id']
         height = mint_info['reveal_location_height']
         if mint_info.get('init'):
-            init_payload_data = mint_info.get('init')
-            if not init_payload_data or not isinstance(init_payload_data, dict) or len(init_payload_data.items()) == 0:
-                return
-            self.logger.info(f'put_or_delete_init_state_updates: height={height}, atomical_id={location_id_bytes_to_compact(atomical_id)}, tx_hash={hash_to_hex_str(tx_hash)}')
-            init_payload_bytes = dumps(init_payload_data)
-            op_struct = {
-                'op': 'mod',
-                'input_index': 0,
-                'payload': init_payload_data,
-                'payload_bytes': init_payload_bytes,
-            }
-            if mint_info['type'] == 'NFT':
-                self.put_or_delete_state_updates(op_struct, 
-                    atomical_id, 
-                    mint_info['reveal_location_tx_num'], 
-                    tx_hash, 
-                    pack_le_uint32(mint_info['reveal_location_index']), 
-                    height, 
-                    0,
-                    Delete
-                )
 
+            init_payload_data_list_outer = mint_info.get('init')
+            # The outer object fields will be the path to set
+            #
+            # Example:
+            # {
+            #    "init": {
+            #         "/path1": {
+            #              "key1": "val1"
+            #         },
+            #         "/path2": {
+            #              "somekey": 123
+            #         },
+            #         "/": {
+            #              "rootkey": "foo"
+            #         } 
+            #    }
+            # }
+            # 
+            # The example above the $path=/path1 and $path=/path2 will be set independently for the `mod` operation`
+            # Also note that the root key $path=/ can be set with the single slash "/"
+            #
+            if not init_payload_data_list_outer or not isinstance(init_payload_data_list_outer, dict) or len(init_payload_data_list_outer) == 0:
+                return
+
+            for init_payload_path, init_payload_data in init_payload_data_list_outer.items():
+                if not init_payload_data or not isinstance(init_payload_data, dict) or len(init_payload_data) == 0:
+                    continue
+                # Manually add/overwrite the path information since it's set in the keys
+                init_payload_data['$path'] = init_payload_path
+                self.logger.info(f'put_or_delete_init_state_updates: height={height}, atomical_id={location_id_bytes_to_compact(atomical_id)}, tx_hash={hash_to_hex_str(tx_hash)} path={init_payload_path}')
+                init_payload_bytes = dumps(init_payload_data)
+                op_struct = {
+                    'op': 'mod',
+                    'input_index': 0,
+                    'payload': init_payload_data,
+                    'payload_bytes': init_payload_bytes,
+                }
+                if mint_info['type'] == 'NFT':
+                    self.put_or_delete_state_updates(op_struct, 
+                        atomical_id, 
+                        mint_info['reveal_location_tx_num'], 
+                        tx_hash, 
+                        pack_le_uint32(mint_info['reveal_location_index']), 
+                        height, 
+                        0,
+                        Delete
+                    )
     # Color the NFT atomicals with splat command
     def color_nft_atomicals_splat(self, nft_atomicals, tx_hash, tx, tx_num, atomical_ids_touched):
         # Splat takes all of the NFT atomicals across all inputs (including multiple atomicals at the same utxo) 
