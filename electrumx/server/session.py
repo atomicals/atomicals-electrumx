@@ -1236,29 +1236,37 @@ class ElectrumX(SessionBase):
     async def atomical_id_get_state_by_path(self, compact_atomical_id, path, Verbose=False):
         atomical_id = compact_to_location_id_bytes(compact_atomical_id)
         atomical = await self.atomical_id_get(compact_atomical_id)
+        if atomical['type'] != 'NFT':
+            raise RPCError(BAD_REQUEST, f'"{compact_atomical_id}" is not NFT type')
         self.db.populate_extended_mod_state_path_latest_atomical_info(atomical_id, atomical, path, Verbose)
-        self.db.populate_extended_location_atomical_info(atomical_id, atomical)  
+        await self.db.populate_extended_location_atomical_info(atomical_id, atomical)  
         return atomical
 
     async def atomical_id_get_state_history(self, compact_atomical_id):
         atomical_id = compact_to_location_id_bytes(compact_atomical_id)
         atomical = await self.atomical_id_get(compact_atomical_id)
+        if atomical['type'] != 'NFT':
+            raise RPCError(BAD_REQUEST, f'"{compact_atomical_id}" is not NFT type')
         self.db.populate_extended_mod_state_history_atomical_info(atomical_id, atomical)
-        self.db.populate_extended_location_atomical_info(atomical_id, atomical)  
+        await self.db.populate_extended_location_atomical_info(atomical_id, atomical)  
         return atomical
 
     async def atomical_id_get_events_by_path(self, compact_atomical_id, path):
         atomical_id = compact_to_location_id_bytes(compact_atomical_id)
         atomical = await self.atomical_id_get(compact_atomical_id)
+        if atomical['type'] != 'NFT':
+            raise RPCError(BAD_REQUEST, f'"{compact_atomical_id}" is not NFT type')
         self.db.populate_extended_events_by_path_atomical_info(atomical_id, atomical, path)
-        self.db.populate_extended_location_atomical_info(atomical_id, atomical)  
+        await self.db.populate_extended_location_atomical_info(atomical_id, atomical)  
         return atomical
         
     async def atomical_id_get_events(self, compact_atomical_id):
         atomical_id = compact_to_location_id_bytes(compact_atomical_id)
         atomical = await self.atomical_id_get(compact_atomical_id)
+        if atomical['type'] != 'NFT':
+            raise RPCError(BAD_REQUEST, f'"{compact_atomical_id}" is not NFT type')
         self.db.populate_extended_events_atomical_info(atomical_id, atomical)
-        self.db.populate_extended_location_atomical_info(atomical_id, atomical)  
+        await self.db.populate_extended_location_atomical_info(atomical_id, atomical)  
         return atomical
  
     async def atomical_id_get_tx_history(self, compact_atomical_id):
