@@ -1316,7 +1316,7 @@ class BlockProcessor:
                 self.put_atomicals_utxo(location, atomical_id, hashX + scripthash + value_sats + tx_numb)
             atomical_ids_touched.append(atomical_id)
 
-    def color_ft_atomicals_split(self, ft_atomicals, tx_hash, tx, operations_found_at_inputs, atomical_ids_touched):
+    def color_ft_atomicals_split(self, ft_atomicals, tx_hash, tx, tx_num, operations_found_at_inputs, atomical_ids_touched):
         for atomical_id, mint_info in sorted(ft_atomicals.items()):
             expected_output_indexes = []
             remaining_value = mint_info['value']
@@ -1416,6 +1416,7 @@ class BlockProcessor:
         # Handle the FTs for the split case
         should_split_ft_atomicals = operations_found_at_inputs and operations_found_at_inputs.get('op') == 'y' and operations_found_at_inputs.get('input_index') == 0 and operations_found_at_inputs.get('payload')
         if should_split_ft_atomicals:
+            # ft_atomicals, tx_hash, tx, operations_found_at_inputs, atomical_ids_touched):
             self.color_ft_atomicals_split(ft_atomicals, tx_hash, tx, tx_num, operations_found_at_inputs, atomical_ids_touched)
         else:
             self.color_ft_atomicals_regular(ft_atomicals, tx_hash, tx, tx_num, operations_found_at_inputs, atomical_ids_touched)

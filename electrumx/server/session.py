@@ -1189,13 +1189,31 @@ class ElectrumX(SessionBase):
         utxos.extend(await self.mempool.unordered_UTXOs(hashX))
         self.bump_cost(1.0 + len(utxos) / 50)
         spends = await self.mempool.potential_spends(hashX)
-
-        return [{'tx_hash': hash_to_hex_str(utxo.tx_hash),
-                 'tx_pos': utxo.tx_pos,
-                 'height': utxo.height, 
-                 'value': utxo.value}
-                for utxo in utxos
-                if (utxo.tx_hash, utxo.tx_pos) not in spends]
+        returned_utxos = []
+        for utxo in utxos:
+            if (utxo.tx_hash, utxo.tx_pos) in spends:
+                continue
+            atomicals = self.db.get_atomicals_by_utxo(utxo, True)
+            atomicals_basic_infos = []
+            for atomical_id in atomicals: 
+                # This call is efficient in that it's cached underneath
+                # For now we only show the atomical id because it can always be fetched seperately and it will be more efficient
+                atomical_basic_info = await self.session_mgr.bp.get_base_mint_info_rpc_format_by_atomical_id(atomical_id) 
+                # Todo need to combine mempool atomicals 
+                atomical_id_compact = location_id_bytes_to_compact(atomical_id)
+                atomicals_basic_infos.append(atomical_id_compact)
+            
+            returned_utxos.append({
+                'txid': hash_to_hex_str(utxo.tx_hash),
+                'tx_hash': hash_to_hex_str(utxo.tx_hash),
+                'index': utxo.tx_pos,
+                'tx_pos': utxo.tx_pos,
+                'vout': utxo.tx_pos,
+                'height': utxo.height, 
+                'value': utxo.value,
+                'atomicals': atomicals_basic_infos
+            })
+        return returned_utxos
 
     # Get atomical_id from an atomical inscription number
     def get_atomical_id_by_atomical_number(self, atomical_number):
