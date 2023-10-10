@@ -926,6 +926,7 @@ class BitcoinTestnet(BitcoinTestnetMixin, Coin):
         'explorerzydxu5ecjrkwceayqybizmpjjznk5izmitf2modhcusuqlid.onion t143',
         'electrum1.cipig.net t10068',
     ]
+    ATOMICALS_ACTIVATION_HEIGHT = 2000000
 
     @classmethod
     def warn_old_client_on_tx_broadcast(cls, client_ver):
