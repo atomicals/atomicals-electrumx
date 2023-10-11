@@ -32,15 +32,15 @@ import electrumx
 import electrumx.lib.util as util
 from electrumx.lib.util import OldTaskGroup, unpack_le_uint64
 from electrumx.lib.util_atomicals import (
-    calculate_subrealm_rules_list_as_of_height, 
     format_name_type_candidates_to_rpc, 
     SUBREALM_MINT_PATH, 
-    MINT_SUBREALM_RULES_BECOME_EFFECTIVE_IN_BLOCKS, 
     convert_db_mint_info_to_rpc_mint_info_format, 
     compact_to_location_id_bytes, 
     location_id_bytes_to_compact, 
     is_compact_atomical_id,
-    format_name_type_candidates_to_rpc_for_subrealm
+    format_name_type_candidates_to_rpc_for_subrealm,
+    calculate_latest_state_from_mod_history,
+    validate_subrealm_rules_data
 )
 from electrumx.lib.hash import (HASHX_LEN, Base58Error, hash_to_hex_str,
                                 hex_str_to_hash, sha256, double_sha256)
@@ -1251,12 +1251,13 @@ class ElectrumX(SessionBase):
             raise RPCError(BAD_REQUEST, f'"{compact_atomical_id}" is not found')
         return atomical_in_mempool
 
-    async def atomical_id_get_state_by_path(self, compact_atomical_id, path, Verbose=False):
+    async def atomical_id_get_state(self, compact_atomical_id, Verbose=False):
         atomical_id = compact_to_location_id_bytes(compact_atomical_id)
         atomical = await self.atomical_id_get(compact_atomical_id)
+        height = self.session_mgr.bp.height
         if atomical['type'] != 'NFT':
             raise RPCError(BAD_REQUEST, f'"{compact_atomical_id}" is not NFT type')
-        self.db.populate_extended_mod_state_path_latest_atomical_info(atomical_id, atomical, path, Verbose)
+        self.db.populate_extended_mod_state_latest_atomical_info(atomical_id, atomical, height)
         await self.db.populate_extended_location_atomical_info(atomical_id, atomical)  
         return atomical
 
@@ -1265,25 +1266,16 @@ class ElectrumX(SessionBase):
         atomical = await self.atomical_id_get(compact_atomical_id)
         if atomical['type'] != 'NFT':
             raise RPCError(BAD_REQUEST, f'"{compact_atomical_id}" is not NFT type')
-        self.db.populate_extended_mod_state_history_atomical_info(atomical_id, atomical)
+        height = self.session_mgr.bp.height
+        self.db.populate_extended_mod_state_history_atomical_info(atomical_id, atomical, height)
         await self.db.populate_extended_location_atomical_info(atomical_id, atomical)  
         return atomical
-
-    async def atomical_id_get_events_by_path(self, compact_atomical_id, path):
-        atomical_id = compact_to_location_id_bytes(compact_atomical_id)
-        atomical = await self.atomical_id_get(compact_atomical_id)
-        if atomical['type'] != 'NFT':
-            raise RPCError(BAD_REQUEST, f'"{compact_atomical_id}" is not NFT type')
-        self.db.populate_extended_events_by_path_atomical_info(atomical_id, atomical, path)
-        await self.db.populate_extended_location_atomical_info(atomical_id, atomical)  
-        return atomical
-        
+ 
     async def atomical_id_get_events(self, compact_atomical_id):
         atomical_id = compact_to_location_id_bytes(compact_atomical_id)
         atomical = await self.atomical_id_get(compact_atomical_id)
-        if atomical['type'] != 'NFT':
-            raise RPCError(BAD_REQUEST, f'"{compact_atomical_id}" is not NFT type')
-        self.db.populate_extended_events_atomical_info(atomical_id, atomical)
+        height = self.session_mgr.bp.height
+        self.db.populate_extended_events_atomical_info(atomical_id, atomical, height)
         await self.db.populate_extended_location_atomical_info(atomical_id, atomical)  
         return atomical
  
@@ -1402,18 +1394,14 @@ class ElectrumX(SessionBase):
         compact_atomical_id = self.atomical_resolve_id(compact_atomical_id_or_atomical_number)
         return {'global': await self.get_summary_info(), 'result': await self.atomical_id_get_location(compact_atomical_id)} 
  
-    async def atomical_get_state_by_path(self, compact_atomical_id_or_atomical_number, path, Verbose=False):
+    async def atomical_get_state(self, compact_atomical_id_or_atomical_number, Verbose=False):
         compact_atomical_id = self.atomical_resolve_id(compact_atomical_id_or_atomical_number)
-        return {'global': await self.get_summary_info(), 'result': await self.atomical_id_get_state_by_path(compact_atomical_id, path, Verbose)} 
+        return {'global': await self.get_summary_info(), 'result': await self.atomical_id_get_state(compact_atomical_id, Verbose)} 
     
     async def atomical_get_state_history(self, compact_atomical_id_or_atomical_number):
         compact_atomical_id = self.atomical_resolve_id(compact_atomical_id_or_atomical_number)
         return {'global': await self.get_summary_info(), 'result': await self.atomical_id_get_state_history(compact_atomical_id)} 
 
-    async def atomical_get_events_by_path(self, compact_atomical_id_or_atomical_number, path, Verbose=False):
-        compact_atomical_id = self.atomical_resolve_id(compact_atomical_id_or_atomical_number)
-        return {'global': await self.get_summary_info(), 'result': await self.atomical_id_get_events_by_path(compact_atomical_id, path, Verbose)} 
-    
     async def atomical_get_events(self, compact_atomical_id_or_atomical_number):
         compact_atomical_id = self.atomical_resolve_id(compact_atomical_id_or_atomical_number)
         return {'global': await self.get_summary_info(), 'result': await self.atomical_id_get_events(compact_atomical_id)} 
@@ -1591,31 +1579,17 @@ class ElectrumX(SessionBase):
         # Populate the subrealm minting rules for a parent atomical
         that = self 
         def populate_rules_response_struct(parent_atomical_id, struct_to_populate, Verbose):
-            subrealm_mint_modpath_history = that.db.get_mod_path_history(parent_atomical_id, SUBREALM_MINT_PATH)
             current_height = that.session_mgr.bp.height
-            current_height_rules = calculate_subrealm_rules_list_as_of_height(current_height, subrealm_mint_modpath_history)
-            next_height = current_height + 1
-            next_height_rules = calculate_subrealm_rules_list_as_of_height(next_height, subrealm_mint_modpath_history)
-            next_2_height = current_height + 2
-            next_2_height_rules = calculate_subrealm_rules_list_as_of_height(next_2_height, subrealm_mint_modpath_history)
-            next_3_height = current_height + 3
-            next_3_height_rules = calculate_subrealm_rules_list_as_of_height(next_3_height, subrealm_mint_modpath_history)
+            subrealm_mint_mod_history = that.session_mgr.bp.get_mod_history(parent_atomical_id, current_height)
+            current_height_latest_state = calculate_latest_state_from_mod_history(subrealm_mint_mod_history)
+            current_height_rules_list = validate_subrealm_rules_data(current_height_latest_state.get('subrealms', None))
             nearest_parent_realm_subrealm_mint_allowed = False
             struct_to_populate['nearest_parent_realm_subrealm_mint_rules'] = {
                 'nearest_parent_realm_atomical_id': location_id_bytes_to_compact(parent_atomical_id),
-                'note': f'Updated rules become effective only after {MINT_SUBREALM_RULES_BECOME_EFFECTIVE_IN_BLOCKS} block confirmations. The \'upcoming_rules\' map key indicates the anticipated height the rule update become effective.',
                 'current_height': current_height,
-                'current_height_rules': current_height_rules,
-                'next_height': next_height,
-                'next_height_rules': next_height_rules,
-                'next_2_height': next_2_height,
-                'next_2_height_rules': next_2_height_rules,
-                'next_3_height': next_3_height,
-                'next_3_height_rules': next_3_height_rules
+                'current_height_rules': current_height_rules_list
             }
-            if Verbose:
-                struct_to_populate['nearest_parent_realm_subrealm_mint_rules']['rules_history'] = subrealm_mint_modpath_history
-            if next_height_rules and len(next_height_rules) > 0:
+            if current_height_rules_list and len(current_height_rules_list) > 0:
                 nearest_parent_realm_subrealm_mint_allowed = True
             struct_to_populate['nearest_parent_realm_subrealm_mint_allowed'] = nearest_parent_realm_subrealm_mint_allowed
         #
@@ -1787,7 +1761,6 @@ class ElectrumX(SessionBase):
                         return_struct['atomicals'][atomical_id_ref]['request_realm'] = atomical_id_basic_info.get('$request_realm')
                         return_struct['atomicals'][atomical_id_ref]['realm'] = atomical_id_basic_info.get('$realm')
                         return_struct['atomicals'][atomical_id_ref]['full_realm_name'] = atomical_id_basic_info.get('$full_realm_name')
-                        return_struct['atomicals'][atomical_id_ref]['relns'] = atomical_id_basic_info.get('$relns')
                     elif atomical_id_basic_info.get('$subrealm'):
                         return_struct['atomicals'][atomical_id_ref]['subtype'] = atomical_id_basic_info.get('subtype')
                         return_struct['atomicals'][atomical_id_ref]['request_subrealm_status'] = atomical_id_basic_info.get('$request_subrealm_status')
@@ -1795,7 +1768,6 @@ class ElectrumX(SessionBase):
                         return_struct['atomicals'][atomical_id_ref]['parent_realm'] = atomical_id_basic_info.get('$parent_realm')
                         return_struct['atomicals'][atomical_id_ref]['subrealm'] = atomical_id_basic_info.get('$subrealm')
                         return_struct['atomicals'][atomical_id_ref]['full_realm_name'] = atomical_id_basic_info.get('$full_realm_name')
-                        return_struct['atomicals'][atomical_id_ref]['relns'] = atomical_id_basic_info.get('$relns')
                     elif atomical_id_basic_info.get('$ticker'):
                         return_struct['atomicals'][atomical_id_ref]['subtype'] = atomical_id_basic_info.get('subtype')
                         return_struct['atomicals'][atomical_id_ref]['ticker_candidates'] = atomical_id_basic_info.get('$ticker_candidates')
@@ -1807,14 +1779,12 @@ class ElectrumX(SessionBase):
                         return_struct['atomicals'][atomical_id_ref]['request_container_status'] = atomical_id_basic_info.get('$request_container_status')
                         return_struct['atomicals'][atomical_id_ref]['container'] = atomical_id_basic_info.get('$container')
                         return_struct['atomicals'][atomical_id_ref]['request_container'] = atomical_id_basic_info.get('$request_container')
-                        return_struct['atomicals'][atomical_id_ref]['relns'] = atomical_id_basic_info.get('$relns')
                     # Label them as candidates if they were candidates
                     elif atomical_id_basic_info.get('subtype') == 'request_realm':
                         return_struct['atomicals'][atomical_id_ref]['subtype'] = atomical_id_basic_info.get('subtype')
                         return_struct['atomicals'][atomical_id_ref]['request_realm_status'] = atomical_id_basic_info.get('$request_realm_status')
                         return_struct['atomicals'][atomical_id_ref]['request_realm'] = atomical_id_basic_info.get('$request_realm')
                         return_struct['atomicals'][atomical_id_ref]['realm_candidates'] = atomical_id_basic_info.get('$realm_candidates')
-                        return_struct['atomicals'][atomical_id_ref]['relns'] = atomical_id_basic_info.get('$relns')
                     elif atomical_id_basic_info.get('subtype') == 'request_subrealm':
                         return_struct['atomicals'][atomical_id_ref]['subtype'] = atomical_id_basic_info.get('subtype')
                         return_struct['atomicals'][atomical_id_ref]['subrealm_candidates'] = atomical_id_basic_info.get('$subrealm_candidates')
@@ -1822,13 +1792,11 @@ class ElectrumX(SessionBase):
                         return_struct['atomicals'][atomical_id_ref]['request_full_realm_name'] = atomical_id_basic_info.get('$request_full_realm_name')
                         return_struct['atomicals'][atomical_id_ref]['request_subrealm'] = atomical_id_basic_info.get('$request_subrealm')
                         return_struct['atomicals'][atomical_id_ref]['parent_realm'] = atomical_id_basic_info.get('$parent_realm')
-                        return_struct['atomicals'][atomical_id_ref]['relns'] = atomical_id_basic_info.get('$relns')
                     elif atomical_id_basic_info.get('subtype') == 'request_container':
                         return_struct['atomicals'][atomical_id_ref]['subtype'] = atomical_id_basic_info.get('subtype')
                         return_struct['atomicals'][atomical_id_ref]['container_candidates'] = atomical_id_basic_info.get('$container_candidates')
                         return_struct['atomicals'][atomical_id_ref]['request_container_status'] = atomical_id_basic_info.get('$request_container_status')
                         return_struct['atomicals'][atomical_id_ref]['request_container'] = atomical_id_basic_info.get('$request_container')
-                        return_struct['atomicals'][atomical_id_ref]['relns'] = atomical_id_basic_info.get('$relns')
                     elif atomical_id_basic_info.get('$request_ticker_status'):
                         return_struct['atomicals'][atomical_id_ref]['subtype'] = atomical_id_basic_info.get('subtype')
                         return_struct['atomicals'][atomical_id_ref]['ticker_candidates'] = atomical_id_basic_info.get('$ticker_candidates')
@@ -2197,9 +2165,8 @@ class ElectrumX(SessionBase):
             'blockchain.atomicals.get_location': self.atomicals_get_location,
             'blockchain.atomicals.get': self.atomicals_get,
             'blockchain.atomicals.get_global': self.atomicals_get_global,
-            'blockchain.atomicals.get_state_by_path': self.atomical_get_state_by_path,
+            'blockchain.atomicals.get_state': self.atomical_get_state,
             'blockchain.atomicals.get_state_history': self.atomical_get_state_history,
-            'blockchain.atomicals.get_events_by_path': self.atomical_get_events_by_path,
             'blockchain.atomicals.get_events': self.atomical_get_events,
             'blockchain.atomicals.get_tx_history': self.atomicals_get_tx_history,
             'blockchain.atomicals.get_realm_info': self.atomicals_get_realm_info,
