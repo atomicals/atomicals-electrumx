@@ -47,22 +47,16 @@ MINT_GENERAL_COMMIT_REVEAL_DELAY_BLOCKS = 100
 # This is needed to prevent front-running of realms. 
 MINT_REALM_CONTAINER_TICKER_COMMIT_REVEAL_DELAY_BLOCKS = 3
 
+MINT_SUBREALM_RULES_BECOME_EFFECTIVE_IN_BLOCKS = 1 # magic number that rules become effective in one block
+
 # The path namespace to look for when determining what price/regex patterns are allowed if any
-SUBREALM_MINT_PATH = '/subrealms'
+SUBREALM_MINT_PATH = 'subrealms'
 
 # The maximum height difference between the reveal transaction of the winning subrealm claim and the blocks to pay the necessary fee to the parent realm
 # It is intentionally made longer since it may take some time for the purchaser to get the funds together
 MINT_SUBREALM_COMMIT_PAYMENT_DELAY_BLOCKS = 15 # ~2.5 hours.
 # MINT_REALM_CONTAINER_TICKER_COMMIT_REVEAL_DELAY_BLOCKS and therefore it gives the user about 1.5 hours to make the payment after they know
 # that they won the realm (and no one else can claim/reveal)
-
-# The convention is that the data in b'modpath' only becomes valid exactly 3 blocks after the height
-# The reason for this is that a price list cannot be changed with active transactions.
-# This prevents the owner of the atomical from rapidly changing prices and defrauding users 
-# For example, if the owner of a realm saw someone paid the fee for an atomical, they could front run the block
-# And update their price list before the block is mined, and then cheat out the person from getting their subrealm
-# This is sufficient notice for apps to notice that the price list changed, and act accordingly.
-MINT_SUBREALM_RULES_BECOME_EFFECTIVE_IN_BLOCKS = 3 # Magic number that requires a grace period of 3 blocks ~0.5 hour
 
 # The Envelope is for the reveal script and also the op_return payment markers
 # "atom" # 0461746f6d  '0461746d33'
@@ -451,7 +445,7 @@ def get_mint_info_op_factory(coin, tx, tx_hash, op_found_struct, atomicals_spent
         ctx = op_found_payload.get('ctx', {})
         if not isinstance(ctx, dict):
             return False
-        # Init is intended for initializing state up front, with an optional $path (default '/')
+        # Not used, but reserved for now
         init = op_found_payload.get('init', {})
         if not isinstance(init, dict):
             return False
@@ -475,6 +469,12 @@ def get_mint_info_op_factory(coin, tx, tx_hash, op_found_struct, atomicals_spent
         print(f'get_mint_info_op_factory - not populate_args_meta_ctx_init {hash_to_hex_str(tx_hash)}')
         return None, None
     
+    # The 'args.i' field indicates it is immutable and no mod/evt state allowed
+    is_immutable = mint_info['args'].get('i')
+    if is_immutable and not isinstance(is_immutable, bool):
+        print(f'get_mint_info_op_factory - not valid due to invalid i param {hash_to_hex_str(tx_hash)}')
+        return None, None
+
     # Check if there was requested proof of work, and if there was then only allow the mint to happen if it was successfully executed the proof of work
     is_pow_requested, pow_result = has_requested_proof_of_work(op_found_struct)
     if is_pow_requested and not pow_result: 
@@ -557,6 +557,11 @@ def get_mint_info_op_factory(coin, tx, tx_hash, op_found_struct, atomicals_spent
             else: 
                 print(f'NFT request_realm is invalid {tx_hash}, {realm}. Skipping...')
                 return None, None 
+            
+            # Realms are not allowed to be immutable
+            if is_immutable:
+                return None, None
+
         elif isinstance(subrealm, str):
             if is_valid_subrealm_string_name(subrealm):
                 # The parent realm id is in a compact form string to make it easier for users and developers
@@ -585,12 +590,26 @@ def get_mint_info_op_factory(coin, tx, tx_hash, op_found_struct, atomicals_spent
             else: 
                 print(f'NFT request_subrealm is invalid {tx_hash}, {subrealm}. Skipping...')
                 return None, None 
+
+            # Subrealms are not allowed to be immutable
+            if is_immutable:
+                return None, None
+
         elif isinstance(container, str):
             if is_valid_container_string_name(container):
                 mint_info['$request_container'] = container
             else: 
                 print(f'NFT request_container is invalid {tx_hash}, {container}. Skipping...')
                 return None, None 
+            
+            # Containers are not allowed to be immutable
+            if is_immutable:
+                return None, None
+        else:
+            # Only plain NFTs can be marked immutable
+            if is_immutable:
+                mint_info['$immutable'] = True 
+
     ############################################
     #
     # Fungible Token (FT) Mint Operations
@@ -604,6 +623,12 @@ def get_mint_info_op_factory(coin, tx, tx_hash, op_found_struct, atomicals_spent
             print(f'FT mint has invalid ticker {tx_hash}, {ticker}. Skipping...')
             return None, None 
         mint_info['$request_ticker'] = ticker
+
+        # FTs are not allowed to be immutable
+        if is_immutable:
+            print(f'FT cannot be is_immutable is invalid {tx_hash}, {ticker}. Skipping...')
+            return None, None
+
     elif op_found_struct['op'] == 'dft' and op_found_struct['input_index'] == 0:
         mint_info['type'] = 'FT'
         mint_info['subtype'] = 'decentralized'
@@ -652,7 +677,13 @@ def get_mint_info_op_factory(coin, tx, tx_hash, op_found_struct, atomicals_spent
                 # Fail to create on invalid bitwork string
                 print(f'DFT mint has invalid mint_bitworkr. Skipping...')
                 return None, None
-    
+
+        # DFTs are not allowed to be immutable
+        if is_immutable:
+            print(f'DFT cannot be is_immutable is invalid {tx_hash}, {ticker}. Skipping...')
+            return None, None
+            
+
     if not mint_info or not mint_info.get('type'):
         return None, None
     
@@ -969,7 +1000,7 @@ def parse_protocols_operations_from_witness_for_input(txinwitness):
                             operation_type, payload = parse_operation_from_script(script, n + 5)
                             if operation_type != None:
                                 print(f'Atomicals envelope and operation found: {operation_type}')
-                                print(f'Atomicals envelope payload: {payload}')
+                                print(f'Atomicals envelope payload: {payload.hex()}')
                                 return operation_type, payload
                             break
                 if found_operation_definition:
@@ -1058,23 +1089,6 @@ def is_within_acceptable_blocks_for_name_reveal(commit_height, reveal_location_h
 def is_within_acceptable_blocks_for_subrealm_payment(commit_height, current_height):
     return current_height <= commit_height + MINT_SUBREALM_COMMIT_PAYMENT_DELAY_BLOCKS
  
-# Remove multiple rule definitions from the mod path history list which are associated with the same height
-# Keep only the most recent (ie: highest tx_num)
-def create_collapsed_height_to_mod_path_history_items_map(subrealm_mint_modpath_history):
-    collapsed_height_map_subrealm_mint_modpath_history = {}
-    prev_height = 99999999999 # Used only for an assertion to ensure that the entire list is always monotonically decreasing
-    prev_tx_num = 99999999999 # Used only for an assertion to ensure that the entire list is always monotonically decreasing
-    for modpath_item in subrealm_mint_modpath_history:
-        # Only keep the first encountered subrealm rule update at a specific height because it is sorted by height in decreasing order
-        # This is done because any rules which were updated at the same height will only have the latest rule taken affect
-        # and therefore we discard any of the earlier rules set in the same block height and only keep the latest height
-        collapsed_height_map_subrealm_mint_modpath_history[modpath_item['height']] = collapsed_height_map_subrealm_mint_modpath_history.get(modpath_item['height']) or modpath_item
-        assert(modpath_item['height'] <= prev_height)
-        prev_height = modpath_item['height']
-        assert(modpath_item['tx_num'] < prev_tx_num)
-        prev_tx_num = modpath_item['tx_num']
-    return collapsed_height_map_subrealm_mint_modpath_history
-
 # Log an item with a prefix
 def print_subrealm_calculate_log(item):
     print(f'calculate_subrealm_rules_list_as_of_height {item}')
@@ -1105,6 +1119,69 @@ def validate_subrealm_rules_outputs_format(outputs):
             print_subrealm_calculate_log(f'validate_subrealm_rules_outputs_format: expected output script is not a valid hex string')
             return False # Reject if one of the payment output script is not a valid hex  
     return True
+
+def apply_set_state_mutation(current_object, state_mutation_map):
+    if not isinstance(state_mutation_map, dict):
+        return
+    # For each property apply the state set update 
+    for prop, value in state_mutation_map.items():
+        # Do nothing for parameter $a
+        if prop == '$a':
+            continue
+        # Key not found, set it
+        if not current_object.get(prop):
+            current_object[prop] = value
+        else: 
+            # key is found, set it if it's a scalar
+            if not isinstance(current_object[prop], dict):
+                current_object[prop] = value 
+            else: 
+                # There already exists a dictionary at this level, we recurse to set the properties below
+                apply_set_state_mutation(current_object[prop], value)
+    return current_object
+
+def apply_delete_state_mutation(current_object, state_mutation_map):
+    if not isinstance(state_mutation_map, dict):
+        return
+    # For each property apply the state delete the key
+    for prop, value in state_mutation_map.items():
+        # Do nothing for parameter $a
+        if prop == '$a':
+            continue
+        # The property value is a boolean true, which means to delete the field
+        if isinstance(value, bool) and value == True:
+            current_object.pop(prop, None)
+        elif isinstance(value, dict) and isinstance(current_object.get(prop, None), dict):
+            # It is a dictionary key, we recurse underneath to delete the properties below
+            apply_delete_state_mutation(current_object[prop], value)
+    return current_object
+
+def calculate_latest_state_from_mod_history(mod_history):
+    # Ensure it is sorted in ascending order
+    mod_history.sort(key=lambda x: x['tx_num'], reverse=False)
+    current_object_state = {}
+    for element in mod_history:
+        print(f'calculate_latest_state_from_mod_history {element}')
+        has_action_prop = element['data'].get('$a')
+        action_to_perform = 0 # Set/update = 0
+        # We assume there is only the default $action (which can explicitly be indicated with 'set') and 'delete'
+        # If omitted we just assume 
+        if has_action_prop and isinstance(has_action_prop, int) and has_action_prop == 1: # delete = 1
+            apply_delete_state_mutation(current_object_state, element['data'])
+        else: 
+            apply_set_state_mutation(current_object_state, element['data'])
+    else: 
+        return current_object_state
+
+def validate_subrealm_rules_data(subrealms):
+    if not subrealms or not isinstance(subrealms, dict):
+        return None 
+
+    rules_list = subrealms.get('rules', None)
+    if not rules_list or not isinstance(rules_list, list) or len(rules_list) <= 0: 
+        return None
+
+    return validate_rules(rules_list)
 
 # Validate the rules array data for subrealm mints
 def validate_rules(rules):
@@ -1167,65 +1244,8 @@ def validate_rules(rules):
             print_subrealm_calculate_log(f'list element does not p or o fields')
             return None  
     # If we got this far, it means there is a valid rule as of the requested height, return the information
-    return {
-        'rule_set_txid': modpath_item['txid'],
-        'rule_set_height': modpath_item['height'],
-        'rule_valid_from_height': valid_from_height,
-        'rules': validated_rules_list # will not be empty since it is checked above
-    }
-    
-# Get the price regex list for a subrealm atomical
-# Returns the most recent value sorted by height descending
-def calculate_subrealm_rules_list_as_of_height(height, subrealm_mint_modpath_history):
-    # This is somewhat inefficient, because we transfer O(n) mod path history elements
-    # It is done so we collapse the rules onto the specific height => rule in order to remove superflous updates in the some block height
-    # What we must do is keep the LATEST (most recent) by tx_num and discard the other one with the same height.
-    # The reason is that someone could make a fast double update in the same block and potentially defraud people out of their subrealms by
-    # changing the price on the latest update.
-    # To make this more efficient we can calculate it once and store it in an LRU cache
-    # Another better way is to store the pruned/sorted data structure ahead of time and perform lookups as needed
-    collapsed_height_to_mod_path_history_items_map = create_collapsed_height_to_mod_path_history_items_map(subrealm_mint_modpath_history)
-    # At this point we have the collapsed linear history of the subreal rules update history 
-    # Because we use the 'height' to key, therefore it means we are using the latest version of the rule set at a specific height
-    # This is important because we want to disallow rapid updates of the rules in the same block that could cause problems in minting
-    # Subrealms either due to the parent realm owner being malicious or causing an accidentally problem.
-    prev_height = 99999999999 # Used only for an assertion to ensure that the entire list is always monotonically decreasing
-    prev_tx_num = 99999999999 # Used only for an assertion to ensure that the entire list is always monotonically decreasing
-    for height_key, modpath_item in sorted(collapsed_height_to_mod_path_history_items_map.items(), reverse=True):
-        # Sanity check that the collapse process did not distrub the height order
-        modpath_item_tx_num = modpath_item['tx_num']
-        print_subrealm_calculate_log(f'height_key {height_key} prev_tx_num {prev_tx_num} modpath_item_tx_num {modpath_item_tx_num} prev_tx_num {prev_tx_num}')
-        assert(modpath_item['height'] == height_key)
-        assert(modpath_item['height'] <= prev_height)
-        assert(modpath_item['tx_num'] < prev_tx_num)
-        prev_tx_num = modpath_item['tx_num']
-        valid_from_height = modpath_item['height'] + MINT_SUBREALM_RULES_BECOME_EFFECTIVE_IN_BLOCKS
-        if height < valid_from_height:
-            continue
-        # If we got this far, then we reached a subrealm mint rule that is at the valid height range to be valid for the requested height
-        # However, we must do sanity checks on the regex, price, and output to ensure it is a well formed rule set
-        # ---
-        # We make the decision to REJECT if the rules settings are invalid at the expected valid height.
-        # If it is invalid, then it effectively means subrealm minting for the parent realm is DISABLED.
-        # The alternative would be to 'fall back' to the earliest valid rule, but then that could be confusing and obvious to users.
-        # Therefore the decision is made to intentionall return None (ie: No match) when there is a problem and leave it to the parent realm owner
-        # to fix the rule set (if they haven't done so already)
-        if not modpath_item['data'] or not isinstance(modpath_item['data'], dict):
-            print_subrealm_calculate_log(f'payload is not valid')
-            return None # Reject if there is no valid data
-        mod_path = modpath_item['data'].get('$path')
-        if not isinstance(mod_path, str):
-            print_subrealm_calculate_log(f'subrealm-mint path is not a str')
-            return None 
-        if mod_path != SUBREALM_MINT_PATH:
-            print_subrealm_calculate_log(f'subrealm-mint path not found')
-            return None # Reject if there was a programmer error and an incorrect path was encountered (it shouldnt happen since it was passed in to this function)
-        # It is at least a dictionary
-        rules = modpath_item['data'].get('rules')
-        return validate_rules(rules)
-    # Nothing was found or matched, return None
-    return None
-
+    return validated_rules_list
+     
 # Assign the ft quantity basic from the start_out_idx to the end until exhausted
 # Returns the sequence of output indexes that matches until the final one that matched
 # Also returns whether it fit cleanly in (ie: exact with no left overs or under)

@@ -27,7 +27,7 @@ from electrumx.lib.util import (
     formatted_time, pack_be_uint16, pack_be_uint32, pack_le_uint64, pack_be_uint64, pack_le_uint32,
     unpack_le_uint32, unpack_be_uint32, unpack_le_uint64, unpack_be_uint64, unpack_le_uint16_from
 )
-from electrumx.lib.util_atomicals import auto_encode_bytes_elements, pad_bytes64, get_tx_hash_index_from_location_id, location_id_bytes_to_compact
+from electrumx.lib.util_atomicals import auto_encode_bytes_elements, pad_bytes64, get_tx_hash_index_from_location_id, location_id_bytes_to_compact, calculate_latest_state_from_mod_history
 from electrumx.server.storage import db_class, Storage
 from electrumx.server.history import History, TXNUM_LEN
 from electrumx.lib.script import SCRIPTHASH_LEN
@@ -91,7 +91,7 @@ class FlushData:
     # distmint_adds tracks the b'gi' which is the initial distributed mint location tracked to determine if any more mints are allowed
     # It maps atomical_id (of the dft deploy token mint) to location_ids and then the details of the scripthash+value_sats of the mint        
     distmint_adds = attr.ib()           # type: Dict[bytes, Dict[bytes, bytes]
-    # state_adds is for evt, evtpath, mod, modpath state updates
+    # state_adds is for evt, mod state updates
     # It maps atomical_id to the data of the state update      
     state_adds = attr.ib()           # type: Dict[bytes, Dict[bytes, bytes]
     
@@ -172,11 +172,7 @@ class DB:
         # ---
         # Key: b'mod' + atomical_id + tx_hash + out_idx
         # Value: payload data
-        # "maps the atomical, transaction hash and output for the general mod state update data"
-        # ---
-        # Key: b'modpath' + atomical_id + path_padded + tx_num + tx_hash + out_idx + height
-        # Value: payload data
-        # "maps the atomical and path string (64 bytes padded) to a height and the payload data updated there"
+        # "maps the atomical, transaction hash and output for the general mod state update data
         # ---
         # Key: b'evt' + atomical_id + tx_num + out_idx
         # Value: payload data
@@ -1528,42 +1524,7 @@ class DB:
         for item in arr:
             lundofile.write(item + '\n')
         lundofile.close() 
-
-    # Populate the latest state of an atomical for a path
-    def get_mod_state_path_latest(self, atomical_id, path, Verbose=False):
-        history_for_path = self.get_mod_path_history(atomical_id, path, False)
-        latest_state = {}
-        for element in history_for_path:
-            has_action_prop = element['data'].get('$action')
-            action_to_perform = 'set'
-            # We assume there is only the default $action (which can explicitly be indicated with 'set') and 'delete'
-            # If omitted we just assume 
-            if has_action_prop and has_action_prop == 'delete':
-                action_to_perform = 'delete'
-            # For each property apply the state set update or delete the key
-            # Take care below not to ever delete the $path or $action props
-            for prop, value in element['data'].items():
-                # Update the latest state, save metadata such as height, txid, tx_num, and location
-                if action_to_perform == 'set':
-                    latest_state[prop] = {
-                        'height': element['height'],
-                        'txid': element['txid'],
-                        'tx_num': element['tx_num'],
-                        'index': element['index'],
-                        'value': value
-                    }
-                elif action_to_perform == 'delete':
-                    # Take special care not to delete the $path or $action if they are provided
-                    # Because these are meta control properties names and we still want to maintain them for posterity and inspection
-                    if prop != '$path' and prop != '$action':
-                        latest_state.pop(prop, None)
-        if Verbose: 
-            # If in verbose mode, when we are done sort the list by descending
-            history_for_path.sort(key=lambda x: x['tx_num'], reverse=True)
-            return latest_state, history_for_path
-        else: 
-            return latest_state, None
-
+ 
     def get_name_entries_template(self, db_prefix, subject_encoded):
         db_key_prefix = db_prefix + subject_encoded
         entries = []
@@ -1620,83 +1581,44 @@ class DB:
         return entries
  
     # Populate the latest state of an atomical for a path
-    def populate_extended_mod_state_path_latest_atomical_info(self, atomical_id, atomical, path, Verbose=False):
-        latest_state, history_for_path = self.get_mod_state_path_latest(atomical_id, path, Verbose)
+    def populate_extended_mod_state_latest_atomical_info(self, atomical_id, atomical, height):
+        mod_history = self.get_mod_history(atomical_id, height)
+        latest_state = calculate_latest_state_from_mod_history(mod_history)
         latest_state_auto_encoded = auto_encode_bytes_elements(latest_state)
         atomical['state'] = {
-            '$path': path,
-            'latest': latest_state
+            'latest': latest_state_auto_encoded
         }
-        if Verbose:
-            atomical['state']['history'] = history_for_path
         return atomical
  
     # Populate the mod state history for an atomical
-    def get_mod_path_history(self, atomical_id, path_string, Reverse=True):
-        return self.get_mod_or_event_path_history(atomical_id, path_string, b'modpath', Reverse)
+    def get_mod_history(self, atomical_id, max_height):
+        return self.get_mod_or_event_history(atomical_id, max_height, b'mod')
 
     # Populate the evt state history for an atomical
-    def get_evt_path_history(self, atomical_id, path_string, Reverse=True):
-        return self.get_mod_or_event_path_history(atomical_id, path_string, b'evtpath', Reverse)
-
-    # Query all the modpath history properties and return them sorted descending by tx_num by default
-    # Use blockprocessor version to get it with the cache
-    def get_mod_or_event_path_history(self, atomical_id, path_string, prefix_key = b'modpath', Reverse=True):
-        PREFIX_BYTE_LEN = len(prefix_key)
-        TX_HASH_LEN = 32
-        prefix_key_atomical_id_key_prefix = prefix_key + atomical_id + pad_bytes64(path_string.encode())
-        path_results = []
-        for path_atomical_id_key, path_atomical_id_value in self.utxo_db.iterator(prefix=prefix_key_atomical_id_key_prefix):
-            atomical_id_ex = path_atomical_id_key[PREFIX_BYTE_LEN : PREFIX_BYTE_LEN + ATOMICAL_ID_LEN]
-            if atomical_id_ex != atomical_id:
-                raise IndexError(f'Developer error for {prefix_key} {path_string} prefix {atomical_id}')
-            # Key: prefix_key + atomical_id + path_padded + tx_numb + tx_hash + out_idx + height
-            # Unpack the tx number
-            tx_numb = path_atomical_id_key[PREFIX_BYTE_LEN + ATOMICAL_ID_LEN + 64 : PREFIX_BYTE_LEN + ATOMICAL_ID_LEN + 64 + TXNUM_LEN] 
-            txnum_padding = bytes(8-TXNUM_LEN)
-            tx_num_padded, = unpack_le_uint64(tx_numb + txnum_padding)
-            tx_hash = path_atomical_id_key[PREFIX_BYTE_LEN + ATOMICAL_ID_LEN + 64 + TXNUM_LEN: PREFIX_BYTE_LEN + ATOMICAL_ID_LEN + 64 + TXNUM_LEN + TX_HASH_LEN]
-            out_idx_packed = path_atomical_id_key[ PREFIX_BYTE_LEN + ATOMICAL_ID_LEN + 64 + TXNUM_LEN + TX_HASH_LEN: PREFIX_BYTE_LEN + ATOMICAL_ID_LEN + 64 + TXNUM_LEN + TX_HASH_LEN + 4]
-            out_idx, = unpack_le_uint32(out_idx_packed)
-            height_le = path_atomical_id_key[-4:]
-            height, = unpack_le_uint32(height_le)
-            obj = {
-                'tx_num': tx_num_padded,
-                'height': height,
-                'txid': hash_to_hex_str(tx_hash),
-                'index': out_idx,
-                'data': loads(path_atomical_id_value)
-            }
-            path_results.append(obj)
-        # Sort by descending tx_num
-        path_results.sort(key=lambda x: x['tx_num'], reverse=Reverse)
-        return path_results
-
-    # Populate the mod state history for an atomical
-    def get_mod_history(self, atomical_id):
-        return self.get_mod_or_event_history(atomical_id, b'mod')
-
-    # Populate the evt state history for an atomical
-    def get_evt_history(self, atomical_id):
-        return self.get_mod_or_event_history(atomical_id, b'evt')
+    def get_evt_history(self, atomical_id, max_height):
+        return self.get_mod_or_event_history(atomical_id, max_height, b'evt')
 
     # Populate mod or event history for an atomical
-    def get_mod_or_event_history(self, atomical_id, prefix_key= b'mod'):
+    def get_mod_or_event_history(self, atomical_id, max_height, prefix_key):
         PREFIX_BYTE_LEN = 3
         prefix = prefix_key + atomical_id
         history = []
         for db_key, db_value in self.utxo_db.iterator(prefix=prefix, reverse=True):
             # Key: b'mod' + atomical_id + tx_hash + out_idx
-            tx_hash = db_key[ PREFIX_BYTE_LEN + ATOMICAL_ID_LEN : PREFIX_BYTE_LEN + ATOMICAL_ID_LEN + TX_HASH_LEN]
+            tx_hash = db_key[ PREFIX_BYTE_LEN + ATOMICAL_ID_LEN + TXNUM_LEN: PREFIX_BYTE_LEN + ATOMICAL_ID_LEN + TXNUM_LEN + TX_HASH_LEN]
             tx_num, tx_height = self.get_tx_num_height_from_tx_hash(tx_hash)
-            out_idx_packed = db_key[ PREFIX_BYTE_LEN + ATOMICAL_ID_LEN + TX_HASH_LEN: PREFIX_BYTE_LEN + ATOMICAL_ID_LEN + TX_HASH_LEN + 4]
+            self.logger.info(f'get_mod_history {hash_to_hex_str(tx_hash)}, {tx_height}, {max_height}')
+            # Requested limits on history
+            if tx_height > max_height:
+                break
+            out_idx_packed = db_key[ PREFIX_BYTE_LEN + ATOMICAL_ID_LEN + TXNUM_LEN + TX_HASH_LEN: PREFIX_BYTE_LEN + ATOMICAL_ID_LEN + TXNUM_LEN + TX_HASH_LEN + 4]
             out_idx, = unpack_le_uint32(out_idx_packed)
             entry = {
                 'tx_num': tx_num, 
                 'height': tx_height, 
                 'txid': hash_to_hex_str(tx_hash), 
                 'index': out_idx,
-                'data': db_value.hex()
+                'data': loads(db_value)
             }
             history.append(entry)
         # Sort by descending tx_num
@@ -1706,9 +1628,9 @@ class DB:
     # Populate the mod(ify) state information for an Atomical.
     # There could be potentially many updates for an Atomical and this should be called to enumerate the entire state history
     # From the state history, clients can reconstruct the "latest state" of an Atomical dynamic data fields
-    def populate_extended_mod_state_history_atomical_info(self, atomical_id, atomical):
+    def populate_extended_mod_state_history_atomical_info(self, atomical_id, atomical, max_height):
         atomical['state'] = {
-            'history': self.get_mod_history(atomical_id)
+            'history': self.get_mod_history(atomical_id, max_height)
         }
         return atomical
 
@@ -1717,21 +1639,9 @@ class DB:
     # From the event history, clients can play back all of the events emitted for an Atomical.
     # This is very similar to the "mod" operation, but the semantics are different and follow an emit/event like pattern
     # ...whereas the "mod" operation is intended to modify stable state.
-    def populate_extended_events_atomical_info(self, atomical_id, atomical):
+    def populate_extended_events_atomical_info(self, atomical_id, atomical, max_height):
         atomical['event'] = {
-            'history': self.get_mod_or_event_history(atomical_id, b'evt')
-        }
-        return atomical
-    
-    # Populate the events data information for an Atomical by a path
-    # There could be potentially many events for an Atomical and this should be called to enumerate the entire event history
-    # From the event history, clients can play back all of the events emitted for an Atomical.
-    # This is very similar to the "mod" operation, but the semantics are different and follow an emit/event like pattern
-    # ...whereas the "mod" operation is intended to modify stable state.
-    def populate_extended_events_by_path_atomical_info(self, atomical_id, atomical, path_string):
-        atomical['event'] = {
-            '$path': path_string,
-            'history': self.get_mod_or_event_path_history(atomical_id, path_string, b'evtpath')
+            'history': self.get_mod_or_event_history(atomical_id, max_height, b'evt')
         }
         return atomical
     

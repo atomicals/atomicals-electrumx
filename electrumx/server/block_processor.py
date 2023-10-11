@@ -45,7 +45,7 @@ from electrumx.lib.util_atomicals import (
     MAX_SUBREALM_RULE_SIZE_LEN,
     SUBREALM_MINT_PATH,
     SUBREALM_MINT_MIN_PAYMENT_DUST_LIMIT,
-    MINT_SUBREALM_RULES_BECOME_EFFECTIVE_IN_BLOCKS, 
+    MINT_SUBREALM_RULES_BECOME_EFFECTIVE_IN_BLOCKS,
     MINT_REALM_CONTAINER_TICKER_COMMIT_REVEAL_DELAY_BLOCKS, 
     MINT_SUBREALM_COMMIT_PAYMENT_DELAY_BLOCKS, 
     is_valid_dmt_op_format, 
@@ -59,12 +59,14 @@ from electrumx.lib.util_atomicals import (
     is_valid_ticker_string, 
     get_mint_info_op_factory,
     convert_db_mint_info_to_rpc_mint_info_format,
-    create_collapsed_height_to_mod_path_history_items_map,
-    calculate_subrealm_rules_list_as_of_height, 
     validate_subrealm_rules_outputs_format,
     calculate_outputs_to_color_for_atomical_ids,
-    build_reverse_output_to_atomical_id_map
+    build_reverse_output_to_atomical_id_map,
+    calculate_latest_state_from_mod_history,
+    validate_subrealm_rules_data
 )
+
+import copy
 
 if TYPE_CHECKING:
     from electrumx.lib.coins import Coin
@@ -599,7 +601,7 @@ class BlockProcessor:
                         # Here we go and check for the required payment amount and details now...
                         # We also use the commit_height of the subrealm to determine what price they should be paying
                         expected_payment_height = found_atomical_mint_info_for_potential_subrealm['commit_height']
-                        matched_price_point = self.get_applicable_subrealm_mint_rule_by_height(parent_realm_id, request_subrealm, expected_payment_height)
+                        matched_price_point = self.get_applicable_subrealm_mint_rule_by_height(parent_realm_id, request_subrealm, expected_payment_height - MINT_SUBREALM_RULES_BECOME_EFFECTIVE_IN_BLOCKS)
                         if matched_price_point:
                             self.logger.info(f'get_expected_subrealm_payment_info: matched_price_point={matched_price_point}, request_subrealm={request_subrealm}')
                             return matched_price_point, parent_realm_id, request_subrealm
@@ -970,7 +972,7 @@ class BlockProcessor:
     # Check whether to create an atomical NFT/FT 
     # Validates the format of the detected input operation and then checks the correct extra data is valid
     # such as realm, container, ticker, etc. Only succeeds if the appropriate names can be assigned
-    def create_or_delete_atomical(self, operations_found_at_inputs, atomicals_spent_at_inputs, header, height, tx_num, atomical_num, tx, tx_hash, Delete=False):
+    def create_or_delete_atomical(self, operations_found_at_inputs, atomicals_spent_at_inputs, header, height, tx_num, atomical_num, tx, tx_hash, Delete):
         if not operations_found_at_inputs:
             return None
 
@@ -1120,7 +1122,7 @@ class BlockProcessor:
         else: 
             put_general_data(rloc_reveal_location_key, atomical_id)
 
-        self.put_or_delete_init_state_updates(mint_info, Delete)
+        self.put_or_delete_init_state_updates(mint_info, operations_found_at_inputs['payload'], Delete)
         return atomical_id
 
     # Delete the general data from the cache
@@ -1148,16 +1150,14 @@ class BlockProcessor:
             map_atomical_ids_to_info[atomical_id]['input_indexes'].append(txin_index)
         return map_atomical_ids_to_info
     
-    # Detect and apply updates-related like operations for an atomical such as mod/evt/crt/sl
-    def put_or_delete_state_updates(self, operations_found_at_inputs, atomical_id, tx_num, tx_hash, output_idx_le, height, apply_type=0, Delete=False):
+    # Detect and apply updates-related like operations for an atomical such as mod/evt/sl
+    def put_or_delete_state_updates(self, operations_found_at_inputs, atomical_id, tx_num, tx_hash, output_idx_le, height, apply_type, Delete):
         if not operations_found_at_inputs:
             return 
         op_name = 'mod'
         main_key_prefix = b'mod'
-        path_key_prefix = b'modpath'
         if apply_type == 1:
             main_key_prefix = b'evt'
-            path_key_prefix = b'evtpath'
         put_general_data = self.general_data_cache.__setitem__
         self.logger.info(f'put_or_delete_state_updates: operations_found_at_inputs={operations_found_at_inputs}')
         if operations_found_at_inputs and operations_found_at_inputs.get('op') == op_name and operations_found_at_inputs.get('input_index') == 0:
@@ -1170,20 +1170,6 @@ class BlockProcessor:
                 self.put_state_data(db_key_prefix, db_key_suffix, db_value)
             else: 
                 self.delete_state_data(db_key_prefix, db_key_suffix, db_value)
-            path = operations_found_at_inputs['payload'].get('$path', '/')
-            # Always force state updates to the root if they are not set
-            if not isinstance(path, str) or path == None or path == '':
-                path = '/'
-            if path and len(path.encode()) <= 64:
-                path_padded = pad_bytes64(path.encode())
-                height_packed = pack_le_uint32(height)
-                path_db_key_prefix = path_key_prefix + atomical_id + path_padded
-                path_db_key_suffix = tx_numb + tx_hash + output_idx_le + height_packed
-                path_db_value = operations_found_at_inputs['payload_bytes']
-                if not Delete:
-                    self.put_state_data(path_db_key_prefix, path_db_key_suffix, path_db_value)
-                else: 
-                    self.delete_state_data(path_db_key_prefix, path_db_key_suffix, path_db_value)
 
     # apply the seal updates
     def put_or_delete_sealed(self, operations_found_at_inputs, atomical_id, location, Delete=False):
@@ -1201,61 +1187,33 @@ class BlockProcessor:
         return False
 
     # Refactor this later to combine with put_or_delete_state_updates
-    def put_or_delete_init_state_updates(self, mint_info, Delete=False):
-        if mint_info['type'] != 'NFT':
-            return
+    def put_or_delete_init_state_updates(self, mint_info, data_payload, Delete):
         tx_hash = mint_info['reveal_location_txid']
         atomical_id = mint_info['id']
         height = mint_info['reveal_location_height']
-        if mint_info.get('init'):
 
-            init_payload_data_list_outer = mint_info.get('init')
-            # The outer object fields will be the path to set
-            #
-            # Example:
-            # {
-            #    "init": {
-            #         "/path1": {
-            #              "key1": "val1"
-            #         },
-            #         "/path2": {
-            #              "somekey": 123
-            #         },
-            #         "/": {
-            #              "rootkey": "foo"
-            #         } 
-            #    }
-            # }
-            # 
-            # The example above the $path=/path1 and $path=/path2 will be set independently for the `mod` operation`
-            # Also note that the root key $path=/ can be set with the single slash "/"
-            #
-            if not init_payload_data_list_outer or not isinstance(init_payload_data_list_outer, dict) or len(init_payload_data_list_outer) == 0:
-                return
+        # Make a deep copy of the data payload and remove the reserved sections
+        copied_data_state = copy.deepcopy(data_payload)
+        # Remove any of the reserved sections
+        copied_data_state.pop('args', None)
+        init_payload_bytes = dumps(copied_data_state)
+        op_struct = {
+            'op': 'mod',
+            'input_index': 0,
+            'payload': copied_data_state,
+            'payload_bytes': init_payload_bytes,
+        }
+        if len(copied_data_state.keys()) > 0:
+            self.put_or_delete_state_updates(op_struct, 
+                atomical_id, 
+                mint_info['reveal_location_tx_num'], 
+                tx_hash, 
+                pack_le_uint32(mint_info['reveal_location_index']), 
+                height, 
+                0,
+                Delete
+            )
 
-            for init_payload_path, init_payload_data in init_payload_data_list_outer.items():
-                if not init_payload_data or not isinstance(init_payload_data, dict) or len(init_payload_data) == 0:
-                    continue
-                # Manually add/overwrite the path information since it's set in the keys
-                init_payload_data['$path'] = init_payload_path
-                self.logger.info(f'put_or_delete_init_state_updates: height={height}, atomical_id={location_id_bytes_to_compact(atomical_id)}, tx_hash={hash_to_hex_str(tx_hash)} path={init_payload_path}')
-                init_payload_bytes = dumps(init_payload_data)
-                op_struct = {
-                    'op': 'mod',
-                    'input_index': 0,
-                    'payload': init_payload_data,
-                    'payload_bytes': init_payload_bytes,
-                }
-                if mint_info['type'] == 'NFT':
-                    self.put_or_delete_state_updates(op_struct, 
-                        atomical_id, 
-                        mint_info['reveal_location_tx_num'], 
-                        tx_hash, 
-                        pack_le_uint32(mint_info['reveal_location_index']), 
-                        height, 
-                        0,
-                        Delete
-                    )
     # Color the NFT atomicals with splat command
     def color_nft_atomicals_splat(self, nft_atomicals, tx_hash, tx, tx_num, atomical_ids_touched):
         # Splat takes all of the NFT atomicals across all inputs (including multiple atomicals at the same utxo) 
@@ -1305,11 +1263,13 @@ class BlockProcessor:
             hashX = self.coin.hashX_from_script(txout.pk_script)
             value_sats = pack_le_uint64(txout.value)
             put_general_data(b'po' + location, txout.pk_script)
-            self.put_or_delete_state_updates(operations_found_at_inputs, mint_info['atomical_id'], tx_num, tx_hash, output_idx_le, height, 0)
-            self.put_or_delete_state_updates(operations_found_at_inputs, mint_info['atomical_id'], tx_num, tx_hash, output_idx_le, height, 1)
+            # Only allow state or event updates if it is not immutable
+            if not mint_info.get('$immutable', None):
+                self.put_or_delete_state_updates(operations_found_at_inputs, mint_info['atomical_id'], tx_num, tx_hash, output_idx_le, height, 0, False)
+                self.put_or_delete_state_updates(operations_found_at_inputs, mint_info['atomical_id'], tx_num, tx_hash, output_idx_le, height, 1, False)
             # Only allow NFTs to be sealed.
             # Useful for locking container collections, locking parent realms, and even locking any NFT atomical permanently
-            was_sealed = self.put_or_delete_sealed(operations_found_at_inputs, mint_info['atomical_id'], location)
+            was_sealed = self.put_or_delete_sealed(operations_found_at_inputs, mint_info['atomical_id'], location, False)
             if not was_sealed:
                 # Only advance the UTXO if it was not sealed
                 tx_numb = pack_le_uint64(tx_num)[:TXNUM_LEN]
@@ -1360,6 +1320,7 @@ class BlockProcessor:
                 self.build_put_atomicals_utxo(atomical_id, tx_hash, tx, tx_num, expected_output_index)
                 sanity_check_sums[atomical_id] += tx.outputs[expected_output_index].value
             atomical_ids_touched.append(atomical_id)
+ 
         # Sanity check that there can be no inflation
         for atomical_id, ft_info in sorted(ft_atomicals.items()):
             sum_out_value = sanity_check_sums.get(atomical_id)
@@ -1368,6 +1329,21 @@ class BlockProcessor:
                 atomical_id_compact = location_id_bytes_to_compact(atomical_id)
                 self.logger.info(f'atomical_id={atomical_id_compact} input_value={input_value} sum_out_value={sum_out_value} {hash_to_hex_str(tx_hash)}')
                 raise IndexError(f'Fatal error the output sum of outputs is greater than input sum for Atomical: atomical_id={atomical_id_compact} input_value={input_value} sum_out_value={sum_out_value} {hash_to_hex_str(tx_hash)}')
+
+        # If there was an event, then save it for the first FT only
+        if operations_found_at_inputs and operations_found_at_inputs.get('op') == 'evt' and operations_found_at_inputs.get('input_index') == 0:
+            # Only allow an event to be posted to the first FT in the list, sorted
+            sorted_ft_atomical_ids = sorted(ft_atomicals.keys())
+            if sorted_ft_atomical_ids and len(sorted_ft_atomical_ids) > 0:
+                atomical_id_of_first_ft = sorted_ft_atomical_ids[0]
+                output_idx_le = pack_le_uint32(0) # Always save to 0th location
+                location = tx_hash + output_idx_le
+                txout = tx.outputs[0]
+                scripthash = double_sha256(txout.pk_script)
+                hashX = self.coin.hashX_from_script(txout.pk_script)
+                value_sats = pack_le_uint64(txout.value)
+                # always store event updates because all FT tokens are not $immutable (ie: they can have events added)
+                self.put_or_delete_state_updates(operations_found_at_inputs, atomical_id_of_first_ft, tx_num, tx_hash, output_idx_le, height, 1, False)
 
     def build_put_atomicals_utxo(self, atomical_id, tx_hash, tx, tx_num, out_idx):
         output_idx_le = pack_le_uint32(out_idx)
@@ -1782,11 +1758,6 @@ class BlockProcessor:
             if request_container:
                 atomical['mint_info']['$request_container'] = request_container
 
-            # Populate relations state
-            latest_relns_state, _not_used = self.db.get_mod_state_path_latest(atomical_id, '/relns')
-            latest_relns_state_auto_encoded = auto_encode_bytes_elements(latest_relns_state)
-            atomical['$relns'] = latest_relns_state_auto_encoded
-
         elif atomical['type'] == 'FT':
             subtype = init_mint_info.get('subtype')
             atomical['subtype'] = subtype
@@ -1892,7 +1863,7 @@ class BlockProcessor:
                 payment_type = 'parent_initiated'
             else: 
                 # If it was not parent initiated, then get the applicable rule
-                applicable_rule = self.get_applicable_subrealm_mint_rule_by_height(arg_pid, arg_request_subrealm, raw_mint_info_for_candidate_id['commit_height'])
+                applicable_rule = self.get_applicable_subrealm_mint_rule_by_height(arg_pid, arg_request_subrealm, raw_mint_info_for_candidate_id['commit_height'] - MINT_SUBREALM_RULES_BECOME_EFFECTIVE_IN_BLOCKS)
                 print(f'build_applicable_rule_map: applicable_rule={applicable_rule}')
                 applicable_rule_map[subrealm_candidate_atomical_id]['applicable_rule'] = applicable_rule
             if payment_data:
@@ -2224,7 +2195,7 @@ class BlockProcessor:
                     self.logger.info(f'advance_txs: atomicals_operations_found_at_inputs operation_found={operation_found}, operation_input_index={operation_input_index}, size_payload={size_payload}, tx_hash={hash_to_hex_str(tx_hash)}, commit_txid={hash_to_hex_str(commit_txid)}, commit_index={commit_index}, reveal_location_txid={hash_to_hex_str(reveal_location_txid)}, reveal_location_index={reveal_location_index}')
                 
                 # Create NFT/FT atomicals if it is defined in the tx
-                created_atomical_id = self.create_or_delete_atomical(atomicals_operations_found_at_inputs, atomicals_spent_at_inputs, header, height, tx_num, atomical_num, tx, tx_hash)
+                created_atomical_id = self.create_or_delete_atomical(atomicals_operations_found_at_inputs, atomicals_spent_at_inputs, header, height, tx_num, atomical_num, tx, tx_hash, False)
                 if created_atomical_id:
                     has_at_least_one_valid_atomicals_operation = True
                     atomical_num += 1
@@ -2315,11 +2286,11 @@ class BlockProcessor:
             output_idx_to_atomical_id_map = build_reverse_output_to_atomical_id_map(atomical_id_to_output_index_map)
             expected_output_keys_satisfied = {}
             for output_script_key, output_script_details in expected_payment_outputs.items():
-                if not output_script_details.get('id'):
+                if not output_script_details.get('id', None):
                     expected_output_keys_satisfied[output_script_key] = False
                 else: 
                     atomical_id_expected_color_long_from = compact_to_location_id_bytes(output_script_details.get('id'))
-                    expected_output_keys_satisfied[output_script_key + atomical_id_expected_color_long_from] = False
+                    expected_output_keys_satisfied[output_script_key + atomical_id_expected_color_long_from.hex()] = False
             expected_payment_regex = matched_price_point['matched_rule']['p']
             # Sanity check that request_subrealm_name matches the regex
             # intentionally assume regex pattern is valid and name matches because the logic path should have already been checked
@@ -2332,21 +2303,23 @@ class BlockProcessor:
             for idx, txout in enumerate(tx.outputs):
                 # Found the required payment amount and script
                 output_script_hex = txout.pk_script.hex()
-                expected_output_payment_value_dict = expected_payment_outputs.get(output_script_hex)
-                expected_output_payment_value = expected_output_payment_value_dict['v']
+                expected_output_payment_value_dict = expected_payment_outputs.get(output_script_hex, None)
+                if not expected_output_payment_value_dict or not isinstance(expected_output_payment_value_dict, dict):
+                    continue
+                expected_output_payment_value = expected_output_payment_value_dict.get('v', None)
                 if not expected_output_payment_value or expected_output_payment_value < SUBREALM_MINT_MIN_PAYMENT_DUST_LIMIT:
                     continue 
                 if txout.value >= expected_output_payment_value:
                     self.logger.info(f'create_or_delete_subrealm_payment_output_if_valid gt_expected_output_payment_value')
-                    expected_output_payment_id_type = expected_output_payment_value_dict.get('id')
+                    expected_output_payment_id_type = expected_output_payment_value_dict.get('id', None)
                     # If there was a required color for the payment, then check it here
                     if expected_output_payment_id_type:
                         self.logger.info(f'create_or_delete_subrealm_payment_output_if_valid expected_output_payment_id_type={expected_output_payment_id_type}')
                         expected_output_payment_id_type_long_form = compact_to_location_id_bytes(expected_output_payment_id_type)
                         # Check in the reverse map if the current output idx is colored with the expected color
-                        if output_idx_to_atomical_id_map.get(idx) and output_idx_to_atomical_id_map[idx] and output_idx_to_atomical_id_map[idx].get(expected_output_payment_id_type_long_form):
+                        if output_idx_to_atomical_id_map.get(idx, None) and output_idx_to_atomical_id_map[idx].get(expected_output_payment_id_type_long_form, None):
                             self.logger.info(f'create_or_delete_subrealm_payment_output_if_valid found_type_id_payment expected_output_payment_id_type={expected_output_payment_id_type}')
-                            expected_output_keys_satisfied[output_script_hex + expected_output_payment_id_type_long_form] = True # Mark that the output was matched at least once
+                            expected_output_keys_satisfied[output_script_hex + expected_output_payment_id_type_long_form.hex()] = True # Mark that the output was matched at least once
                     else: 
                         self.logger.info(f'create_or_delete_subrealm_payment_output_if_valid no_type_id_needed')
                         # Normal satoshis payment
@@ -2413,6 +2386,7 @@ class BlockProcessor:
             self.logger.info(f'rollback_spend_atomicals: atomical_id={atomical_id.hex()}, tx_hash={hash_to_hex_str(tx_hash)}')
             hashX = spent_atomical['data'][:HASHX_LEN]
             hashXs.append(hashX)
+            # Just try to delete all states regardless of whether they are immutable or not, just easier this way
             self.put_or_delete_state_updates(operations_found_at_inputs, atomical_id, tx_num, tx_hash, output_index_packed, height, 0, True)
             self.put_or_delete_state_updates(operations_found_at_inputs, atomical_id, tx_num, tx_hash, output_index_packed, height, 1, True)
             self.put_or_delete_sealed(operations_found_at_inputs, atomical_id, location_id, True)
@@ -2420,42 +2394,45 @@ class BlockProcessor:
 
     # Query all the modpath history properties and return them sorted descending by tx_num by default
     # Uses cache and combines it with db results
-    def get_mod_path_history(self, parent_atomical_id, path, prefix_key = b'modpath'):
+    def get_mod_history(self, parent_atomical_id, max_height):
+        prefix_key = b'mod'
         PREFIX_BYTE_LEN = len(prefix_key)
-        state_key_prefix = prefix_key + parent_atomical_id + pad_bytes64(path.encode())
+        state_key_prefix = prefix_key + parent_atomical_id
         cache_mod_prefix_map = self.state_data_cache.get(state_key_prefix)
-        cache_mod_path_history = [] # must sort this at the end with the return
+        cache_mod_history = [] # must sort this at the end with the return
         if cache_mod_prefix_map:
-            self.logger.info(f'get_mod_path_history: cache_mod_prefix_map={cache_mod_prefix_map}')
-            for state_key_suffix, path_state_value in cache_mod_prefix_map.items():
+            self.logger.info(f'get_mod_history: cache_mod_prefix_map={cache_mod_prefix_map}')
+            for state_key_suffix, state_value in cache_mod_prefix_map.items():
                 # Key: prefix_key + atomical_id + path_padded + tx_numb + tx_hash + out_idx + height
                 # Unpack the tx number
-                path_atomical_id_key = state_key_prefix + state_key_suffix
-                tx_numb = path_atomical_id_key[PREFIX_BYTE_LEN + ATOMICAL_ID_LEN + 64 : PREFIX_BYTE_LEN + ATOMICAL_ID_LEN + 64 + TXNUM_LEN] 
+                atomical_id_key = state_key_prefix + state_key_suffix
+                tx_numb = atomical_id_key[PREFIX_BYTE_LEN + ATOMICAL_ID_LEN : PREFIX_BYTE_LEN + ATOMICAL_ID_LEN + TXNUM_LEN] 
                 txnum_padding = bytes(8-TXNUM_LEN)
                 tx_num_padded, = unpack_le_uint64(tx_numb + txnum_padding)
-                tx_hash = path_atomical_id_key[PREFIX_BYTE_LEN + ATOMICAL_ID_LEN + 64 + TXNUM_LEN: PREFIX_BYTE_LEN + ATOMICAL_ID_LEN + 64 + TXNUM_LEN + TX_HASH_LEN]
-                out_idx_packed = path_atomical_id_key[ PREFIX_BYTE_LEN + ATOMICAL_ID_LEN + 64 + TXNUM_LEN + TX_HASH_LEN: PREFIX_BYTE_LEN + ATOMICAL_ID_LEN + 64 + TXNUM_LEN + TX_HASH_LEN + 4]
+                tx_hash = atomical_id_key[PREFIX_BYTE_LEN + ATOMICAL_ID_LEN + TXNUM_LEN: PREFIX_BYTE_LEN + ATOMICAL_ID_LEN + TXNUM_LEN + TX_HASH_LEN]
+                out_idx_packed = atomical_id_key[ PREFIX_BYTE_LEN + ATOMICAL_ID_LEN + TXNUM_LEN + TX_HASH_LEN: PREFIX_BYTE_LEN + ATOMICAL_ID_LEN + TXNUM_LEN + TX_HASH_LEN + 4]
                 out_idx, = unpack_le_uint32(out_idx_packed)
-                height_le = path_atomical_id_key[-4:]
+                height_le = atomical_id_key[-4:]
                 height, = unpack_le_uint32(height_le)
+                # Skip too high heights
+                if height > max_height: 
+                    break 
                 obj = {
                     'tx_num': tx_num_padded,
                     'height': height,
                     'txid': hash_to_hex_str(tx_hash),
                     'index': out_idx,
-                    'data': loads(path_state_value)
+                    'data': loads(state_value)
                 }
-                cache_mod_path_history.append(obj)
-        db_mod_path_history = self.db.get_mod_path_history(parent_atomical_id, path)
+                cache_mod_history.append(obj)
+        db_mod_history = self.db.get_mod_history(parent_atomical_id, max_height)
         # Sort them together 
-        if (len(cache_mod_path_history) > 0):
-            self.logger.info(f'get_mod_path_history: CACHE_HIT: {location_id_bytes_to_compact(parent_atomical_id)}')
+        if (len(cache_mod_history) > 0):
+            self.logger.info(f'cache_mod_history: CACHE_HIT: {location_id_bytes_to_compact(parent_atomical_id)}')
 
-        cache_mod_path_history.extend(db_mod_path_history)
-        cache_mod_path_history.sort(key=lambda x: x['tx_num'], reverse=True)
-        return cache_mod_path_history
-
+        cache_mod_history.extend(db_mod_history)
+        cache_mod_history.sort(key=lambda x: x['tx_num'], reverse=True)
+        return cache_mod_history
 
     # Get a matched price point (if any) for a subrealm name for the parent atomical taking into account the height
     # Recall that the 'modpath' (contract) values will take effect only after 6 blocks have passed after the height in
@@ -2466,14 +2443,14 @@ class BlockProcessor:
             self.logger.info(f'get_applicable_subrealm_mint_rule_by_height: {item}. parent_atomical_id={parent_atomical_id.hex()}, proposed_subrealm_name={proposed_subrealm_name}, height={height}')   
         # Note: we must query the modpath history with the cache in case we have not yet flushed to disk
         # db_key = b'modpath' + atomical_id + mod_path_padded + tx_numb + output_idx_le + height_packed 
-        subrealm_mint_modpath_history = self.get_mod_path_history(parent_atomical_id, SUBREALM_MINT_PATH)
-        print_applicable_subrealm_log(f'get_applicable_subrealm_mint_rule_by_height: subrealm_mint_modpath_history {subrealm_mint_modpath_history}')
-        regex_price_point_list = calculate_subrealm_rules_list_as_of_height(height, subrealm_mint_modpath_history)
-        # Ensure there is a list of regex price list that is available for the atomical
-        if not regex_price_point_list or len(regex_price_point_list['rules']) <= 0:
-            print_applicable_subrealm_log('get_applicable_subrealm_mint_rule_by_height: no valid rules array found, or has no items')
+        subrealm_mint_mod_history = self.get_mod_history(parent_atomical_id, height)
+        print_applicable_subrealm_log(f'get_applicable_subrealm_mint_rule_by_height: subrealm_mint_mod_history {subrealm_mint_mod_history}')
+        latest_state = calculate_latest_state_from_mod_history(subrealm_mint_mod_history)
+        regex_price_point_list = validate_subrealm_rules_data(latest_state.get('subrealms', None))
+        if not regex_price_point_list:
             return None 
-        for regex_price_point in regex_price_point_list['rules']:
+
+        for regex_price_point in regex_price_point_list:
             print_applicable_subrealm_log(f'get_applicable_subrealm_mint_rule_by_height: processing rule item regex_price_point={regex_price_point}')
             # Perform some sanity checks just in case
             regex_pattern = regex_price_point.get('p', None)
@@ -2496,9 +2473,6 @@ class BlockProcessor:
                     continue
                 print_applicable_subrealm_log(f'get_applicable_subrealm_mint_rule_by_height: successfully matched pattern and price regex_pattern={regex_pattern}')
                 return {
-                    'rule_set_txid': regex_price_point_list['rule_set_txid'],
-                    'rule_set_height': regex_price_point_list['rule_set_height'],
-                    'rule_valid_from_height': regex_price_point_list['rule_valid_from_height'],
                     'matched_rule': regex_price_point
                 }
             except Exception as e: 
