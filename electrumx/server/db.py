@@ -1600,6 +1600,7 @@ class DB:
 
     # Populate mod or event history for an atomical
     def get_mod_or_event_history(self, atomical_id, max_height, prefix_key):
+        self.logger.info(f'get_mod_or_event_history {atomical_id} {max_height}')
         PREFIX_BYTE_LEN = 3
         prefix = prefix_key + atomical_id
         history = []
@@ -1607,7 +1608,7 @@ class DB:
             # Key: b'mod' + atomical_id + tx_hash + out_idx
             tx_hash = db_key[ PREFIX_BYTE_LEN + ATOMICAL_ID_LEN + TXNUM_LEN: PREFIX_BYTE_LEN + ATOMICAL_ID_LEN + TXNUM_LEN + TX_HASH_LEN]
             tx_num, tx_height = self.get_tx_num_height_from_tx_hash(tx_hash)
-            self.logger.info(f'get_mod_history {hash_to_hex_str(tx_hash)}, {tx_height}, {max_height}')
+            self.logger.info(f'get_mod_or_event_history {hash_to_hex_str(tx_hash)}, {tx_height}, {max_height}')
             # Requested limits on history
             if tx_height > max_height:
                 break
@@ -1640,8 +1641,8 @@ class DB:
     # This is very similar to the "mod" operation, but the semantics are different and follow an emit/event like pattern
     # ...whereas the "mod" operation is intended to modify stable state.
     def populate_extended_events_atomical_info(self, atomical_id, atomical, max_height):
-        atomical['event'] = {
-            'history': self.get_mod_or_event_history(atomical_id, max_height, b'evt')
+        atomical['events'] = {
+            'history': self.get_evt_history(atomical_id, max_height)
         }
         return atomical
     

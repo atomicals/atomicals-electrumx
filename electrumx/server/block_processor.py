@@ -1157,6 +1157,7 @@ class BlockProcessor:
         op_name = 'mod'
         main_key_prefix = b'mod'
         if apply_type == 1:
+            op_name = 'evt'
             main_key_prefix = b'evt'
         put_general_data = self.general_data_cache.__setitem__
         self.logger.info(f'put_or_delete_state_updates: operations_found_at_inputs={operations_found_at_inputs}')
