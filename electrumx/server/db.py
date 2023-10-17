@@ -1245,7 +1245,7 @@ class DB:
                     raise IndexError(f'get_atomicals_by_location_extended_info_long_form curr_scripthash exception mismatch at location tx {hash_to_hex_str(tx_hash)}')
             else:
                 last_scripthash = curr_scripthash
-            curr_value = unpack_le_uint64(location_result_value[ HASHX_LEN + SCRIPTHASH_LEN : HASHX_LEN + SCRIPTHASH_LEN + 8])
+            curr_value, = unpack_le_uint64(location_result_value[ HASHX_LEN + SCRIPTHASH_LEN : HASHX_LEN + SCRIPTHASH_LEN + 8])
             if last_value and last_value != curr_value:
                     raise IndexError(f'get_atomicals_by_location_extended_info_long_form curr_value exception mismatch at location tx {hash_to_hex_str(tx_hash)}')
             else:
