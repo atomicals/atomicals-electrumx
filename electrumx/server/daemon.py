@@ -31,7 +31,6 @@ if TYPE_CHECKING:
 class DaemonError(Exception):
     '''Raised when the daemon returns an error in its results.'''
 
-
 class WarmingUpError(Exception):
     '''Internal - when the daemon is warming up.'''
 

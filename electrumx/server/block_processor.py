@@ -63,7 +63,8 @@ from electrumx.lib.util_atomicals import (
     calculate_outputs_to_color_for_atomical_ids,
     build_reverse_output_to_atomical_id_map,
     calculate_latest_state_from_mod_history,
-    validate_subrealm_rules_data
+    validate_subrealm_rules_data,
+    AtomicalsValidationError
 )
 
 import copy
@@ -501,6 +502,36 @@ class BlockProcessor:
         self.tip_advanced_event.set()
         self.tip_advanced_event.clear()
 
+    # Helper method to validate if the transaction correctly cleanly assigns all FT (ARC20) tokens
+    # This method simulates coloring FT's according to split and regular rules
+    # Note: This does not apply to mempool but only prevout utxos that are confirmed
+    def validate_ft_rules_raw_tx(self, raw_tx):
+        # Deserialize the transaction
+        tx, tx_hash = self.coin.DESERIALIZER(bytes.fromhex(raw_tx), 0).read_tx_and_hash()
+        # Determine if there are any other operations at the transfer 
+        operations_found_at_inputs = parse_protocols_operations_from_witness_array(tx, tx_hash)
+        # Check if it was the split y operation because that is handled differently
+        should_split_ft_atomicals = operations_found_at_inputs and operations_found_at_inputs.get('op') == 'y' and operations_found_at_inputs.get('input_index') == 0 and operations_found_at_inputs.get('payload')
+        # Build the map of the atomicals potentiall spent at the tx
+        atomicals_spent_at_inputs = self.build_atomicals_spent_at_inputs_for_validation_only(tx)
+        # Build a structure of organizing into NFT and FTs
+        # Note: We do not validate anything with NFTs, just FTs
+        nft_atomicals, ft_atomicals =  self.build_atomical_type_structs(atomicals_spent_at_inputs)
+        self.logger.info(f'validate_ft_rules_raw_tx xx {ft_atomicals}')
+        # Prepare the logic check to determine if the FTs are cleanly assigned (ie: no accidental burning loss would occur)
+        cleanly_assigned = False
+        # In the split 'y' operation we check if that would be successful
+        if should_split_ft_atomicals:
+            cleanly_assigned = self.color_ft_atomicals_split(ft_atomicals, tx_hash, tx, 0, operations_found_at_inputs, [], False)
+        else:
+            # In the regular case we check if the rules are honored
+            cleanly_assigned = self.color_ft_atomicals_regular(ft_atomicals, tx_hash, tx, 0, operations_found_at_inputs, [], 0, False)
+        # Everything would have been cleanly assigned
+        if cleanly_assigned:
+            return True 
+        # A problem was detected and a loss of FTs would have happened
+        raise AtomicalsValidationError(f'detected invalid ft token inputs and outputs for tx_hash={hash_to_hex_str(tx_hash)}')
+    
     # Query general data including the cache
     def get_general_data_with_cache(self, key):
         try:
@@ -651,7 +682,7 @@ class BlockProcessor:
         return total_mints
 
     # Spend all of the atomicals at a location
-    def spend_atomicals_utxo(self, tx_hash: bytes, tx_idx: int) -> bytes:
+    def spend_atomicals_utxo(self, tx_hash: bytes, tx_idx: int, live_run) -> bytes:
         '''Spend the atomicals entry for UTXO and return atomicals[].'''
         idx_packed = pack_le_uint32(tx_idx)
         location_id = tx_hash + idx_packed
@@ -684,16 +715,20 @@ class BlockProcessor:
             found_at_least_one = False
             for atomical_a_db_key, atomical_a_db_value in self.db.utxo_db.iterator(prefix=prefix):
                 found_at_least_one = True
-            if found_at_least_one == False: 
-                raise IndexError(f'Did not find expected at least one entry for atomicals table for atomical: {location_id_bytes_to_compact(atomical_id)} at location {location_id_bytes_to_compact(location)}')
-
-            self.delete_general_data(b'a' + atomical_id + location_id)
+            # For live_run == True we must throw an exception since the b'a' record should always be there when we are spending
+            if live_run and found_at_least_one == False: 
+                raise IndexError(f'Did not find expected at least one entry for atomicals table for atomical: {location_id_bytes_to_compact(atomical_id)} at location {location_id_bytes_to_compact(location_id)}')
+            # Only do the db delete if this was a live run
+            if live_run:
+                self.delete_general_data(b'a' + atomical_id + location_id)
+                self.logger.info(f'spend_atomicals_utxo: utxo_db. location_id={location_id_bytes_to_compact(location_id)} atomical_id={location_id_bytes_to_compact(atomical_id)}, value={atomical_i_db_value}')
+            
             atomicals_data_list.append({
                 'atomical_id': atomical_id,
                 'location_id': location_id,
                 'data': atomical_i_db_value
             })
-            self.logger.info(f'spend_atomicals_utxo: utxo_db. location_id={location_id_bytes_to_compact(location_id)} atomical_id={location_id_bytes_to_compact(atomical_id)}, value={atomical_i_db_value}')
+            
             # Return all of the atomicals spent at the address
         return atomicals_data_list
 
@@ -1277,7 +1312,8 @@ class BlockProcessor:
                 self.put_atomicals_utxo(location, atomical_id, hashX + scripthash + value_sats + tx_numb)
             atomical_ids_touched.append(atomical_id)
 
-    def color_ft_atomicals_split(self, ft_atomicals, tx_hash, tx, tx_num, operations_found_at_inputs, atomical_ids_touched):
+    def color_ft_atomicals_split(self, ft_atomicals, tx_hash, tx, tx_num, operations_found_at_inputs, atomical_ids_touched, live_run):
+        cleanly_assigned = True
         for atomical_id, mint_info in sorted(ft_atomicals.items()):
             expected_output_indexes = []
             remaining_value = mint_info['value']
@@ -1302,23 +1338,36 @@ class BlockProcessor:
                 if txout.value <= remaining_value:
                     expected_output_indexes.append(out_idx)
                     remaining_value -= txout.value
+                    # We are done assigning all remaining values
+                    if remaining_value == 0:
+                        break
                 # Exit case when we have no more remaining_value to assign or the next output is greater than what we have in remaining_value
-                if txout.value > remaining_value or remaining_value <= 0:
+                if txout.value > remaining_value or remaining_value < 0:
+                    cleanly_assigned = False # Used to indicate that all was cleanly assigned
                     break
+            # Used to indicate that all was cleanly assigned
+            if remaining_value != 0:
+                cleanly_assigned = False
             # For each expected output to be colored, check for state-like updates
             for expected_output_index in expected_output_indexes:
-                self.build_put_atomicals_utxo(atomical_id, tx_hash, tx, tx_num, expected_output_index)
+                # only perform the db updates if it is a live run
+                if live_run:
+                    self.build_put_atomicals_utxo(atomical_id, tx_hash, tx, tx_num, expected_output_index)
             atomical_ids_touched.append(atomical_id)
-    
-    def color_ft_atomicals_regular(self, ft_atomicals, tx_hash, tx, tx_num, operations_found_at_inputs, atomical_ids_touched, height):
-        atomical_id_to_expected_outs_map = calculate_outputs_to_color_for_atomical_ids(ft_atomicals, tx_hash, tx)
+        return cleanly_assigned
+
+    def color_ft_atomicals_regular(self, ft_atomicals, tx_hash, tx, tx_num, operations_found_at_inputs, atomical_ids_touched, height, live_run):
+        atomical_id_to_expected_outs_map, cleanly_assigned = calculate_outputs_to_color_for_atomical_ids(ft_atomicals, tx_hash, tx)
         if not atomical_id_to_expected_outs_map:
-            return 
+            return None
+
         sanity_check_sums = {}
         for atomical_id, outputs_to_color in atomical_id_to_expected_outs_map.items():
             sanity_check_sums[atomical_id] = 0
             for expected_output_index in outputs_to_color:
-                self.build_put_atomicals_utxo(atomical_id, tx_hash, tx, tx_num, expected_output_index)
+                # only perform the db updates if it is a live run
+                if live_run:
+                    self.build_put_atomicals_utxo(atomical_id, tx_hash, tx, tx_num, expected_output_index)
                 sanity_check_sums[atomical_id] += tx.outputs[expected_output_index].value
             atomical_ids_touched.append(atomical_id)
  
@@ -1343,8 +1392,11 @@ class BlockProcessor:
                 scripthash = double_sha256(txout.pk_script)
                 hashX = self.coin.hashX_from_script(txout.pk_script)
                 value_sats = pack_le_uint64(txout.value)
-                # always store event updates because all FT tokens are not $immutable (ie: they can have events added)
-                self.put_or_delete_state_updates(operations_found_at_inputs, atomical_id_of_first_ft, tx_num, tx_hash, output_idx_le, height, 1, False)
+                # only perform the db updates if it is a live run
+                if live_run:
+                    # always store event updates because all FT tokens are not $immutable (ie: they can have events added)
+                    self.put_or_delete_state_updates(operations_found_at_inputs, atomical_id_of_first_ft, tx_num, tx_hash, output_idx_le, height, 1, False)
+        return cleanly_assigned 
 
     def build_put_atomicals_utxo(self, atomical_id, tx_hash, tx, tx_num, out_idx):
         output_idx_le = pack_le_uint32(out_idx)
@@ -1382,7 +1434,6 @@ class BlockProcessor:
     def color_atomicals_outputs(self, operations_found_at_inputs, atomicals_spent_at_inputs, tx, tx_hash, tx_num, height, is_unspendable):
         # Get the nft atomicals versus ft atomical
         nft_atomicals, ft_atomicals =  self.build_atomical_type_structs(atomicals_spent_at_inputs)
-
         atomical_ids_touched = []
         should_splat_nft_atomicals = operations_found_at_inputs and operations_found_at_inputs['op'] == 'x' and operations_found_at_inputs['input_index'] == 0
         if should_splat_nft_atomicals and len(nft_atomicals.keys()) > 0:
@@ -1391,13 +1442,14 @@ class BlockProcessor:
             self.color_nft_atomicals_regular(operations_found_at_inputs, nft_atomicals, tx_hash, tx, tx_num, atomical_ids_touched, height)  
             
         # Handle the FTs for the split case
-        should_split_ft_atomicals = operations_found_at_inputs and operations_found_at_inputs.get('op') == 'y' and operations_found_at_inputs.get('input_index') == 0 and operations_found_at_inputs.get('payload')
-        if should_split_ft_atomicals:
-            # ft_atomicals, tx_hash, tx, operations_found_at_inputs, atomical_ids_touched):
-            self.color_ft_atomicals_split(ft_atomicals, tx_hash, tx, tx_num, operations_found_at_inputs, atomical_ids_touched)
-        else:
-            self.color_ft_atomicals_regular(ft_atomicals, tx_hash, tx, tx_num, operations_found_at_inputs, atomical_ids_touched, height)
-        
+        if len(ft_atomicals) > 0:
+            should_split_ft_atomicals = operations_found_at_inputs and operations_found_at_inputs.get('op') == 'y' and operations_found_at_inputs.get('input_index') == 0 and operations_found_at_inputs.get('payload')
+            if should_split_ft_atomicals:
+                if not self.color_ft_atomicals_split(ft_atomicals, tx_hash, tx, tx_num, operations_found_at_inputs, atomical_ids_touched, True):
+                    self.logger.info(f'color_atomicals_outputs:color_ft_atomicals_split cleanly_assigned=False tx_hash={tx_hash}')
+            else:
+                if not self.color_ft_atomicals_regular(ft_atomicals, tx_hash, tx, tx_num, operations_found_at_inputs, atomical_ids_touched, height, True):
+                    self.logger.info(f'color_atomicals_outputs:color_ft_atomicals_regular cleanly_assigned=False tx_hash={tx_hash}')
         return atomical_ids_touched
 
     # Create or delete data that was found at the location
@@ -2060,7 +2112,7 @@ class BlockProcessor:
                         return None
                 the_key = b'po' + location
                 if Delete:
-                    atomicals_found_list = self.spend_atomicals_utxo(tx_hash, expected_output_index)
+                    atomicals_found_list = self.spend_atomicals_utxo(tx_hash, expected_output_index, True)
                     assert(len(atomicals_found_list) > 0)
                     self.delete_general_data(the_key)
                     self.delete_decentralized_mint_data(potential_dmt_atomical_id, location)
@@ -2085,6 +2137,22 @@ class BlockProcessor:
         if height >= self.coin.ATOMICALS_ACTIVATION_HEIGHT:
             return True 
         return False 
+
+    # Builds a map of the atomicals spent at a tx
+    # It uses the spend_atomicals_utxo method but with live_run == False
+    def build_atomicals_spent_at_inputs_for_validation_only(self, tx):
+        spend_atomicals_utxo = self.spend_atomicals_utxo
+        atomicals_spent_at_inputs = {}
+        txin_index = 0
+        for txin in tx.inputs:
+            if txin.is_generation():
+                continue
+            # Find all the existing transferred atomicals and DO NOT spend the Atomicals utxos (live_run == False)
+            atomicals_transferred_list = spend_atomicals_utxo(txin.prev_hash, txin.prev_idx, False)
+            if len(atomicals_transferred_list):
+                atomicals_spent_at_inputs[txin_index] = atomicals_transferred_list
+            txin_index += 1
+        return atomicals_spent_at_inputs 
 
     def advance_txs(
             self,
@@ -2150,7 +2218,7 @@ class BlockProcessor:
                 # Only search and spend atomicals utxos if activated
                 if self.is_atomicals_activated(height):
                     # Find all the existing transferred atomicals and spend the Atomicals utxos
-                    atomicals_transferred_list = spend_atomicals_utxo(txin.prev_hash, txin.prev_idx)
+                    atomicals_transferred_list = spend_atomicals_utxo(txin.prev_hash, txin.prev_idx, True)
                     if len(atomicals_transferred_list):
                         atomicals_spent_at_inputs[txin_index] = atomicals_transferred_list
                         for atomical_spent in atomicals_transferred_list:
@@ -2283,7 +2351,7 @@ class BlockProcessor:
             
             # Each of the elements in the expected script output map must be satisfied for it to be a valid payment
             nft_atomicals, ft_atomicals = self.build_atomical_type_structs(atomicals_spent_at_inputs)
-            atomical_id_to_output_index_map = calculate_outputs_to_color_for_atomical_ids(ft_atomicals, tx_hash, tx)
+            atomical_id_to_output_index_map, cleanly_assigned = calculate_outputs_to_color_for_atomical_ids(ft_atomicals, tx_hash, tx)
             output_idx_to_atomical_id_map = build_reverse_output_to_atomical_id_map(atomical_id_to_output_index_map)
             expected_output_keys_satisfied = {}
             for output_script_key, output_script_details in expected_payment_outputs.items():
@@ -2376,7 +2444,7 @@ class BlockProcessor:
         output_index_packed = pack_le_uint32(idx)
         current_location = tx_hash + output_index_packed
         # Spend the atomicals if there were any
-        spent_atomicals = self.spend_atomicals_utxo(tx_hash, idx)
+        spent_atomicals = self.spend_atomicals_utxo(tx_hash, idx, True)
         if len(spent_atomicals) > 0:
             # Remove the stored output
             self.delete_general_data(b'po' + current_location)

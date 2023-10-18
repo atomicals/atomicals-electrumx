@@ -40,7 +40,8 @@ from electrumx.lib.util_atomicals import (
     is_compact_atomical_id,
     format_name_type_candidates_to_rpc_for_subrealm,
     calculate_latest_state_from_mod_history,
-    validate_subrealm_rules_data
+    validate_subrealm_rules_data,
+    AtomicalsValidationError
 )
 from electrumx.lib.hash import (HASHX_LEN, Base58Error, hash_to_hex_str,
                                 hex_str_to_hash, sha256, double_sha256)
@@ -60,6 +61,7 @@ if TYPE_CHECKING:
 
 BAD_REQUEST = 1
 DAEMON_ERROR = 2
+ATOMICALS_INVALID_TX = 800422
 
 def scripthash_to_hashX(scripthash):
     try:
@@ -811,6 +813,16 @@ class SessionManager:
         hex_hash = await self.daemon.broadcast_transaction(raw_tx)
         self.txs_sent += 1
         return hex_hash
+
+    async def broadcast_transaction_validated(self, raw_tx, live_run):
+        self.bp.validate_ft_rules_raw_tx(raw_tx)
+        if live_run:
+            hex_hash = await self.daemon.broadcast_transaction(raw_tx)
+            self.txs_sent += 1
+            return hex_hash
+        else:
+            tx, tx_hash = self.env.coin.DESERIALIZER(bytes.fromhex(raw_tx), 0).read_tx_and_hash()
+            return hash_to_hex_str(tx_hash)
 
     async def limited_history(self, hashX):
         '''Returns a pair (history, cost).
@@ -2048,6 +2060,20 @@ class ElectrumX(SessionBase):
                 # this can crash electrum client (v < 2.8.2) UNION (3.0.0 <= v < 3.3.0)
                 await self.send_notification('blockchain.estimatefee', ())
 
+    async def transaction_broadcast_validate(self, raw_tx):
+        '''Simulate a Broadcast a raw transaction to the network.
+
+        raw_tx: the raw transaction as a hexadecimal string to validate for Atomicals FT rules'''
+        self.bump_cost(0.25 + len(raw_tx) / 5000)
+        # This returns errors as JSON RPC errors, as is natural
+        try:
+            hex_hash = await self.session_mgr.broadcast_transaction_validated(raw_tx, False)
+            return hex_hash
+        except AtomicalsValidationError as e: 
+            self.logger.info(f'error validating atomicals transaction: {e}')
+            raise RPCError(ATOMICALS_INVALID_TX, 'the transaction was rejected by '
+                           f'atomicals rules.\n\n{e}\n[{raw_tx}]')
+
     async def transaction_broadcast(self, raw_tx):
         '''Broadcast a raw transaction to the network.
 
@@ -2055,13 +2081,18 @@ class ElectrumX(SessionBase):
         self.bump_cost(0.25 + len(raw_tx) / 5000)
         # This returns errors as JSON RPC errors, as is natural
         try:
-            hex_hash = await self.session_mgr.broadcast_transaction(raw_tx)
+            hex_hash = await self.session_mgr.broadcast_transaction_validated(raw_tx, True)
         except DaemonError as e:
             error, = e.args
             message = error['message']
             self.logger.info(f'error sending transaction: {message}')
             raise RPCError(BAD_REQUEST, 'the transaction was rejected by '
                            f'network rules.\n\n{message}\n[{raw_tx}]')
+        except AtomicalsValidationError as e: 
+            self.logger.info(f'error validating atomicals transaction: {e}')
+            raise RPCError(ATOMICALS_INVALID_TX, 'the transaction was rejected by '
+                           f'atomicals rules.\n\n{e}\n[{raw_tx}]')
+
         else:
             self.txs_sent += 1
             client_ver = util.protocol_tuple(self.client)
@@ -2158,6 +2189,7 @@ class ElectrumX(SessionBase):
             'server.ping': self.ping,
             'server.version': self.server_version,
             # The Atomicals era has begun #
+            'blockchain.atomicals.validate': self.transaction_broadcast_validate,
             'blockchain.atomicals.listscripthash': self.atomicals_listscripthash,
             'blockchain.atomicals.list': self.atomicals_list,
             'blockchain.atomicals.dump': self.atomicals_dump,

@@ -39,6 +39,9 @@ import pickle
 from cbor2 import dumps, loads, CBORDecodeError
 from collections.abc import Mapping
  
+class AtomicalsValidationError(Exception):
+    '''Raised when Atomicals Validation Error'''
+        
 # The maximum height difference between the commit and reveal transactions of any Atomical mint
 # This is used to limit the amount of cache we would need in future optimizations.
 MINT_GENERAL_COMMIT_REVEAL_DELAY_BLOCKS = 100
@@ -1289,11 +1292,14 @@ def build_reverse_output_to_atomical_id_map(atomical_id_to_output_index_map):
             reverse_mapped[out_idx][atomical_id] = atomical_id
     return reverse_mapped 
 
+ 
 # Calculate the colorings of tokens for utxos
 def calculate_outputs_to_color_for_atomical_ids(ft_atomicals, tx_hash, tx):
     num_fts = len(ft_atomicals.keys())
     if num_fts == 0:
-        return {} 
+        return None, None
+    print(f'calculate_outputs_to_color_for_atomical {num_fts}')
+
     atomical_list = []
     for atomical_id, ft_info in sorted(ft_atomicals.items()):
         atomical_list.append({
@@ -1301,6 +1307,10 @@ def calculate_outputs_to_color_for_atomical_ids(ft_atomicals, tx_hash, tx):
             'ft_info': ft_info
         })
         print(f'calculate_outputs_to_color_for_atomical_ids found_ft_atomical_inputs atomical_id={location_id_bytes_to_compact(atomical_id)}, ft_info={ft_info} tx_hash={hash_to_hex_str(tx_hash)}')
+    
+    print(f'calculate_outputs_to_color_for_atomical ft_atomicals={ft_atomicals}')
+    print(f'calculate_outputs_to_color_for_atomical atomical_list={atomical_list}')
+
     next_start_out_idx = 0
     potential_atomical_ids_to_output_idxs_map = {}
     non_clean_output_slots = False
@@ -1308,7 +1318,7 @@ def calculate_outputs_to_color_for_atomical_ids(ft_atomicals, tx_hash, tx):
         atomical_id = item['atomical_id']
         v = item['ft_info']['value']
         cleanly_assigned, expected_outputs = assign_expected_outputs_basic(atomical_id, v, tx, next_start_out_idx)
-        print(f'calculate_outputs_to_color_for_atomical_ids check_if_cleanly_assigned cleanly_assigned={cleanly_assigned} tx_hash={hash_to_hex_str(tx_hash)} atomical_id={location_id_bytes_to_compact(atomical_id)} v={v} next_start_out_idx={next_start_out_idx}')
+        print(f'calculate_outputs_to_color_for_atomical_ids check_if_cleanly_assigned cleanly_assigned={cleanly_assigned} v={v} next_start_out_idx={next_start_out_idx} tx_hash={hash_to_hex_str(tx_hash)} atomical_id={location_id_bytes_to_compact(atomical_id)} v={v} next_start_out_idx={next_start_out_idx}')
         if cleanly_assigned and len(expected_outputs) > 0:
             next_start_out_idx = expected_outputs[-1] + 1
             print(f'calculate_outputs_to_color_for_atomical_ids check_if_cleanly_assigned_after_in_if cleanly_assigned={cleanly_assigned} tx_hash={hash_to_hex_str(tx_hash)} atomical_id={location_id_bytes_to_compact(atomical_id)} value={v} next_start_out_idx={next_start_out_idx} expected_outputs={expected_outputs}')
@@ -1328,10 +1338,11 @@ def calculate_outputs_to_color_for_atomical_ids(ft_atomicals, tx_hash, tx):
             cleanly_assigned, expected_outputs = assign_expected_outputs_basic(atomical_id, item['ft_info']['value'], tx, 0)
             potential_atomical_ids_to_output_idxs_map[atomical_id] = expected_outputs
         print(f'calculate_outputs_to_color_for_atomical_ids non_clean_output_slots_finally_assignment_map {non_clean_output_slots} tx_hash={hash_to_hex_str(tx_hash)} {ft_atomicals} potential_atomical_ids_to_output_idxs_map={potential_atomical_ids_to_output_idxs_map}')
-        return potential_atomical_ids_to_output_idxs_map
+        return potential_atomical_ids_to_output_idxs_map, not non_clean_output_slots
     else:
         print(f'calculate_outputs_to_color_for_atomical_ids underflow_val potential_atomical_ids_to_output_idxs_map={potential_atomical_ids_to_output_idxs_map}')
-        return potential_atomical_ids_to_output_idxs_map 
+        return potential_atomical_ids_to_output_idxs_map, not non_clean_output_slots
+
 
 # Get the candidate name request status for tickers, containers and realms (not subrealms though)
 # Base Status Values:
