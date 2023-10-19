@@ -517,7 +517,11 @@ class BlockProcessor:
         # Build a structure of organizing into NFT and FTs
         # Note: We do not validate anything with NFTs, just FTs
         nft_atomicals, ft_atomicals =  self.build_atomical_type_structs(atomicals_spent_at_inputs)
-        self.logger.info(f'validate_ft_rules_raw_tx xx {ft_atomicals}')
+        
+        # There are not FT atomicals therefore just return true
+        if len(ft_atomicals) == 0:
+            return True 
+
         # Prepare the logic check to determine if the FTs are cleanly assigned (ie: no accidental burning loss would occur)
         cleanly_assigned = False
         # In the split 'y' operation we check if that would be successful
