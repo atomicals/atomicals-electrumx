@@ -1071,6 +1071,7 @@ def auto_encode_bytes_elements(state):
     if isinstance(state, bytes):
         return {
             '$d': state.hex(),
+            '$b': state.hex(),
             '$len': sys.getsizeof(state),
             '$auto': True
         }
