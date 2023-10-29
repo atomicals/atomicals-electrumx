@@ -1196,7 +1196,7 @@ class DB:
             payments.append({
                 'tx_num': tx_num,
                 'payment_tx_outpoint': outpoint_of_payment,
-                'parent_initiated': subrealmpay_value[36:]
+                'mint_initiated': subrealmpay_value[36:]
             })
         payments.sort(key=lambda x: x['tx_num'])
         if len(payments) > 0:

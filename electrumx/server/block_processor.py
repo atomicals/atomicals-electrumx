@@ -548,18 +548,24 @@ class BlockProcessor:
     # Used for quickly getting the mint information for an atomical
     def get_atomicals_id_mint_info(self, atomical_id):
         result = None
+        self.logger.info(f'get_atomicals_id_mint_info atomical_id={hash_to_hex_str(atomical_id)}')
         try:
             result = self.atomicals_id_cache[atomical_id]
+            self.logger.info(f'get_atomicals_id_mint_info result={result}')
         except KeyError:
             # Now check the mint cache (before flush to db)
             try:
+                self.logger.info(f'get_atomicals_id_mint_info general_data_cache atomical_id={atomical_id}')
                 result = unpack_mint_info(self.general_data_cache[b'mi' + atomical_id])
+                self.logger.info(f'get_atomicals_id_mint_info unpack_mint_info result={result}')
             except KeyError:
                 mint_info_dump = self.db.get_atomical_mint_info_dump(atomical_id)
+                self.logger.info(f'get_atomicals_id_mint_info mint_info_dump mint_info_dump={mint_info_dump}')
                 if not mint_info_dump:
                     return None
                 result = unpack_mint_info(mint_info_dump)
             self.atomicals_id_cache[atomical_id] = result
+        self.logger.info(f'get_atomicals_id_mint_info result returned result={result}')
         return result 
 
     # Get basic atomical information in a format that can be attached to utxos in an RPC call
@@ -884,7 +890,7 @@ class BlockProcessor:
             return unpacked_tx_num, unpacked_height
         return self.db.get_tx_num_height_from_tx_hash(tx_hash)
 
-    def create_or_delete_realm_entry_if_requested(self, mint_info, height, Delete=False):
+    def create_or_delete_realm_entry_if_requested(self, mint_info, height, Delete):
         request_realm = mint_info.get('$request_realm')
         if not request_realm:
             # No name was requested, consider the operation successful noop
@@ -892,6 +898,7 @@ class BlockProcessor:
         if not is_valid_realm_string_name(request_realm):
             return False 
         # Also check that there is no candidates already committed earlier than the current one
+        self.logger.info(f'create_or_delete_realm_entry_if_requested mint_info={mint_info} request_realm={request_realm}')
         status, atomical_id, candidates = self.get_effective_realm(request_realm, height)
         for candidate in candidates:
             if candidate['tx_num'] < mint_info['commit_tx_num']:
@@ -947,11 +954,16 @@ class BlockProcessor:
         return True 
  
     # Create the subrealm entry if requested correctly
-    def create_or_delete_subrealm_entry_if_requested(self, mint_info, atomicals_spent_at_inputs, height, Delete=False): 
-        parent_realm_id, initiated_by_parent = self.get_subrealm_parent_realm_info(mint_info, atomicals_spent_at_inputs)
+    def create_or_delete_subrealm_entry_if_requested(self, mint_info, atomicals_spent_at_inputs, height, Delete): 
+        request_subrealm = mint_info.get('$request_subrealm')
+        if not request_subrealm:
+            return True
+        if not is_valid_subrealm_string_name(request_subrealm):
+            return False
+        parent_realm_id, mint_initiated_result = self.get_subrealm_parent_realm_info(mint_info, atomicals_spent_at_inputs, height)
+        self.logger.info(f'create_or_delete_subrealm_entry_if_requested mint_initiated_result={mint_initiated_result} check_if_bitwork_mint')
         if parent_realm_id:
-            request_subrealm = mint_info.get('$request_subrealm')
-            self.logger.info(f'create_or_delete_subrealm_entry_if_requested: request_subrealm={request_subrealm}')
+            self.logger.info(f'create_or_delete_subrealm_entry_if_requested: has_parent_realm_id request_subrealm={request_subrealm} parent_realm_id={parent_realm_id}')
             # Also check that there is no candidates already committed earlier than the current one
             status, atomical_id, candidates = self.get_effective_subrealm(parent_realm_id, request_subrealm, height)
             if status and status == 'verified':
@@ -961,52 +973,89 @@ class BlockProcessor:
             if Delete:
                 self.delete_name_element_template(b'srlm', parent_realm_id, request_subrealm, mint_info['commit_tx_num'], mint_info['id'], self.subrealm_data_cache)
             else:
+                self.logger.info(f'create_or_delete_subrealm_entry_if_requested: request_subrealm={request_subrealm} mint_bitwork_attempt')
                 self.put_name_element_template(b'srlm', parent_realm_id, request_subrealm, mint_info['commit_tx_num'], mint_info['id'], self.subrealm_data_cache)
             # If it was initiated by the parent, then there is no expected seperate payment and the mint itself is considered the payment
             # Therefore add the current mint tx as the payment
-            if initiated_by_parent:
-                self.logger.info(f'create_or_delete_subrealm_entry_if_requested: initiated_by_parent={initiated_by_parent}, mint_info={mint_info}')
+            if mint_initiated_result == 'parent':
+                self.logger.info(f'create_or_delete_subrealm_entry_if_requested: mint_initiated_result={mint_initiated_result}, mint_info={mint_info}')
                 # Add the b'01' flag to indicate it was initiated by the parent
                 if Delete:
                     # Add the b'01' flag to indicate it was initiated by the parent
                     self.delete_spay(mint_info['id'], mint_info['reveal_location_tx_num'], mint_info['reveal_location'] + b'01')
                 else:
                     self.put_spay(mint_info['id'], mint_info['reveal_location_tx_num'], mint_info['reveal_location'] + b'01')
-            else: 
-                self.logger.info(f'create_or_delete_subrealm_entry_if_requested: not_initiated_by_parent, mint_info={mint_info}')
-
-        return True
+            elif mint_initiated_result == 'bitwork':
+                self.logger.info(f'create_or_delete_subrealm_entry_if_requested: bitwork_initiated mint_initiated_result={mint_initiated_result}, mint_info={mint_info}')
+                # Add the b'02' flag to indicate it was bitwork only
+                if Delete:
+                    self.delete_spay(mint_info['id'], mint_info['reveal_location_tx_num'], mint_info['reveal_location'] + b'02')
+                else:
+                    self.put_spay(mint_info['id'], mint_info['reveal_location_tx_num'], mint_info['reveal_location'] + b'02')
+            return True
+        return False
     
     # Check for the payment and parent information for a subrealm mint request
     # This information is used to determine how to put and delete the record in the index
-    def get_subrealm_parent_realm_info(self, mint_info, atomicals_spent_at_inputs): 
-        if not is_valid_subrealm_string_name(mint_info.get('$request_subrealm')):
+    def get_subrealm_parent_realm_info(self, mint_info, atomicals_spent_at_inputs, height): 
+        request_subrealm = mint_info.get('$request_subrealm')
+        if not is_valid_subrealm_string_name(request_subrealm):
             return None, None
-            
         # Check to see if the parent realm was spent as part of the inputs to authorize the direct creation of the subrealm
         # If the parent realm was spent as one of the inputs, then there does not need to be a payment made, we consider the current transaction
         # as the payment then
         self.logger.info(f'get_subrealm_parent_realm_info: mint_info {mint_info}')
         parent_realm_id = compact_to_location_id_bytes(mint_info['$parent_realm'])
-        initiated_by_parent = False
+        mint_initiated_result = None
         claim_type = mint_info.get('args').get('claim_type')
         # Only allow it to be considered initiated by parent if the claim_type == 'direct'
-        if claim_type != 'direct':
+        if claim_type == 'direct':
             self.logger.info(f'get_subrealm_parent_realm_info claim_type_is_not_direct {mint_info}')
-            return parent_realm_id, initiated_by_parent
+            # return parent_realm_id, mint_initiated_result
+            for idx, atomical_entry_list in atomicals_spent_at_inputs.items():
+                for atomical_entry in atomical_entry_list:
+                    atomical_id = atomical_entry['atomical_id']
+                    if atomical_id == parent_realm_id:
+                        mint_initiated_result = 'parent'
+                        break
+                # parent atomical matches being spent
+                if mint_initiated_result:
+                    return parent_realm_id, mint_initiated_result
+            return None, None
 
-        for idx, atomical_entry_list in atomicals_spent_at_inputs.items():
-            for atomical_entry in atomical_entry_list:
-                atomical_id = atomical_entry['atomical_id']
-                if atomical_id == parent_realm_id:
-                    initiated_by_parent = True
-                    break
-            # parent atomical matches being spent
-            if initiated_by_parent:
-                break
-        
-        self.logger.info(f'get_subrealm_parent_realm_info claim_type_is_could_be_direct {mint_info}')
-        return parent_realm_id, initiated_by_parent
+        # It must be a rule based mint then
+        if claim_type != 'rule':
+            self.logger.info(f'get_subrealm_parent_realm_info: claim type was not direct or rule, skipping...')
+            return None, None
+
+        # if we got this far then it means it was not parent initiated and it could require bitwork to proceed
+        expected_payment_height = mint_info['commit_height']
+        matched_price_point = self.get_applicable_subrealm_mint_rule_by_height(parent_realm_id, request_subrealm, expected_payment_height - MINT_SUBREALM_RULES_BECOME_EFFECTIVE_IN_BLOCKS)
+        if matched_price_point:
+            self.logger.info(f'get_subrealm_parent_realm_info: matched_price_point={matched_price_point}, request_subrealm={request_subrealm}')
+            # A rule was matched
+            matched_rule = matched_price_point['matched_rule']
+            bitworkc = matched_rule.get('bitworkc')
+            bitworkr = matched_rule.get('bitworkr')
+            if bitworkc and mint_info.get('$bitworkc') != bitworkc:
+                bitworkc_actual =  mint_info.get('$bitworkc')
+                self.logger.info(f'get_subrealm_parent_realm_info bitworkc_required but not valid {bitworkc} bitworkc_actual={bitworkc_actual}')
+                return None, None 
+            if bitworkr and mint_info.get('$bitworkr') != bitworkr:
+                bitworkr_actual =  mint_info.get('$bitworkr')
+                self.logger.info(f'get_subrealm_parent_realm_info bitworkr_required but not valid {bitworkr} bitworkr_actual={bitworkr_actual}')
+                return None, None 
+            # There was no outputs required
+            if not matched_rule.get('o'):
+                if bitworkc or bitworkr:
+                    return parent_realm_id, 'bitwork'
+                else:
+                    self.logger.info(f'get_subrealm_parent_realm_info no outputs or bitworkc or bitworkr provided therefore invalid subrealm')
+                    return None, None
+            else:
+                return parent_realm_id, None
+        self.logger.info(f'get_subrealm_parent_realm_info no_matched_price_point request_subrealm={request_subrealm}')
+        return None, None
  
     # Check whether to create an atomical NFT/FT 
     # Validates the format of the detected input operation and then checks the correct extra data is valid
@@ -1092,6 +1141,7 @@ class BlockProcessor:
                     return None
 
             # Ensure that the creates are noops or successful
+            self.logger.info(f'create_or_delete_realm_entry_if_requested: mint_info={mint_info}')
             if not self.create_or_delete_realm_entry_if_requested(mint_info, height, Delete):
                 return None
 
@@ -1576,6 +1626,7 @@ class BlockProcessor:
             atomical_id = entry['value']
             mint_info = self.get_atomicals_id_mint_info(atomical_id)
             # Sanity check to make sure it matches
+            self.logger.info(f'get_effective_subrealm subrealm_name={subrealm_name} atomical_id={location_id_bytes_to_compact(atomical_id)} parent_realm_id={location_id_bytes_to_compact(parent_realm_id)}entry={entry}')
             assert(mint_info['commit_tx_num'] == entry['tx_num'])
             # Get any payments (correct and valid or even premature, just get them all for now)
             payment_entry = self.db.get_earliest_subrealm_payment(atomical_id)
@@ -1635,7 +1686,9 @@ class BlockProcessor:
             candidate_entry = all_entries[0]
             atomical_id = candidate_entry['value']
             mint_info = self.get_atomicals_id_mint_info(atomical_id)
+            self.logger.info(f'atomical_id={atomical_id}')
             # Sanity check to make sure it matches
+            self.logger.info(f'all_entries={all_entries} mint_info {mint_info} candidate_entry={candidate_entry}')
             assert(mint_info['commit_tx_num'] == candidate_entry['tx_num'])
             # Only consider the name as valid if the required MINT_REALM_CONTAINER_TICKER_COMMIT_REVEAL_DELAY_BLOCKS has elapsed from the earliest
             # commit. We use this technique to ensure that any front running problems would have been resolved by then
@@ -1916,16 +1969,22 @@ class BlockProcessor:
             applicable_rule_map[subrealm_candidate_atomical_id]['payment'] = None
             payment_data = self.db.get_earliest_subrealm_payment(subrealm_candidate_atomical_id)
             payment_type = 'applicable_rule'
-            if payment_data and payment_data.get('parent_initiated') == b'01':
-                payment_type = 'parent_initiated'
-            else: 
-                # If it was not parent initiated, then get the applicable rule
-                applicable_rule = self.get_applicable_subrealm_mint_rule_by_height(arg_pid, arg_request_subrealm, raw_mint_info_for_candidate_id['commit_height'] - MINT_SUBREALM_RULES_BECOME_EFFECTIVE_IN_BLOCKS)
-                print(f'build_applicable_rule_map: applicable_rule={applicable_rule}')
-                applicable_rule_map[subrealm_candidate_atomical_id]['applicable_rule'] = applicable_rule
+            payment_subtype = None
+            if payment_data and payment_data.get('mint_initiated') == b'01':
+                payment_type = 'mint_initiated'
+                payment_subtype = 'parent'
+            elif payment_data and payment_data.get('mint_initiated') == b'02':
+                payment_type = 'mint_initiated'
+                payment_subtype = 'bitwork'
+            
+            # Whether or not it was initiated by the parent or the mint only needed bitwork, we attached the applicable rule anyways
+            applicable_rule = self.get_applicable_subrealm_mint_rule_by_height(arg_pid, arg_request_subrealm, raw_mint_info_for_candidate_id['commit_height'] - MINT_SUBREALM_RULES_BECOME_EFFECTIVE_IN_BLOCKS)
+            applicable_rule_map[subrealm_candidate_atomical_id]['applicable_rule'] = applicable_rule
+            applicable_rule_map[subrealm_candidate_atomical_id]['applicable_ruleaaaa'] = applicable_rule
             if payment_data:
                 applicable_rule_map[subrealm_candidate_atomical_id]['payment'] = location_id_bytes_to_compact(payment_data['payment_tx_outpoint'])
             applicable_rule_map[subrealm_candidate_atomical_id]['payment_type'] = payment_type
+            applicable_rule_map[subrealm_candidate_atomical_id]['payment_subtype'] = payment_subtype
         return applicable_rule_map
 
     # Populate the specific name or request type for containers, tickers, and realms (sub-realms excluded)
@@ -1959,6 +2018,7 @@ class BlockProcessor:
         # We use this information to display to each candidate what rule would apply to their mint and how much to pay and by which block height
         # they must submit their payment (assuming they are the leading candidate)
         applicable_rule_map = self.build_applicable_rule_map(raw_candidate_entries, pid, request_subrealm)
+        self.logger.info(f'populate_subrealm_subtype_specific_fields_applicable_rule_map {applicable_rule_map} raw_candidate_entries={raw_candidate_entries}')
         atomical['$subrealm_candidates'] = format_name_type_candidates_to_rpc_for_subrealm(raw_candidate_entries, applicable_rule_map)
         atomical['$request_subrealm_status'] = get_subrealm_request_candidate_status(self.height, atomical, status, candidate_id) 
         # Populate the request specific fields
@@ -2522,25 +2582,17 @@ class BlockProcessor:
         regex_price_point_list = validate_subrealm_rules_data(latest_state.get('subrealms', None))
         if not regex_price_point_list:
             return None 
-
+        # match the specific regex
         for regex_price_point in regex_price_point_list:
             print_applicable_subrealm_log(f'get_applicable_subrealm_mint_rule_by_height: processing rule item regex_price_point={regex_price_point}')
-            # Perform some sanity checks just in case
             regex_pattern = regex_price_point.get('p', None)
-            # Make sure the variables are defined
             if not regex_pattern:
                 print_applicable_subrealm_log(f'get_applicable_subrealm_mint_rule_by_height: empty pattern')
                 continue 
-            # Outputs are the output script that must be paid to mint the subrealm
-            outputs = regex_price_point.get('o', None)
-            # check for a dict of outputs
-            if not validate_subrealm_rules_outputs_format(outputs):
-                # Should never happen because we already validated in calculate_subrealm_rules_list_as_of_height that the format is good
-                raise IndexError(f'get_applicable_subrealm_mint_rule_by_height: fatal_invalid_index_rules height={height} proposed_subrealm_name={proposed_subrealm_name}')
             try:
                 # Compile the regular expression
                 valid_pattern = re.compile(rf"{regex_pattern}")
-                # Match the pattern to the proposed subrealm_name, the payment of the expect value and the output script
+                # Match the pattern to the proposed subrealm_name
                 if not valid_pattern.match(proposed_subrealm_name):
                     print_applicable_subrealm_log(f'get_applicable_subrealm_mint_rule_by_height: invalid pattern match')
                     continue

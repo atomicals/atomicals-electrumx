@@ -62,7 +62,7 @@ MINT_SUBREALM_COMMIT_PAYMENT_DELAY_BLOCKS = 15 # ~2.5 hours.
 # that they won the realm (and no one else can claim/reveal)
 
 # The Envelope is for the reveal script and also the op_return payment markers
-# "atom" # 0461746f6d  '0461746d33'
+# "atom" # 0461746f6d  '61747269' '0461747269'
 ATOMICALS_ENVELOPE_MARKER_BYTES = '0461746f6d'
 
 # Limit the smallest payment amount allowed for a subrealm
@@ -237,7 +237,7 @@ def is_valid_dmt_op_format(tx_hash, dmt_op):
 def is_validate_pow_prefix_string(pow_prefix, pow_prefix_ext):
     if not pow_prefix:
         return False 
-    m = re.compile(r'^[a-z0-9]{1,64}$')
+    m = re.compile(r'^[a-f0-9]{1,64}$')
     if pow_prefix:
         if pow_prefix_ext:
             if isinstance(pow_prefix_ext, int) and pow_prefix_ext >= 0 or pow_prefix_ext <= 15 and m.match(pow_prefix):
@@ -318,7 +318,7 @@ def is_valid_bitwork_string(bitwork):
             ext = int(ext) # Throws ValueError if it cannot be validated as hex string
         except (ValueError, TypeError):
             return None, None
-            
+
     if is_validate_pow_prefix_string(prefix, ext):
         return bitwork, {
             'prefix': prefix,
@@ -686,7 +686,6 @@ def get_mint_info_op_factory(coin, tx, tx_hash, op_found_struct, atomicals_spent
             print(f'DFT cannot be is_immutable is invalid {tx_hash}, {ticker}. Skipping...')
             return None, None
             
-
     if not mint_info or not mint_info.get('type'):
         return None, None
     
@@ -756,15 +755,15 @@ def format_name_type_candidates_to_rpc_for_subrealm(raw_entries, atomical_id_to_
         print(f'data atomical_id_to_candidate_info_map atomicalId= {base_atomical_id}')
         base_candidate['payment'] = dataset.get('payment')
         base_candidate['payment_type'] = dataset.get('payment_type')
-        base_candidate['format_name_type_candidates_to_rpc_for_subrealm_path'] = True
+        base_candidate['payment_subtype'] = dataset.get('payment_subtype')
         if dataset.get('payment_type') == 'applicable_rule':
             # Recommendation to wait MINT_REALM_CONTAINER_TICKER_COMMIT_REVEAL_DELAY_BLOCKS blocks before making a payment
             # The reason is that in case someone else has yet to reveal a competing name request
             # After MINT_REALM_CONTAINER_TICKER_COMMIT_REVEAL_DELAY_BLOCKS blocks from the commit, it is no longer possible for someone else to have an earlier commit
             base_candidate['make_payment_from_height'] = dataset['commit_height'] + MINT_REALM_CONTAINER_TICKER_COMMIT_REVEAL_DELAY_BLOCKS
             base_candidate['payment_due_no_later_than_height'] = dataset['commit_height'] + MINT_SUBREALM_COMMIT_PAYMENT_DELAY_BLOCKS
-            applicable_rule = dataset.get('applicable_rule')
-            base_candidate['applicable_rule'] = applicable_rule
+        applicable_rule = dataset.get('applicable_rule')
+        base_candidate['applicable_rule'] = applicable_rule
     return reformatted
 
 # Format the relevant byte fields in the mint raw data into strings to send on rpc calls well formatted
@@ -1181,17 +1180,15 @@ def validate_subrealm_rules_data(subrealms):
     if not subrealms or not isinstance(subrealms, dict):
         return None 
 
-    rules_list = subrealms.get('rules', None)
-    if not rules_list or not isinstance(rules_list, list) or len(rules_list) <= 0: 
-        return None
-
-    return validate_rules(rules_list)
+    return validate_rules(subrealms)
 
 # Validate the rules array data for subrealm mints
-def validate_rules(rules):
-    if not rules:
+def validate_rules(subrealms):
+    rules = subrealms.get('rules', None)
+    if not rules or not isinstance(rules, list) or len(rules) <= 0: 
         print_subrealm_calculate_log(f'rules not found')
-        return None # Reject if no rules were provided
+        return None
+
     # There is a path rules that exists
     if not isinstance(rules, list):
         print_subrealm_calculate_log(f'value is not a list')
@@ -1222,8 +1219,43 @@ def validate_rules(rules):
 
         # Output is the output script that must be paid to mint the subrealm
         outputs = rule_set_entry.get('o')
-        # If all three are set then it could be valid...
-        if regex_pattern != None and outputs != None:
+        bitworkc = rule_set_entry.get('bitworkc')
+        bitworkr = rule_set_entry.get('bitworkr')
+
+        if not regex_pattern:
+            return None
+
+        # Check that regex is a valid regex pattern
+        try:
+            valid_pattern = re.compile(rf"{regex_pattern}")
+        except Exception as e: 
+            print_subrealm_calculate_log(f'Regex compile error {e}')
+            return None # Reject if one of the regexe's could not be compiled.
+            
+        # Build the price point (ie: could be paid in sats, ARC20 or bitwork)
+        price_point = {
+            'p': regex_pattern
+        }
+        # There must be at least one rule type for minting
+        if not outputs and not bitworkc and not bitworkr:
+            return None 
+
+        # Sanity check that bitworkc and bitworkr must be at least well formatted if they are set
+        if bitworkc:
+            valid_str, bitwork_parts = is_valid_bitwork_string(bitworkc)
+            if valid_str:
+                price_point['bitworkc'] = valid_str
+            else:
+                return None 
+
+        if bitworkr:
+            valid_str, bitwork_parts = is_valid_bitwork_string(bitworkr)
+            if valid_str:
+                price_point['bitworkr'] = valid_str
+            else:
+                return None 
+
+        if outputs:
             # check for a list of outputs
             if not isinstance(outputs, dict) or len(outputs.keys()) < 1:
                 print_subrealm_calculate_log(f'outputs is not a dict or is empty')
@@ -1232,18 +1264,11 @@ def validate_rules(rules):
             if not validate_subrealm_rules_outputs_format(outputs):
                 return None 
             
-            # Check that regex is a valid regex pattern
-            try:
-                valid_pattern = re.compile(rf"{regex_pattern}")
-                # After all we have finally validated this is a valid price point for minting subrealm...
-                price_point = {
-                    'p': regex_pattern,
-                    'o': outputs
-                }
-                validated_rules_list.append(price_point)
-            except Exception as e: 
-                print_subrealm_calculate_log(f'Regex compile error {e}')
-                return None # Reject if one of the regexe's could not be compiled.
+            price_point['o'] = outputs
+            validated_rules_list.append(price_point)
+        elif bitworkc or bitworkr:
+            # Also accepted if there was just bitwork (the bitworkc and bitworkr are added above)
+            validated_rules_list.append(price_point)
         else: 
             print_subrealm_calculate_log(f'list element does not p or o fields')
             return None  
@@ -1399,6 +1424,7 @@ def get_name_request_candidate_status(current_height, atomical_info, status, can
     }
 
 def get_subrealm_request_candidate_status(current_height, atomical_info, status, candidate_id):  
+    print(f'get_subrealm_request_candidate_status top_of_function status={status} atomical_info={atomical_info}')
     MAX_BLOCKS_STR = str(MINT_REALM_CONTAINER_TICKER_COMMIT_REVEAL_DELAY_BLOCKS)
 
     base_status = get_name_request_candidate_status(current_height, atomical_info, status, candidate_id, 'subrealm')
@@ -1419,6 +1445,13 @@ def get_subrealm_request_candidate_status(current_height, atomical_info, status,
         current_candidate_atomical = candidate
         break 
 
+    if not current_candidate_atomical:
+        return {
+            'status': 'invalid_request_fault'
+        }
+
+    print(f'current_candidate_atomical {current_candidate_atomical} atomical_info={atomical_info}')
+ 
     # Catch the scenario where it was not parent initiated, but there also was no valid applicable rule
     if current_candidate_atomical['payment_type'] == 'applicable_rule' and current_candidate_atomical.get('applicable_rule') == None: 
         return {
@@ -1461,7 +1494,7 @@ def get_subrealm_request_candidate_status(current_height, atomical_info, status,
                 'pending_candidate_atomical_id': candidate_id_compact,
                 'note': 'Await until the \'make_payment_from_height\' block height for the payment window to be open with status \'pending_awaiting_payment\''
             }
-        elif current_candidate_atomical['payment_type'] == 'parent_initiated':
+        elif current_candidate_atomical['payment_type'] == 'mint_initiated':
             return {
                 'status': 'pending_awaiting_confirmations',
                 'pending_candidate_atomical_id': candidate_id_compact,
