@@ -2579,7 +2579,7 @@ class BlockProcessor:
         subrealm_mint_mod_history = self.get_mod_history(parent_atomical_id, height)
         print_applicable_subrealm_log(f'get_applicable_subrealm_mint_rule_by_height: subrealm_mint_mod_history {subrealm_mint_mod_history}')
         latest_state = calculate_latest_state_from_mod_history(subrealm_mint_mod_history)
-        regex_price_point_list = validate_subrealm_rules_data(latest_state.get('subrealms', None))
+        regex_price_point_list = validate_subrealm_rules_data(latest_state.get(SUBREALM_MINT_PATH, None))
         if not regex_price_point_list:
             return None 
         # match the specific regex
