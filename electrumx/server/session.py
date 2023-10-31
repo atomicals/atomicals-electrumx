@@ -1594,7 +1594,7 @@ class ElectrumX(SessionBase):
             current_height = that.session_mgr.bp.height
             subrealm_mint_mod_history = that.session_mgr.bp.get_mod_history(parent_atomical_id, current_height)
             current_height_latest_state = calculate_latest_state_from_mod_history(subrealm_mint_mod_history)
-            current_height_rules_list = validate_subrealm_rules_data(current_height_latest_state.get('subrealms', None))
+            current_height_rules_list = validate_subrealm_rules_data(current_height_latest_state.get(SUBREALM_MINT_PATH, None))
             nearest_parent_realm_subrealm_mint_allowed = False
             struct_to_populate['nearest_parent_realm_subrealm_mint_rules'] = {
                 'nearest_parent_realm_atomical_id': location_id_bytes_to_compact(parent_atomical_id),
