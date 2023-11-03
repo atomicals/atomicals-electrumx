@@ -88,6 +88,10 @@ class FlushData:
     subrealm_adds = attr.ib()           # type: Dict[bytes, Dict[int, bytes]
     # subrealmpay_adds maps atomical_id to tx_num ints, which then map onto payment_outpoints
     subrealmpay_adds = attr.ib()           # type: Dict[bytes, Dict[int, bytes]
+    # dmitem_adds maps parent_realm_id + dmitem name to tx_num ints, which then map onto an atomical_id
+    dmitem_adds = attr.ib()           # type: Dict[bytes, Dict[int, bytes]
+    # dmpay_adds maps atomical_id to tx_num ints, which then map onto payment_outpoints
+    dmpay_adds = attr.ib()           # type: Dict[bytes, Dict[int, bytes]
     # distmint_adds tracks the b'gi' which is the initial distributed mint location tracked to determine if any more mints are allowed
     # It maps atomical_id (of the dft deploy token mint) to location_ids and then the details of the scripthash+value_sats of the mint        
     distmint_adds = attr.ib()           # type: Dict[bytes, Dict[bytes, bytes]
@@ -395,6 +399,8 @@ class DB:
         assert not flush_data.realm_adds
         assert not flush_data.subrealm_adds
         assert not flush_data.subrealmpay_adds
+        assert not flush_data.dmitem_adds
+        assert not flush_data.dmpay_adds
         assert not flush_data.container_adds
         assert not flush_data.distmint_adds
         assert not flush_data.state_adds
@@ -566,6 +572,22 @@ class DB:
             for tx_num, pay_outpoint in v.items():
                 batch_put(key + pack_le_uint64(tx_num), pay_outpoint)
         flush_data.subrealmpay_adds.clear()
+
+        # dmitem data adds
+        # dmitems are grouped by parent container id and dmitem name and distinguished by commit_tx_num
+        # The earliest commit_tx_num is the first-seen registration of the dm item name
+        batch_put = batch.put
+        for key, v in flush_data.dmitem_adds.items():
+            for tx_num, atomical_id in v.items():
+                batch_put(key + pack_le_uint64(tx_num), atomical_id)
+        flush_data.dmitem_adds.clear()
+
+        # dmitem pay data adds
+        batch_put = batch.put
+        for key, v in flush_data.dmpay_adds.items():
+            for tx_num, pay_outpoint in v.items():
+                batch_put(key + pack_le_uint64(tx_num), pay_outpoint)
+        flush_data.dmpay_adds.clear()
 
         # New UTXOs
         batch_put = batch.put
@@ -1200,10 +1222,28 @@ class DB:
             })
         payments.sort(key=lambda x: x['tx_num'])
         if len(payments) > 0:
-            self.logger.info(f'get_earliest_subrealm_payment {atomical_id} {payments}')
+            self.logger.info(f'get_earliest_subrealm_payment {location_id_bytes_to_compact(atomical_id)}  {payments}')
             return payments[0]
         return None 
     
+    def get_earliest_dmitem_payment(self, atomical_id):
+        dmpay_key_atomical_id = b'dmpay' + atomical_id
+        payments = []
+        for dmitemmpay_key, dmitempay_value in self.utxo_db.iterator(prefix=dmpay_key_atomical_id):
+            tx_numb = dmitemmpay_key[-8:]
+            tx_num, = unpack_le_uint64(tx_numb)
+            outpoint_of_payment = dmitempay_value[:36]
+            payments.append({
+                'tx_num': tx_num,
+                'payment_tx_outpoint': outpoint_of_payment,
+                'mint_initiated': dmitempay_value[36:]
+            })
+        payments.sort(key=lambda x: x['tx_num'])
+        if len(payments) > 0:
+            self.logger.info(f'get_earliest_dmitem_payment {location_id_bytes_to_compact(atomical_id)} {payments}')
+            return payments[0]
+        return None 
+
     # Get general data by key
     def get_general_data(self, key):
         return self.utxo_db.get(key)
@@ -1524,7 +1564,8 @@ class DB:
         for item in arr:
             lundofile.write(item + '\n')
         lundofile.close() 
- 
+
+
     def get_name_entries_template(self, db_prefix, subject_encoded):
         db_key_prefix = db_prefix + subject_encoded
         entries = []
@@ -1536,6 +1577,45 @@ class DB:
                 'value': db_value,
                 'tx_num': tx_num
             })
+        return entries
+
+    # Gets the paginated values of the db_prefix_key
+    async def get_dmitem_entries_paginated(self, parent_container_id, limit, offset):
+        entries = []
+        entries_deduped = {}
+        current_counter = 0
+        db_prefix = b'codmt'
+        db_prefix_len_with_parent = len(db_prefix) + 36
+        db_search_prefix = b'codmt' + parent_container_id
+        for db_key, db_value in self.utxo_db.iterator(prefix=db_search_prefix):
+            if current_counter < offset:
+                current_counter += 1
+                continue
+            if current_counter > offset + limit:
+                break
+
+            name_len, = unpack_le_uint16_from(db_key[-10:-8])
+            dmitem_name = db_key[len(db_prefix)]
+            if entries_deduped.get(dmitem_name):
+                continue 
+            dmitem_name_str = db_key[db_prefix_len_with_parent : db_prefix_len_with_parent + name_len].decode()
+            entries_deduped[dmitem_name_str] = {
+                'dmitem_name': dmitem_name_str,
+                'db_key': db_key,
+                'db_value': db_value,
+                'counter': current_counter
+            }
+            current_counter += 1
+
+        entries_intermediate = []
+        for entry_key, entry_value in entries_deduped.items():
+            entries_intermediate.append({
+                'dmitem_name': entry_value['dmitem_name'],
+                'counter': entry_value['counter']
+            })
+        entries_intermediate.sort(key=lambda x: x['counter'])
+        for item in entries_intermediate:
+            entries.append(item['dmitem_name'])
         return entries
 
     # Perform a search (usually through session rpc) to query for names. Limited to random 1000 results
@@ -1600,7 +1680,6 @@ class DB:
 
     # Populate mod or event history for an atomical
     def get_mod_or_event_history(self, atomical_id, max_height, prefix_key):
-        self.logger.info(f'get_mod_or_event_history {atomical_id} {max_height}')
         PREFIX_BYTE_LEN = 3
         prefix = prefix_key + atomical_id
         history = []
@@ -1608,7 +1687,6 @@ class DB:
             # Key: b'mod' + atomical_id + tx_hash + out_idx
             tx_hash = db_key[ PREFIX_BYTE_LEN + ATOMICAL_ID_LEN + TXNUM_LEN: PREFIX_BYTE_LEN + ATOMICAL_ID_LEN + TXNUM_LEN + TX_HASH_LEN]
             tx_num, tx_height = self.get_tx_num_height_from_tx_hash(tx_hash)
-            self.logger.info(f'get_mod_or_event_history {hash_to_hex_str(tx_hash)}, {tx_height}, {max_height}')
             # Requested limits on history
             if tx_height > max_height:
                 break

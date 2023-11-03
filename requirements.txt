@@ -7,3 +7,4 @@ cbor2
 websockets
 regex
 krock32
+merkletools

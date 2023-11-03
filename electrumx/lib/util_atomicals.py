@@ -36,9 +36,12 @@ import sys
 import base64
 import krock32
 import pickle
+from electrumx.lib.hash import sha256, double_sha256
 from cbor2 import dumps, loads, CBORDecodeError
 from collections.abc import Mapping
- 
+from functools import reduce
+from merkletools import MerkleTools
+
 class AtomicalsValidationError(Exception):
     '''Raised when Atomicals Validation Error'''
         
@@ -50,14 +53,17 @@ MINT_GENERAL_COMMIT_REVEAL_DELAY_BLOCKS = 100
 # This is needed to prevent front-running of realms. 
 MINT_REALM_CONTAINER_TICKER_COMMIT_REVEAL_DELAY_BLOCKS = 3
 
-MINT_SUBREALM_RULES_BECOME_EFFECTIVE_IN_BLOCKS = 1 # magic number that rules become effective in one block
+MINT_SUBNAME_RULES_BECOME_EFFECTIVE_IN_BLOCKS = 1 # magic number that rules become effective in one block
 
 # The path namespace to look for when determining what price/regex patterns are allowed if any
 SUBREALM_MINT_PATH = 'subrealms'
 
+# The path namespace to look for when determining what price/regex patterns are allowed if any
+DMINT_PATH = 'dmint'
+
 # The maximum height difference between the reveal transaction of the winning subrealm claim and the blocks to pay the necessary fee to the parent realm
 # It is intentionally made longer since it may take some time for the purchaser to get the funds together
-MINT_SUBREALM_COMMIT_PAYMENT_DELAY_BLOCKS = 15 # ~2.5 hours.
+MINT_SUBNAME_COMMIT_PAYMENT_DELAY_BLOCKS = 15 # ~2.5 hours.
 # MINT_REALM_CONTAINER_TICKER_COMMIT_REVEAL_DELAY_BLOCKS and therefore it gives the user about 1.5 hours to make the payment after they know
 # that they won the realm (and no one else can claim/reveal)
 
@@ -66,12 +72,12 @@ MINT_SUBREALM_COMMIT_PAYMENT_DELAY_BLOCKS = 15 # ~2.5 hours.
 ATOMICALS_ENVELOPE_MARKER_BYTES = '0461746f6d'
 
 # Limit the smallest payment amount allowed for a subrealm
-SUBREALM_MINT_MIN_PAYMENT_DUST_LIMIT = 0 # It can be possible to do free
+SUBNAME_MIN_PAYMENT_DUST_LIMIT = 0 # It can be possible to do free
 
-# Maximum size of the rules of a subrealm mint rule set array
-MAX_SUBREALM_RULE_SIZE_LEN = 100000
-# Maximum number of subrealm minting rules allowed
-MAX_SUBREALM_RULE_ENTRIES = 100
+# Maximum size of the rules of a subrealm or container dmint rule set array
+MAX_SUBNAME_RULE_SIZE_LEN = 100000
+# Maximum number of minting rules allowed
+MAX_SUBNAME_RULE_ENTRIES = 100
 
 # Minimum amount in satoshis for a DFT mint operation. Set at satoshi dust of 546
 DFT_MINT_AMOUNT_MIN = 546
@@ -82,7 +88,7 @@ DFT_MINT_AMOUNT_MAX = 100000000
 # The minimum number of DFT max_mints. Set at 1
 DFT_MINT_MAX_MIN_COUNT = 1
 # The maximum number of DFT max_mints. Set at 200,000 mints mainly for efficieny reasons. Could be expanded in the future
-DFT_MINT_MAX_MAX_COUNT = 200000
+DFT_MINT_MAX_MAX_COUNT = 500000
 
 # This would never change, but we put it as a constant for clarity
 DFT_MINT_HEIGHT_MIN = 0
@@ -326,6 +332,9 @@ def is_valid_bitwork_string(bitwork):
         }
     return None, None
 
+def is_bitwork_const(bitwork_val):
+    return bitwork_val == 'any'
+
 # check whether an Atomicals operation contains a proof of work argument
 def has_requested_proof_of_work(operations_found_at_inputs):
     if not operations_found_at_inputs:
@@ -496,6 +505,7 @@ def get_mint_info_op_factory(coin, tx, tx_hash, op_found_struct, atomicals_spent
     subrealm = mint_info['args'].get('request_subrealm')
     container = mint_info['args'].get('request_container')
     ticker = mint_info['args'].get('request_ticker')
+    dmitem = mint_info['args'].get('request_dmitem')
     if realm:
         request_counter += 1
         is_name_type_require_bitwork = True
@@ -507,6 +517,8 @@ def get_mint_info_op_factory(coin, tx, tx_hash, op_found_struct, atomicals_spent
     if ticker:
         request_counter += 1
         is_name_type_require_bitwork = True
+    if dmitem:
+        request_counter += 1
     if request_counter > 1:
         print(f'Ignoring mint due to multiple requested name types {tx_hash}')
         return None, None
@@ -554,64 +566,77 @@ def get_mint_info_op_factory(coin, tx, tx_hash, op_found_struct, atomicals_spent
         realm = mint_info['args'].get('request_realm')
         subrealm = mint_info['args'].get('request_subrealm')
         container = mint_info['args'].get('request_container')
-        if isinstance(realm, str):
-            if is_valid_realm_string_name(realm):
-                mint_info['$request_realm'] = realm
-            else: 
-                print(f'NFT request_realm is invalid {tx_hash}, {realm}. Skipping...')
+        dmitem = mint_info['args'].get('request_dmitem')
+        # Strings evaulate to falsey when empty
+        # Reject any NFT which contains an empty string for any of the requests
+        if isinstance(realm, str) and realm == '':
+            print(f'NFT request_realm is invalid detected empty request_realm str {hash_to_hex_str(tx_hash)}. Skipping....')
+            return None, None
+        if isinstance(subrealm, str) and subrealm == '':
+            print(f'NFT request_subrealm is invalid detected empty request_subrealm str {hash_to_hex_str(tx_hash)}. Skipping....')
+            return None, None
+        if isinstance(container, str) and container == '':
+            print(f'NFT request_container is invalid detected empty request_container str {hash_to_hex_str(tx_hash)}. Skipping....')
+            return None, None
+        if isinstance(dmitem, str) and dmitem == '':
+            print(f'NFT request_dmitem is invalid detected empty request_dmitem str {hash_to_hex_str(tx_hash)}. Skipping....')
+            return None, None
+
+        if realm:
+            print(f'NFT request_realm evaluating {hash_to_hex_str(tx_hash)}, {realm}')
+            if not isinstance(realm, str) or not is_valid_realm_string_name(realm):
+                print(f'NFT request_realm is invalid {hash_to_hex_str(tx_hash)}, {realm}. Skipping....')
                 return None, None 
-            
-            # Realms are not allowed to be immutable
-            if is_immutable:
+            mint_info['$request_realm'] = realm
+            print(f'NFT request_realm_is_valid {hash_to_hex_str(tx_hash)}, {realm}')
+        
+        elif subrealm:
+            if not isinstance(subrealm, str) or not is_valid_subrealm_string_name(subrealm):
+                print(f'NFT request_subrealm is invalid {hash_to_hex_str(tx_hash)}, {subrealm}. Skipping...')
                 return None, None
-
-        elif isinstance(subrealm, str):
-            if is_valid_subrealm_string_name(subrealm):
-                # The parent realm id is in a compact form string to make it easier for users and developers
-                # Only store the details if the pid is also set correctly
-                claim_type = mint_info['args'].get('claim_type')
-                if not isinstance(claim_type, str):
-                    print(f'NFT request_subrealm claim_type is not a string {tx_hash}, {claim_type}. Skipping...')
-                    return None, None
-
-                if claim_type != 'direct' and claim_type != 'rule':
-                    print(f'NFT request_subrealm claim_type is direct or a rule {tx_hash}, {claim_type}. Skipping...')
-                    return None, None
-
-                mint_info['$claim_type'] = claim_type
-
-                parent_realm_id_compact = mint_info['args'].get('parent_realm')
-                if not isinstance(parent_realm_id_compact, str) or not is_compact_atomical_id(parent_realm_id_compact):
-                    print(f'NFT request_subrealm parent_realm is invalid {tx_hash}, {parent_realm_id_compact}. Skipping...')
-                    return None, None 
-
-                mint_info['$request_subrealm'] = subrealm
-                # Save in the compact form to make it easier to understand for developers and users
-                # It requires an extra step to convert, but it makes it easier to understand the format
-                mint_info['$parent_realm'] = parent_realm_id_compact
-                
-            else: 
-                print(f'NFT request_subrealm is invalid {tx_hash}, {subrealm}. Skipping...')
+            # The parent realm id is in a compact form string to make it easier for users and developers
+            # Only store the details if the pid is also set correctly
+            claim_type = mint_info['args'].get('claim_type')
+            if not isinstance(claim_type, str):
+                print(f'NFT request_subrealm claim_type is not a string {hash_to_hex_str(tx_hash)}, {claim_type}. Skipping...')
+                return None, None
+            if claim_type != 'direct' and claim_type != 'rule':
+                print(f'NFT request_subrealm claim_type is direct or a rule {hash_to_hex_str(tx_hash)}, {claim_type}. Skipping...')
+                return None, None
+            mint_info['$claim_type'] = claim_type
+            parent_realm_id_compact = mint_info['args'].get('parent_realm')
+            if not isinstance(parent_realm_id_compact, str) or not is_compact_atomical_id(parent_realm_id_compact):
+                print(f'NFT request_subrealm parent_realm is invalid {hash_to_hex_str(tx_hash)}, {parent_realm_id_compact}. Skipping...')
                 return None, None 
-
-            # Subrealms are not allowed to be immutable
-            if is_immutable:
+            mint_info['$request_subrealm'] = subrealm
+            # Save in the compact form to make it easier to understand for developers and users
+            # It requires an extra step to convert, but it makes it easier to understand the format
+            mint_info['$parent_realm'] = parent_realm_id_compact
+        elif dmitem:
+            if not isinstance(dmitem, str) or not is_valid_container_dmitem_string_name(dmitem):
+                print(f'NFT request_dmitem is invalid {hash_to_hex_str(tx_hash)}, {dmitem}. Skipping...')
                 return None, None
-
-        elif isinstance(container, str):
-            if is_valid_container_string_name(container):
-                mint_info['$request_container'] = container
-            else: 
-                print(f'NFT request_container is invalid {tx_hash}, {container}. Skipping...')
+            # The parent container id is in a compact form string to make it easier for users and developers
+            # Only store the details if the pid is also set correctly
+            parent_container_id_compact = mint_info['args'].get('parent_container')
+            if not isinstance(parent_container_id_compact, str) or not is_compact_atomical_id(parent_container_id_compact):
+                print(f'NFT request_dmitem parent_container is invalid {hash_to_hex_str(tx_hash)}, {parent_container_id_compact}. Skipping...')
                 return None, None 
-            
-            # Containers are not allowed to be immutable
-            if is_immutable:
+            mint_info['$request_dmitem'] = dmitem
+            # Save in the compact form to make it easier to understand for developers and users
+            # It requires an extra step to convert, but it makes it easier to understand the format
+            mint_info['$parent_container'] = parent_container_id_compact
+        elif container:
+            if not isinstance(container, str) or not is_valid_container_string_name(container):
+                print(f'NFT request_container is invalid {hash_to_hex_str(tx_hash)}, {container}. Skipping...')
                 return None, None
-        else:
-            # Only plain NFTs can be marked immutable
-            if is_immutable:
-                mint_info['$immutable'] = True 
+            mint_info['$request_container'] = container
+        # containers, realms or subrealms cannot be immutable
+        if is_immutable:
+            if container or realm or subrealm:
+                print(f'NFT is invalid because container or realm or subrealm cannot be immutable {hash_to_hex_str(tx_hash)}. Skipping...')
+                return None, None
+            mint_info['$immutable'] = True 
 
     ############################################
     #
@@ -747,7 +772,7 @@ def format_name_type_candidates_to_rpc(raw_entries, atomical_id_to_candidate_inf
     return reformatted
 
 # Same formatting as format_name_type_candidates_to_rpc but also adds in the expected payment price and any payments found for the candidate
-def format_name_type_candidates_to_rpc_for_subrealm(raw_entries, atomical_id_to_candidate_info_map):
+def format_name_type_candidates_to_rpc_for_subname(raw_entries, atomical_id_to_candidate_info_map):
     reformatted = format_name_type_candidates_to_rpc(raw_entries, atomical_id_to_candidate_info_map)
     for base_candidate in reformatted:
         dataset = atomical_id_to_candidate_info_map[compact_to_location_id_bytes(base_candidate['atomical_id'])]
@@ -761,14 +786,13 @@ def format_name_type_candidates_to_rpc_for_subrealm(raw_entries, atomical_id_to_
             # The reason is that in case someone else has yet to reveal a competing name request
             # After MINT_REALM_CONTAINER_TICKER_COMMIT_REVEAL_DELAY_BLOCKS blocks from the commit, it is no longer possible for someone else to have an earlier commit
             base_candidate['make_payment_from_height'] = dataset['commit_height'] + MINT_REALM_CONTAINER_TICKER_COMMIT_REVEAL_DELAY_BLOCKS
-            base_candidate['payment_due_no_later_than_height'] = dataset['commit_height'] + MINT_SUBREALM_COMMIT_PAYMENT_DELAY_BLOCKS
+            base_candidate['payment_due_no_later_than_height'] = dataset['commit_height'] + MINT_SUBNAME_COMMIT_PAYMENT_DELAY_BLOCKS
         applicable_rule = dataset.get('applicable_rule')
         base_candidate['applicable_rule'] = applicable_rule
     return reformatted
-
+ 
 # Format the relevant byte fields in the mint raw data into strings to send on rpc calls well formatted
 def convert_db_mint_info_to_rpc_mint_info_format(header_hash, mint_info):
-    print(f'convert_db_mint_info_to_rpc_mint_info_format mint_info {mint_info}')
     mint_info['atomical_id'] = location_id_bytes_to_compact(mint_info['atomical_id'])
     mint_info['mint_info']['commit_txid'] = hash_to_hex_str(mint_info['mint_info']['commit_txid'])
     mint_info['mint_info']['commit_location'] = location_id_bytes_to_compact(mint_info['mint_info']['commit_location'])
@@ -829,7 +853,7 @@ def is_valid_subrealm_string_name(subrealm_name):
     if m.match(subrealm_name):
         return True
     return False 
-
+ 
 # A valid container string must begin with a-z0-9 and have up to 63 characters after it 
 # Including a-z0-9 and hyphen's "-"
 def is_valid_container_string_name(container_name):
@@ -838,6 +862,17 @@ def is_valid_container_string_name(container_name):
     # Collection names can start with any type of character except the hyphen "-"
     m = re.compile(r'^[a-z0-9][a-z0-9\-]{0,63}$')
     if m.match(container_name):
+        return True
+    return False 
+
+# Is valid container item name
+# Including a-z0-9 and hyphen's "-"
+def is_valid_container_dmitem_string_name(dmitem):
+    if not is_valid_namebase_string_name(dmitem):
+        return False
+    # Collection names can start with any type of character except the hyphen "-"
+    m = re.compile(r'^[a-z0-9][a-z0-9\-]{0,63}$')
+    if m.match(dmitem):
         return True
     return False 
 
@@ -1074,12 +1109,20 @@ def auto_encode_bytes_elements(state):
             '$len': sys.getsizeof(state),
             '$auto': True
         }
-    if not isinstance(state, dict):
+    if not isinstance(state, dict) and not isinstance(state, list):
         return state 
+    
+    if isinstance(state, list):
+        reformatted_list = []
+        for item in state:
+            reformatted_list.append(auto_encode_bytes_elements(item))
+        return reformatted_list 
+
     for key, value in state.items():
         state[key] = auto_encode_bytes_elements(value)
     return state 
  
+
 # Base atomical commit to reveal delay allowed
 def is_within_acceptable_blocks_for_general_reveal(commit_height, reveal_location_height):
     return commit_height >= reveal_location_height - MINT_GENERAL_COMMIT_REVEAL_DELAY_BLOCKS
@@ -1088,9 +1131,9 @@ def is_within_acceptable_blocks_for_general_reveal(commit_height, reveal_locatio
 def is_within_acceptable_blocks_for_name_reveal(commit_height, reveal_location_height):
     return commit_height >= reveal_location_height - MINT_REALM_CONTAINER_TICKER_COMMIT_REVEAL_DELAY_BLOCKS
 
-# A payment for a subrealm is acceptable as long as it is within MINT_SUBREALM_COMMIT_PAYMENT_DELAY_BLOCKS of the commit_height 
-def is_within_acceptable_blocks_for_subrealm_payment(commit_height, current_height):
-    return current_height <= commit_height + MINT_SUBREALM_COMMIT_PAYMENT_DELAY_BLOCKS
+# A payment for a subrealm is acceptable as long as it is within MINT_SUBNAME_COMMIT_PAYMENT_DELAY_BLOCKS of the commit_height 
+def is_within_acceptable_blocks_for_sub_item_payment(commit_height, current_height):
+    return current_height <= commit_height + MINT_SUBNAME_COMMIT_PAYMENT_DELAY_BLOCKS
  
 # Log an item with a prefix
 def print_subrealm_calculate_log(item):
@@ -1109,7 +1152,7 @@ def validate_subrealm_rules_outputs_format(outputs):
             return False # Reject if one of the entries expects less than the minimum payment amount
         expected_output_id = expected_output_value.get('id')
         expected_output_qty = expected_output_value.get('v')
-        if not isinstance(expected_output_qty, int) or expected_output_qty < SUBREALM_MINT_MIN_PAYMENT_DUST_LIMIT:
+        if not isinstance(expected_output_qty, int) or expected_output_qty < SUBNAME_MIN_PAYMENT_DUST_LIMIT:
             print_subrealm_calculate_log(f'validate_subrealm_rules_outputs_format: invalid expected output value')
             return False # Reject if one of the entries expects less than the minimum payment amount
         # If there is a type restriction on the payment type then ensure it is a valid atomical id
@@ -1123,7 +1166,7 @@ def validate_subrealm_rules_outputs_format(outputs):
             return False # Reject if one of the payment output script is not a valid hex  
     return True
 
-def apply_set_state_mutation(current_object, state_mutation_map):
+def apply_set_state_mutation(current_object, state_mutation_map, is_top_level):
     if not isinstance(state_mutation_map, dict):
         return
     # For each property apply the state set update 
@@ -1131,6 +1174,9 @@ def apply_set_state_mutation(current_object, state_mutation_map):
         # Do nothing for parameter $a
         if prop == '$a':
             continue
+        if is_top_level:
+            if prop == 'args':
+                continue
         # Key not found, set it
         if not current_object.get(prop):
             current_object[prop] = value
@@ -1140,10 +1186,10 @@ def apply_set_state_mutation(current_object, state_mutation_map):
                 current_object[prop] = value 
             else: 
                 # There already exists a dictionary at this level, we recurse to set the properties below
-                apply_set_state_mutation(current_object[prop], value)
+                apply_set_state_mutation(current_object[prop], value, False)
     return current_object
 
-def apply_delete_state_mutation(current_object, state_mutation_map):
+def apply_delete_state_mutation(current_object, state_mutation_map, is_top_level):
     if not isinstance(state_mutation_map, dict):
         return
     # For each property apply the state delete the key
@@ -1151,12 +1197,15 @@ def apply_delete_state_mutation(current_object, state_mutation_map):
         # Do nothing for parameter $a
         if prop == '$a':
             continue
+        if is_top_level:
+            if prop == 'args':
+                continue
         # The property value is a boolean true, which means to delete the field
         if isinstance(value, bool) and value == True:
             current_object.pop(prop, None)
         elif isinstance(value, dict) and isinstance(current_object.get(prop, None), dict):
             # It is a dictionary key, we recurse underneath to delete the properties below
-            apply_delete_state_mutation(current_object[prop], value)
+            apply_delete_state_mutation(current_object[prop], value, False)
     return current_object
 
 def calculate_latest_state_from_mod_history(mod_history):
@@ -1164,27 +1213,25 @@ def calculate_latest_state_from_mod_history(mod_history):
     mod_history.sort(key=lambda x: x['tx_num'], reverse=False)
     current_object_state = {}
     for element in mod_history:
-        print(f'calculate_latest_state_from_mod_history {element}')
         has_action_prop = element['data'].get('$a')
         action_to_perform = 0 # Set/update = 0
         # We assume there is only the default $action (which can explicitly be indicated with 'set') and 'delete'
         # If omitted we just assume 
         if has_action_prop and isinstance(has_action_prop, int) and has_action_prop == 1: # delete = 1
-            apply_delete_state_mutation(current_object_state, element['data'])
+            apply_delete_state_mutation(current_object_state, element['data'], True)
         else: 
-            apply_set_state_mutation(current_object_state, element['data'])
+            apply_set_state_mutation(current_object_state, element['data'], True)
     else: 
         return current_object_state
 
-def validate_subrealm_rules_data(subrealms):
-    if not subrealms or not isinstance(subrealms, dict):
+def validate_rules_data(namespace_data):
+    if not namespace_data or not isinstance(namespace_data, dict):
         return None 
-
-    return validate_rules(subrealms)
+    return validate_rules(namespace_data)
 
 # Validate the rules array data for subrealm mints
-def validate_rules(subrealms):
-    rules = subrealms.get('rules', None)
+def validate_rules(namespace_data):
+    rules = namespace_data.get('rules', None)
     if not rules or not isinstance(rules, list) or len(rules) <= 0: 
         print_subrealm_calculate_log(f'rules not found')
         return None
@@ -1193,7 +1240,7 @@ def validate_rules(subrealms):
     if not isinstance(rules, list):
         print_subrealm_calculate_log(f'value is not a list')
         return None # Reject if the rules is not a list
-    if len(rules) <= 0 or len(rules) > MAX_SUBREALM_RULE_ENTRIES:
+    if len(rules) <= 0 or len(rules) > MAX_SUBNAME_RULE_ENTRIES:
         print_subrealm_calculate_log(f'rules must have between 1 and 100 entries')
         return None # Reject since the rules list is empty
     # Now populate the regex price list
@@ -1208,30 +1255,24 @@ def validate_rules(subrealms):
             return None 
         # regex is the first pattern that will be checked to match for minting a subrealm
         regex_pattern = rule_set_entry.get('p')
-
         if not isinstance(regex_pattern, str):
             print_subrealm_calculate_log(f'regex pattern is not a string')
             return None  
-    
-        if len(regex_pattern) > MAX_SUBREALM_RULE_SIZE_LEN or len(regex_pattern) < 1:
+        if len(regex_pattern) > MAX_SUBNAME_RULE_SIZE_LEN or len(regex_pattern) < 1:
             print_subrealm_calculate_log(f'rule empty or too large')
-            return None # Reject if the rule has more than MAX_SUBREALM_RULE_SIZE_LEN chars
-
+            return None # Reject if the rule has more than MAX_SUBNAME_RULE_SIZE_LEN chars
         # Output is the output script that must be paid to mint the subrealm
         outputs = rule_set_entry.get('o')
         bitworkc = rule_set_entry.get('bitworkc')
         bitworkr = rule_set_entry.get('bitworkr')
-
         if not regex_pattern:
             return None
-
         # Check that regex is a valid regex pattern
         try:
-            valid_pattern = re.compile(rf"{regex_pattern}")
+            re.compile(rf"{regex_pattern}")
         except Exception as e: 
             print_subrealm_calculate_log(f'Regex compile error {e}')
             return None # Reject if one of the regexe's could not be compiled.
-            
         # Build the price point (ie: could be paid in sats, ARC20 or bitwork)
         price_point = {
             'p': regex_pattern
@@ -1239,22 +1280,23 @@ def validate_rules(subrealms):
         # There must be at least one rule type for minting
         if not outputs and not bitworkc and not bitworkr:
             return None 
-
         # Sanity check that bitworkc and bitworkr must be at least well formatted if they are set
         if bitworkc:
             valid_str, bitwork_parts = is_valid_bitwork_string(bitworkc)
             if valid_str:
                 price_point['bitworkc'] = valid_str
+            elif is_bitwork_const(bitworkc):
+                price_point['bitworkc'] = bitworkc
             else:
-                return None 
-
+                return None
         if bitworkr:
             valid_str, bitwork_parts = is_valid_bitwork_string(bitworkr)
             if valid_str:
                 price_point['bitworkr'] = valid_str
+            elif is_bitwork_const(bitworkr):
+                price_point['bitworkr'] = bitworkr
             else:
                 return None 
-
         if outputs:
             # check for a list of outputs
             if not isinstance(outputs, dict) or len(outputs.keys()) < 1:
@@ -1263,7 +1305,6 @@ def validate_rules(subrealms):
 
             if not validate_subrealm_rules_outputs_format(outputs):
                 return None 
-            
             price_point['o'] = outputs
             validated_rules_list.append(price_point)
         elif bitworkc or bitworkr:
@@ -1284,7 +1325,6 @@ def assign_expected_outputs_basic(atomical_id, ft_value, tx, start_out_idx):
     idx_count = 0
     if start_out_idx >= len(tx.outputs):
         return False, expected_output_indexes
-    
     for out_idx, txout in enumerate(tx.outputs): 
         # Only consider outputs from the starting index
         if idx_count < start_out_idx:
@@ -1369,7 +1409,6 @@ def calculate_outputs_to_color_for_atomical_ids(ft_atomicals, tx_hash, tx):
         print(f'calculate_outputs_to_color_for_atomical_ids underflow_val potential_atomical_ids_to_output_idxs_map={potential_atomical_ids_to_output_idxs_map}')
         return potential_atomical_ids_to_output_idxs_map, not non_clean_output_slots
 
-
 # Get the candidate name request status for tickers, containers and realms (not subrealms though)
 # Base Status Values:
 #
@@ -1423,23 +1462,23 @@ def get_name_request_candidate_status(current_height, atomical_info, status, can
         'pending_candidate_atomical_id': candidate_id_compact
     }
 
-def get_subrealm_request_candidate_status(current_height, atomical_info, status, candidate_id):  
-    print(f'get_subrealm_request_candidate_status top_of_function status={status} atomical_info={atomical_info}')
+def get_subname_request_candidate_status(current_height, atomical_info, status, candidate_id, entity_type):  
+    print(f'get_subname_request_candidate_status top_of_function status={status} atomical_info={atomical_info}')
     MAX_BLOCKS_STR = str(MINT_REALM_CONTAINER_TICKER_COMMIT_REVEAL_DELAY_BLOCKS)
 
-    base_status = get_name_request_candidate_status(current_height, atomical_info, status, candidate_id, 'subrealm')
-    # Return the base status if it is common also to subrealms
+    base_status = get_name_request_candidate_status(current_height, atomical_info, status, candidate_id, entity_type)
+    # Return the base status if it is common also to entity_type
     if base_status['status'] == 'expired_revealed_late' or base_status['status'] == 'verified':
         return base_status
 
-    # The following logic determines the derived status for the subrealm and atomical
+    # The following logic determines the derived status for the entity_type and atomical
     candidate_id_compact = None
     if candidate_id:
         candidate_id_compact = location_id_bytes_to_compact(candidate_id) 
     
     current_candidate_atomical = None
     # check if the current atomical required a payment and if so if it's expired
-    for candidate in atomical_info['$subrealm_candidates']:
+    for candidate in atomical_info['$' + entity_type + '_candidates']:
         if candidate['atomical_id'] != location_id_bytes_to_compact(atomical_info['atomical_id']):
             continue 
         current_candidate_atomical = candidate
@@ -1455,7 +1494,7 @@ def get_subrealm_request_candidate_status(current_height, atomical_info, status,
     # Catch the scenario where it was not parent initiated, but there also was no valid applicable rule
     if current_candidate_atomical['payment_type'] == 'applicable_rule' and current_candidate_atomical.get('applicable_rule') == None: 
         return {
-            'status': 'invalid_request_subrealm_no_matched_applicable_rule'
+            'status': 'invalid_request_no_matched_applicable_rule'
         }
 
     if status == 'verified':
@@ -1463,13 +1502,13 @@ def get_subrealm_request_candidate_status(current_height, atomical_info, status,
             return {
                 'status': 'verified',
                 'verified_atomical_id': candidate_id_compact,
-                'note': 'Successfully verified and claimed subrealm for current Atomical'
+                'note': 'Successfully verified and claimed for current Atomical'
             }
         else:
             return {
                 'status': 'claimed_by_other',
                 'claimed_by_atomical_id': candidate_id_compact,
-                'note': 'Failed to claim subrealm for current Atomical because it was claimed first by another Atomical'
+                'note': 'Failed to claim for current Atomical because it was claimed first by another Atomical'
             }
 
     # The scenario where there is an applicable rule, but the payment was not received in time 
@@ -1519,3 +1558,141 @@ def get_subrealm_request_candidate_status(current_height, atomical_info, status,
         'status': status,
         'pending_candidate_atomical_id': candidate_id_compact
     }
+
+def validate_dmitem_mint_args_with_container_dmint(mint_args, mint_data_payload, dmint):
+    args = mint_args
+    proof = args.get('proof')
+    if not proof or not isinstance(proof, list) or len(proof) == 0:
+        print(f'validate_dmitem_mint_args_with_container_dmint: proof is not valid list')
+        return False
+    else: 
+        for proof_item in proof:
+            if not isinstance(proof_item, dict) or len(proof_item) == 0:
+                print(f'validate_dmitem_mint_args_with_container_dmint: proof item is not a valid dict')
+                return False
+            if proof_item.get('p') != True and proof_item.get('p') != False:
+                print(f'validate_dmitem_mint_args_with_container_dmint: proof item position not True or False')
+                return False
+            d = proof_item.get('d')
+            if not d or not isinstance(d, str) or len(d) != 64:
+                print(f'validate_dmitem_mint_args_with_container_dmint: proof data hash is not 64 hex characters')
+                return False
+    expect_immutable_value = dmint.get('immutable', False)
+    if expect_immutable_value:
+        args_i = args.get('i')
+        if not args_i or not isinstance(args_i, bool):
+            print(f'validate_dmitem_mint_args_with_container_dmint: immutable is expected')
+            return False
+    request_dmitem = args.get('request_dmitem')
+    merkle = dmint.get('merkle')
+    main = args.get('main')
+    if not main or not isinstance(main, str):
+        print(f'validate_dmitem_mint_args_with_container_dmint: main is not valid str')
+        return False
+    main_data = mint_data_payload.get(main)
+    if not main_data:
+        print(f'get_dmitem_parent_container_info: main element is not defined')
+        return False
+    main_hash = double_sha256(main_data)
+    print(f'validate_dmitem_mint_args_with_container_dmint: merkle={merkle} main={main} main_hash={main_hash.hex()}, request_dmitem={request_dmitem} proof={proof}')
+    bitworkc = args.get('bitworkc')
+    bitworkr = args.get('bitworkr')
+    is_proof_valid, target_vector, target_hash = validate_merkle_proof_dmint(merkle, request_dmitem, bitworkc, bitworkr, main, main_hash.hex(), proof)
+    return is_proof_valid
+
+def get_container_dmint_format_status(dmint):
+    base_status = {
+        'status': 'invalid',
+        'dmint': dmint
+    }
+    errors = []
+    rules_list = validate_rules_data(dmint)
+    
+    if not rules_list or len(rules_list) == 0:
+        errors.append('rules list is invalid')
+
+    mint_height = dmint.get('mint_height')
+    if not isinstance(mint_height, int) or mint_height < 0:
+        errors.append('mint_height is invalid')
+
+    v = dmint.get('v')
+    if not isinstance(v, str) or v != '1':
+        errors.append('v must be str 1')
+
+    immutable = dmint.get('immutable')
+    if immutable:
+        if not isinstance(immutable, bool):
+            errors.append('immutable must be a bool')
+            
+    merkle = dmint.get('merkle')
+    if not merkle or not isinstance(merkle, str) or len(merkle) != 64:
+        errors.append('merkle str must be 64 hex characters')
+
+    # Check for mint_height
+    mint_height = dmint.get('mint_height', 0)
+    if not isinstance(mint_height, int) or mint_height < 0:
+        errors.append('mint height invalid')
+
+    base_status['errors'] = errors 
+
+    if len(errors) == 0:
+        base_status['status'] = 'valid'
+    else: 
+        base_status['status'] = 'invalid'
+
+    return base_status
+ 
+def validate_merkle_proof_dmint(expected_root_hash, item_name, possible_bitworkc, possible_bitworkr, main, main_hash, proof):
+    print(f'expected_root_hash={expected_root_hash} item_name={item_name} possible_bitworkc={possible_bitworkc} possible_bitworkr={possible_bitworkr} main={main} main_hash={main_hash} proof={proof} ')
+    # There could be 4 ways to have encoded the merkle proof, we will test each way to find it
+    # The reason for this is we do not know if the bitworkc/bitworkr was 'any' or a specific value
+    # Therefore to not put more data into the request, we just loop over all possible combinations (there are 4)
+    # Only one of them can be validate, and then the proof is completed
+    
+    # Combinations can be:
+    # any/any
+    # specific_bitworkc/any
+    # any/specific_bitworkr
+    # specific_bitworkc/specific_bitworkr
+
+    def check_validate_proof(target_hash, proof):
+        mt = MerkleTools()
+        formatted_proof = []
+        for item in proof:
+            if item['p']:
+                formatted_proof.append({
+                    'right': item['d']
+                })
+            else: 
+                formatted_proof.append({
+                    'left': item['d']
+                })
+        return mt.validate_proof(formatted_proof, target_hash, expected_root_hash) 
+
+    # Case 1: any/any
+    concat_str1 = item_name + ':' + 'any' + ':' + 'any' + ':' + main + ':' + main_hash
+    target_hash = sha256(concat_str1.encode()).hex()
+    if check_validate_proof(target_hash, proof):
+        return True, concat_str1, target_hash
+
+    # Case 2: specific_bitworkc/any
+    if possible_bitworkc:
+        concat_str2 = item_name + ':' + possible_bitworkc + ':' + 'any' + ':' + main + ':' + main_hash
+        target_hash = sha256(concat_str2.encode()).hex()
+        if check_validate_proof(target_hash, proof):
+            return True, concat_str2, target_hash
+
+    # Case 3: any/specific_bitworkr
+    if possible_bitworkr:
+        concat_str3 = item_name + ':' + 'any' + ':' + possible_bitworkr + ':' + main + ':' + main_hash
+        target_hash = sha256(concat_str3.encode()).hex()
+        if check_validate_proof(target_hash, proof):
+            return True, concat_str3, target_hash
+
+    if possible_bitworkc and possible_bitworkr:
+        concat_str4 = item_name + ':' + possible_bitworkc + ':' + possible_bitworkr + ':' + main + ':' + main_hash
+        target_hash = sha256(concat_str4.encode()).hex()
+        if check_validate_proof(target_hash, proof):
+            return True, concat_str4, target_hash
+
+    return False, None, None

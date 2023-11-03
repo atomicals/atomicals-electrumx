@@ -34,14 +34,18 @@ from electrumx.lib.util import OldTaskGroup, unpack_le_uint64
 from electrumx.lib.util_atomicals import (
     format_name_type_candidates_to_rpc, 
     SUBREALM_MINT_PATH, 
+    MINT_SUBNAME_RULES_BECOME_EFFECTIVE_IN_BLOCKS,
+    DMINT_PATH,
     convert_db_mint_info_to_rpc_mint_info_format, 
     compact_to_location_id_bytes, 
     location_id_bytes_to_compact, 
     is_compact_atomical_id,
-    format_name_type_candidates_to_rpc_for_subrealm,
+    format_name_type_candidates_to_rpc_for_subname,
     calculate_latest_state_from_mod_history,
-    validate_subrealm_rules_data,
-    AtomicalsValidationError
+    validate_rules_data,
+    AtomicalsValidationError,
+    auto_encode_bytes_elements, 
+    validate_merkle_proof_dmint
 )
 from electrumx.lib.hash import (HASHX_LEN, Base58Error, hash_to_hex_str,
                                 hex_str_to_hash, sha256, double_sha256)
@@ -1482,6 +1486,155 @@ class ElectrumX(SessionBase):
             'result': return_result
         }
 
+    def auto_populate_container_regular_items_fields(self, items):
+        if not items or not isinstance(items, dict):
+            return {}
+        for item, value in items.items():
+            provided_id = value.get('id') 
+            value['status'] = 'verified'
+            if provided_id and isinstance(provided_id, bytes) and len(provided_id) == 36:
+                value['$id'] = location_id_bytes_to_compact(provided_id)
+        return auto_encode_bytes_elements(items)
+
+    def auto_populate_container_dmint_items_fields(self, items):
+        if not items or not isinstance(items, dict):
+            return {}
+        for item, value in items.items():
+            provided_id = value.get('id') 
+            if provided_id and isinstance(provided_id, bytes) and len(provided_id) == 36:
+                value['$id'] = location_id_bytes_to_compact(provided_id)
+        return auto_encode_bytes_elements(items)
+
+    async def atomicals_get_container_items(self, container, limit, offset):
+        status, candidate_atomical_id, all_entries = self.session_mgr.bp.get_effective_container(container, self.session_mgr.bp.height)
+        found_atomical_id = None
+        if status == 'verified':
+            found_atomical_id = candidate_atomical_id
+        else: 
+            raise RPCError(BAD_REQUEST, f'Container not found')
+
+        compact_atomical_id = location_id_bytes_to_compact(found_atomical_id)
+        container_info = await self.atomical_id_get(compact_atomical_id)
+        # If it is a dmint container then there is no items field, instead construct it from the dmitems
+        container_dmint_status = container_info.get('$container_dmint_status')
+        items = []
+        if container_dmint_status:
+            if limit > 100:
+                limit = 100
+            if offset < 0:
+                offset = 0
+            height = self.session_mgr.bp.height
+            items = await self.session_mgr.bp.get_effective_dmitems_paginated(found_atomical_id, limit, offset, height)
+            return {
+                'result': {
+                    'container': container_info,
+                    'item_data': {
+                        'limit': limit,
+                        'offset': offset,
+                        'type': 'dmint',
+                        'items': self.auto_populate_container_dmint_items_fields(items)
+                    }
+                }
+            }
+        else: 
+            container_mod_history = self.session_mgr.bp.get_mod_history(found_atomical_id, self.session_mgr.bp.height)
+            current_height_latest_state = calculate_latest_state_from_mod_history(container_mod_history)
+            items = current_height_latest_state.get('items', [])
+            return {
+                'result': {
+                    'container': container_info,
+                    'item_data': {
+                        'limit': limit,
+                        'offset': offset,
+                        'type': 'regular',
+                        'items': self.auto_populate_container_regular_items_fields(items)
+                    }
+                }
+            }
+
+    async def atomicals_get_by_container_item(self, container, item_name):
+        height = self.session_mgr.bp.height
+        status, candidate_atomical_id, all_entries = self.session_mgr.bp.get_effective_container(container, height)
+        found_atomical_id = None
+        formatted_entries = format_name_type_candidates_to_rpc(all_entries, self.session_mgr.bp.build_atomical_id_to_candidate_map(all_entries))
+        if status == 'verified':
+            found_atomical_id = candidate_atomical_id
+        else: 
+            self.logger.info(f'formatted_entries {formatted_entries}')
+            raise RPCError(BAD_REQUEST, f'Container does not exist')
+        status, candidate_atomical_id, all_entries = self.session_mgr.bp.get_effective_dmitem(found_atomical_id, item_name, height)
+        found_item_atomical_id = None
+        formatted_entries = format_name_type_candidates_to_rpc(all_entries, self.session_mgr.bp.build_atomical_id_to_candidate_map(all_entries))
+        if candidate_atomical_id:
+            candidate_atomical_id = location_id_bytes_to_compact(candidate_atomical_id)
+        if status == 'verified':
+            found_item_atomical_id = candidate_atomical_id
+        return_result = {
+            'status': status, 
+            'candidate_atomical_id': candidate_atomical_id, 
+            'atomical_id': found_item_atomical_id, 
+            'candidates': formatted_entries, 
+            'type': 'item'
+        }
+        return {
+            'result': return_result
+        }
+    
+    async def atomicals_get_by_container_item_validation(self, container, item_name, bitworkc, bitworkr, main_name, main_hash, proof, check_without_sealed):
+        height = self.session_mgr.bp.height
+        status, candidate_atomical_id, all_entries = self.session_mgr.bp.get_effective_container(container, height)
+        found_parent_atomical_id = None
+        formatted_entries = format_name_type_candidates_to_rpc(all_entries, self.session_mgr.bp.build_atomical_id_to_candidate_map(all_entries))
+        if status == 'verified':
+            found_parent_atomical_id = candidate_atomical_id
+        else: 
+            raise RPCError(BAD_REQUEST, f'Container does not exist')
+        compact_atomical_id = location_id_bytes_to_compact(found_parent_atomical_id)
+        container_info = await self.atomical_id_get(compact_atomical_id)
+        # If it is a dmint container then there is no items field, instead construct it from the dmitems
+        container_dmint_status = container_info.get('$container_dmint_status')
+        errors = container_dmint_status.get('errors')
+        if not container_dmint_status or container_dmint_status.get('status') != 'valid':
+            errors = container_dmint_status.get('errors')
+            if check_without_sealed and errors and len(errors) == 1 and errors[0] == 'container not sealed':
+                pass 
+            else:
+                raise RPCError(BAD_REQUEST, f'Container dmint status is invalid')
+            
+        dmint = container_dmint_status.get('dmint')
+        status, candidate_atomical_id, all_entries = self.session_mgr.bp.get_effective_dmitem(found_parent_atomical_id, item_name, height)
+        found_item_atomical_id = None
+        formatted_entries = format_name_type_candidates_to_rpc(all_entries, self.session_mgr.bp.build_atomical_id_to_candidate_map(all_entries))
+        if candidate_atomical_id:
+            candidate_atomical_id = location_id_bytes_to_compact(candidate_atomical_id)
+        if status == 'verified':
+            found_item_atomical_id = candidate_atomical_id
+
+        # validate the proof data nonetheless
+        if not proof or not isinstance(proof, list) or len(proof) == 0:
+            raise RPCError(BAD_REQUEST, f'Proof must be provided')    
+        
+        applicable_rule, state_at_height = self.session_mgr.bp.get_applicable_rule_by_height(found_parent_atomical_id, item_name, height - MINT_SUBNAME_RULES_BECOME_EFFECTIVE_IN_BLOCKS, DMINT_PATH)
+        proof_valid, target_vector, target_hash = validate_merkle_proof_dmint(dmint['merkle'], item_name, bitworkc, bitworkr, main_name, main_hash, proof)
+        if applicable_rule and applicable_rule.get('matched_rule'):
+            applicable_rule = applicable_rule.get('matched_rule')
+        
+        return_result = {
+            'status': status, 
+            'candidate_atomical_id': candidate_atomical_id, 
+            'atomical_id': found_item_atomical_id, 
+            'candidates': formatted_entries, 
+            'type': 'item',
+            'applicable_rule': applicable_rule,
+            'proof_valid': proof_valid,
+            'target_vector': target_vector,
+            'target_hash': target_hash,
+            'dmint': state_at_height.get('dmint')
+        }
+        return {
+            'result': return_result
+        }
+
     async def atomicals_get_by_realm(self, name):
         height = self.session_mgr.bp.height
         status, candidate_atomical_id, all_entries = self.session_mgr.bp.get_effective_realm(name, height)
@@ -1510,7 +1663,7 @@ class ElectrumX(SessionBase):
         compact_atomical_id_parent = self.atomical_resolve_id(parent_compact_atomical_id_or_atomical_number)
         atomical_id_parent = compact_to_location_id_bytes(compact_atomical_id_parent)
         status, candidate_atomical_id, all_entries = self.session_mgr.bp.get_effective_subrealm(atomical_id_parent, name, height)
-        formatted_entries = format_name_type_candidates_to_rpc(all_entries)
+        formatted_entries = format_name_type_candidates_to_rpc(all_entries, self.session_mgr.bp.build_atomical_id_to_candidate_map(all_entries))
 
         if candidate_atomical_id:
             candidate_atomical_id = location_id_bytes_to_compact(candidate_atomical_id)
@@ -1525,6 +1678,31 @@ class ElectrumX(SessionBase):
             'atomical_id': found_atomical_id, 
             'candidates': formatted_entries, 
             'type': 'subrealm'
+        }
+        return {
+            'result': return_result
+        }
+
+    async def atomicals_get_by_dmitem(self, parent_compact_atomical_id_or_atomical_number, name):
+        height = self.session_mgr.bp.height
+        compact_atomical_id_parent = self.atomical_resolve_id(parent_compact_atomical_id_or_atomical_number)
+        atomical_id_parent = compact_to_location_id_bytes(compact_atomical_id_parent)
+        status, candidate_atomical_id, all_entries = self.session_mgr.bp.get_effective_dmitem(atomical_id_parent, name, height)
+        formatted_entries = format_name_type_candidates_to_rpc(all_entries, self.session_mgr.bp.build_atomical_id_to_candidate_map(all_entries))
+
+        if candidate_atomical_id:
+            candidate_atomical_id = location_id_bytes_to_compact(candidate_atomical_id)
+        
+        found_atomical_id = None
+        if status == 'verified':
+            found_atomical_id = candidate_atomical_id
+        
+        return_result = {
+            'status': status, 
+            'candidate_atomical_id': candidate_atomical_id, 
+            'atomical_id': found_atomical_id, 
+            'candidates': formatted_entries, 
+            'type': 'dmitem'
         }
         return {
             'result': return_result
@@ -1590,7 +1768,7 @@ class ElectrumX(SessionBase):
             current_height = that.session_mgr.bp.height
             subrealm_mint_mod_history = that.session_mgr.bp.get_mod_history(parent_atomical_id, current_height)
             current_height_latest_state = calculate_latest_state_from_mod_history(subrealm_mint_mod_history)
-            current_height_rules_list = validate_subrealm_rules_data(current_height_latest_state.get(SUBREALM_MINT_PATH, None))
+            current_height_rules_list = validate_rules_data(current_height_latest_state.get(SUBREALM_MINT_PATH, None))
             nearest_parent_realm_subrealm_mint_allowed = False
             struct_to_populate['nearest_parent_realm_subrealm_mint_rules'] = {
                 'nearest_parent_realm_atomical_id': location_id_bytes_to_compact(parent_atomical_id),
@@ -1662,7 +1840,7 @@ class ElectrumX(SessionBase):
             'found_full_realm_name': joined_name,
             'missing_name_parts': missing_name_parts,
             'final_subrealm_name': final_subrealm_name,
-            'candidates': format_name_type_candidates_to_rpc_for_subrealm(latest_all_entries_candidates, self.session_mgr.bp.build_atomical_id_to_candidate_map(latest_all_entries_candidates))
+            'candidates': format_name_type_candidates_to_rpc_for_subname(latest_all_entries_candidates, self.session_mgr.bp.build_atomical_id_to_candidate_map(latest_all_entries_candidates))
         }
         if Verbose:
             populate_rules_response_struct(compact_to_location_id_bytes(nearest_parent_realm_atomical_id), return_struct, Verbose)
@@ -1750,9 +1928,7 @@ class ElectrumX(SessionBase):
 
         for returned_utxo in returned_utxos: 
             for atomical_id_entry_compact in returned_utxo['atomicals']:
-                self.logger.info(f'atomical_id_entry_compact {atomical_id_entry_compact}')
                 atomical_id_basic_info = atomicals_id_map[atomical_id_entry_compact]
-                self.logger.info(f'atomical_id_basic_info {atomical_id_basic_info}')
                 atomical_id_ref = atomical_id_basic_info['atomical_id']
                 if return_struct['atomicals'].get(atomical_id_ref) == None: 
                     return_struct['atomicals'][atomical_id_ref] = {
@@ -1776,6 +1952,12 @@ class ElectrumX(SessionBase):
                         return_struct['atomicals'][atomical_id_ref]['parent_realm'] = atomical_id_basic_info.get('$parent_realm')
                         return_struct['atomicals'][atomical_id_ref]['subrealm'] = atomical_id_basic_info.get('$subrealm')
                         return_struct['atomicals'][atomical_id_ref]['full_realm_name'] = atomical_id_basic_info.get('$full_realm_name')
+                    elif atomical_id_basic_info.get('$dmitem'):
+                        return_struct['atomicals'][atomical_id_ref]['subtype'] = atomical_id_basic_info.get('subtype')
+                        return_struct['atomicals'][atomical_id_ref]['request_dmitem_status'] = atomical_id_basic_info.get('$request_dmitem_status')
+                        return_struct['atomicals'][atomical_id_ref]['request_dmitem'] = atomical_id_basic_info.get('$request_dmitem')
+                        return_struct['atomicals'][atomical_id_ref]['parent_container'] = atomical_id_basic_info.get('$parent_container')
+                        return_struct['atomicals'][atomical_id_ref]['dmitem'] = atomical_id_basic_info.get('$dmitem')
                     elif atomical_id_basic_info.get('$ticker'):
                         return_struct['atomicals'][atomical_id_ref]['subtype'] = atomical_id_basic_info.get('subtype')
                         return_struct['atomicals'][atomical_id_ref]['ticker_candidates'] = atomical_id_basic_info.get('$ticker_candidates')
@@ -1800,6 +1982,12 @@ class ElectrumX(SessionBase):
                         return_struct['atomicals'][atomical_id_ref]['request_full_realm_name'] = atomical_id_basic_info.get('$request_full_realm_name')
                         return_struct['atomicals'][atomical_id_ref]['request_subrealm'] = atomical_id_basic_info.get('$request_subrealm')
                         return_struct['atomicals'][atomical_id_ref]['parent_realm'] = atomical_id_basic_info.get('$parent_realm')
+                    elif atomical_id_basic_info.get('subtype') == 'request_dmitem':
+                        return_struct['atomicals'][atomical_id_ref]['subtype'] = atomical_id_basic_info.get('subtype')
+                        return_struct['atomicals'][atomical_id_ref]['dmitem_candidates'] = atomical_id_basic_info.get('$dmitem_candidates')
+                        return_struct['atomicals'][atomical_id_ref]['request_dmitem_status'] = atomical_id_basic_info.get('$request_dmitem_status')
+                        return_struct['atomicals'][atomical_id_ref]['request_dmitem'] = atomical_id_basic_info.get('$request_dmitem')
+                        return_struct['atomicals'][atomical_id_ref]['parent_container'] = atomical_id_basic_info.get('$parent_container')
                     elif atomical_id_basic_info.get('subtype') == 'request_container':
                         return_struct['atomicals'][atomical_id_ref]['subtype'] = atomical_id_basic_info.get('subtype')
                         return_struct['atomicals'][atomical_id_ref]['container_candidates'] = atomical_id_basic_info.get('$container_candidates')
@@ -2200,8 +2388,12 @@ class ElectrumX(SessionBase):
             'blockchain.atomicals.get_realm_info': self.atomicals_get_realm_info,
             'blockchain.atomicals.get_by_realm': self.atomicals_get_by_realm,
             'blockchain.atomicals.get_by_subrealm': self.atomicals_get_by_subrealm,
+            'blockchain.atomicals.get_by_dmitem': self.atomicals_get_by_dmitem,
             'blockchain.atomicals.get_by_ticker': self.atomicals_get_by_ticker,
             'blockchain.atomicals.get_by_container': self.atomicals_get_by_container,
+            'blockchain.atomicals.get_by_container_item': self.atomicals_get_by_container_item,
+            'blockchain.atomicals.get_by_container_item_validate': self.atomicals_get_by_container_item_validation,
+            'blockchain.atomicals.get_container_items': self.atomicals_get_container_items,
             'blockchain.atomicals.get_ft_info': self.atomicals_get_ft_info,
             'blockchain.atomicals.find_tickers': self.atomicals_search_tickers,
             'blockchain.atomicals.find_realms': self.atomicals_search_realms,
