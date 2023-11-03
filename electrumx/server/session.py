@@ -1267,8 +1267,6 @@ class ElectrumX(SessionBase):
         atomical_id = compact_to_location_id_bytes(compact_atomical_id)
         atomical = await self.atomical_id_get(compact_atomical_id)
         height = self.session_mgr.bp.height
-        if atomical['type'] != 'NFT':
-            raise RPCError(BAD_REQUEST, f'"{compact_atomical_id}" is not NFT type')
         self.db.populate_extended_mod_state_latest_atomical_info(atomical_id, atomical, height)
         await self.db.populate_extended_location_atomical_info(atomical_id, atomical)  
         return atomical
@@ -1276,8 +1274,6 @@ class ElectrumX(SessionBase):
     async def atomical_id_get_state_history(self, compact_atomical_id):
         atomical_id = compact_to_location_id_bytes(compact_atomical_id)
         atomical = await self.atomical_id_get(compact_atomical_id)
-        if atomical['type'] != 'NFT':
-            raise RPCError(BAD_REQUEST, f'"{compact_atomical_id}" is not NFT type')
         height = self.session_mgr.bp.height
         self.db.populate_extended_mod_state_history_atomical_info(atomical_id, atomical, height)
         await self.db.populate_extended_location_atomical_info(atomical_id, atomical)  
