@@ -708,7 +708,9 @@ class BlockProcessor:
                     'location_id': location_id,
                     'data': value
                 })
-                value_with_tombstone['deleted'] = True  # Flag it as deleted so the b'a' active location will not be written on flushed
+                if live_run:
+                    value_with_tombstone['found_in_cache'] = True
+                    value_with_tombstone['deleted'] = True  # Flag it as deleted so the b'a' active location will not be written on flushed
                 self.logger.info(f'spend_atomicals_utxo: cache_map. key={key}, location_id={location_id_bytes_to_compact(location_id)} atomical_id={location_id_bytes_to_compact(key)}, value={value}')
             if len(atomicals_data_list_cached) > 0:
                 return atomicals_data_list_cached
@@ -1688,7 +1690,6 @@ class BlockProcessor:
             mint_info = self.get_atomicals_id_mint_info(atomical_id)
             self.logger.info(f'atomical_id={atomical_id}')
             # Sanity check to make sure it matches
-            self.logger.info(f'all_entries={all_entries} mint_info {mint_info} candidate_entry={candidate_entry}')
             assert(mint_info['commit_tx_num'] == candidate_entry['tx_num'])
             # Only consider the name as valid if the required MINT_REALM_CONTAINER_TICKER_COMMIT_REVEAL_DELAY_BLOCKS has elapsed from the earliest
             # commit. We use this technique to ensure that any front running problems would have been resolved by then
@@ -2606,11 +2607,28 @@ class BlockProcessor:
                 pass
         return None
 
+    def spent_atomical_serialize(self, spent_array):
+        if not spent_array:
+            return 
+        self.logger.info(f'spent_atomical_serialize:START ')
+
+        for spent in spent_array:
+            atomical_id = location_id_bytes_to_compact(spent['atomical_id'])
+            location_id = location_id_bytes_to_compact(spent['location_id'])
+            data = spent['data']
+            self.logger.info(f'spent_item atomical_id={atomical_id}')
+            self.logger.info(f'spent_item location_id={location_id}')
+            self.logger.info(f'spent_item data={data.hex()}')
+
+        self.logger.info(f'spent_atomical_serialize:END')
+        return 
+
     def backup_txs(
             self,
             txs: Sequence[Tuple[Tx, bytes]],
             is_unspendable: Callable[[bytes], bool],
     ):
+     
         # Clear the cache just in case there are old values cached for a mint that are stale
         # In particular for $realm and $ticker values if something changed on reorg
         self.atomicals_id_cache.clear()
@@ -2645,6 +2663,8 @@ class BlockProcessor:
         c = m
         atomicals_undo_info_map = {} # Build a map of atomicals location to atomicals located there
         counted_atomicals_count = 0
+        self.logger.info(f'backup_txs m={m}')
+        self.logger.info(f'atomicals_undo_info_map={atomicals_undo_info_map}')
         while c > 0:
             c -= atomicals_undo_entry_len
             self.logger.info(f'atomicals_undo_entry_len {c} - count {counted_atomicals_count} - {atomicals_undo_entry_len}')
@@ -2710,9 +2730,8 @@ class BlockProcessor:
                 # Nonetheless we use the output idx as the "spent at" just to keep a consistent format when 
                 # the variable atomicals_spent_at_inputs is used in other places. There is no usage for the index, but informational purpose only
                 atomicals_spent_at_inputs[idx] = spent_atomicals
-                # Ensure to delete the portion of the undo atomical information
-                for spent_atomical in spent_atomicals:
-                    m -= atomicals_undo_entry_len
+                if len(spent_atomicals) > 0:
+                    self.spent_atomical_serialize(spent_atomicals)
 
             # Delete the tx hash number
             self.delete_general_data(b'tx' + tx_hash)
@@ -2723,14 +2742,12 @@ class BlockProcessor:
             if atomical_id_deleted:
                 atomical_num -= 1
                 atomicals_minted += 1
-                m -= atomicals_undo_entry_len
             
             # Rollback any subrealm payments
             self.create_or_delete_subrealm_payment_output_if_valid(tx_hash, tx, tx_num, self.height, atomicals_spent_at_inputs, True)
 
             # If there were any distributed mint creation, then delete
-            if self.create_or_delete_decentralized_mint_output(operations_found_at_inputs, tx_num, tx_hash, tx, self.height, True):
-                m -= atomicals_undo_entry_len
+            self.create_or_delete_decentralized_mint_output(operations_found_at_inputs, tx_num, tx_hash, tx, self.height, True)
 
             # Check if there were any regular 'dat' files definitions to delete
             self.create_or_delete_data_location(tx_hash, operations_found_at_inputs, True)
@@ -2756,12 +2773,15 @@ class BlockProcessor:
                         dat = atomical_to_restore['data'].hex()
                         self.logger.info(f'atomical_to_restore {atomical_to_restore} atomical_id={location_id_bytes_to_compact(atomical_id)} location_id={location_id_bytes_to_compact(location_id)} dat={dat}')
                         self.put_atomicals_utxo(atomical_to_restore['location_id'], atomical_to_restore['atomical_id'], atomical_to_restore['data'])
+                        self.logger.info(f'm_before={m}')
+                        m -= atomicals_undo_entry_len
+                        self.logger.info(f'm_after={m}')
                         touched.add(double_sha256(atomical_to_restore['atomical_id']))
             
             tx_num -= 1
 
         assert n == 0
-        self.logger.info(f'm == 0 {m}')
+        self.logger.info(f'm == 0 assert failure m={m} n={n} atomicals_minted={atomicals_minted}')
         assert m == 0
 
         self.tx_count -= len(txs)
