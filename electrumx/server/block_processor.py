@@ -277,7 +277,7 @@ class BlockProcessor:
         self.backed_up_event = asyncio.Event()
 
         self.atomicals_id_cache = pylru.lrucache(100000)
-        self.atomicals_rpc_format_cache = pylru.lrucache(10000)
+        self.atomicals_rpc_format_cache = pylru.lrucache(100000)
   
     async def run_in_thread_with_lock(self, func, *args):
         # Run in a thread to prevent blocking.  Shielded so that
@@ -1716,9 +1716,18 @@ class BlockProcessor:
                 atomical['mint_data']['fields'] = {}
         return atomical 
 
+    # temporary non lru version
+    async def get_base_mint_info_rpc_format_by_atomical_id(self, atomical_id):
+        atomical_result = await self.get_base_mint_info_by_atomical_id_async(atomical_id)
+        if not atomical_result:
+            return None
+        convert_db_mint_info_to_rpc_mint_info_format(self.coin.header_hash, atomical_result)
+        self.populate_extended_field_summary_atomical_info(atomical_id, atomical_result)
+        return atomical_result
+        
     # Get the atomical details base info CACHED wrapper
     # todo here
-    async def get_base_mint_info_rpc_format_by_atomical_id(self, atomical_id):
+    async def get_base_mint_info_rpc_format_by_atomical_id_original_key_error(self, atomical_id):
         atomical_result = None
         try:
             atomical_result = self.atomicals_rpc_format_cache[atomical_id]
