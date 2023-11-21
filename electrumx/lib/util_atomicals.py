@@ -975,7 +975,7 @@ def parse_operation_from_script(script, n):
     return None, None
 
 # Check for a payment marker and return the potential atomical id being indicate that is paid in current tx
-def is_op_return_payment_marker_atomical_id(script):
+def is_op_return_subrealm_payment_marker_atomical_id(script):
     if not script:
         return None 
     
@@ -1000,6 +1000,42 @@ def is_op_return_payment_marker_atomical_id(script):
 
     # Check the next op code matches b'p' for payment
     if script[start_index+5:start_index+5+2].hex() != '0170':
+        return None 
+    
+    # Check there is a 36 byte push data
+    if script[start_index+5+2:start_index+5+2+1].hex() != '24':
+        return None 
+
+    # Return the potential atomical id that the payment marker is associated with
+    return script[start_index+5+2+1:start_index+5+2+1+36]
+
+
+# Check for a payment marker and return the potential atomical id being indicate that is paid in current tx
+def is_op_return_dmitem_payment_marker_atomical_id(script):
+    if not script:
+        return None 
+    
+    # The output script is too short
+    if len(script) < (1+5+2+1+36): # 6a04<atom><01>p<atomical_id>
+        return None 
+
+    # Ensure it is an OP_RETURN
+    first_byte = script[:1]
+    second_bytes = script[:2]
+
+    if second_bytes != b'\x00\x6a' and first_byte != b'\x6a':
+        return None
+
+    start_index = 1
+    if second_bytes == b'\x00\x6a':
+        start_index = 2
+
+    # Check for the envelope format
+    if script[start_index:start_index+5].hex() != ATOMICALS_ENVELOPE_MARKER_BYTES:
+        return None 
+
+    # Check the next op code matches b'p' for payment
+    if script[start_index+5:start_index+5+2].hex() != '0164':
         return None 
     
     # Check there is a 36 byte push data

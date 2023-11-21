@@ -39,7 +39,8 @@ from electrumx.lib.util_atomicals import (
     pad_bytes_n, 
     has_requested_proof_of_work, 
     is_valid_container_string_name, 
-    is_op_return_payment_marker_atomical_id, 
+    is_op_return_subrealm_payment_marker_atomical_id, 
+    is_op_return_dmitem_payment_marker_atomical_id,
     SUBREALM_MINT_PATH,
     SUBNAME_MIN_PAYMENT_DUST_LIMIT,
     DMINT_PATH,
@@ -2769,7 +2770,7 @@ class BlockProcessor:
         # Add the new UTXOs
         found_atomical_id_for_potential_subrealm = None
         for idx, txout in enumerate(tx.outputs):
-            found_atomical_id_for_potential_subrealm = is_op_return_payment_marker_atomical_id(txout.pk_script)
+            found_atomical_id_for_potential_subrealm = is_op_return_subrealm_payment_marker_atomical_id(txout.pk_script)
             if found_atomical_id_for_potential_subrealm:
                 self.logger.info(f'create_or_delete_subrealm_payment_output_if_valid: found_atomical_id_for_potential_subrealm tx_hash={hash_to_hex_str(tx_hash)}, {location_id_bytes_to_compact(found_atomical_id_for_potential_subrealm)}')
                 break
@@ -2853,7 +2854,7 @@ class BlockProcessor:
         # Add the new UTXOs
         found_atomical_id_for_potential_dmitem = None
         for idx, txout in enumerate(tx.outputs):
-            found_atomical_id_for_potential_dmitem = is_op_return_payment_marker_atomical_id(txout.pk_script)
+            found_atomical_id_for_potential_dmitem = is_op_return_dmitem_payment_marker_atomical_id(txout.pk_script)
             if found_atomical_id_for_potential_dmitem:
                 self.logger.info(f'create_or_delete_dmitem_payment_output_if_valid: found_atomical_id_for_potential_dmitem tx_hash={hash_to_hex_str(tx_hash)}, {location_id_bytes_to_compact(found_atomical_id_for_potential_dmitem)}')
                 break
