@@ -663,7 +663,7 @@ class Bitcoin(BitcoinMixin, Coin):
         'nf365b5sbzk5j4jreimskffwnfpka7qtamyni5doohoom3g63o5tldad.onion t'
     ]
     ATOMICALS_ACTIVATION_HEIGHT = 808080
-    ATOMICALS_ACTIVATION_HEIGHT_DMINT = 830000 
+    ATOMICALS_ACTIVATION_HEIGHT_DMINT = 819181 
 
     @classmethod
     def warn_old_client_on_tx_broadcast(cls, client_ver):
@@ -928,7 +928,7 @@ class BitcoinTestnet(BitcoinTestnetMixin, Coin):
         'electrum1.cipig.net t10068',
     ]
     ATOMICALS_ACTIVATION_HEIGHT = 2505238
-    ATOMICALS_ACTIVATION_HEIGHT_DMINT = 2505238
+    ATOMICALS_ACTIVATION_HEIGHT_DMINT = 2540296
 
     @classmethod
     def warn_old_client_on_tx_broadcast(cls, client_ver):

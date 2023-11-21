@@ -1329,7 +1329,6 @@ class DB:
         return None
 
     def get_active_supply(self, atomical_id):
-        self.logger.info(f'============ get_active_supply {location_id_bytes_to_compact(atomical_id)}')
         active_supply = 0
         atomical_active_location_key_prefix = b'a' + atomical_id
         for atomical_active_location_key, atomical_active_location_value in self.utxo_db.iterator(prefix=atomical_active_location_key_prefix):
@@ -1348,7 +1347,7 @@ class DB:
                 # txnum_padding = bytes(8-TXNUM_LEN)
                 #tx_num_padded, = unpack_le_uint64(tx_numb + txnum_padding)
         return active_supply   
-            
+
     # Get the atomical details with location information added
     # In the case of NFTs, there will only be every 1 maximum active location
     # In the case of FTs, there can be an unbounded nu mber of maximum active locations (one for each UTXO for all holders)
