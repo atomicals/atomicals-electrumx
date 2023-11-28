@@ -2290,6 +2290,33 @@ class ElectrumX(SessionBase):
             self.logger.info(f'sent tx: {hex_hash}')
             return hex_hash
 
+    async def transaction_broadcast_force(self, raw_tx):
+        '''Broadcast a raw transaction to the network. Force even if invalid FT transfer
+        raw_tx: the raw transaction as a hexadecimal string'''
+        self.bump_cost(0.25 + len(raw_tx) / 5000)
+        # This returns errors as JSON RPC errors, as is natural
+        try:
+            hex_hash = await self.session_mgr.broadcast_transaction(raw_tx)
+        except DaemonError as e:
+            error, = e.args
+            message = error['message']
+            self.logger.info(f'error sending transaction: {message}')
+            raise RPCError(BAD_REQUEST, 'the transaction was rejected by '
+                           f'network rules.\n\n{message}\n[{raw_tx}]')
+        else:
+            self.txs_sent += 1
+            client_ver = util.protocol_tuple(self.client)
+            if client_ver != (0, ):
+                msg = self.coin.warn_old_client_on_tx_broadcast(client_ver)
+                if msg:
+                    self.logger.info(f'sent tx: {hex_hash}. and warned user to upgrade their '
+                                     f'client from {self.client}')
+                    return msg
+
+            self.logger.info(f'sent tx: {hex_hash}')
+            return hex_hash
+
+
     async def transaction_get(self, tx_hash, verbose=False):
         '''Return the serialized raw transaction given its hash
 
@@ -2361,6 +2388,7 @@ class ElectrumX(SessionBase):
             'blockchain.scripthash.listunspent': self.scripthash_listunspent,
             'blockchain.scripthash.subscribe': self.scripthash_subscribe,
             'blockchain.transaction.broadcast': self.transaction_broadcast,
+            'blockchain.transaction.broadcast_force': self.transaction_broadcast_force,
             'blockchain.transaction.get': self.transaction_get,
             'blockchain.transaction.get_merkle': self.transaction_merkle,
             'blockchain.transaction.id_from_pos': self.transaction_id_from_pos,
