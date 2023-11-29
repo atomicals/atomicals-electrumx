@@ -1526,7 +1526,6 @@ def get_name_request_candidate_status(current_height, atomical_info, status, can
     }
 
 def get_subname_request_candidate_status(current_height, atomical_info, status, candidate_id, entity_type):  
-    print(f'get_subname_request_candidate_status top_of_function status={status} atomical_info={atomical_info}')
     MAX_BLOCKS_STR = str(MINT_REALM_CONTAINER_TICKER_COMMIT_REVEAL_DELAY_BLOCKS)
 
     base_status = get_name_request_candidate_status(current_height, atomical_info, status, candidate_id, entity_type)
