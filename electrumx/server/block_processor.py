@@ -737,7 +737,7 @@ class BlockProcessor:
         # Here we go and check for the required payment amount and details now...
         # We also use the commit_height of the sub name to determine what price they should be paying
         expected_payment_height = found_atomical_mint_info_for_potential_dmitem['commit_height']
-        matched_price_point, state_at_height_not_used = self.get_applicable_rule_by_height(parent_container_id, request_dmitem, expected_payment_height - MINT_SUBNAME_RULES_BECOME_EFFECTIVE_IN_BLOCKS, SUBREALM_MINT_PATH)
+        matched_price_point, state_at_height_not_used = self.get_applicable_rule_by_height(parent_container_id, request_dmitem, expected_payment_height - MINT_SUBNAME_RULES_BECOME_EFFECTIVE_IN_BLOCKS, DMINT_PATH)
         if matched_price_point:
             self.logger.info(f'get_expected_dmitem_payment_info: matched_price_point={matched_price_point}, request_dmitem={request_dmitem}, parent_container_id={parent_container_id}')
             return matched_price_point, parent_container_id, request_dmitem
