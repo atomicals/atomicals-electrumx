@@ -569,7 +569,7 @@ class BlockProcessor:
     # Get the mint information and LRU cache it for fast retrieval
     # Used for quickly getting the mint information for an atomical
     def get_atomicals_id_mint_info_extended(self, atomical_id):
-        found_atomical = self.get_atomicals_id_mint_info(atomical_id)
+        found_atomical = self.get_base_mint_info_by_atomical_id(atomical_id)
         if not found_atomical:
             return None 
         self.populate_extended_atomical_subtype_info(found_atomical)
@@ -636,7 +636,7 @@ class BlockProcessor:
                     if found_parent_mint_info:
                         # We have found the parent atomical, which may or may not be a valid realm
                         # Do the basic check for $request_realm which indicates it succeeded the basic validity checks
-                        args_realm = found_parent_mint_info['args'].get('request_realm') or found_parent_mint_info['args'].get('request_subrealm')
+                        args_realm = found_parent_mint_info['mint_info']['args'].get('request_realm') or found_parent_mint_info['mint_info']['args'].get('request_subrealm')
                         request_realm = found_parent_mint_info.get('$request_realm') or found_parent_mint_info.get('$request_subrealm')
                         # One or both was empty and therefore didn't pass the basic checks
                         # Someone apparently made a payment marker for an invalid parent realm id. They made a mistake, ignoring it..
