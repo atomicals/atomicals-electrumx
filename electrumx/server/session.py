@@ -1594,13 +1594,15 @@ class ElectrumX(SessionBase):
         # If it is a dmint container then there is no items field, instead construct it from the dmitems
         container_dmint_status = container_info.get('$container_dmint_status')
         errors = container_dmint_status.get('errors')
-        if not container_dmint_status or container_dmint_status.get('status') != 'valid':
+        if not container_dmint_status:
+            raise RPCError(BAD_REQUEST, f'Container dmint status not exist')
+        if container_dmint_status.get('status') != 'valid':
             errors = container_dmint_status.get('errors')
             if check_without_sealed and errors and len(errors) == 1 and errors[0] == 'container not sealed':
                 pass 
             else:
                 raise RPCError(BAD_REQUEST, f'Container dmint status is invalid')
-            
+
         dmint = container_dmint_status.get('dmint')
         status, candidate_atomical_id, all_entries = self.session_mgr.bp.get_effective_dmitem(found_parent_atomical_id, item_name, height)
         found_item_atomical_id = None

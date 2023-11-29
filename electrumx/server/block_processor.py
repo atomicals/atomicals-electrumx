@@ -699,7 +699,7 @@ class BlockProcessor:
         if not is_within_acceptable_blocks_for_sub_item_payment(found_atomical_mint_info_for_potential_dmitem['commit_height'], current_height):
             # The reveal_location_height (mint/reveal height) is too old and this payment came in far too late
             # Ignore the payment therefore.
-            self.logger.info(f'get_expected_dmitem_payment_info: not is_within_acceptable_blocks_for_sub_item_payment. request_subrealm={request_subrealm}')
+            self.logger.info(f'get_expected_dmitem_payment_info: not is_within_acceptable_blocks_for_sub_item_payment. request_subrealm={request_dmitem}')
             return None, None, None
         # The parent realm id is in a compact form string to make it easier for users and developers
         # Only store the details if the pid is also set correctly
@@ -2869,7 +2869,7 @@ class BlockProcessor:
             
             # Each of the elements in the expected script output map must be satisfied for it to be a valid payment
             nft_atomicals, ft_atomicals = self.build_atomical_type_structs(atomicals_spent_at_inputs)
-            atomical_id_to_output_index_map = calculate_outputs_to_color_for_ft_atomical_ids(ft_atomicals, tx_hash, tx, self.is_dmint_activated(height))
+            atomical_id_to_output_index_map, ignore = calculate_outputs_to_color_for_ft_atomical_ids(ft_atomicals, tx_hash, tx, self.is_dmint_activated(height))
             output_idx_to_atomical_id_map = build_reverse_output_to_atomical_id_map(atomical_id_to_output_index_map)
             expected_output_keys_satisfied = {}
             for output_script_key, output_script_details in expected_payment_outputs.items():
@@ -2952,7 +2952,7 @@ class BlockProcessor:
                 return None
             # Each of the elements in the expected script output map must be satisfied for it to be a valid payment
             nft_atomicals, ft_atomicals = self.build_atomical_type_structs(atomicals_spent_at_inputs)
-            atomical_id_to_output_index_map = calculate_outputs_to_color_for_ft_atomical_ids(ft_atomicals, tx_hash, tx, self.is_dmint_activated(height))
+            atomical_id_to_output_index_map, ignore = calculate_outputs_to_color_for_ft_atomical_ids(ft_atomicals, tx_hash, tx, self.is_dmint_activated(height))
             output_idx_to_atomical_id_map = build_reverse_output_to_atomical_id_map(atomical_id_to_output_index_map)
             expected_output_keys_satisfied = {}
             for output_script_key, output_script_details in expected_payment_outputs.items():
@@ -2975,9 +2975,11 @@ class BlockProcessor:
                 output_script_hex = txout.pk_script.hex()
                 expected_output_payment_value_dict = expected_payment_outputs.get(output_script_hex, None)
                 if not expected_output_payment_value_dict or not isinstance(expected_output_payment_value_dict, dict):
+                    self.logger.info(f'create_or_delete_dmitem_payment_output_if_valid expected_output_payment_value_dict not dicttype expected_output_payment_value_dict={expected_output_payment_value_dict}')
                     continue
                 expected_output_payment_value = expected_output_payment_value_dict.get('v', None)
                 if not expected_output_payment_value or expected_output_payment_value < SUBNAME_MIN_PAYMENT_DUST_LIMIT:
+                    self.logger.info(f'create_or_delete_dmitem_payment_output_if_valid not dust value SUBNAME_MIN_PAYMENT_DUST_LIMIT expected_output_payment_value_dict={expected_output_payment_value_dict} expected_output_payment_value={expected_output_payment_value}')
                     continue 
                 if txout.value >= expected_output_payment_value:
                     self.logger.info(f'create_or_delete_dmitem_payment_output_if_valid gt_expected_output_payment_value')
@@ -2999,7 +3001,7 @@ class BlockProcessor:
             for expected_output_script, satisfied in expected_output_keys_satisfied.items():
                 if not satisfied:
                     is_all_outputs_matched = False
-                    self.logger.info(f'create_or_delete_dmitem_payment_output_if_valid is_all_outputs_matched_not_satisfied={expected_output_keys_satisfied}')
+                    self.logger.info(f'create_or_delete_dmitem_payment_output_if_valid is_all_outputs_matched_not_satisfied={expected_output_keys_satisfied} output_idx_to_atomical_id_map={output_idx_to_atomical_id_map}')
                     break
             if is_all_outputs_matched:
                 # Delete or create the record based on whether we are reorg rollback or creating new
