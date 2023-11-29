@@ -2792,6 +2792,11 @@ class BlockProcessor:
                     self.logger.info(f'advance_txs: found valid payment create_or_delete_subrealm_payment_output_if_valid {hash_to_hex_str(tx_hash)}')
                     has_at_least_one_valid_atomicals_operation = True
 
+                # Check if there were any payments for dmitems in tx
+                if self.create_or_delete_dmitem_payment_output_if_valid(tx_hash, tx, tx_num, height, atomicals_spent_at_inputs):
+                    self.logger.info(f'advance_txs: found valid payment create_or_delete_dmitem_payment_output_if_valid {hash_to_hex_str(tx_hash)}')
+                    has_at_least_one_valid_atomicals_operation = True
+
                 # Distributed FT mints can be created as long as it is a valid $ticker and the $max_mints has not been reached
                 # Check to create a distributed mint output from a valid tx
                 atomical_id_of_distmint = self.create_or_delete_decentralized_mint_output(atomicals_operations_found_at_inputs, tx_num, tx_hash, tx, height)
@@ -2852,7 +2857,7 @@ class BlockProcessor:
             if not matched_price_point:
                 self.logger.info(f'create_or_delete_subrealm_payment_output_if_valid: {hash_to_hex_str(tx_hash)} NOT MATCHED PRICE - create_or_delete_subrealm_payment_output_if_valid found_atomical_id_for_potential_subrealm {location_id_bytes_to_compact(found_atomical_id_for_potential_subrealm)}')
                 return None
-            expected_payment_outputs = matched_price_point['matched_rule']['o']
+            expected_payment_outputs = matched_price_point['matched_rule'].get('o')
             if not isinstance(expected_payment_outputs, dict) or len(expected_payment_outputs.keys()) < 1:
                 return None
             
@@ -2936,7 +2941,7 @@ class BlockProcessor:
             if not matched_price_point:
                 self.logger.info(f'create_or_delete_dmitem_payment_output_if_valid: {hash_to_hex_str(tx_hash)} NOT MATCHED PRICE - create_or_delete_dmitem_payment_output_if_valid found_atomical_id_for_potential_dmitem {location_id_bytes_to_compact(found_atomical_id_for_potential_dmitem)}')
                 return None
-            expected_payment_outputs = matched_price_point['matched_rule']['o']
+            expected_payment_outputs = matched_price_point['matched_rule'].get('o')
             if not isinstance(expected_payment_outputs, dict) or len(expected_payment_outputs.keys()) < 1:
                 return None
             # Each of the elements in the expected script output map must be satisfied for it to be a valid payment
