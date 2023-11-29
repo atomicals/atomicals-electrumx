@@ -671,9 +671,11 @@ class BlockProcessor:
         # Along with the price that was expected according to the mint reveal height
         args = found_atomical_mint_info_for_potential_dmitem.get('args')
         if not args:
+            self.logger.info(f'get_expected_dmitem_payment_info: not_args_found found_atomical_mint_info_for_potential_dmitem {found_atomical_id_for_potential_dmitem} ')
             return None, None, None
         args_dmitem = args.get('request_dmitem')
         if not args_dmitem:
+            self.logger.info(f'get_expected_dmitem_payment_info: not_args_request_dmitem_found found_atomical_mint_info_for_potential_dmitem {found_atomical_id_for_potential_dmitem}')
             return None, None, None
         request_dmitem = found_atomical_mint_info_for_potential_dmitem.get('$request_dmitem')
         # Check that $request_dmitem was set because it will only be set if the basic validation succeeded
