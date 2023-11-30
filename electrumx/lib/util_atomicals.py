@@ -1654,8 +1654,8 @@ def validate_dmitem_mint_args_with_container_dmint(mint_args, mint_data_payload,
         print(f'validate_dmitem_mint_args_with_container_dmint: main is not valid str')
         return False
     main_data = mint_data_payload.get(main)
-    if not main_data:
-        print(f'get_dmitem_parent_container_info: main element is not defined')
+    if not main_data or not isinstance(main_data, bytes):
+        print(f'get_dmitem_parent_container_info: main element is not defined or not valid')
         return False
     main_hash = double_sha256(main_data)
     print(f'validate_dmitem_mint_args_with_container_dmint: merkle={merkle} main={main} main_hash={main_hash.hex()}, request_dmitem={request_dmitem} proof={proof}')
