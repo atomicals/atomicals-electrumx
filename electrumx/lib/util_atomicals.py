@@ -1300,6 +1300,10 @@ def validate_rules(namespace_data):
         bitworkr = rule_set_entry.get('bitworkr')
         if not regex_pattern:
             return None
+
+        if '(' in regex_pattern or ')' in regex_pattern:
+            return None
+
         # Check that regex is a valid regex pattern
         try:
             re.compile(rf"{regex_pattern}")

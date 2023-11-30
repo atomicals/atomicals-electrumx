@@ -2883,6 +2883,10 @@ class BlockProcessor:
             # intentionally assume regex pattern is valid and name matches because the logic path should have already been checked
             # Any exception here indicates a developer error and the service will intentionally crash
             # Compile the regular expression
+            if '(' in expected_payment_regex or ')' in expected_payment_regex:
+                self.logger.info(f'create_or_delete_subrealm_payment_output_if_valid invalid matched regex rule with parens. Fail {expected_payment_regex}')
+                return None
+
             valid_pattern = re.compile(rf"{expected_payment_regex}")
             if not valid_pattern.match(request_subrealm_name):
                 raise IndexError(f'valid pattern failed to match request_subrealm_name. DeveloperError {request_subrealm_name} {expected_payment_regex}')
@@ -2968,6 +2972,10 @@ class BlockProcessor:
             # intentionally assume regex pattern is valid and name matches because the logic path should have already been checked
             # Any exception here indicates a developer error and the service will intentionally crash
             # Compile the regular expression
+            if '(' in expected_payment_regex or ')' in expected_payment_regex:
+                self.logger.info(f'create_or_delete_dmitem_payment_output_if_valid invalid matched regex rule with parens. Fail {expected_payment_regex}')
+                return None
+
             valid_pattern = re.compile(rf"{expected_payment_regex}")
             if not valid_pattern.match(request_dmitem_name):
                 raise IndexError(f'valid pattern failed to match request_dmitem_name. DeveloperError {request_dmitem_name} {expected_payment_regex}')
@@ -3129,6 +3137,11 @@ class BlockProcessor:
             if not regex_pattern:
                 print_applicable_rule_log(f'get_applicable_rule_by_height: empty pattern')
                 continue 
+                
+            if '(' in regex_pattern or ')' in regex_pattern:
+                print_applicable_rule_log(f'get_applicable_rule_by_height: invalid regex with parens')
+                return None
+
             try:
                 # Compile the regular expression
                 valid_pattern = re.compile(rf"{regex_pattern}")
