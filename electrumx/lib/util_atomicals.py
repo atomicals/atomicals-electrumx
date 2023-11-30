@@ -964,10 +964,7 @@ def parse_operation_from_script(script, n):
         # Extract operation (for NFTs only)
         if atom_op == "0178":
             atom_op_decoded = 'x'  # extract - move atomical to 0'th output
-        # Skip operation (for FTs only)
-        elif atom_op == "0179":
-            atom_op_decoded = 'y'  # skip - skip first output for fungible token transfer
-        
+
         if atom_op_decoded:
             return atom_op_decoded, parse_atomicals_data_definition_operation(script, n + one_letter_op_len)
     
@@ -1402,7 +1399,7 @@ def build_reverse_output_to_atomical_id_map(atomical_id_to_output_index_map):
 def calculate_outputs_to_color_for_ft_atomical_ids(ft_atomicals, tx_hash, tx, sort_by_fifo):
     num_fts = len(ft_atomicals.keys())
     if num_fts == 0:
-        return None, None
+        return None, None, None
     atomical_list = []
     # If sorting is by FIFO, then get the mappng of which FTs are at which inputs
     if sort_by_fifo:
@@ -1456,10 +1453,10 @@ def calculate_outputs_to_color_for_ft_atomical_ids(ft_atomicals, tx_hash, tx, so
             cleanly_assigned, expected_outputs = assign_expected_outputs_basic(atomical_id, item['ft_info']['value'], tx, 0)
             potential_atomical_ids_to_output_idxs_map[atomical_id] = expected_outputs
         print(f'calculate_outputs_to_color_for_ft_atomical_ids non_clean_output_slots_finally_assignment_map {non_clean_output_slots} tx_hash={hash_to_hex_str(tx_hash)} {ft_atomicals} potential_atomical_ids_to_output_idxs_map={potential_atomical_ids_to_output_idxs_map}')
-        return potential_atomical_ids_to_output_idxs_map, not non_clean_output_slots
+        return potential_atomical_ids_to_output_idxs_map, not non_clean_output_slots, atomical_list
     else:
         print(f'calculate_outputs_to_color_for_ft_atomical_ids underflow_val potential_atomical_ids_to_output_idxs_map={potential_atomical_ids_to_output_idxs_map}')
-        return potential_atomical_ids_to_output_idxs_map, not non_clean_output_slots
+        return potential_atomical_ids_to_output_idxs_map, not non_clean_output_slots, atomical_list
 
 def calculate_nft_output_index_legacy(input_idx, tx, operations_found_at_inputs):
     expected_output_index = input_idx
@@ -1469,8 +1466,8 @@ def calculate_nft_output_index_legacy(input_idx, tx, operations_found_at_inputs)
     if expected_output_index >= len(tx.outputs) or is_unspendable_genesis(tx.outputs[expected_output_index].pk_script) or is_unspendable_legacy(tx.outputs[expected_output_index].pk_script):
         expected_output_index = 0
     # If this was the 'split' (y) command, then also move them to the 0th output
-    if operations_found_at_inputs and operations_found_at_inputs.get('op') == 'y' and operations_found_at_inputs.get('input_index') == 0:
-        expected_output_index = 0      
+    # if operations_found_at_inputs and operations_found_at_inputs.get('op') == 'y' and operations_found_at_inputs.get('input_index') == 0:
+    #    expected_output_index = 0      
     return expected_output_index
 
 # Get the candidate name request status for tickers, containers and realms (not subrealms though)
