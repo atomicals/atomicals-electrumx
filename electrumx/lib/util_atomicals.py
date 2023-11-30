@@ -1657,6 +1657,9 @@ def validate_dmitem_mint_args_with_container_dmint(mint_args, mint_data_payload,
     if not main_data:
         print(f'get_dmitem_parent_container_info: main element is not defined')
         return False
+    if not isinstance(main_data, bytes):
+        print(f'get_dmitem_parent_container_info: main element is not bytes')
+        return False
     main_hash = double_sha256(main_data)
     print(f'validate_dmitem_mint_args_with_container_dmint: merkle={merkle} main={main} main_hash={main_hash.hex()}, request_dmitem={request_dmitem} proof={proof}')
     bitworkc = args.get('bitworkc')
