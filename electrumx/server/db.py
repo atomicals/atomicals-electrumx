@@ -1592,12 +1592,11 @@ class DB:
                 continue
             if current_counter > offset + limit:
                 break
-
             name_len, = unpack_le_uint16_from(db_key[-10:-8])
-            dmitem_name = db_key[len(db_prefix)]
+            dmitem_name = db_key[db_prefix_len_with_parent : db_prefix_len_with_parent + name_len]
             if entries_deduped.get(dmitem_name):
                 continue 
-            dmitem_name_str = db_key[db_prefix_len_with_parent : db_prefix_len_with_parent + name_len].decode()
+            dmitem_name_str = dmitem_name.decode()
             entries_deduped[dmitem_name_str] = {
                 'dmitem_name': dmitem_name_str,
                 'db_key': db_key,
