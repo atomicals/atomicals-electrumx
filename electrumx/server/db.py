@@ -1586,6 +1586,7 @@ class DB:
         db_prefix = b'codmt'
         db_prefix_len_with_parent = len(db_prefix) + 36
         db_search_prefix = b'codmt' + parent_container_id
+        self.logger.info(f'get_dmitem_entries_paginated container {location_id_bytes_to_compact(parent_container_id)} limit {limit} {offset}')
         for db_key, db_value in self.utxo_db.iterator(prefix=db_search_prefix):
             if current_counter < offset:
                 current_counter += 1
@@ -1594,9 +1595,12 @@ class DB:
                 break
             name_len, = unpack_le_uint16_from(db_key[-10:-8])
             dmitem_name = db_key[db_prefix_len_with_parent : db_prefix_len_with_parent + name_len]
+            self.logger.info(f'get_dmitem_entries_paginated dmitem_name {dmitem_name}')
             if entries_deduped.get(dmitem_name):
+                self.logger.info(f'get_dmitem_entries_paginated dmitem_name {dmitem_name} FOUND ALREADY SKIPPING')
                 continue 
             dmitem_name_str = dmitem_name.decode()
+            self.logger.info(f'get_dmitem_entries_paginated dmitem_name {dmitem_name} {dmitem_name_str} adding')
             entries_deduped[dmitem_name_str] = {
                 'dmitem_name': dmitem_name_str,
                 'db_key': db_key,
@@ -1604,6 +1608,8 @@ class DB:
                 'counter': current_counter
             }
             current_counter += 1
+        
+        self.logger.info(f'get_dmitem_entries_paginated container {location_id_bytes_to_compact(parent_container_id)} counter {current_counter}')
 
         entries_intermediate = []
         for entry_key, entry_value in entries_deduped.items():
