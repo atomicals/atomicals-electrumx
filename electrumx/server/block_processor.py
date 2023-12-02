@@ -545,7 +545,6 @@ class BlockProcessor:
     # Used for quickly getting the mint information for an atomical
     def get_atomicals_id_mint_info(self, atomical_id):
         result = None
-        self.logger.info(f'get_atomicals_id_mint_info atomical_id={hash_to_hex_str(atomical_id)}')
         try:
             result = self.atomicals_id_cache[atomical_id]
         except KeyError:
