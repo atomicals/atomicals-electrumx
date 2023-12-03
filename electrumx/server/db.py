@@ -151,11 +151,11 @@ class DB:
         # Atomicals specific index below:
         # ------------------------------------------
         # Key: b'i' + location(tx_hash + txout_idx) + atomical_id(tx_hash + txout_idx)
-        # Value: hashX + scripthash + value_sats
+        # Value: hashX + scripthash + value_sats + CHECK IF EXPONENT EXISTS?? exponent (2 bytes)
         # "map location to all the Atomicals which are located there. Permanently stored for every location even if spent."
         # ---
         # Key: b'a' + atomical_id(tx_hash + txout_idx) + location(tx_hash + txout_idx)
-        # Value: hashX + scripthash + value_sats + tx_num
+        # Value: hashX + scripthash + value_sats + tx_num + exponent (2 bytes)
         # "map atomical to an unspent location. Used to located the NFT/FT Atomical unspent UTXOs"
         # ---
         # Key: b'L' + block_height
@@ -611,11 +611,12 @@ class DB:
                 hashX = value[:HASHX_LEN]
                 scripthash = value[HASHX_LEN : HASHX_LEN + SCRIPTHASH_LEN]
                 value_sats = value[HASHX_LEN + SCRIPTHASH_LEN : HASHX_LEN + SCRIPTHASH_LEN + 8]
+                exponent = value[HASHX_LEN + SCRIPTHASH_LEN + 8: HASHX_LEN + SCRIPTHASH_LEN + 8 + 2]
                 tx_numb = value[-TXNUM_LEN:]  
-                batch_put(b'i' + location_key + atomical_id, hashX + scripthash + value_sats + tx_numb) 
+                batch_put(b'i' + location_key + atomical_id, hashX + scripthash + value_sats + exponent + tx_numb) 
                 # Add the active b'a' atomicals location if it was not deleted
                 if not value_with_tombstone.get('deleted', False):
-                    batch_put(b'a' + atomical_id + location_key, hashX + scripthash + value_sats + tx_numb) 
+                    batch_put(b'a' + atomical_id + location_key, hashX + scripthash + value_sats + exponent + tx_numb) 
         flush_data.atomicals_adds.clear()
  
         # Distributed mint data adds
@@ -1322,18 +1323,8 @@ class DB:
         for atomical_active_location_key, atomical_active_location_value in self.utxo_db.iterator(prefix=atomical_active_location_key_prefix):
             if atomical_active_location_value:
                 location = atomical_active_location_key[1 + ATOMICAL_ID_LEN : 1 + ATOMICAL_ID_LEN + ATOMICAL_ID_LEN]
-                self.logger.info(f'get_active_supply location {location_id_bytes_to_compact(location)} for {location_id_bytes_to_compact(atomical_id)}')
-                #atomical_output_script_key = b'po' + location
-                #atomical_output_script_value = self.utxo_db.get(atomical_output_script_key)
-                #location_script = atomical_output_script_value
-                #location_tx_hash = location[ : 32]
-                #atomical_location_idx, = unpack_le_uint32(location[ 32 : 36])
-                #location_scripthash = atomical_active_location_value[HASHX_LEN : HASHX_LEN + SCRIPTHASH_LEN]  
                 location_value, = unpack_le_uint64(atomical_active_location_value[HASHX_LEN + SCRIPTHASH_LEN : HASHX_LEN + SCRIPTHASH_LEN + 8])
                 active_supply += location_value
-                # tx_numb = atomical_active_location_value[-TXNUM_LEN:]  
-                # txnum_padding = bytes(8-TXNUM_LEN)
-                #tx_num_padded, = unpack_le_uint64(tx_numb + txnum_padding)
         return active_supply   
 
     # Get the atomical details with location information added
@@ -1368,6 +1359,8 @@ class DB:
                             'index': atomical_location_idx,
                             'scripthash': hash_to_hex_str(location_scripthash),
                             'value': location_value,
+                            'exp': 0, # Use 0 exponent for now
+                            'satvalue': location_value,
                             'script': location_script.hex(),
                             'atomicals_at_location': atomicals_at_location,
                             'tx_num': tx_num_padded
@@ -1386,6 +1379,9 @@ class DB:
         return await run_in_thread(query_location)
 
     def dump(self):
+        # Do not allow dump to function by default
+        if True:
+            return
         i_prefix = b'i'
         # Print sorted highscores print to file
         arr = []
