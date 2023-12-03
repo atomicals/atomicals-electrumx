@@ -738,7 +738,7 @@ class BlockProcessor:
         self.logger.info(f'get_expected_dmitem_payment_info: not matched_price_point request_dmitem={request_dmitem} parent_container_id={parent_container_id} found_atomical_id_for_potential_dmitem={found_atomical_id_for_potential_dmitem}')
         return None, None, None
     
-    # Save distributed mint infromation for the atomical
+    # Save distributed mint information for the atomical
     # Mints are only stored if they are less than the max_mints amount
     def put_decentralized_mint_data(self, atomical_id, location_id, value): 
         self.logger.info(f'put_decentralized_mint_data: atomical_id={atomical_id.hex()}, location_id={location_id.hex()}, value={value.hex()}')
@@ -1062,7 +1062,7 @@ class BlockProcessor:
             else:
                 self.logger.info(f'create_or_delete_subrealm_entry_if_requested: request_subrealm={request_subrealm} mint_bitwork_attempt')
                 self.put_name_element_template(b'srlm', parent_realm_id, request_subrealm, mint_info['commit_tx_num'], mint_info['id'], self.subrealm_data_cache)
-            # If it was initiated by the parent, then there is no expected seperate payment and the mint itself is considered the payment
+            # If it was initiated by the parent, then there is no expected separate payment and the mint itself is considered the payment
             # Therefore add the current mint tx as the payment
             if mint_initiated_result == 'parent':
                 self.logger.info(f'create_or_delete_subrealm_entry_if_requested: mint_initiated_result={mint_initiated_result}, mint_info={mint_info}')
@@ -1102,7 +1102,7 @@ class BlockProcessor:
             else:
                 self.logger.info(f'create_or_delete_dmitem_entry_if_requested: request_dmitem={request_dmitem} mint_bitwork_attempt')
                 self.put_name_element_template(b'codmt', parent_container_id, request_dmitem, mint_info['commit_tx_num'], mint_info['id'], self.dmitem_data_cache)
-            # If it was initiated by only bitwork, then there is no expected seperate payment and the mint itself is considered the payment
+            # If it was initiated by only bitwork, then there is no expected separate payment and the mint itself is considered the payment
             if mint_initiated_result == 'bitwork':
                 self.logger.info(f'create_or_delete_dmitem_entry_if_requested: bitwork_initiated mint_initiated_result={mint_initiated_result}, mint_info={mint_info}')
                 # Add the b'02' flag to indicate it was bitwork only
@@ -1479,7 +1479,7 @@ class BlockProcessor:
             )
     def color_nft_atomicals_splat(self, nft_atomicals, tx_hash, tx, tx_num, atomical_ids_touched):
         # Splat takes all of the NFT atomicals across all inputs (including multiple atomicals at the same utxo) 
-        # and then seperates them into their own distinctive output such that the result of the operation is no two atomicals
+        # and then separates them into their own distinctive output such that the result of the operation is no two atomicals
         # will share a resulting output. This operation requires that there are at least as many outputs as there are NFT atomicals
         # If there are not enough, then this is considered a noop. 
         # If there are enough outputs, then the earliest atomical (sorted lexicographically in ascending order) goes to the 0'th output,
@@ -2181,7 +2181,7 @@ class BlockProcessor:
 
         # Attach the type specific information
         if atomical['type'] == 'NFT':
-            # Attach any auxillary information that was already successfully parsed before
+            # Attach any auxiliary information that was already successfully parsed before
             request_realm = init_mint_info.get('$request_realm')
             if request_realm:
                 atomical['mint_info']['$request_realm'] = request_realm
