@@ -1104,7 +1104,7 @@ def parse_protocols_operations_from_witness_array(tx, tx_hash):
             # Also enforce that if there are meta, args, or ctx fields that they must be dicts
             # This is done to ensure that these fields are always easily parseable and do not contain unexpected data which could cause parsing problems later
             # Ensure that they are not allowed to contain bytes like objects
-            if not is_sanitized_dict_whitelist_only(decoded_object.get('meta', {})) or not is_sanitized_dict_whitelist_only(decoded_object.get('args', {})) or not is_sanitized_dict_whitelist_only(decoded_object.get('ctx', {})) or not is_sanitized_dict_whitelist_only(decoded_object.get('init', {}), True):
+            if not is_sanitized_dict_whitelist_only(decoded_object.get('meta', {})) or not is_sanitized_dict_whitelist_only(decoded_object.get('args', {}, True)) or not is_sanitized_dict_whitelist_only(decoded_object.get('ctx', {})) or not is_sanitized_dict_whitelist_only(decoded_object.get('init', {}), True):
                 print(f'parse_protocols_operations_from_witness_array found {op_name} but decoded CBOR payload has an args, meta, ctx, or init that has not permitted data type {tx} {decoded_object}. Skipping tx input...')
                 continue  
             #if op_name != 'nft' and op_name != 'ft' and op_name != 'dft' and not is_sanitized_dict_whitelist_only(decoded_object):
@@ -1727,9 +1727,16 @@ def validate_merkle_proof_dmint(expected_root_hash, item_name, possible_bitworkc
         formatted_proof = []
         for item in proof:
             if item['p']:
-                formatted_proof.append({
-                    'right': item['d']
-                })
+                # Also accept bytes type
+                # Note: must enable bytes types in the args for the base parser before this can actually work
+                if isinstance(item['d'], bytes):
+                    formatted_proof.append({
+                        'right': item['d'].hex()
+                    })
+                else:
+                    formatted_proof.append({
+                        'right': item['d']
+                    })
             else: 
                 formatted_proof.append({
                     'left': item['d']
