@@ -1107,10 +1107,6 @@ def parse_protocols_operations_from_witness_array(tx, tx_hash):
             if not is_sanitized_dict_whitelist_only(decoded_object.get('meta', {})) or not is_sanitized_dict_whitelist_only(decoded_object.get('args', {}, True)) or not is_sanitized_dict_whitelist_only(decoded_object.get('ctx', {})) or not is_sanitized_dict_whitelist_only(decoded_object.get('init', {}), True):
                 print(f'parse_protocols_operations_from_witness_array found {op_name} but decoded CBOR payload has an args, meta, ctx, or init that has not permitted data type {tx} {decoded_object}. Skipping tx input...')
                 continue  
-            #if op_name != 'nft' and op_name != 'ft' and op_name != 'dft' and not is_sanitized_dict_whitelist_only(decoded_object):
-            #    print(f'parse_protocols_operations_from_witness_array found {op_name} but decoded CBOR payload body has not permitted data type {tx} {decoded_object}. Skipping tx input...')
-            #    continue
-
             # Return immediately at the first successful parse of the payload
             # It doesn't mean that it will be valid when processed, because most operations require the txin_idx=0 
             # Nonetheless we return it here and it can be checked uptstream
@@ -1399,8 +1395,16 @@ def build_reverse_output_to_atomical_id_map(atomical_id_to_output_index_map):
             reverse_mapped[out_idx][atomical_id] = atomical_id
     return reverse_mapped 
 
+def contains_valid_skip_operation(operations_found_at_inputs):
+    return operations_found_at_inputs and operations_found_at_inputs.get('op') == 'y' and operations_found_at_inputs.get('input_index') == 0
+
+def get_start_index_for_ft(operations_found_at_inputs):
+    if contains_valid_skip_operation(operations_found_at_inputs):
+        return 1
+    return 0
+    
 # Calculate the colorings of tokens for utxos
-def calculate_outputs_to_color_for_ft_atomical_ids(ft_atomicals, tx_hash, tx, sort_by_fifo):
+def calculate_outputs_to_color_for_ft_atomical_ids(ft_atomicals, tx_hash, tx, sort_by_fifo, initial_start_output_idx):
     num_fts = len(ft_atomicals.keys())
     if num_fts == 0:
         return None, None, None
@@ -1430,9 +1434,9 @@ def calculate_outputs_to_color_for_ft_atomical_ids(ft_atomicals, tx_hash, tx, so
                 'ft_info': ft_info
             })
 
-    next_start_out_idx = 0
     potential_atomical_ids_to_output_idxs_map = {}
     non_clean_output_slots = False
+    next_start_out_idx = initial_start_output_idx
     for item in atomical_list:
         atomical_id = item['atomical_id']
         v = item['ft_info']['value']
@@ -1448,13 +1452,13 @@ def calculate_outputs_to_color_for_ft_atomical_ids(ft_atomicals, tx_hash, tx, so
             potential_atomical_ids_to_output_idxs_map = {}
             non_clean_output_slots = True
             break
-    # If the output slots did not fit cleanly, then default to just assigning everything from the 0'th output index
+    # If the output slots did not fit cleanly, then default to just assigning everything from the intended first output
     if non_clean_output_slots:
         print(f'calculate_outputs_to_color_for_ft_atomical_ids non_clean_output_slots {non_clean_output_slots} {ft_atomicals} ')
         potential_atomical_ids_to_output_idxs_map = {}
         for item in atomical_list:
             atomical_id = item['atomical_id']
-            cleanly_assigned, expected_outputs = assign_expected_outputs_basic(atomical_id, item['ft_info']['value'], tx, 0)
+            cleanly_assigned, expected_outputs = assign_expected_outputs_basic(atomical_id, item['ft_info']['value'], tx, initial_start_output_idx)
             potential_atomical_ids_to_output_idxs_map[atomical_id] = expected_outputs
         print(f'calculate_outputs_to_color_for_ft_atomical_ids non_clean_output_slots_finally_assignment_map {non_clean_output_slots} tx_hash={hash_to_hex_str(tx_hash)} {ft_atomicals} potential_atomical_ids_to_output_idxs_map={potential_atomical_ids_to_output_idxs_map}')
         return potential_atomical_ids_to_output_idxs_map, not non_clean_output_slots, atomical_list
@@ -1468,10 +1472,7 @@ def calculate_nft_output_index_legacy(input_idx, tx, operations_found_at_inputs)
     # ...and never allow an NFT atomical to be burned accidentally by having insufficient number of outputs either
     # The expected output index will become the 0'th index if the 'x' extract operation was specified or there are insufficient outputs
     if expected_output_index >= len(tx.outputs) or is_unspendable_genesis(tx.outputs[expected_output_index].pk_script) or is_unspendable_legacy(tx.outputs[expected_output_index].pk_script):
-        expected_output_index = 0
-    # If this was the 'split' (y) command, then also move them to the 0th output
-    # if operations_found_at_inputs and operations_found_at_inputs.get('op') == 'y' and operations_found_at_inputs.get('input_index') == 0:
-    #    expected_output_index = 0      
+        expected_output_index = 0  
     return expected_output_index
 
 # Get the candidate name request status for tickers, containers and realms (not subrealms though)
