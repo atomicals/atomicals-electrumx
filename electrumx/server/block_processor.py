@@ -64,7 +64,8 @@ from electrumx.lib.util_atomicals import (
     AtomicalsValidationError,
     get_container_dmint_format_status,
     validate_dmitem_mint_args_with_container_dmint,
-    calculate_nft_output_index_legacy
+    calculate_nft_output_index_legacy,
+    get_start_index_for_ft
 )
 
 import copy
@@ -512,8 +513,6 @@ class BlockProcessor:
         tx, tx_hash = self.coin.DESERIALIZER(bytes.fromhex(raw_tx), 0).read_tx_and_hash()
         # Determine if there are any other operations at the transfer 
         operations_found_at_inputs = parse_protocols_operations_from_witness_array(tx, tx_hash)
-        # Check if it was the split y operation because that is handled differently
-        # should_split_ft_atomicals = operations_found_at_inputs and operations_found_at_inputs.get('op') == 'y' and operations_found_at_inputs.get('input_index') == 0 and operations_found_at_inputs.get('payload')
         # Build the map of the atomicals potentiall spent at the tx
         atomicals_spent_at_inputs = self.build_atomicals_spent_at_inputs_for_validation_only(tx)
         # Build a structure of organizing into NFT and FTs
@@ -524,8 +523,6 @@ class BlockProcessor:
         if len(ft_atomicals) == 0:
             return True 
 
-        # Prepare the logic check to determine if the FTs are cleanly assigned (ie: no accidental burning loss would occur)
-        cleanly_assigned = False
         cleanly_assigned = self.color_ft_atomicals_regular(ft_atomicals, tx_hash, tx, 0, operations_found_at_inputs, [], self.height, False)
         # Everything would have been cleanly assigned
         if cleanly_assigned:
@@ -1560,10 +1557,7 @@ class BlockProcessor:
                     found_atomical_at_input = True 
                     expected_output_index = next_output_idx
                     if expected_output_index >= len(tx.outputs) or is_unspendable_genesis(tx.outputs[expected_output_index].pk_script) or is_unspendable_legacy(tx.outputs[expected_output_index].pk_script):
-                        expected_output_index = 0
-                    # Also keep them at the 0'th index if the split command was used
-                    # if operations_found_at_inputs and operations_found_at_inputs.get('op') == 'y' and operations_found_at_inputs.get('input_index') == 0:
-                    #    expected_output_index = 0      
+                        expected_output_index = 0    
                     map_output_idxs_for_atomicals[expected_output_index] = map_output_idxs_for_atomicals.get(expected_output_index) or {}
                     map_output_idxs_for_atomicals[expected_output_index][atomical_id] = atomical_info
                 if found_atomical_at_input:
@@ -1621,14 +1615,15 @@ class BlockProcessor:
             atomical_ids_touched.append(atomical_id)
             output_colored_map[atomical_id] = expected_output_index
         return output_colored_map
+    
     def color_ft_atomicals_split(self, ft_atomicals, tx_hash, tx, tx_num, operations_found_at_inputs, atomical_ids_touched, live_run):
         cleanly_assigned = True
         for atomical_id, mint_info in sorted(ft_atomicals.items()):
             expected_output_indexes = []
             remaining_value = mint_info['value']
-            # The FT type has the 'split' (y) method which allows us to selectively split (skip) a certain total number of token units (satoshis)
+            # The FT type has the 'skip' (y) method which allows us to skip a certain total number of token units (satoshis)
             # before beginning to color the outputs.
-            # Essentially this makes it possible to "split" out multiple FT's located at the same input
+            # Essentially this makes it possible to "skip" out multiple FT's located at the same input
             # If the input at index 0 has the split operation, then it will apply for the atomical token generally across all inputs and the first output will be skipped
             total_amount_to_skip = 0
             # Uses the compact form of atomical id as the keys for developer convenience
@@ -1667,7 +1662,7 @@ class BlockProcessor:
   
     def color_ft_atomicals_regular_perform(self, ft_atomicals, tx_hash, tx, tx_num, operations_found_at_inputs, atomical_ids_touched, height, live_run, sort_fifo):
         self.logger.info(f'color_ft_atomicals_regular_perform tx_hash={hash_to_hex_str(tx_hash)} start check')
-        atomical_id_to_expected_outs_map, cleanly_assigned, atomicals_list_result = calculate_outputs_to_color_for_ft_atomical_ids(ft_atomicals, tx_hash, tx, sort_fifo)
+        atomical_id_to_expected_outs_map, cleanly_assigned, atomicals_list_result = calculate_outputs_to_color_for_ft_atomical_ids(ft_atomicals, tx_hash, tx, sort_fifo, get_start_index_for_ft(operations_found_at_inputs))
         if not atomical_id_to_expected_outs_map:
             return None
         self.logger.info(f'color_ft_atomicals_regular_perform tx_hash={hash_to_hex_str(tx_hash)} return ft_atomicals={ft_atomicals} atomical_id_to_expected_outs_map={atomical_id_to_expected_outs_map}')
@@ -1788,11 +1783,6 @@ class BlockProcessor:
         
         # Process the FTs
         if len(ft_atomicals) > 0:
-            # should_split_ft_atomicals = operations_found_at_inputs and operations_found_at_inputs.get('op') == 'y' and operations_found_at_inputs.get('input_index') == 0 and operations_found_at_inputs.get('payload')
-            # if should_split_ft_atomicals:
-            #     if not self.color_ft_atomicals_split(ft_atomicals, tx_hash, tx, tx_num, operations_found_at_inputs, atomical_ids_touched, True):
-            #         self.logger.info(f'color_atomicals_outputs:color_ft_atomicals_split cleanly_assigned=False tx_hash={tx_hash}')
-            # else:
             if not self.color_ft_atomicals_regular(ft_atomicals, tx_hash, tx, tx_num, operations_found_at_inputs, atomical_ids_touched, height, True):
                 self.logger.info(f'color_atomicals_outputs:color_ft_atomicals_regular cleanly_assigned=False tx_hash={tx_hash}')
         return atomical_ids_touched
@@ -2507,16 +2497,16 @@ class BlockProcessor:
         # Populate the request specific fields
         atomical['$request_dmitem'] = atomical['mint_info'].get('$request_dmitem')
         atomical['$parent_container'] = atomical['mint_info'].get('$parent_container')
+         # Resolve the parent to get the parent container name
+        parent_container = self.get_base_mint_info_by_atomical_id(pid)
+        if not parent_container:
+            atomical_id = atomical['mint_info']['id']
+            raise IndexError(f'populate_dmitem_subtype_specific_fields: parent container not found atomical_id={atomical_id}, parent_container={parent_container}')
+        atomical['$parent_container_name'] = parent_container['$container'] 
         if status == 'verified' and candidate_id == atomical['atomical_id']:
             atomical['subtype'] = 'dmitem'
             atomical['$dmitem'] = request_dmitem
-            atomical['$parent_container'] = pid_compact
-            # Resolve the parent to get the parent path and construct the full_realm_name
-            parent_container = self.get_base_mint_info_by_atomical_id(pid)
-            if not parent_container:
-                atomical_id = atomical['mint_info']['id']
-                raise IndexError(f'populate_dmitem_subtype_specific_fields: parent container not found atomical_id={atomical_id}, parent_container={parent_container}')
-            atomical['$parent_container_name'] = parent_container['$container']
+         
             return request_dmitem, True
         return request_dmitem, False
 
@@ -2608,7 +2598,7 @@ class BlockProcessor:
             self.logger.info(f'create_or_delete_decentralized_mint_output: commit_txid not found for distmint reveal_tx {hash_to_hex_str(commit_txid)}. Skipping...')
             return None
         if commit_tx_height < mint_height:
-            self.logger.info(f'create_or_delete_decentralized_mint_output: commit_tx_height={commit_tx_height} is less than ATOMICALS_ACTIVATION_HEIGHT. Skipping...')
+            self.logger.info(f'create_or_delete_decentralized_mint_output: commit_tx_height={commit_tx_height} is less than mint_height={mint_height}. Skipping...')
             return None
 
         expected_output_index = 0
@@ -2824,7 +2814,6 @@ class BlockProcessor:
                     append_hashX(double_sha256(created_atomical_id))
                     self.logger.info(f'advance_txs: create_or_delete_atomical created_atomical_id atomical_id={created_atomical_id.hex()}, tx_hash={hash_to_hex_str(tx_hash)}')
 
-
                 # Color the outputs of any transferred NFT/FT atomicals according to the rules
                 atomical_ids_transferred = self.color_atomicals_outputs(atomicals_operations_found_at_inputs, atomicals_spent_at_inputs, tx, tx_hash, tx_num, height, is_unspendable)
                 for atomical_id in atomical_ids_transferred:
@@ -2834,12 +2823,12 @@ class BlockProcessor:
                     append_hashX(double_sha256(atomical_id))
                 
                 # Check if there were any payments for subrealms in tx
-                if self.create_or_delete_subrealm_payment_output_if_valid(tx_hash, tx, tx_num, height, atomicals_spent_at_inputs):
+                if self.create_or_delete_subrealm_payment_output_if_valid(tx_hash, tx, tx_num, height, atomicals_spent_at_inputs, atomicals_operations_found_at_inputs, True):
                     self.logger.info(f'advance_txs: found valid payment create_or_delete_subrealm_payment_output_if_valid {hash_to_hex_str(tx_hash)}')
                     has_at_least_one_valid_atomicals_operation = True
 
                 # Check if there were any payments for dmitems in tx
-                if self.create_or_delete_dmitem_payment_output_if_valid(tx_hash, tx, tx_num, height, atomicals_spent_at_inputs):
+                if self.create_or_delete_dmitem_payment_output_if_valid(tx_hash, tx, tx_num, height, atomicals_spent_at_inputs, atomicals_operations_found_at_inputs, True):
                     self.logger.info(f'advance_txs: found valid payment create_or_delete_dmitem_payment_output_if_valid {hash_to_hex_str(tx_hash)}')
                     has_at_least_one_valid_atomicals_operation = True
 
@@ -2886,7 +2875,7 @@ class BlockProcessor:
 
     # Check for for output markers for a payment for a subrealm
     # Same function is used for creating and rollback. Set Delete=True for rollback operation
-    def create_or_delete_subrealm_payment_output_if_valid(self, tx_hash, tx, tx_num, height, atomicals_spent_at_inputs, Delete=False):
+    def create_or_delete_subrealm_payment_output_if_valid(self, tx_hash, tx, tx_num, height, atomicals_spent_at_inputs, atomicals_operations_found_at_inputs, Delete):
         # Add the new UTXOs
         found_atomical_id_for_potential_subrealm = None
         for idx, txout in enumerate(tx.outputs):
@@ -2909,7 +2898,7 @@ class BlockProcessor:
             
             # Each of the elements in the expected script output map must be satisfied for it to be a valid payment
             nft_atomicals, ft_atomicals = self.build_atomical_type_structs(atomicals_spent_at_inputs)
-            atomical_id_to_output_index_map, ignore, atomicals_list_result = calculate_outputs_to_color_for_ft_atomical_ids(ft_atomicals, tx_hash, tx, self.is_dmint_activated(height))
+            atomical_id_to_output_index_map, ignore, atomicals_list_result = calculate_outputs_to_color_for_ft_atomical_ids(ft_atomicals, tx_hash, tx, self.is_dmint_activated(height), get_start_index_for_ft(atomicals_operations_found_at_inputs))
             output_idx_to_atomical_id_map = build_reverse_output_to_atomical_id_map(atomical_id_to_output_index_map)
             expected_output_keys_satisfied = {}
             for output_script_key, output_script_details in expected_payment_outputs.items():
@@ -2974,7 +2963,7 @@ class BlockProcessor:
         return None 
 
     # Same function is used for creating and rollback. Set Delete=True for rollback operation
-    def create_or_delete_dmitem_payment_output_if_valid(self, tx_hash, tx, tx_num, height, atomicals_spent_at_inputs, Delete=False):
+    def create_or_delete_dmitem_payment_output_if_valid(self, tx_hash, tx, tx_num, height, atomicals_spent_at_inputs, atomicals_operations_found_at_inputs, Delete):
         # Add the new UTXOs
         found_atomical_id_for_potential_dmitem = None
         for idx, txout in enumerate(tx.outputs):
@@ -2997,7 +2986,7 @@ class BlockProcessor:
             # Each of the elements in the expected script output map must be satisfied for it to be a valid payment
             nft_atomicals, ft_atomicals = self.build_atomical_type_structs(atomicals_spent_at_inputs)
             # Map the ARC20 fungible tokens first
-            atomical_id_to_output_index_map, ignore, atomicals_list_result = calculate_outputs_to_color_for_ft_atomical_ids(ft_atomicals, tx_hash, tx, self.is_dmint_activated(height))
+            atomical_id_to_output_index_map, ignore, atomicals_list_result = calculate_outputs_to_color_for_ft_atomical_ids(ft_atomicals, tx_hash, tx, self.is_dmint_activated(height), get_start_index_for_ft(atomicals_operations_found_at_inputs))
             output_idx_to_atomical_id_map = build_reverse_output_to_atomical_id_map(atomical_id_to_output_index_map)
             # Future enhancement is to allow minting by NFT and or holding a realm/subrealm, or glob patterns like txid
             expected_output_keys_satisfied = {}
@@ -3336,10 +3325,10 @@ class BlockProcessor:
                 atomicals_minted += 1
             
             # Rollback any subrealm payments
-            self.create_or_delete_subrealm_payment_output_if_valid(tx_hash, tx, tx_num, self.height, atomicals_spent_at_inputs, True)
+            self.create_or_delete_subrealm_payment_output_if_valid(tx_hash, tx, tx_num, self.height, atomicals_spent_at_inputs, atomicals_operations_found_at_inputs, True)
 
             # Rollback any dmint payments
-            self.create_or_delete_dmitem_payment_output_if_valid(tx_hash, tx, tx_num, self.height, atomicals_spent_at_inputs, True)
+            self.create_or_delete_dmitem_payment_output_if_valid(tx_hash, tx, tx_num, self.height, atomicals_spent_at_inputs, atomicals_operations_found_at_inputs, True)
 
             # If there were any distributed mint creation, then delete
             self.create_or_delete_decentralized_mint_output(operations_found_at_inputs, tx_num, tx_hash, tx, self.height, True)
