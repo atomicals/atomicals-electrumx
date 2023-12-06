@@ -65,7 +65,6 @@ from electrumx.lib.util_atomicals import (
     get_container_dmint_format_status,
     validate_dmitem_mint_args_with_container_dmint,
     calculate_nft_output_index_legacy,
-    contains_valid_skip_operation,
     get_start_index_for_ft
 )
 
