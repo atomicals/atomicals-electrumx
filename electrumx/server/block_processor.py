@@ -2263,7 +2263,7 @@ class BlockProcessor:
 
     # Populate the sealed status of an atomical
     def populate_sealed_status(self, atomical):
-        sealed_location = self.db.get_sealed_location(atomical['atomical_id'])
+        sealed_location = self.get_general_data_with_cache(atomical['atomical_id'])
         if sealed_location:
             atomical['$sealed'] = location_id_bytes_to_compact(sealed_location)
  
@@ -2293,7 +2293,7 @@ class BlockProcessor:
             dmint_format_status['errors'].append('items cannot be set manually for dmint')
             dmint_format_status['status'] = 'invalid'
 
-        sealed_location = self.db.get_sealed_location(atomical_id)
+        sealed_location = self.get_general_data_with_cache(b'sealed' + atomical_id)
         if not sealed_location:
             dmint_format_status['errors'].append('container not sealed')
             dmint_format_status['status'] = 'invalid'

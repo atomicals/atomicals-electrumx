@@ -1182,10 +1182,6 @@ class DB:
         hashX_pairs = await run_in_thread(lookup_hashXs)
         return await run_in_thread(lookup_utxos, hashX_pairs)
 
-    # Get the sealed location of an atomical (if it's sealed)
-    def get_sealed_location(self, atomical_id):
-        return self.utxo_db.get(b'sealed' + atomical_id)
-
     # Get the raw mint information for an atomical
     def get_atomical_mint_info_dump(self, atomical_id):
         return self.utxo_db.get(b'mi' + atomical_id)
