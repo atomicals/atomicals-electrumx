@@ -738,6 +738,47 @@ class BlockProcessor:
         self.logger.info(f'get_expected_dmitem_payment_info: not matched_price_point request_dmitem={request_dmitem} parent_container_id={parent_container_id} found_atomical_id_for_potential_dmitem={found_atomical_id_for_potential_dmitem}')
         return None, None, None
     
+    def get_earliest_dmitem_payment(self, atomical_id):
+        dmpay_key_atomical_id = b'dmpay' + atomical_id
+        # Check if it's located in the cache first
+        dmitempay_value = self.dmpay_data_cache.get(dmpay_key_atomical_id)
+        payments = []
+        if dmitempay_value:
+            for tx_num, pay_outpoint in dmitempay_value.items():
+                payments.append({
+                'tx_num': tx_num,
+                'payment_tx_outpoint': pay_outpoint[:36],
+                'mint_initiated': pay_outpoint[36:]
+                    })
+
+        db_payments = self.db.get_earliest_dmitem_payments(atomical_id)
+        payments.extend(db_payments)
+        payments.sort(key=lambda x: x['tx_num'])
+        if len(payments) > 0:
+            return payments[0]
+        return None
+        
+       
+
+
+    def get_earliest_subrealm_payment(self, atomical_id):
+        spay_key_atomical_id = b'spay' + atomical_id
+        subrealmpay_value = self.subrealmpay_data_cache.get(spay_key_atomical_id)
+        payments = []
+        if subrealmpay_value:
+            for tx_num, pay_outpoint in subrealmpay_value.items():
+                payments.append({
+                'tx_num': tx_num,
+                'payment_tx_outpoint': pay_outpoint[:36],
+                'mint_initiated': pay_outpoint[36:]
+                    })
+        db_payments = self.db.get_earliest_subrealm_payments(atomical_id)
+        payments.extend(db_payments)
+        payments.sort(key=lambda x: x['tx_num'])
+        if len(payments) > 0:
+            return payments[0]
+        return None 
+
     # Save distributed mint infromation for the atomical
     # Mints are only stored if they are less than the max_mints amount
     def put_decentralized_mint_data(self, atomical_id, location_id, value): 
@@ -1876,7 +1917,7 @@ class BlockProcessor:
             self.logger.info(f'get_effective_subrealm subrealm_name={subrealm_name} atomical_id={location_id_bytes_to_compact(atomical_id)} parent_realm_id={location_id_bytes_to_compact(parent_realm_id)}entry={entry}')
             assert(mint_info['commit_tx_num'] == entry['tx_num'])
             # Get any payments (correct and valid or even premature, just get them all for now)
-            payment_entry = self.db.get_earliest_subrealm_payment(atomical_id)
+            payment_entry = self.get_earliest_subrealm_payment(atomical_id)
             # If the current candidate doesn't have a payment entry and the MINT_SUBNAME_COMMIT_PAYMENT_DELAY_BLOCKS has passed
             # Then we know the candidate is expired and invalid
             if mint_info['commit_height'] <= current_height - MINT_SUBNAME_COMMIT_PAYMENT_DELAY_BLOCKS:
@@ -1949,7 +1990,7 @@ class BlockProcessor:
             self.logger.info(f'get_effective_dmitem dmitem_name={dmitem_name} atomical_id={location_id_bytes_to_compact(atomical_id)} parent_container_id={location_id_bytes_to_compact(parent_container_id)} entry={entry}')
             assert(mint_info['commit_tx_num'] == entry['tx_num'])
             # Get any payments (correct and valid or even premature, just get them all for now)
-            payment_entry = self.db.get_earliest_dmitem_payment(atomical_id)
+            payment_entry = self.get_earliest_dmitem_payment(atomical_id)
             # If the current candidate doesn't have a payment entry and the MINT_SUBNAME_COMMIT_PAYMENT_DELAY_BLOCKS has passed
             # Then we know the candidate is expired and invalid
             if mint_info['commit_height'] <= current_height - MINT_SUBNAME_COMMIT_PAYMENT_DELAY_BLOCKS:
@@ -2342,7 +2383,7 @@ class BlockProcessor:
                 'reveal_location_height': raw_mint_info_for_candidate_id['reveal_location_height']
             }
             applicable_rule_map[subrealm_candidate_atomical_id]['payment'] = None
-            payment_data = self.db.get_earliest_subrealm_payment(subrealm_candidate_atomical_id)
+            payment_data = self.get_earliest_subrealm_payment(subrealm_candidate_atomical_id)
             payment_type = 'applicable_rule'
             payment_subtype = None
             if payment_data and payment_data.get('mint_initiated') == b'01':
@@ -2374,7 +2415,7 @@ class BlockProcessor:
                 'reveal_location_height': raw_mint_info_for_candidate_id['reveal_location_height']
             }
             applicable_rule_map[candidate_atomical_id]['payment'] = None
-            payment_data = self.db.get_earliest_dmitem_payment(candidate_atomical_id)
+            payment_data = self.get_earliest_dmitem_payment(candidate_atomical_id)
             payment_type = 'applicable_rule'
             payment_subtype = None
             if payment_data and payment_data.get('mint_initiated') == b'02':

@@ -1204,7 +1204,7 @@ class DB:
             return unpacked_tx_num, unpacked_height
         return None, None
 
-    def get_earliest_subrealm_payment(self, atomical_id):
+    def get_earliest_subrealm_payments(self, atomical_id):
         spay_key_atomical_id = b'spay' + atomical_id
         payments = []
         for subrealmpay_key, subrealmpay_value in self.utxo_db.iterator(prefix=spay_key_atomical_id):
@@ -1216,13 +1216,9 @@ class DB:
                 'payment_tx_outpoint': outpoint_of_payment,
                 'mint_initiated': subrealmpay_value[36:]
             })
-        payments.sort(key=lambda x: x['tx_num'])
-        if len(payments) > 0:
-            self.logger.info(f'get_earliest_subrealm_payment {location_id_bytes_to_compact(atomical_id)}  {payments}')
-            return payments[0]
-        return None 
+        return payments 
     
-    def get_earliest_dmitem_payment(self, atomical_id):
+    def get_earliest_dmitem_payments(self, atomical_id):
         dmpay_key_atomical_id = b'dmpay' + atomical_id
         payments = []
         for dmitemmpay_key, dmitempay_value in self.utxo_db.iterator(prefix=dmpay_key_atomical_id):
@@ -1234,11 +1230,7 @@ class DB:
                 'payment_tx_outpoint': outpoint_of_payment,
                 'mint_initiated': dmitempay_value[36:]
             })
-        payments.sort(key=lambda x: x['tx_num'])
-        if len(payments) > 0:
-            self.logger.info(f'get_earliest_dmitem_payment {location_id_bytes_to_compact(atomical_id)} {payments}')
-            return payments[0]
-        return None 
+        return payments 
 
     # Get general data by key
     def get_general_data(self, key):
