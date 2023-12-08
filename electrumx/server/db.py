@@ -1758,4 +1758,60 @@ class DB:
             return atomical_ids
         return await run_in_thread(read_atomical_list)
  
+    # Get all atomicals by number to atomical id
+    async def get_num_to_id(self, limit, offset, asc = False):
+        if limit > 10000:
+            limit = 10000
+        # Todo: update the logic to correctly list
+        atomical_number_tip = self.db_atomical_count
+        def read_atomical_list():   
+            atomical_num_ids = {}
+            # If no offset provided, then assume we want to start from the highest one
+            search_starting_at_atomical_number = atomical_number_tip
+            if offset >= 0:
+                search_starting_at_atomical_number = offset
+            elif offset < 0:
+                # if offset is negative, then we assume it is subtracted from the latest number
+                search_starting_at_atomical_number = atomical_number_tip + offset # adding a minus
+
+            # safety checking for less than 0   
+            if search_starting_at_atomical_number < 0:
+                search_starting_at_atomical_number = 0
+
+            # Generate up to limit number of keys to search
+            list_of_keys = []
+            x = 0
+            while x < limit:
+                if asc:
+                    number = search_starting_at_atomical_number + x
+                    current_key = b'n' + pack_be_uint64(number)
+                    list_of_keys.append({
+                        'search_key': current_key,
+                        'number': number
+                    })
+                else:
+                    number = search_starting_at_atomical_number - x
+                    # Do not go to 0 or below
+                    if number < 0:
+                        break 
+                    current_key = b'n' + pack_be_uint64(number)
+                    list_of_keys.append({
+                        'search_key': current_key,
+                        'number': number
+                    })
+                x += 1
+
+            # Get all of the atomicals in the order of the keys
+            for search_entry in list_of_keys:
+                search_key = search_entry['search_key']
+                number = search_entry['number']
+                atomical_id_value = self.utxo_db.get(search_key)
+                if atomical_id_value:
+                    atomical_num_ids[number] = atomical_id_value
+                else: 
+                    # Once we do not find one, then we are done because there should be no more
+                    break
+            return atomical_num_ids
+        return await run_in_thread(read_atomical_list)
+ 
     
