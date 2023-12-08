@@ -1342,6 +1342,13 @@ class ElectrumX(SessionBase):
             atomicals_populated.append(atomical)
         return {'global': await self.get_summary_info(), 'result': atomicals_populated }
 
+    async def atomicals_num_to_id(self, limit, offset, asc):
+        atomicals_num_to_id_map = await self.db.get_num_to_id(limit, offset, asc)
+        atomicals_num_to_id_map_reformatted = {}
+        for num, id in atomicals_num_to_id_map.items(): 
+            atomicals_num_to_id_map_reformatted[num] = location_id_bytes_to_compact(id)
+        return {'global': await self.get_summary_info(), 'result': atomicals_num_to_id_map_reformatted }
+
     async def hashX_subscribe(self, hashX, alias):
         # Store the subscription only after address_status succeeds
         result = await self.address_status(hashX)
@@ -2406,6 +2413,7 @@ class ElectrumX(SessionBase):
             'blockchain.atomicals.validate': self.transaction_broadcast_validate,
             'blockchain.atomicals.listscripthash': self.atomicals_listscripthash,
             'blockchain.atomicals.list': self.atomicals_list,
+            'blockchain.atomicals.num_to_id': self.atomicals_num_to_id,
             'blockchain.atomicals.dump': self.atomicals_dump,
             'blockchain.atomicals.at_location': self.atomicals_at_location,
             'blockchain.atomicals.get_location': self.atomicals_get_location,
