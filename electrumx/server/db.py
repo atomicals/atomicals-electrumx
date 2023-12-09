@@ -1368,6 +1368,8 @@ class DB:
                             'index': atomical_location_idx,
                             'scripthash': hash_to_hex_str(location_scripthash),
                             'value': location_value,
+                            'exp': 0, # Use 0 exponent for now
+                            'satvalue': location_value,
                             'script': location_script.hex(),
                             'atomicals_at_location': atomicals_at_location,
                             'tx_num': tx_num_padded

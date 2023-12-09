@@ -991,7 +991,8 @@ class BlockProcessor:
         value_sats = pack_le_uint64(mint_info['reveal_location_value'])
         # Save the initial location to have the atomical located there
         tx_numb = pack_le_uint64(mint_info['reveal_location_tx_num'])[:TXNUM_LEN]
-        self.put_atomicals_utxo(mint_info['reveal_location'], mint_info['id'], mint_info['reveal_location_hashX'] + mint_info['reveal_location_scripthash'] + value_sats + tx_numb)
+        exponent = pack_le_uint16(0)
+        self.put_atomicals_utxo(mint_info['reveal_location'], mint_info['id'], mint_info['reveal_location_hashX'] + mint_info['reveal_location_scripthash'] + value_sats + exponent + tx_numb)
         atomical_id = mint_info['id']
         self.logger.info(f'validate_and_create_nft_mint_utxo: atomical_id={location_id_bytes_to_compact(atomical_id)}, tx_hash={hash_to_hex_str(tx_hash)}, mint_info={mint_info}')
         return True
@@ -1003,7 +1004,8 @@ class BlockProcessor:
         # Save the initial location to have the atomical located there
         if mint_info['subtype'] != 'decentralized':
             tx_numb = pack_le_uint64(mint_info['reveal_location_tx_num'])[:TXNUM_LEN]
-            self.put_atomicals_utxo(mint_info['reveal_location'], mint_info['id'], mint_info['reveal_location_hashX'] + mint_info['reveal_location_scripthash'] + value_sats + tx_numb)
+            exponent = pack_le_uint16(0)
+            self.put_atomicals_utxo(mint_info['reveal_location'], mint_info['id'], mint_info['reveal_location_hashX'] + mint_info['reveal_location_scripthash'] + value_sats + exponent + tx_numb)
         subtype = mint_info['subtype']
         atomical_id = mint_info['id']
         self.logger.info(f'validate_and_create_ft_mint_utxo: subtype={subtype}, atomical_id={location_id_bytes_to_compact(atomical_id)}, tx_hash={hash_to_hex_str(tx_hash)}')
@@ -1537,7 +1539,8 @@ class BlockProcessor:
             put_general_data = self.general_data_cache.__setitem__
             put_general_data(b'po' + location, txout.pk_script)
             tx_numb = pack_le_uint64(tx_num)[:TXNUM_LEN]
-            self.put_atomicals_utxo(location, atomical_id, hashX + scripthash + value_sats + tx_numb)
+            exponent = pack_le_uint16(0)
+            self.put_atomicals_utxo(location, atomical_id, hashX + scripthash + value_sats + exponent + tx_numb)
             atomical_ids_touched.append(atomical_id)
             expected_output_index_incrementing += 1 
             output_colored_map[atomical_id] = expected_output_index
@@ -1582,7 +1585,8 @@ class BlockProcessor:
                     if not was_sealed:
                         # Only advance the UTXO if it was not sealed
                         tx_numb = pack_le_uint64(tx_num)[:TXNUM_LEN]
-                        self.put_atomicals_utxo(location, atomical_id, hashX + scripthash + value_sats + tx_numb)
+                        exponent = pack_le_uint16(0)
+                        self.put_atomicals_utxo(location, atomical_id, hashX + scripthash + value_sats + exponent + tx_numb)
                     atomical_ids_touched.append(atomical_id)
                     output_colored_map[atomical_id] = output_idx
             return output_colored_map
@@ -1611,55 +1615,12 @@ class BlockProcessor:
             if not was_sealed:
                 # Only advance the UTXO if it was not sealed
                 tx_numb = pack_le_uint64(tx_num)[:TXNUM_LEN]
-                self.put_atomicals_utxo(location, atomical_id, hashX + scripthash + value_sats + tx_numb)
+                exponent = pack_le_uint16(0)
+                self.put_atomicals_utxo(location, atomical_id, hashX + scripthash + value_sats + exponent + tx_numb)
             atomical_ids_touched.append(atomical_id)
             output_colored_map[atomical_id] = expected_output_index
         return output_colored_map
     
-    def color_ft_atomicals_split(self, ft_atomicals, tx_hash, tx, tx_num, operations_found_at_inputs, atomical_ids_touched, live_run):
-        cleanly_assigned = True
-        for atomical_id, mint_info in sorted(ft_atomicals.items()):
-            expected_output_indexes = []
-            remaining_value = mint_info['value']
-            # The FT type has the 'skip' (y) method which allows us to skip a certain total number of token units (satoshis)
-            # before beginning to color the outputs.
-            # Essentially this makes it possible to "skip" out multiple FT's located at the same input
-            # If the input at index 0 has the split operation, then it will apply for the atomical token generally across all inputs and the first output will be skipped
-            total_amount_to_skip = 0
-            # Uses the compact form of atomical id as the keys for developer convenience
-            compact_atomical_id = location_id_bytes_to_compact(atomical_id)
-            total_amount_to_skip_potential = operations_found_at_inputs.get('payload').get(compact_atomical_id)
-            # Sanity check to ensure it is a non-negative integer
-            if isinstance(total_amount_to_skip_potential, int) and total_amount_to_skip_potential >= 0:
-                total_amount_to_skip = total_amount_to_skip_potential
-            total_skipped_so_far = 0
-            for out_idx, txout in enumerate(tx.outputs): 
-                # If the first output should be skipped and we have not yet done so, then skip/ignore it
-                if total_amount_to_skip > 0 and total_skipped_so_far < total_amount_to_skip:
-                    total_skipped_so_far += txout.value 
-                    continue 
-                # For all remaining outputs attach colors as long as there is adequate remaining_value left to cover the entire output value
-                if txout.value <= remaining_value:
-                    expected_output_indexes.append(out_idx)
-                    remaining_value -= txout.value
-                    # We are done assigning all remaining values
-                    if remaining_value == 0:
-                        break
-                # Exit case when we have no more remaining_value to assign or the next output is greater than what we have in remaining_value
-                if txout.value > remaining_value or remaining_value < 0:
-                    cleanly_assigned = False # Used to indicate that all was cleanly assigned
-                    break
-            # Used to indicate that all was cleanly assigned
-            if remaining_value != 0:
-                cleanly_assigned = False
-            # For each expected output to be colored, check for state-like updates
-            for expected_output_index in expected_output_indexes:
-                # only perform the db updates if it is a live run
-                if live_run:
-                    self.build_put_atomicals_utxo(atomical_id, tx_hash, tx, tx_num, expected_output_index)
-            atomical_ids_touched.append(atomical_id)
-        return cleanly_assigned
-  
     def color_ft_atomicals_regular_perform(self, ft_atomicals, tx_hash, tx, tx_num, operations_found_at_inputs, atomical_ids_touched, height, live_run, sort_fifo):
         self.logger.info(f'color_ft_atomicals_regular_perform tx_hash={hash_to_hex_str(tx_hash)} start check')
         atomical_id_to_expected_outs_map, cleanly_assigned, atomicals_list_result = calculate_outputs_to_color_for_ft_atomical_ids(ft_atomicals, tx_hash, tx, sort_fifo, get_start_index_for_ft(operations_found_at_inputs))
@@ -1711,7 +1672,8 @@ class BlockProcessor:
         put_general_data = self.general_data_cache.__setitem__
         put_general_data(b'po' + location, txout.pk_script)
         tx_numb = pack_le_uint64(tx_num)[:TXNUM_LEN]
-        self.put_atomicals_utxo(location, atomical_id, hashX + scripthash + value_sats + tx_numb)
+        exponent = pack_le_uint16(0)
+        self.put_atomicals_utxo(location, atomical_id, hashX + scripthash + value_sats + exponent + tx_numb)
     
     # Build a map of atomical id to the type, value, and input indexes
     # This information is used below to assess which inputs are of which type and therefore which outputs to color
@@ -2658,7 +2620,8 @@ class BlockProcessor:
                     put_general_data = self.general_data_cache.__setitem__
                     put_general_data(the_key, txout.pk_script)
                     tx_numb = pack_le_uint64(tx_num)[:TXNUM_LEN]
-                    self.put_atomicals_utxo(location, potential_dmt_atomical_id, hashX + scripthash + value_sats + tx_numb)
+                    exponent = pack_le_uint16(0)
+                    self.put_atomicals_utxo(location, potential_dmt_atomical_id, hashX + scripthash + value_sats + exponent + tx_numb)
                     self.put_decentralized_mint_data(potential_dmt_atomical_id, location, scripthash + value_sats)
                     return potential_dmt_atomical_id
                 self.logger.info(f'create_or_delete_decentralized_mint_outputs found valid request in {hash_to_hex_str(tx_hash)} for {ticker}. Granting and creating decentralized mint...')
@@ -3236,7 +3199,7 @@ class BlockProcessor:
             raise ChainError(f'no atomicals undo information found for height '
                              f'{self.height:,d}')
         m = len(atomicals_undo_info)
-        atomicals_undo_entry_len = ATOMICAL_ID_LEN + ATOMICAL_ID_LEN + HASHX_LEN + SCRIPTHASH_LEN + 8 + TXNUM_LEN
+        atomicals_undo_entry_len = ATOMICAL_ID_LEN + ATOMICAL_ID_LEN + HASHX_LEN + SCRIPTHASH_LEN + 8 + 2 + TXNUM_LEN
         atomicals_count = m / atomicals_undo_entry_len
         has_undo_info_for_atomicals = False
         if m > 0:
