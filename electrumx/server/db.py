@@ -151,11 +151,11 @@ class DB:
         # Atomicals specific index below:
         # ------------------------------------------
         # Key: b'i' + location(tx_hash + txout_idx) + atomical_id(tx_hash + txout_idx)
-        # Value: hashX + scripthash + value_sats
+        # Value: hashX + scripthash + value_sats + CHECK IF EXPONENT EXISTS?? exponent (2 bytes)
         # "map location to all the Atomicals which are located there. Permanently stored for every location even if spent."
         # ---
         # Key: b'a' + atomical_id(tx_hash + txout_idx) + location(tx_hash + txout_idx)
-        # Value: hashX + scripthash + value_sats + tx_num
+        # Value: hashX + scripthash + value_sats + tx_num + exponent (2 bytes)
         # "map atomical to an unspent location. Used to located the NFT/FT Atomical unspent UTXOs"
         # ---
         # Key: b'L' + block_height
@@ -611,11 +611,12 @@ class DB:
                 hashX = value[:HASHX_LEN]
                 scripthash = value[HASHX_LEN : HASHX_LEN + SCRIPTHASH_LEN]
                 value_sats = value[HASHX_LEN + SCRIPTHASH_LEN : HASHX_LEN + SCRIPTHASH_LEN + 8]
+                exponent = value[HASHX_LEN + SCRIPTHASH_LEN + 8: HASHX_LEN + SCRIPTHASH_LEN + 8 + 2]
                 tx_numb = value[-TXNUM_LEN:]  
-                batch_put(b'i' + location_key + atomical_id, hashX + scripthash + value_sats + tx_numb) 
+                batch_put(b'i' + location_key + atomical_id, hashX + scripthash + value_sats + exponent + tx_numb) 
                 # Add the active b'a' atomicals location if it was not deleted
                 if not value_with_tombstone.get('deleted', False):
-                    batch_put(b'a' + atomical_id + location_key, hashX + scripthash + value_sats + tx_numb) 
+                    batch_put(b'a' + atomical_id + location_key, hashX + scripthash + value_sats + exponent + tx_numb) 
         flush_data.atomicals_adds.clear()
  
         # Distributed mint data adds
@@ -1388,6 +1389,9 @@ class DB:
         return await run_in_thread(query_location)
 
     def dump(self):
+        # Do not allow dump to function by default
+        if True:
+            return
         i_prefix = b'i'
         # Print sorted highscores print to file
         arr = []
