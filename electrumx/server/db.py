@@ -1323,18 +1323,8 @@ class DB:
         for atomical_active_location_key, atomical_active_location_value in self.utxo_db.iterator(prefix=atomical_active_location_key_prefix):
             if atomical_active_location_value:
                 location = atomical_active_location_key[1 + ATOMICAL_ID_LEN : 1 + ATOMICAL_ID_LEN + ATOMICAL_ID_LEN]
-                self.logger.info(f'get_active_supply location {location_id_bytes_to_compact(location)} for {location_id_bytes_to_compact(atomical_id)}')
-                #atomical_output_script_key = b'po' + location
-                #atomical_output_script_value = self.utxo_db.get(atomical_output_script_key)
-                #location_script = atomical_output_script_value
-                #location_tx_hash = location[ : 32]
-                #atomical_location_idx, = unpack_le_uint32(location[ 32 : 36])
-                #location_scripthash = atomical_active_location_value[HASHX_LEN : HASHX_LEN + SCRIPTHASH_LEN]  
                 location_value, = unpack_le_uint64(atomical_active_location_value[HASHX_LEN + SCRIPTHASH_LEN : HASHX_LEN + SCRIPTHASH_LEN + 8])
                 active_supply += location_value
-                # tx_numb = atomical_active_location_value[-TXNUM_LEN:]  
-                # txnum_padding = bytes(8-TXNUM_LEN)
-                #tx_num_padded, = unpack_le_uint64(tx_numb + txnum_padding)
         return active_supply   
 
     # Get the atomical details with location information added
