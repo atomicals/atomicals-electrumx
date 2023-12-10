@@ -1739,9 +1739,16 @@ def validate_merkle_proof_dmint(expected_root_hash, item_name, possible_bitworkc
                         'right': item['d']
                     })
             else: 
-                formatted_proof.append({
-                    'left': item['d']
-                })
+                # Also accept bytes type
+                # Note: must enable bytes types in the args for the base parser before this can actually work
+                if isinstance(item['d'], bytes):
+                    formatted_proof.append({
+                        'left': item['d'].hex()
+                    })
+                else:
+                    formatted_proof.append({
+                        'left': item['d']
+                    })
         return mt.validate_proof(formatted_proof, target_hash, expected_root_hash) 
 
     # Case 1: any/any
