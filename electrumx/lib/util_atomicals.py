@@ -967,7 +967,7 @@ def parse_operation_from_script(script, n):
         # Skip operation (for FTs only)
         elif atom_op == "0179":
             atom_op_decoded = 'y'  # skip - skip first output for fungible token transfer
-            
+
         if atom_op_decoded:
             return atom_op_decoded, parse_atomicals_data_definition_operation(script, n + one_letter_op_len)
     
@@ -1107,7 +1107,7 @@ def parse_protocols_operations_from_witness_array(tx, tx_hash):
             # Also enforce that if there are meta, args, or ctx fields that they must be dicts
             # This is done to ensure that these fields are always easily parseable and do not contain unexpected data which could cause parsing problems later
             # Ensure that they are not allowed to contain bytes like objects
-            if not is_sanitized_dict_whitelist_only(decoded_object.get('meta', {})) or not is_sanitized_dict_whitelist_only(decoded_object.get('args', {}), True) or not is_sanitized_dict_whitelist_only(decoded_object.get('ctx', {})) or not is_sanitized_dict_whitelist_only(decoded_object.get('init', {}), True):
+            if not is_sanitized_dict_whitelist_only(decoded_object.get('meta', {})) or not is_sanitized_dict_whitelist_only(decoded_object.get('args', {})) or not is_sanitized_dict_whitelist_only(decoded_object.get('ctx', {})) or not is_sanitized_dict_whitelist_only(decoded_object.get('init', {}), True):
                 print(f'parse_protocols_operations_from_witness_array found {op_name} but decoded CBOR payload has an args, meta, ctx, or init that has not permitted data type {tx} {decoded_object}. Skipping tx input...')
                 continue  
             # Return immediately at the first successful parse of the payload
