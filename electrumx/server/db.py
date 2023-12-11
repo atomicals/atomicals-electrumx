@@ -221,8 +221,9 @@ class DB:
         # Key: b'tt' + height
         # Value: atomical header
         # "maps block height to an atomical header"
-        #
-        #
+        # ---
+        # Key: b'th' + height + tx_num + tx_hash
+        # Value: rawtx
         #
         # --- Proof of work based indexes below --- 
         # The following indexes are for proof of work ranking and content scanning, they are non-functional to operations of atomicals

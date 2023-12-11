@@ -2719,7 +2719,6 @@ class BlockProcessor:
                 cache_value = spend_utxo(txin.prev_hash, txin.prev_idx)
                 undo_info_append(cache_value)
                 append_hashX(cache_value[:HASHX_LEN])
-                
                 # Only search and spend atomicals utxos if activated
                 if self.is_atomicals_activated(height):
                     # Find all the existing transferred atomicals and spend the Atomicals utxos
@@ -2733,7 +2732,6 @@ class BlockProcessor:
                     reformatted_for_undo_entries = []
                     for atomicals_entry in atomicals_transferred_list:
                         reformatted_for_undo_entries.append(atomicals_entry['location_id'] + atomicals_entry['atomical_id'] + atomicals_entry['data'])
-
                     atomicals_undo_info_extend(reformatted_for_undo_entries)
                 txin_index = txin_index + 1
             
