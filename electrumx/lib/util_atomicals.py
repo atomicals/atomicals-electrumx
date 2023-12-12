@@ -964,6 +964,8 @@ def parse_operation_from_script(script, n):
         # Extract operation (for NFTs only)
         if atom_op == "0178":
             atom_op_decoded = 'x'  # extract - move atomical to 0'th output
+        elif atom_op == "0179":
+            atom_op_decoded = 'y'  # split - 
 
         if atom_op_decoded:
             return atom_op_decoded, parse_atomicals_data_definition_operation(script, n + one_letter_op_len)
