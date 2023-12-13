@@ -532,7 +532,7 @@ class SessionManager:
         try:
             self.daemon.set_url(daemon_url)
         except Exception as e:
-            raise RPCError(BAD_REQUEST, f'an error occured: {e!r}')
+            raise RPCError(BAD_REQUEST, f'an error occurred: {e!r}')
         return f'now using daemon at {self.daemon.logged_url()}'
 
     async def rpc_stop(self):
@@ -1213,7 +1213,7 @@ class ElectrumX(SessionBase):
             atomicals_basic_infos = []
             for atomical_id in atomicals: 
                 # This call is efficient in that it's cached underneath
-                # For now we only show the atomical id because it can always be fetched seperately and it will be more efficient
+                # For now we only show the atomical id because it can always be fetched separately and it will be more efficient
                 atomical_basic_info = await self.session_mgr.bp.get_base_mint_info_rpc_format_by_atomical_id(atomical_id) 
                 # Todo need to combine mempool atomicals 
                 atomical_id_compact = location_id_bytes_to_compact(atomical_id)
@@ -1915,7 +1915,7 @@ class ElectrumX(SessionBase):
             atomicals_basic_infos = []
             for atomical_id in atomicals: 
                 # This call is efficient in that it's cached underneath
-                # For now we only show the atomical id because it can always be fetched seperately and it will be more efficient
+                # For now we only show the atomical id because it can always be fetched separately and it will be more efficient
                 atomical_basic_info = await self.session_mgr.bp.get_base_mint_info_rpc_format_by_atomical_id(atomical_id) 
                 atomical_id_compact = location_id_bytes_to_compact(atomical_id)
                 atomicals_id_map[atomical_id_compact] = atomical_basic_info
