@@ -1760,8 +1760,8 @@ class DB:
  
     # Get all atomicals by number to atomical id
     async def get_num_to_id(self, limit, offset, asc = False):
-        if limit > 10000:
-            limit = 10000
+        if limit > 1000000:
+            limit = 1000000
         # Todo: update the logic to correctly list
         atomical_number_tip = self.db_atomical_count
         def read_atomical_list():   
