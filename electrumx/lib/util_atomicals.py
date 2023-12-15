@@ -1472,8 +1472,8 @@ def calculate_nft_output_index_legacy(input_idx, tx, operations_found_at_inputs)
     if expected_output_index >= len(tx.outputs) or is_unspendable_genesis(tx.outputs[expected_output_index].pk_script) or is_unspendable_legacy(tx.outputs[expected_output_index].pk_script):
         expected_output_index = 0
     # If this was the 'split' (y) command, then also move them to the 0th output
-    # if operations_found_at_inputs and operations_found_at_inputs.get('op') == 'y' and operations_found_at_inputs.get('input_index') == 0:
-    #    expected_output_index = 0      
+    if operations_found_at_inputs and operations_found_at_inputs.get('op') == 'y' and operations_found_at_inputs.get('input_index') == 0:
+       expected_output_index = 0      
     return expected_output_index
 
 # Get the candidate name request status for tickers, containers and realms (not subrealms though)
