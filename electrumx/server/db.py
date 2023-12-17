@@ -1316,13 +1316,21 @@ class DB:
             return hash_to_hex_str(abh)
         return None
 
+    def get_atomicals_block_txs(self, height):
+        block_txs_prefix = b'th' + pack_le_uint32(height)
+        txs_list = []
+        for block_txs_prefix_key, block_txs_prefix_value in self.utxo_db.iterator(prefix=block_txs_prefix):
+            key_height, = unpack_le_uint32(block_txs_prefix_key[2 : 6])
+            if key_height != height:
+                break
+            txs_list.append(hash_to_hex_str(block_txs_prefix_value))
+        return txs_list
     def get_active_supply(self, atomical_id):
         active_supply = 0
         atomical_active_location_key_prefix = b'a' + atomical_id
         for atomical_active_location_key, atomical_active_location_value in self.utxo_db.iterator(prefix=atomical_active_location_key_prefix):
             if atomical_active_location_value:
                 location = atomical_active_location_key[1 + ATOMICAL_ID_LEN : 1 + ATOMICAL_ID_LEN + ATOMICAL_ID_LEN]
-                self.logger.info(f'get_active_supply location {location_id_bytes_to_compact(location)} for {location_id_bytes_to_compact(atomical_id)}')
                 #atomical_output_script_key = b'po' + location
                 #atomical_output_script_value = self.utxo_db.get(atomical_output_script_key)
                 #location_script = atomical_output_script_value

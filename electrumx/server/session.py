@@ -1349,6 +1349,9 @@ class ElectrumX(SessionBase):
             atomicals_num_to_id_map_reformatted[num] = location_id_bytes_to_compact(id)
         return {'global': await self.get_summary_info(), 'result': atomicals_num_to_id_map_reformatted }
 
+    async def atomicals_block_txs(self, height):
+        tx_list = self.session_mgr.bp.get_atomicals_block_txs(height)
+        return {'global': await self.get_summary_info(), 'result': tx_list }
     async def hashX_subscribe(self, hashX, alias):
         # Store the subscription only after address_status succeeds
         result = await self.address_status(hashX)
@@ -2413,7 +2416,8 @@ class ElectrumX(SessionBase):
             'blockchain.atomicals.validate': self.transaction_broadcast_validate,
             'blockchain.atomicals.listscripthash': self.atomicals_listscripthash,
             'blockchain.atomicals.list': self.atomicals_list,
-            'blockchain.atomicals.num_to_id': self.atomicals_num_to_id,
+            'blockchain.atomicals.get_numbers': self.atomicals_num_to_id,
+            'blockchain.atomicals.get_block_txs': self.atomicals_block_txs,
             'blockchain.atomicals.dump': self.atomicals_dump,
             'blockchain.atomicals.at_location': self.atomicals_at_location,
             'blockchain.atomicals.get_location': self.atomicals_get_location,
