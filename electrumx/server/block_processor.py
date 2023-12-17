@@ -506,6 +506,7 @@ class BlockProcessor:
 
     def get_atomicals_block_txs(self, height):
         return self.db.get_atomicals_block_txs(height)
+
     # Helper method to validate if the transaction correctly cleanly assigns all FT (ARC20) tokens
     # This method simulates coloring FT's according to split and regular rules
     # Note: This does not apply to mempool but only prevout utxos that are confirmed
@@ -527,7 +528,6 @@ class BlockProcessor:
             return True 
 
         # Prepare the logic check to determine if the FTs are cleanly assigned (ie: no accidental burning loss would occur)
-        cleanly_assigned = False
         cleanly_assigned = self.color_ft_atomicals_regular(ft_atomicals, tx_hash, tx, 0, operations_found_at_inputs, [], self.height, False)
         # Everything would have been cleanly assigned
         if cleanly_assigned:
@@ -996,7 +996,7 @@ class BlockProcessor:
         value_sats = pack_le_uint64(mint_info['reveal_location_value'])
         # Save the initial location to have the atomical located there
         tx_numb = pack_le_uint64(mint_info['reveal_location_tx_num'])[:TXNUM_LEN]
-        self.put_atomicals_utxo(mint_info['reveal_location'], mint_info['id'], mint_info['reveal_location_hashX'] + mint_info['reveal_location_scripthash'] + value_sats + tx_numb)
+        self.put_atomicals_utxo(mint_info['reveal_location'], mint_info['id'], mint_info['reveal_location_hashX'] + mint_info['reveal_location_scripthash'] + value_sats + pack_le_uint16(0) + tx_numb)
         atomical_id = mint_info['id']
         self.logger.info(f'validate_and_create_nft_mint_utxo: atomical_id={location_id_bytes_to_compact(atomical_id)}, tx_hash={hash_to_hex_str(tx_hash)}, mint_info={mint_info}')
         return True
@@ -1008,7 +1008,7 @@ class BlockProcessor:
         # Save the initial location to have the atomical located there
         if mint_info['subtype'] != 'decentralized':
             tx_numb = pack_le_uint64(mint_info['reveal_location_tx_num'])[:TXNUM_LEN]
-            self.put_atomicals_utxo(mint_info['reveal_location'], mint_info['id'], mint_info['reveal_location_hashX'] + mint_info['reveal_location_scripthash'] + value_sats + tx_numb)
+            self.put_atomicals_utxo(mint_info['reveal_location'], mint_info['id'], mint_info['reveal_location_hashX'] + mint_info['reveal_location_scripthash'] + value_sats + pack_le_uint16(0) + tx_numb)
         subtype = mint_info['subtype']
         atomical_id = mint_info['id']
         self.logger.info(f'validate_and_create_ft_mint_utxo: subtype={subtype}, atomical_id={location_id_bytes_to_compact(atomical_id)}, tx_hash={hash_to_hex_str(tx_hash)}')
@@ -1542,7 +1542,7 @@ class BlockProcessor:
             put_general_data = self.general_data_cache.__setitem__
             put_general_data(b'po' + location, txout.pk_script)
             tx_numb = pack_le_uint64(tx_num)[:TXNUM_LEN]
-            self.put_atomicals_utxo(location, atomical_id, hashX + scripthash + value_sats + tx_numb)
+            self.put_atomicals_utxo(location, atomical_id, hashX + scripthash + value_sats + pack_le_uint16(0) + tx_numb)
             atomical_ids_touched.append(atomical_id)
             expected_output_index_incrementing += 1 
             output_colored_map[atomical_id] = expected_output_index
@@ -1590,7 +1590,7 @@ class BlockProcessor:
                     if not was_sealed:
                         # Only advance the UTXO if it was not sealed
                         tx_numb = pack_le_uint64(tx_num)[:TXNUM_LEN]
-                        self.put_atomicals_utxo(location, atomical_id, hashX + scripthash + value_sats + tx_numb)
+                        self.put_atomicals_utxo(location, atomical_id, hashX + scripthash + value_sats + pack_le_uint16(0) + tx_numb)
                     atomical_ids_touched.append(atomical_id)
                     output_colored_map[atomical_id] = output_idx
             return output_colored_map
@@ -1619,7 +1619,7 @@ class BlockProcessor:
             if not was_sealed:
                 # Only advance the UTXO if it was not sealed
                 tx_numb = pack_le_uint64(tx_num)[:TXNUM_LEN]
-                self.put_atomicals_utxo(location, atomical_id, hashX + scripthash + value_sats + tx_numb)
+                self.put_atomicals_utxo(location, atomical_id, hashX + scripthash + value_sats +pack_le_uint16(0) +  tx_numb)
             atomical_ids_touched.append(atomical_id)
             output_colored_map[atomical_id] = expected_output_index
         return output_colored_map
@@ -1718,7 +1718,7 @@ class BlockProcessor:
         put_general_data = self.general_data_cache.__setitem__
         put_general_data(b'po' + location, txout.pk_script)
         tx_numb = pack_le_uint64(tx_num)[:TXNUM_LEN]
-        self.put_atomicals_utxo(location, atomical_id, hashX + scripthash + value_sats + tx_numb)
+        self.put_atomicals_utxo(location, atomical_id, hashX + scripthash + value_sats + pack_le_uint16(0) + tx_numb)
     
     # Build a map of atomical id to the type, value, and input indexes
     # This information is used below to assess which inputs are of which type and therefore which outputs to color
@@ -2670,7 +2670,7 @@ class BlockProcessor:
                     put_general_data = self.general_data_cache.__setitem__
                     put_general_data(the_key, txout.pk_script)
                     tx_numb = pack_le_uint64(tx_num)[:TXNUM_LEN]
-                    self.put_atomicals_utxo(location, potential_dmt_atomical_id, hashX + scripthash + value_sats + tx_numb)
+                    self.put_atomicals_utxo(location, potential_dmt_atomical_id, hashX + scripthash + value_sats + pack_le_uint16(0) + tx_numb)
                     self.put_decentralized_mint_data(potential_dmt_atomical_id, location, scripthash + value_sats)
                     return potential_dmt_atomical_id
                 self.logger.info(f'create_or_delete_decentralized_mint_outputs found valid request in {hash_to_hex_str(tx_hash)} for {ticker}. Granting and creating decentralized mint...')
@@ -2867,9 +2867,10 @@ class BlockProcessor:
                 if self.is_atomicals_activated(height) and has_at_least_one_valid_atomicals_operation:
                     concatenation_of_tx_hashes_with_valid_atomical_operation += tx_hash
                     self.logger.info(f'advance_txs: has_at_least_one_valid_atomicals_operation tx_hash={hash_to_hex_str(tx_hash)}')
-                
+
                 if has_at_least_one_valid_atomicals_operation:
                     put_general_data(b'th' + pack_le_uint32(height) + pack_le_uint64(tx_num) + tx_hash, tx_hash)
+                    
             append_hashXs(hashXs)
             update_touched(hashXs)
             tx_num += 1
@@ -3251,7 +3252,7 @@ class BlockProcessor:
             raise ChainError(f'no atomicals undo information found for height '
                              f'{self.height:,d}')
         m = len(atomicals_undo_info)
-        atomicals_undo_entry_len = ATOMICAL_ID_LEN + ATOMICAL_ID_LEN + HASHX_LEN + SCRIPTHASH_LEN + 8 + TXNUM_LEN
+        atomicals_undo_entry_len = ATOMICAL_ID_LEN + ATOMICAL_ID_LEN + HASHX_LEN + SCRIPTHASH_LEN + 8 + 2 + TXNUM_LEN
         atomicals_count = m / atomicals_undo_entry_len
         has_undo_info_for_atomicals = False
         if m > 0:

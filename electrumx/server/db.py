@@ -611,11 +611,13 @@ class DB:
                 hashX = value[:HASHX_LEN]
                 scripthash = value[HASHX_LEN : HASHX_LEN + SCRIPTHASH_LEN]
                 value_sats = value[HASHX_LEN + SCRIPTHASH_LEN : HASHX_LEN + SCRIPTHASH_LEN + 8]
+                exponent = value[HASHX_LEN + SCRIPTHASH_LEN + 8: HASHX_LEN + SCRIPTHASH_LEN + 8 + 2]
                 tx_numb = value[-TXNUM_LEN:]  
-                batch_put(b'i' + location_key + atomical_id, hashX + scripthash + value_sats + tx_numb) 
+                self.logger.info(f'batch atomicals_adds value_sats={value_sats} exponent={exponent}')
+                batch_put(b'i' + location_key + atomical_id, hashX + scripthash + value_sats + exponent + tx_numb) 
                 # Add the active b'a' atomicals location if it was not deleted
                 if not value_with_tombstone.get('deleted', False):
-                    batch_put(b'a' + atomical_id + location_key, hashX + scripthash + value_sats + tx_numb) 
+                    batch_put(b'a' + atomical_id + location_key, hashX + scripthash + value_sats + exponent + tx_numb) 
         flush_data.atomicals_adds.clear()
  
         # Distributed mint data adds
@@ -1325,23 +1327,15 @@ class DB:
                 break
             txs_list.append(hash_to_hex_str(block_txs_prefix_value))
         return txs_list
+
     def get_active_supply(self, atomical_id):
         active_supply = 0
         atomical_active_location_key_prefix = b'a' + atomical_id
         for atomical_active_location_key, atomical_active_location_value in self.utxo_db.iterator(prefix=atomical_active_location_key_prefix):
             if atomical_active_location_value:
                 location = atomical_active_location_key[1 + ATOMICAL_ID_LEN : 1 + ATOMICAL_ID_LEN + ATOMICAL_ID_LEN]
-                #atomical_output_script_key = b'po' + location
-                #atomical_output_script_value = self.utxo_db.get(atomical_output_script_key)
-                #location_script = atomical_output_script_value
-                #location_tx_hash = location[ : 32]
-                #atomical_location_idx, = unpack_le_uint32(location[ 32 : 36])
-                #location_scripthash = atomical_active_location_value[HASHX_LEN : HASHX_LEN + SCRIPTHASH_LEN]  
                 location_value, = unpack_le_uint64(atomical_active_location_value[HASHX_LEN + SCRIPTHASH_LEN : HASHX_LEN + SCRIPTHASH_LEN + 8])
                 active_supply += location_value
-                # tx_numb = atomical_active_location_value[-TXNUM_LEN:]  
-                # txnum_padding = bytes(8-TXNUM_LEN)
-                #tx_num_padded, = unpack_le_uint64(tx_numb + txnum_padding)
         return active_supply   
 
     # Get the atomical details with location information added
