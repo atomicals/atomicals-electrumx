@@ -1352,6 +1352,7 @@ class ElectrumX(SessionBase):
     async def atomicals_block_txs(self, height):
         tx_list = self.session_mgr.bp.get_atomicals_block_txs(height)
         return {'global': await self.get_summary_info(), 'result': tx_list }
+
     async def hashX_subscribe(self, hashX, alias):
         # Store the subscription only after address_status succeeds
         result = await self.address_status(hashX)
