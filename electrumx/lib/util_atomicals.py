@@ -1464,6 +1464,9 @@ def calculate_outputs_to_color_for_ft_atomical_ids(ft_atomicals, tx_hash, tx, so
         print(f'calculate_outputs_to_color_for_ft_atomical_ids underflow_val potential_atomical_ids_to_output_idxs_map={potential_atomical_ids_to_output_idxs_map}')
         return potential_atomical_ids_to_output_idxs_map, not non_clean_output_slots, atomical_list
 
+def is_split_operation(operations_found_at_inputs):
+    return operations_found_at_inputs and operations_found_at_inputs.get('op') == 'y' and operations_found_at_inputs.get('input_index') == 0
+
 def calculate_nft_output_index_legacy(input_idx, tx, operations_found_at_inputs):
     expected_output_index = input_idx
     # If it was unspendable output, then just set it to the 0th location
