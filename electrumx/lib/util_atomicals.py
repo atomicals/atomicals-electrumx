@@ -1394,7 +1394,6 @@ def build_reverse_output_to_atomical_id_map(atomical_id_to_output_index_map):
     if not atomical_id_to_output_index_map:
         return {}
     reverse_mapped = {}
-    print(f'atomical_id_to_output_index_map {atomical_id_to_output_index_map}')
     for atomical_id, output_idxs_array in atomical_id_to_output_index_map.items():
         for out_idx in output_idxs_array:
             reverse_mapped[out_idx] = reverse_mapped.get(out_idx) or {}
