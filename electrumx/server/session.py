@@ -1903,6 +1903,140 @@ class ElectrumX(SessionBase):
             'atomicals': atomical_basic_infos
         }
 
+    async def atomicals_get_ft_balances(self, scripthash):
+        '''Return the FT balances for a scripthash address'''
+        hashX = scripthash_to_hashX(scripthash)
+        return await self.hashX_ft_balances_atomicals(hashX)
+
+    async def atomicals_get_nft_balances(self, scripthash):
+        '''Return the NFT balances for a scripthash address'''
+        hashX = scripthash_to_hashX(scripthash)
+        return await self.hashX_nft_balances_atomicals(hashX)
+
+    async def hashX_ft_balances_atomicals(self, hashX):
+        utxos = await self.db.all_utxos(hashX)
+        utxos = sorted(utxos)
+        # Comment out the utxos for now and add it in later
+        # utxos.extend(await self.mempool.unordered_UTXOs(hashX))
+        self.bump_cost(1.0 + len(utxos) / 50)
+        spends = [] # await self.mempool.potential_spends(hashX)
+        returned_utxos = []
+        atomicals_id_map = {}
+        for utxo in utxos:
+            if (utxo.tx_hash, utxo.tx_pos) in spends:
+                continue
+            atomicals = self.db.get_atomicals_by_utxo(utxo, True)
+            atomicals_basic_infos = []
+            for atomical_id in atomicals: 
+                # This call is efficient in that it's cached underneath
+                # For now we only show the atomical id because it can always be fetched separately and it will be more efficient
+                atomical_basic_info = await self.session_mgr.bp.get_base_mint_info_rpc_format_by_atomical_id(atomical_id) 
+                atomical_id_compact = location_id_bytes_to_compact(atomical_id)
+                atomicals_id_map[atomical_id_compact] = atomical_basic_info
+                atomicals_basic_infos.append(atomical_id_compact)
+                if len(atomicals) > 0:
+                    returned_utxos.append({'txid': hash_to_hex_str(utxo.tx_hash),
+                    'index': utxo.tx_pos,
+                    'vout': utxo.tx_pos,
+                    'height': utxo.height, 
+                    'value': utxo.value,
+                    'atomicals': atomicals_basic_infos})
+        # Aggregate balances
+        return_struct = {
+            'balances': {}
+        }
+        for returned_utxo in returned_utxos: 
+            for atomical_id_entry_compact in returned_utxo['atomicals']:
+                atomical_id_basic_info = atomicals_id_map[atomical_id_entry_compact]
+                atomical_id_compact = atomical_id_basic_info['atomical_id']
+                assert(atomical_id_compact == atomical_id_entry_compact)
+                if atomical_id_basic_info.get('$ticker'):
+                    if return_struct['balances'].get(atomical_id_compact) == None:
+                        return_struct['balances'][atomical_id_compact] = {}
+                        return_struct['balances'][atomical_id_compact]['id'] = atomical_id_compact
+                        return_struct['balances'][atomical_id_compact]['ticker'] = atomical_id_basic_info.get('$ticker')
+                        return_struct['balances'][atomical_id_compact]['confirmed'] = 0
+                    if returned_utxo['height'] > 0:
+                        return_struct['balances'][atomical_id_compact]['confirmed'] += returned_utxo['value']
+        return return_struct
+
+    async def hashX_nft_balances_atomicals(self, hashX):
+        Verbose = False
+        utxos = await self.db.all_utxos(hashX)
+        utxos = sorted(utxos)
+        # Comment out the utxos for now and add it in later
+        # utxos.extend(await self.mempool.unordered_UTXOs(hashX))
+        self.bump_cost(1.0 + len(utxos) / 50)
+        spends = [] # await self.mempool.potential_spends(hashX)
+        returned_utxos = []
+        atomicals_id_map = {}
+        for utxo in utxos:
+            if (utxo.tx_hash, utxo.tx_pos) in spends:
+                continue
+            atomicals = self.db.get_atomicals_by_utxo(utxo, True)
+            atomicals_basic_infos = []
+            for atomical_id in atomicals: 
+                # This call is efficient in that it's cached underneath
+                # For now we only show the atomical id because it can always be fetched separately and it will be more efficient
+                atomical_basic_info = await self.session_mgr.bp.get_base_mint_info_rpc_format_by_atomical_id(atomical_id) 
+                atomical_id_compact = location_id_bytes_to_compact(atomical_id)
+                atomicals_id_map[atomical_id_compact] = atomical_basic_info
+                atomicals_basic_infos.append(atomical_id_compact)
+                if len(atomicals) > 0:
+                    returned_utxos.append({'txid': hash_to_hex_str(utxo.tx_hash),
+                    'index': utxo.tx_pos,
+                    'vout': utxo.tx_pos,
+                    'height': utxo.height, 
+                    'value': utxo.value,
+                    'atomicals': atomicals_basic_infos})
+        # Aggregate balances
+        return_struct = {
+            'balances': {}
+        }
+        for returned_utxo in returned_utxos: 
+            for atomical_id_entry_compact in returned_utxo['atomicals']:
+                atomical_id_basic_info = atomicals_id_map[atomical_id_entry_compact]
+                atomical_id_compact = atomical_id_basic_info['atomical_id']
+                assert(atomical_id_compact == atomical_id_entry_compact)
+                if atomical_id_basic_info.get('type') == 'NFT':
+                    if return_struct['balances'].get(atomical_id_compact) == None:
+                        return_struct['balances'][atomical_id_compact] = {}
+                        return_struct['balances'][atomical_id_compact]['id'] = atomical_id_compact
+                        return_struct['balances'][atomical_id_compact]['confirmed'] = 0
+                    if atomical_id_basic_info.get('subtype'):
+                        return_struct['balances'][atomical_id_compact]['subtype'] = atomical_id_basic_info.get('subtype')
+                    if atomical_id_basic_info.get('$request_container'):
+                        return_struct['balances'][atomical_id_compact]['request_container'] = atomical_id_basic_info.get('$request_container')
+                    if atomical_id_basic_info.get('$container'):
+                        return_struct['balances'][atomical_id_compact]['container'] = atomical_id_basic_info.get('$container')
+                    if atomical_id_basic_info.get('$dmitem'):
+                        return_struct['balances'][atomical_id_compact]['dmitem'] = atomical_id_basic_info.get('$dmitem')
+                    if atomical_id_basic_info.get('$request_dmitem'):
+                        return_struct['balances'][atomical_id_compact]['request_dmitem'] = atomical_id_basic_info.get('$request_dmitem')
+                    if atomical_id_basic_info.get('$realm'):
+                        return_struct['balances'][atomical_id_compact]['realm'] = atomical_id_basic_info.get('$realm')
+                    if atomical_id_basic_info.get('$request_realm'):
+                        return_struct['balances'][atomical_id_compact]['request_realm'] = atomical_id_basic_info.get('$request_realm')
+                    if atomical_id_basic_info.get('$subrealm'):
+                        return_struct['balances'][atomical_id_compact]['subrealm'] = atomical_id_basic_info.get('$subrealm')
+                    if atomical_id_basic_info.get('$request_subrealm'):
+                        return_struct['balances'][atomical_id_compact]['request_subrealm'] = atomical_id_basic_info.get('$request_subrealm')
+                    if atomical_id_basic_info.get('$full_realm_name'):
+                        return_struct['balances'][atomical_id_compact]['full_realm_name'] = atomical_id_basic_info.get('$full_realm_name')
+                    if atomical_id_basic_info.get('$parent_container'):
+                        return_struct['balances'][atomical_id_compact]['parent_container'] = atomical_id_basic_info.get('$parent_container')
+                    if atomical_id_basic_info.get('$parent_realm'):
+                        return_struct['balances'][atomical_id_compact]['parent_realm'] = atomical_id_basic_info.get('$parent_realm')
+                    if atomical_id_basic_info.get('$parent_container_name'):
+                        return_struct['balances'][atomical_id_compact]['parent_container_name'] = atomical_id_basic_info.get('$parent_container_name')
+                    if atomical_id_basic_info.get('$bitwork'):
+                        return_struct['balances'][atomical_id_compact]['bitwork'] = atomical_id_basic_info.get('$bitwork')
+                    if atomical_id_basic_info.get('$parents'):
+                        return_struct['balances'][atomical_id_compact]['parents'] = atomical_id_basic_info.get('$parents')
+                    if returned_utxo['height'] > 0:
+                        return_struct['balances'][atomical_id_compact]['confirmed'] += returned_utxo['value']
+        return return_struct
+
     async def hashX_listscripthash_atomicals(self, hashX, Verbose=False):
         utxos = await self.db.all_utxos(hashX)
         utxos = sorted(utxos)
@@ -2415,6 +2549,8 @@ class ElectrumX(SessionBase):
             'server.version': self.server_version,
             # The Atomicals era has begun #
             'blockchain.atomicals.validate': self.transaction_broadcast_validate,
+            'blockchain.atomicals.get_ft_balances_scripthash': self.atomicals_get_ft_balances,
+            'blockchain.atomicals.get_nft_balances_scripthash': self.atomicals_get_nft_balances,
             'blockchain.atomicals.listscripthash': self.atomicals_listscripthash,
             'blockchain.atomicals.list': self.atomicals_list,
             'blockchain.atomicals.get_numbers': self.atomicals_num_to_id,
