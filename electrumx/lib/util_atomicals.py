@@ -184,6 +184,8 @@ def is_compact_atomical_id(value):
 def compact_to_location_id_bytes(value):
     '''Convert the 36 byte atomical_id to the compact form with the "i" at the end
     '''
+    if not value:
+        raise TypeError(f'value in compact_to_location_id_bytes is not set')
 
     index_of_i = value.index("i")
     if index_of_i != 64: 
