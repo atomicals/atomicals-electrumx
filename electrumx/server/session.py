@@ -1250,7 +1250,6 @@ class ElectrumX(SessionBase):
     async def atomical_id_get_ft_info(self, compact_atomical_id):
         atomical_id = compact_to_location_id_bytes(compact_atomical_id)
         atomical = await self.session_mgr.bp.get_base_mint_info_rpc_format_by_atomical_id(atomical_id)
-
         if atomical['subtype'] == 'decentralized':
             atomical = await self.session_mgr.bp.get_dft_mint_info_rpc_format_by_atomical_id(atomical_id)
         elif atomical['subtype'] == 'direct': 
@@ -1260,7 +1259,6 @@ class ElectrumX(SessionBase):
         
         if atomical:
             return atomical
-        
         # Check mempool
         atomical_in_mempool = await self.mempool.get_atomical_mint(atomical_id)
         if atomical_in_mempool == None: 
