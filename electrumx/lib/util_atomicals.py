@@ -1419,7 +1419,7 @@ def calculate_outputs_to_color_for_ft_atomical_ids(ft_atomicals, tx_hash, tx, so
         seen_atomical_id_map = {}
         for input_idx, atomicals_array in sorted(input_idx_map.items()):
             for atomical_id in sorted(atomicals_array):
-                if seen_atomical_id_map.get(atomical_id):
+                if seen_atomical_id_map.get(atomical_id):       
                     continue 
                 seen_atomical_id_map[atomical_id] = True
                 atomical_list.append({
