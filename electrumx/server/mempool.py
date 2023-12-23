@@ -352,7 +352,7 @@ class MemPool:
                     return 
                 op = operation_found_at_inputs['op']
                 self.logger.info(f'atomicals_op={op} txid={hash_to_hex_str(tx_hash)}') 
-                valid_create_op_type, mint_info = get_mint_info_op_factory(self.coin, tx, tx_hash, operation_found_at_inputs, None, self.logger)
+                valid_create_op_type, mint_info = get_mint_info_op_factory(self.coin, tx, tx_hash, operation_found_at_inputs, None, self.coin.coin.ATOMICALS_ACTIVATION_HEIGHT_DENSITY, self.logger)
                 if valid_create_op_type:
                     atomical_id = mint_info['id']
                     self.logger.info(f'atomicals_mint_type={valid_create_op_type}, txid={hash_to_hex_str(tx_hash)}, atomical_id={location_id_bytes_to_compact(atomical_id)}') 
@@ -370,7 +370,7 @@ class MemPool:
                 try:
                     tx, tx_size = deserializer(raw_tx).read_tx_and_vsize()
                     try:
-                        operations_found_at_inputs = parse_protocols_operations_from_witness_array(tx, hash)
+                        operations_found_at_inputs = parse_protocols_operations_from_witness_array(tx, hash, True)
                         create_or_delete_atomical_from_definition(operations_found_at_inputs, tx, hash, atomicals_updates_map)
                     except Exception as ex:
                         self.logger.error(f'skipping atomicals parsing due to error in mempool {hash_to_hex_str(hash)}: {ex}')

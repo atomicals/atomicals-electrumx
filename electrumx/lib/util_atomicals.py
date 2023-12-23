@@ -28,9 +28,9 @@
 '''Miscellaneous atomicals utility classes and functions.'''
 
 from array import array
-from electrumx.lib.script import OpCodes, ScriptError, Script, is_unspendable_legacy, is_unspendable_genesis
+from electrumx.lib.script import OpCodes, ScriptError, Script, is_unspendable_legacy, is_unspendable_genesis, SCRIPTHASH_LEN
 from electrumx.lib.util import pack_le_uint64, unpack_le_uint16_from, unpack_le_uint64, unpack_le_uint32, unpack_le_uint32_from, pack_le_uint16, pack_le_uint32
-from electrumx.lib.hash import hash_to_hex_str, hex_str_to_hash, double_sha256
+from electrumx.lib.hash import hash_to_hex_str, hex_str_to_hash, double_sha256, HASHX_LEN
 import re
 import os
 import sys
@@ -88,8 +88,10 @@ DFT_MINT_AMOUNT_MAX = 100000000
 
 # The minimum number of DFT max_mints. Set at 1
 DFT_MINT_MAX_MIN_COUNT = 1
-# The maximum number of DFT max_mints. Set at 500,000 mints mainly for efficieny reasons. Could be expanded in the future
-DFT_MINT_MAX_MAX_COUNT = 500000
+# The maximum number (legacy) of DFT max_mints. Set at 500,000 mints mainly for efficieny reasons in legacy.
+DFT_MINT_MAX_MAX_COUNT_LEGACY = 500000
+# The maximum number of DFT max_mints (after legacy 'DENSITY' update). Set at 21,000,000 max mints.
+DFT_MINT_MAX_MAX_COUNT_DENSITY = 21000000
 
 # This would never change, but we put it as a constant for clarity
 DFT_MINT_HEIGHT_MIN = 0
@@ -129,6 +131,13 @@ def is_sanitized_dict_whitelist_only(d: dict, allow_bytes=False):
             return False
     return True
 
+def is_decimal_num(n):
+    if isinstance(n, int):
+        return True
+    if isinstance(n, float):
+        return True
+    return False
+
 # Check whether the value is hex string
 def is_hex_string(value):
     if not isinstance(value, str):
@@ -157,9 +166,10 @@ def is_atomical_id_long_form_string(value):
 
 # Check whether the value is a 36 byte sequence
 def is_atomical_id_long_form_bytes(value):
+    if not isinstance(value, bytes):
+        return False 
     try:
-        raw_hash = hex_str_to_hash(value)
-        if len(raw_hash) == 36:
+        if len(value) == 36:
             return True
     except (ValueError, TypeError):
         pass
@@ -404,7 +414,7 @@ def get_if_parent_spent_in_same_tx(parent_atomical_id_compact, expected_minimum_
         return False
 
 # Get the mint information structure if it's a valid mint event type
-def get_mint_info_op_factory(coin, tx, tx_hash, op_found_struct, atomicals_spent_at_inputs, logger):
+def get_mint_info_op_factory(coin, tx, tx_hash, op_found_struct, atomicals_spent_at_inputs, height, logger):
     script_hashX = coin.hashX_from_script
     if not op_found_struct:
         return None, None
@@ -664,24 +674,34 @@ def get_mint_info_op_factory(coin, tx, tx_hash, op_found_struct, atomicals_spent
         mint_info['subtype'] = 'decentralized'
         ticker = mint_info['args'].get('request_ticker', None)
         if not isinstance(ticker, str) or not is_valid_ticker_string(ticker):
-            logger.warning(f'DFT mint has invalid ticker {hash_to_hex_str(tx_hash)}, {ticker}. Skipping...')
+            logger.warning(f'DFT init has invalid ticker {hash_to_hex_str(tx_hash)}, {ticker}. Skipping...')
             return None, None 
         mint_info['$request_ticker'] = ticker
 
         mint_height = mint_info['args'].get('mint_height', None)
         if not isinstance(mint_height, int) or mint_height < DFT_MINT_HEIGHT_MIN or mint_height > DFT_MINT_HEIGHT_MAX:
-            logger.warning(f'DFT mint has invalid mint_height {hash_to_hex_str(tx_hash)}, {mint_height}. Skipping...')
+            logger.warning(f'DFT init has invalid mint_height {hash_to_hex_str(tx_hash)}, {mint_height}. Skipping...')
             return None, None
         
         mint_amount = mint_info['args'].get('mint_amount', None)
         if not isinstance(mint_amount, int) or mint_amount < DFT_MINT_AMOUNT_MIN or mint_amount > DFT_MINT_AMOUNT_MAX:
-            logger.warning(f'DFT mint has invalid mint_amount {hash_to_hex_str(tx_hash)}, {mint_amount}. Skipping...')
+            logger.warning(f'DFT init has invalid mint_amount {hash_to_hex_str(tx_hash)}, {mint_amount}. Skipping...')
             return None, None
         
         max_mints = mint_info['args'].get('max_mints', None)
-        if not isinstance(max_mints, int) or max_mints < DFT_MINT_MAX_MIN_COUNT or max_mints > DFT_MINT_MAX_MAX_COUNT:
-            logger.warning(f'DFT mint has invalid max_mints {hash_to_hex_str(tx_hash)}, {max_mints}. Skipping...')
+        if not isinstance(max_mints, int) or max_mints < DFT_MINT_MAX_MIN_COUNT:
+            logger.warning(f'DFT init has invalid max_mints {hash_to_hex_str(tx_hash)}, {max_mints}. Skipping...')
             return None, None
+        
+        if height < coin.ATOMICALS_ACTIVATION_HEIGHT_DENSITY:
+            if max_mints > DFT_MINT_MAX_MAX_COUNT_LEGACY:
+                logger.warning(f'DFT init has invalid max_mints legacy {hash_to_hex_str(tx_hash)}, {max_mints}. Skipping...')
+                return None, None
+        
+        elif height >= coin.ATOMICALS_ACTIVATION_HEIGHT_DENSITY:
+            if max_mints > DFT_MINT_MAX_MAX_COUNT_DENSITY:
+                logger.warning(f'DFT init has invalid max_mints {hash_to_hex_str(tx_hash)}, {max_mints}. Skipping...')
+                return None, None
         
         mint_info['$mint_height'] = mint_height
         mint_info['$mint_amount'] = mint_amount
@@ -805,6 +825,7 @@ def convert_db_mint_info_to_rpc_mint_info_format(header_hash, mint_info):
     mint_info['mint_info']['reveal_location_scripthash'] = hash_to_hex_str(mint_info['mint_info']['reveal_location_scripthash'])
     mint_info['mint_info']['reveal_location_script'] = mint_info['mint_info']['reveal_location_script'].hex()
     return mint_info 
+
 
 # A valid ticker string must be at least 1 characters and max 21 with a-z0-9
 def is_valid_ticker_string(ticker):
@@ -974,6 +995,17 @@ def parse_operation_from_script(script, n):
     print(f'Invalid Atomicals Operation Code. Skipping... "{script[n : n + 4].hex()}"')
     return None, None
 
+def is_valid_regex(regex):
+    if not regex:
+        return False 
+    if '(' in regex or ')' in regex:
+        return False
+    try:
+        re.compile(rf"{regex}")
+        return True
+    except Exception as e: 
+        return False 
+
 # Check for a payment marker and return the potential atomical id being indicate that is paid in current tx
 def is_op_return_subrealm_payment_marker_atomical_id(script):
     if not script:
@@ -1008,7 +1040,6 @@ def is_op_return_subrealm_payment_marker_atomical_id(script):
 
     # Return the potential atomical id that the payment marker is associated with
     return script[start_index+5+2+1:start_index+5+2+1+36]
-
 
 # Check for a payment marker and return the potential atomical id being indicate that is paid in current tx
 def is_op_return_dmitem_payment_marker_atomical_id(script):
@@ -1081,7 +1112,7 @@ def parse_protocols_operations_from_witness_for_input(txinwitness):
     return None, None
 
 # Parses and detects the witness script array and detects the Atomicals operations
-def parse_protocols_operations_from_witness_array(tx, tx_hash):
+def parse_protocols_operations_from_witness_array(tx, tx_hash, allow_args_bytes):
     '''Detect and parse all operations of atomicals across the witness input arrays (inputs 0 and 1) from a tx'''
     if not hasattr(tx, 'witness'):
         return {}
@@ -1105,12 +1136,9 @@ def parse_protocols_operations_from_witness_array(tx, tx_hash):
             # Also enforce that if there are meta, args, or ctx fields that they must be dicts
             # This is done to ensure that these fields are always easily parseable and do not contain unexpected data which could cause parsing problems later
             # Ensure that they are not allowed to contain bytes like objects
-            if not is_sanitized_dict_whitelist_only(decoded_object.get('meta', {})) or not is_sanitized_dict_whitelist_only(decoded_object.get('args', {})) or not is_sanitized_dict_whitelist_only(decoded_object.get('ctx', {})) or not is_sanitized_dict_whitelist_only(decoded_object.get('init', {}), True):
+            if not is_sanitized_dict_whitelist_only(decoded_object.get('meta', {})) or not is_sanitized_dict_whitelist_only(decoded_object.get('args', {}), allow_args_bytes) or not is_sanitized_dict_whitelist_only(decoded_object.get('ctx', {})) or not is_sanitized_dict_whitelist_only(decoded_object.get('init', {}), True):
                 print(f'parse_protocols_operations_from_witness_array found {op_name} but decoded CBOR payload has an args, meta, ctx, or init that has not permitted data type {tx} {decoded_object}. Skipping tx input...')
                 continue  
-            #if op_name != 'nft' and op_name != 'ft' and op_name != 'dft' and not is_sanitized_dict_whitelist_only(decoded_object):
-            #    print(f'parse_protocols_operations_from_witness_array found {op_name} but decoded CBOR payload body has not permitted data type {tx} {decoded_object}. Skipping tx input...')
-            #    continue
 
             # Return immediately at the first successful parse of the payload
             # It doesn't mean that it will be valid when processed, because most operations require the txin_idx=0 
@@ -1133,6 +1161,45 @@ def parse_protocols_operations_from_witness_array(tx, tx_hash):
             }
         txin_idx = txin_idx + 1
     return None
+
+def encode_atomical_ids_hex(state):
+    if isinstance(state, bytes):
+        if is_atomical_id_long_form_bytes(state):
+            return location_id_bytes_to_compact(state)
+        else: 
+            return state.hex()
+
+    if not isinstance(state, dict) and not isinstance(state, list):
+        return state 
+    
+    if isinstance(state, list):
+        reformatted_list = []
+        for item in state:
+            reformatted_list.append(encode_atomical_ids_hex(item))
+        return reformatted_list 
+    
+    cloned_state = {}
+    for key, value in state.items():
+        cloned_state[encode_atomical_ids_hex(key)] = encode_atomical_ids_hex(value)
+    return cloned_state 
+
+def encode_tx_hash_hex(state):
+    if isinstance(state, bytes):
+        return hash_to_hex_str(state)
+
+    if not isinstance(state, dict) and not isinstance(state, list):
+        return state 
+    
+    if isinstance(state, list):
+        reformatted_list = []
+        for item in state:
+            reformatted_list.append(encode_tx_hash_hex(item))
+        return reformatted_list 
+    
+    cloned_state = {}
+    for key, value in state.items():
+        cloned_state[encode_tx_hash_hex(key)] = encode_tx_hash_hex(value)
+    return cloned_state 
 
 # Auto detect any bytes data and encoded it
 def auto_encode_bytes_elements(state):
@@ -1186,7 +1253,7 @@ def validate_subrealm_rules_outputs_format(outputs):
             return False # Reject if one of the entries expects less than the minimum payment amount
         expected_output_id = expected_output_value.get('id')
         expected_output_qty = expected_output_value.get('v')
-        if not isinstance(expected_output_qty, int) or expected_output_qty < SUBNAME_MIN_PAYMENT_DUST_LIMIT:
+        if not is_decimal_num(expected_output_qty) or expected_output_qty < SUBNAME_MIN_PAYMENT_DUST_LIMIT:
             print_subrealm_calculate_log(f'validate_subrealm_rules_outputs_format: invalid expected output value')
             return False # Reject if one of the entries expects less than the minimum payment amount
         # If there is a type restriction on the payment type then ensure it is a valid atomical id
@@ -1354,119 +1421,20 @@ def validate_rules(namespace_data):
     # If we got this far, it means there is a valid rule as of the requested height, return the information
     return validated_rules_list
      
-# Assign the ft quantity basic from the start_out_idx to the end until exhausted
-# Returns the sequence of output indexes that matches until the final one that matched
-# Also returns whether it fit cleanly in (ie: exact with no left overs or under)
-def assign_expected_outputs_basic(atomical_id, ft_value, tx, start_out_idx):
-    expected_output_indexes = []
-    remaining_value = ft_value
-    idx_count = 0
-    if start_out_idx >= len(tx.outputs):
-        return False, expected_output_indexes
-    for out_idx, txout in enumerate(tx.outputs): 
-        # Only consider outputs from the starting index
-        if idx_count < start_out_idx:
-            idx_count += 1
-            continue
-        # For all remaining outputs attach colors as long as there is adequate remaining_value left to cover the entire output value
-        if is_unspendable_genesis(txout.pk_script) or is_unspendable_legacy(txout.pk_script):
-            idx_count += 1
-            continue
-        if txout.value <= remaining_value:
-            expected_output_indexes.append(out_idx)
-            remaining_value -= txout.value
-            if remaining_value == 0:
-                # The token input was fully exhausted cleanly into the outputs
-                return True, expected_output_indexes
-        # Exit case output is greater than what we have in remaining_value
-        else:
-            # There was still some token units left, but the next output was greater than the amount. Therefore we burned the remainder tokens.
-            return False, expected_output_indexes
-        idx_count += 1
-    # There was still some token units left, but there were no more outputs to take the quantity. Tokens were burned.
-    return False, expected_output_indexes 
-
-def build_reverse_output_to_atomical_id_map(atomical_id_to_output_index_map):
-    if not atomical_id_to_output_index_map:
-        return {}
-    reverse_mapped = {}
-    for atomical_id, output_idxs_array in atomical_id_to_output_index_map.items():
-        for out_idx in output_idxs_array:
-            reverse_mapped[out_idx] = reverse_mapped.get(out_idx) or {}
-            reverse_mapped[out_idx][atomical_id] = atomical_id
-    return reverse_mapped 
-
-# Calculate the colorings of tokens for utxos
-def calculate_outputs_to_color_for_ft_atomical_ids(ft_atomicals, tx_hash, tx, sort_by_fifo):
-    num_fts = len(ft_atomicals.keys())
-    if num_fts == 0:
-        return None, None, None
-    atomical_list = []
-    # If sorting is by FIFO, then get the mappng of which FTs are at which inputs
-    if sort_by_fifo:
-        input_idx_map = {}
-        for atomical_id, ft_info in ft_atomicals.items():
-            for input_index_for_atomical in ft_info['input_indexes']:
-                input_idx_map[input_index_for_atomical] = input_idx_map.get(input_index_for_atomical) or []
-                input_idx_map[input_index_for_atomical].append(atomical_id)
-        # Now for each input, we assign the atomicals, making sure to ignore the ones we've seen already
-        seen_atomical_id_map = {}
-        for input_idx, atomicals_array in sorted(input_idx_map.items()):
-            for atomical_id in sorted(atomicals_array):
-                if seen_atomical_id_map.get(atomical_id):       
-                    continue 
-                seen_atomical_id_map[atomical_id] = True
-                atomical_list.append({
-                    'atomical_id': atomical_id,
-                    'ft_info': ft_atomicals[atomical_id]
-                })
-    else:
-        for atomical_id, ft_info in sorted(ft_atomicals.items()):
-            atomical_list.append({
-                'atomical_id': atomical_id,
-                'ft_info': ft_info
-            })
-
-    next_start_out_idx = 0
-    potential_atomical_ids_to_output_idxs_map = {}
-    non_clean_output_slots = False
-    for item in atomical_list:
-        atomical_id = item['atomical_id']
-        v = item['ft_info']['value']
-        cleanly_assigned, expected_outputs = assign_expected_outputs_basic(atomical_id, v, tx, next_start_out_idx)
-        if cleanly_assigned and len(expected_outputs) > 0:
-            next_start_out_idx = expected_outputs[-1] + 1
-            potential_atomical_ids_to_output_idxs_map[atomical_id] = expected_outputs
-        else:
-            # Erase the potential for safety
-            potential_atomical_ids_to_output_idxs_map = {}
-            non_clean_output_slots = True
-            break
-    # If the output slots did not fit cleanly, then default to just assigning everything from the 0'th output index
-    if non_clean_output_slots:
-        potential_atomical_ids_to_output_idxs_map = {}
-        for item in atomical_list:
-            atomical_id = item['atomical_id']
-            cleanly_assigned, expected_outputs = assign_expected_outputs_basic(atomical_id, item['ft_info']['value'], tx, 0)
-            potential_atomical_ids_to_output_idxs_map[atomical_id] = expected_outputs
-        return potential_atomical_ids_to_output_idxs_map, not non_clean_output_slots, atomical_list
-    else:
-        return potential_atomical_ids_to_output_idxs_map, not non_clean_output_slots, atomical_list
+def is_splat_operation(operations_found_at_inputs):
+    return operations_found_at_inputs and operations_found_at_inputs.get('op') == 'x' and operations_found_at_inputs.get('input_index') == 0
 
 def is_split_operation(operations_found_at_inputs):
     return operations_found_at_inputs and operations_found_at_inputs.get('op') == 'y' and operations_found_at_inputs.get('input_index') == 0
 
-def calculate_nft_output_index_legacy(input_idx, tx, operations_found_at_inputs):
-    expected_output_index = input_idx
-    # If it was unspendable output, then just set it to the 0th location
-    # ...and never allow an NFT atomical to be burned accidentally by having insufficient number of outputs either
-    # The expected output index will become the 0'th index if the 'x' extract operation was specified or there are insufficient outputs
-    if expected_output_index >= len(tx.outputs) or is_unspendable_genesis(tx.outputs[expected_output_index].pk_script) or is_unspendable_legacy(tx.outputs[expected_output_index].pk_script):
-        expected_output_index = 0
-    # If this was the 'split' (y) command, then also move them to the 0th output
-    if operations_found_at_inputs and operations_found_at_inputs.get('op') == 'y' and operations_found_at_inputs.get('input_index') == 0:
-       expected_output_index = 0      
-    return expected_output_index
+def is_substantiate_operation(operations_found_at_inputs):
+    return operations_found_at_inputs and operations_found_at_inputs.get('op') == 'st' and operations_found_at_inputs.get('input_index') == 0
+
+def is_seal_operation(operations_found_at_inputs):
+    return operations_found_at_inputs and operations_found_at_inputs.get('op') == 'sl' and operations_found_at_inputs.get('input_index') == 0
+
+def is_event_operation(operations_found_at_inputs):
+    return operations_found_at_inputs and operations_found_at_inputs.get('op') == 'evt' and operations_found_at_inputs.get('input_index') == 0
 
 # Get the candidate name request status for tickers, containers and realms (not subrealms though)
 # Base Status Values:
@@ -1617,6 +1585,14 @@ def get_subname_request_candidate_status(current_height, atomical_info, status, 
         'pending_candidate_atomical_id': candidate_id_compact
     }
 
+def expand_spend_utxo_data(data):
+    value, = unpack_le_uint64(data[HASHX_LEN + SCRIPTHASH_LEN : HASHX_LEN + SCRIPTHASH_LEN + 8])
+    exponent, = unpack_le_uint16_from(data[HASHX_LEN + SCRIPTHASH_LEN + 8: HASHX_LEN + SCRIPTHASH_LEN + 8 + 2]) 
+    return {
+        'value': value,
+        'exponent': exponent
+    }
+
 def validate_dmitem_mint_args_with_container_dmint(mint_args, mint_data_payload, dmint):
     args = mint_args
     proof = args.get('proof')
@@ -1720,12 +1696,20 @@ def validate_merkle_proof_dmint(expected_root_hash, item_name, possible_bitworkc
         formatted_proof = []
         for item in proof:
             if item['p']:
+                # Accept hashes as bytes or string
+                leaf_hash = item['d']
+                if isinstance(leaf_hash, bytes):
+                    leaf_hash = leaf_hash.hex()
                 formatted_proof.append({
-                    'right': item['d']
+                    'right': leaf_hash
                 })
             else: 
+                # Accept hashes as bytes or string
+                leaf_hash = item['d']
+                if isinstance(leaf_hash, bytes):
+                    leaf_hash = leaf_hash.hex()
                 formatted_proof.append({
-                    'left': item['d']
+                    'left': leaf_hash
                 })
         return mt.validate_proof(formatted_proof, target_hash, expected_root_hash) 
 

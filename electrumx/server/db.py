@@ -151,7 +151,7 @@ class DB:
         # Atomicals specific index below:
         # ------------------------------------------
         # Key: b'i' + location(tx_hash + txout_idx) + atomical_id(tx_hash + txout_idx)
-        # Value: hashX + scripthash + value_sats
+        # Value: hashX + scripthash + value_sats + tx_num
         # "map location to all the Atomicals which are located there. Permanently stored for every location even if spent."
         # ---
         # Key: b'a' + atomical_id(tx_hash + txout_idx) + location(tx_hash + txout_idx)
