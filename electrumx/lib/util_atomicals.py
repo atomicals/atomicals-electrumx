@@ -106,7 +106,7 @@ def pad_bytes_n(val, n):
     new_val = new_val + bytes(extra_bytes_needed)
     return new_val
 
-def pad_bytes64(val):
+def pad_bytes64(val)
     return pad_bytes_n(val, 64)
 
 # Atomical NFT/FT mint information is stored in the b'mi' index and is pickle encoded dictionary
@@ -1359,128 +1359,30 @@ def validate_rules(namespace_data):
     # If we got this far, it means there is a valid rule as of the requested height, return the information
     return validated_rules_list
      
-# Assign the ft quantity basic from the start_out_idx to the end until exhausted
-# Returns the sequence of output indexes that matches until the final one that matched
-# Also returns whether it fit cleanly in (ie: exact with no left overs or under)
-def assign_expected_outputs_basic(atomical_id, ft_value, tx, start_out_idx):
-    expected_output_indexes = []
-    remaining_value = ft_value
-    idx_count = 0
-    if start_out_idx >= len(tx.outputs):
-        return False, expected_output_indexes
-    for out_idx, txout in enumerate(tx.outputs): 
-        # Only consider outputs from the starting index
-        if idx_count < start_out_idx:
-            idx_count += 1
-            continue
-        # For all remaining outputs attach colors as long as there is adequate remaining_value left to cover the entire output value
-        if is_unspendable_genesis(txout.pk_script) or is_unspendable_legacy(txout.pk_script):
-            idx_count += 1
-            continue
-        if txout.value <= remaining_value:
-            expected_output_indexes.append(out_idx)
-            remaining_value -= txout.value
-            if remaining_value == 0:
-                # The token input was fully exhausted cleanly into the outputs
-                print(f'assign_expected_outputs_basic return_success atomical_id={location_id_bytes_to_compact(atomical_id)} expected_output_indexes={expected_output_indexes}')
-                return True, expected_output_indexes
-        # Exit case output is greater than what we have in remaining_value
-        else:
-            print(f'assign_expected_outputs_basic return_middle  atomical_id={location_id_bytes_to_compact(atomical_id)} expected_output_indexes={expected_output_indexes}')
-            # There was still some token units left, but the next output was greater than the amount. Therefore we burned the remainder tokens.
-            return False, expected_output_indexes
-        idx_count += 1
-    # There was still some token units left, but there were no more outputs to take the quantity. Tokens were burned.
-    print(f'assign_expected_outputs_basic return_ending with  atomical_id={location_id_bytes_to_compact(atomical_id)} expected_output_indexes={expected_output_indexes}')
-    return False, expected_output_indexes 
-
 def build_reverse_output_to_atomical_id_map(atomical_id_to_output_index_map):
     if not atomical_id_to_output_index_map:
         return {}
     reverse_mapped = {}
     for atomical_id, output_idxs_array in atomical_id_to_output_index_map.items():
-        for out_idx in output_idxs_array:
+        for out_idx in output_idxs_array['expected_outputs']:
             reverse_mapped[out_idx] = reverse_mapped.get(out_idx) or {}
-            reverse_mapped[out_idx][atomical_id] = atomical_id
+            reverse_mapped[out_idx][atomical_id] = {
+                'atomical_id': atomical_id,
+                'exponent': output_idxs_array['exponent']
+            }
     return reverse_mapped 
 
-# Calculate the colorings of tokens for utxos
-def calculate_outputs_to_color_for_ft_atomical_ids(ft_atomicals, tx_hash, tx, sort_by_fifo):
-    num_fts = len(ft_atomicals.keys())
-    if num_fts == 0:
-        return None, None, None
-    atomical_list = []
-    # If sorting is by FIFO, then get the mappng of which FTs are at which inputs
-    if sort_by_fifo:
-        input_idx_map = {}
-        for atomical_id, ft_info in ft_atomicals.items():
-            for input_index_for_atomical in ft_info['input_indexes']:
-                input_idx_map[input_index_for_atomical] = input_idx_map.get(input_index_for_atomical) or []
-                input_idx_map[input_index_for_atomical].append(atomical_id)
-        # Now for each input, we assign the atomicals, making sure to ignore the ones we've seen already
-        seen_atomical_id_map = {}
-        for input_idx, atomicals_array in sorted(input_idx_map.items()):
-            for atomical_id in sorted(atomicals_array):
-                if seen_atomical_id_map.get(atomical_id):       
-                    continue 
-                seen_atomical_id_map[atomical_id] = True
-                atomical_list.append({
-                    'atomical_id': atomical_id,
-                    'ft_info': ft_atomicals[atomical_id]
-                })
-    else:
-        for atomical_id, ft_info in sorted(ft_atomicals.items()):
-            atomical_list.append({
-                'atomical_id': atomical_id,
-                'ft_info': ft_info
-            })
-
-    next_start_out_idx = 0
-    potential_atomical_ids_to_output_idxs_map = {}
-    non_clean_output_slots = False
-    for item in atomical_list:
-        atomical_id = item['atomical_id']
-        v = item['ft_info']['value']
-        cleanly_assigned, expected_outputs = assign_expected_outputs_basic(atomical_id, v, tx, next_start_out_idx)
-        print(f'calculate_outputs_to_color_for_ft_atomical_ids check_if_cleanly_assigned cleanly_assigned={cleanly_assigned} v={v} next_start_out_idx={next_start_out_idx} tx_hash={hash_to_hex_str(tx_hash)} atomical_id={location_id_bytes_to_compact(atomical_id)} v={v} next_start_out_idx={next_start_out_idx}')
-        if cleanly_assigned and len(expected_outputs) > 0:
-            next_start_out_idx = expected_outputs[-1] + 1
-            print(f'calculate_outputs_to_color_for_ft_atomical_ids check_if_cleanly_assigned_after_in_if cleanly_assigned={cleanly_assigned} tx_hash={hash_to_hex_str(tx_hash)} atomical_id={location_id_bytes_to_compact(atomical_id)} value={v} next_start_out_idx={next_start_out_idx} expected_outputs={expected_outputs}')
-            potential_atomical_ids_to_output_idxs_map[atomical_id] = expected_outputs
-        else:
-            print(f'calculate_outputs_to_color_for_ft_atomical_ids check_if_cleanly_assigned_after_in_if was_not_cleanly_assigned_else cleanly_assigned={cleanly_assigned} tx_hash={hash_to_hex_str(tx_hash)} atomical_id={location_id_bytes_to_compact(atomical_id)} value={v} next_start_out_idx={next_start_out_idx} expected_outputs={expected_outputs}')
-            # Erase the potential for safety
-            potential_atomical_ids_to_output_idxs_map = {}
-            non_clean_output_slots = True
-            break
-    # If the output slots did not fit cleanly, then default to just assigning everything from the 0'th output index
-    if non_clean_output_slots:
-        print(f'calculate_outputs_to_color_for_ft_atomical_ids non_clean_output_slots {non_clean_output_slots} {ft_atomicals} ')
-        potential_atomical_ids_to_output_idxs_map = {}
-        for item in atomical_list:
-            atomical_id = item['atomical_id']
-            cleanly_assigned, expected_outputs = assign_expected_outputs_basic(atomical_id, item['ft_info']['value'], tx, 0)
-            potential_atomical_ids_to_output_idxs_map[atomical_id] = expected_outputs
-        print(f'calculate_outputs_to_color_for_ft_atomical_ids non_clean_output_slots_finally_assignment_map {non_clean_output_slots} tx_hash={hash_to_hex_str(tx_hash)} {ft_atomicals} potential_atomical_ids_to_output_idxs_map={potential_atomical_ids_to_output_idxs_map}')
-        return potential_atomical_ids_to_output_idxs_map, not non_clean_output_slots, atomical_list
-    else:
-        print(f'calculate_outputs_to_color_for_ft_atomical_ids underflow_val potential_atomical_ids_to_output_idxs_map={potential_atomical_ids_to_output_idxs_map}')
-        return potential_atomical_ids_to_output_idxs_map, not non_clean_output_slots, atomical_list
+def is_splat_operation(operations_found_at_inputs):
+    return operations_found_at_inputs and operations_found_at_inputs.get('op') == 'x' and operations_found_at_inputs['input_index'] == 0
 
 def is_split_operation(operations_found_at_inputs):
     return operations_found_at_inputs and operations_found_at_inputs.get('op') == 'y' and operations_found_at_inputs.get('input_index') == 0
 
-def calculate_nft_output_index_legacy(input_idx, tx, operations_found_at_inputs):
-    expected_output_index = input_idx
-    # If it was unspendable output, then just set it to the 0th location
-    # ...and never allow an NFT atomical to be burned accidentally by having insufficient number of outputs either
-    # The expected output index will become the 0'th index if the 'x' extract operation was specified or there are insufficient outputs
-    if expected_output_index >= len(tx.outputs) or is_unspendable_genesis(tx.outputs[expected_output_index].pk_script) or is_unspendable_legacy(tx.outputs[expected_output_index].pk_script):
-        expected_output_index = 0
-    # If this was the 'split' (y) command, then also move them to the 0th output
-    if operations_found_at_inputs and operations_found_at_inputs.get('op') == 'y' and operations_found_at_inputs.get('input_index') == 0:
-       expected_output_index = 0      
-    return expected_output_index
+def is_seal_operation(operations_found_at_inputs):
+    return operations_found_at_inputs and operations_found_at_inputs.get('op') == 'sl' and operations_found_at_inputs.get('input_index') == 0
+
+def is_event_operation(operations_found_at_inputs):
+    return operations_found_at_inputs and operations_found_at_inputs.get('op') == 'evt' and operations_found_at_inputs.get('input_index') == 0
 
 # Get the candidate name request status for tickers, containers and realms (not subrealms though)
 # Base Status Values:
