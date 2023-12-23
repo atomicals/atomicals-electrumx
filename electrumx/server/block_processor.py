@@ -39,16 +39,15 @@ from electrumx.lib.util_atomicals import (
     pad_bytes_n, 
     has_requested_proof_of_work, 
     is_valid_container_string_name, 
-    is_op_return_subrealm_payment_marker_atomical_id, 
-    is_op_return_dmitem_payment_marker_atomical_id,
+    expand_spend_utxo_data,
     SUBREALM_MINT_PATH,
-    SUBNAME_MIN_PAYMENT_DUST_LIMIT,
     DMINT_PATH,
     MINT_SUBNAME_RULES_BECOME_EFFECTIVE_IN_BLOCKS,
     MINT_REALM_CONTAINER_TICKER_COMMIT_REVEAL_DELAY_BLOCKS, 
     MINT_SUBNAME_COMMIT_PAYMENT_DELAY_BLOCKS, 
     is_valid_dmt_op_format, 
     is_compact_atomical_id, 
+    is_valid_regex,
     unpack_mint_info, 
     parse_protocols_operations_from_witness_array, 
     location_id_bytes_to_compact, 
@@ -57,16 +56,17 @@ from electrumx.lib.util_atomicals import (
     is_valid_ticker_string, 
     get_mint_info_op_factory,
     convert_db_mint_info_to_rpc_mint_info_format,
-    calculate_outputs_to_color_for_ft_atomical_ids,
-    build_reverse_output_to_atomical_id_map,
     calculate_latest_state_from_mod_history,
     validate_rules_data,
     AtomicalsValidationError,
     get_container_dmint_format_status,
     validate_dmitem_mint_args_with_container_dmint,
-    calculate_nft_output_index_legacy,
-    is_split_operation
+    is_seal_operation,
+    is_event_operation,
+    encode_atomical_ids_hex
 )
+
+from electrumx.lib.atomicals_blueprint_builder import AtomicalsTransferBlueprintBuilder
 
 import copy
 
@@ -522,24 +522,14 @@ class BlockProcessor:
         atomicals_spent_at_inputs = self.build_atomicals_spent_at_inputs_for_validation_only(tx)
         # Build a structure of organizing into NFT and FTs
         # Note: We do not validate anything with NFTs, just FTs
-        nft_atomicals, ft_atomicals =  self.build_atomical_type_structs(atomicals_spent_at_inputs)
-        
-        # There are not FT atomicals therefore just return true
-        if len(ft_atomicals) == 0:
-            return True 
-
-        # Check if it was the split y operation because that is handled differently
-        should_split_ft_atomicals = is_split_operation(operations_found_at_inputs)
-        if should_split_ft_atomicals:
-            cleanly_assigned = self.color_ft_atomicals_split(ft_atomicals, tx_hash, tx, tx_num, operations_found_at_inputs, atomical_ids_touched, False)
-        else:
-            # Prepare the logic check to determine if the FTs are cleanly assigned (ie: no accidental burning loss would occur)
-            cleanly_assigned = self.color_ft_atomicals_regular(ft_atomicals, tx_hash, tx, 0, operations_found_at_inputs, [], self.height, False)
-        # Everything would have been cleanly assigned
-        if cleanly_assigned:
-            return True 
-        # A problem was detected and a loss of FTs would have happened
-        raise AtomicalsValidationError(f'detected invalid ft token inputs and outputs for tx_hash={hash_to_hex_str(tx_hash)}')
+        # Build the "blueprint" for how to assign all atomicals
+        blueprint_builder = AtomicalsTransferBlueprintBuilder(self.logger, atomicals_spent_at_inputs, operations_found_at_inputs, tx_hash, tx, self.get_atomicals_id_mint_info, True)
+        ft_output_blueprint = blueprint_builder.get_ft_output_blueprint() 
+        # Log that there were tokens burned due to not being cleanly assigned
+        if blueprint_builder.get_are_fts_burned():
+            encoded_atomicals_spent_at_inputs = encode_atomical_ids_hex(atomicals_spent_at_inputs)
+            encoded_ft_output_blueprint = encode_atomical_ids_hex(ft_output_blueprint)
+            raise AtomicalsValidationError(f'detected invalid ft token inputs and outputs for tx_hash={hash_to_hex_str(tx_hash)}, operations_found_at_inputs={operations_found_at_inputs}, atomicals_spent_at_inputs={encoded_atomicals_spent_at_inputs}, ft_output_blueprint={encoded_ft_output_blueprint}')
     
     # Query general data including the cache
     def get_general_data_with_cache(self, key):
@@ -681,17 +671,17 @@ class BlockProcessor:
         # Lookup the dmitem atomical to obtain the details of which container parent it is for
         found_atomical_mint_info_for_potential_dmitem = self.get_atomicals_id_mint_info(found_atomical_id_for_potential_dmitem, False)
         if not found_atomical_mint_info_for_potential_dmitem:
-            self.logger.info(f'get_expected_dmitem_payment_info: not found_atomical_mint_info_for_potential_dmitem {found_atomical_id_for_potential_dmitem}')
+            self.logger.info(f'get_expected_dmitem_payment_info: not found_atomical_mint_info_for_potential_dmitem {location_id_bytes_to_compact(found_atomical_id_for_potential_dmitem)}')
             return None, None, None
         # Found the mint information. Use the mint details to determine the parent realm id and name requested
         # Along with the price that was expected according to the mint reveal height
         args = found_atomical_mint_info_for_potential_dmitem.get('args')
         if not args:
-            self.logger.info(f'get_expected_dmitem_payment_info: not_args_found found_atomical_mint_info_for_potential_dmitem {found_atomical_id_for_potential_dmitem} ')
+            self.logger.info(f'get_expected_dmitem_payment_info: not_args_found found_atomical_mint_info_for_potential_dmitem {location_id_bytes_to_compact(found_atomical_id_for_potential_dmitem)} ')
             return None, None, None
         args_dmitem = args.get('request_dmitem')
         if not args_dmitem:
-            self.logger.info(f'get_expected_dmitem_payment_info: not_args_request_dmitem_found found_atomical_mint_info_for_potential_dmitem {found_atomical_id_for_potential_dmitem}')
+            self.logger.info(f'get_expected_dmitem_payment_info: not_args_request_dmitem_found found_atomical_mint_info_for_potential_dmitem {location_id_bytes_to_compact(found_atomical_id_for_potential_dmitem)}')
             return None, None, None
         request_dmitem = found_atomical_mint_info_for_potential_dmitem.get('$request_dmitem')
         # Check that $request_dmitem was set because it will only be set if the basic validation succeeded
@@ -703,7 +693,7 @@ class BlockProcessor:
         assert(args_dmitem == request_dmitem)
         # More sanity checks on the formats and validity
         if not isinstance(request_dmitem, str) or len(request_dmitem) == 0:
-            self.logger.info(f'get_expected_dmitem_payment_info: request_dmitem is not a str or is empty {found_atomical_id_for_potential_dmitem} request_dmitem={request_dmitem}')
+            self.logger.info(f'get_expected_dmitem_payment_info: request_dmitem is not a str or is empty {location_id_bytes_to_compact(found_atomical_id_for_potential_dmitem)} request_dmitem={request_dmitem}')
             return None, None, None
         # Validate that the current payment came in before MINT_SUBNAME_COMMIT_PAYMENT_DELAY_BLOCKS after the mint reveal of the atomical
         # This is done to ensure that payments must be made in a timely fashion or else someone else can claim the subrealm
@@ -719,12 +709,12 @@ class BlockProcessor:
         parent_container_id = compact_to_location_id_bytes(parent_container_id_compact)
         assert(request_parent_container_id_compact == parent_container_id_compact)
         if not isinstance(parent_container_id_compact, str) or not is_compact_atomical_id(parent_container_id_compact):
-            self.logger.info(f'get_expected_dmitem_payment_info: parent_container_id_compact not string or compact atomical id {found_atomical_id_for_potential_dmitem} parent_container_id_compact={parent_container_id_compact}')
+            self.logger.info(f'get_expected_dmitem_payment_info: parent_container_id_compact not string or compact atomical id {location_id_bytes_to_compact(found_atomical_id_for_potential_dmitem)} parent_container_id_compact={parent_container_id_compact}')
             return None, None, None
         # We have a validated potential parent id, now look it up to see if the parent is a valid atomical
         found_parent_mint_info = self.get_atomicals_id_mint_info_extended(parent_container_id)
         if not found_parent_mint_info:
-            self.logger.info(f'get_expected_dmitem_payment_info: not found_parent_mint_info found_atomical_id_for_potential_dmitem={found_atomical_id_for_potential_dmitem}')
+            self.logger.info(f'get_expected_dmitem_payment_info: not found_parent_mint_info found_atomical_id_for_potential_dmitem={location_id_bytes_to_compact(found_atomical_id_for_potential_dmitem)}')
             return None, None, None
         # We have found the parent atomical, which may or may not be a valid realm
         # Do the basic check for $request_realm which indicates it succeeded the basic validity checks
@@ -870,7 +860,8 @@ class BlockProcessor:
                 atomicals_data_list_cached.append({
                     'atomical_id': key,
                     'location_id': location_id,
-                    'data': value
+                    'data': value,
+                    'data_ex': expand_spend_utxo_data(value)
                 })
                 if live_run:
                     value_with_tombstone['found_in_cache'] = True
@@ -902,7 +893,8 @@ class BlockProcessor:
             atomicals_data_list.append({
                 'atomical_id': atomical_id,
                 'location_id': location_id,
-                'data': atomical_i_db_value
+                'data': atomical_i_db_value,
+                'data_ex': expand_spend_utxo_data(atomical_i_db_value)
             })
             
             # Return all of the atomicals spent at the address
@@ -921,14 +913,14 @@ class BlockProcessor:
         if state_map:
             cached_value = state_map.pop(db_key_suffix, None)
             if cached_value != expected_entry_value:
-                raise IndexerError(f'IndexerError: delete_state_data cache data does not match expected value {expected_entry_value} {db_value}')
+                raise IndexError(f'IndexerError: delete_state_data cache data does not match expected value {expected_entry_value} {db_value}')
             # return  intentionally fall through to catch in db just in case
 
         db_delete_key = db_key_prefix + db_key_suffix
         db_value = self.db.utxo_db.get(db_delete_key)
         if db_value:
             if db_value != expected_entry_value: 
-                raise IndexerError(f'IndexerError: delete_state_data db data does not match expected atomical id {expected_entry_value} {db_value}')
+                raise IndexError(f'IndexerError: delete_state_data db data does not match expected atomical id {expected_entry_value} {db_value}')
             self.delete_general_data(db_delete_key)
         return cached_value or db_value
 
@@ -1168,7 +1160,7 @@ class BlockProcessor:
             # Also check that there is no candidates already committed earlier than the current one
             status, atomical_id, candidates = self.get_effective_dmitem(parent_container_id, request_dmitem, height)
             if status and status == 'verified':
-                self.logger.warning(f'create_or_delete_dmitem_entry_if_requested: verified_already_exists, parent_container_id {parent_container_id}, request_dmitem={request_dmitem} ')
+                self.logger.warning(f'create_or_delete_dmitem_entry_if_requested: verified_already_exists, parent_container_id {location_id_bytes_to_compact(parent_container_id)}, request_dmitem={request_dmitem} ')
                 # Do not attempt to mint if there is one verified already
                 return False
             if Delete:
@@ -1326,7 +1318,7 @@ class BlockProcessor:
 
         # All mint types always look at only input 0 to determine if the operation was found
         # This is done to preclude complex scenarios of valid/invalid different mint types across inputs 
-        valid_create_op_type, mint_info = get_mint_info_op_factory(self.coin, tx, tx_hash, operations_found_at_inputs, atomicals_spent_at_inputs, self.logger)
+        valid_create_op_type, mint_info = get_mint_info_op_factory(self.coin, tx, tx_hash, operations_found_at_inputs, atomicals_spent_at_inputs, height, self.logger)
         if not valid_create_op_type or (valid_create_op_type != 'NFT' and valid_create_op_type != 'FT'):
             return None
 
@@ -1496,13 +1488,13 @@ class BlockProcessor:
     def put_or_delete_state_updates(self, operations_found_at_inputs, atomical_id, tx_num, tx_hash, output_idx_le, height, apply_type, Delete):
         if not operations_found_at_inputs:
             return 
+        
         op_name = 'mod'
         main_key_prefix = b'mod'
         if apply_type == 1:
             op_name = 'evt'
             main_key_prefix = b'evt'
-        put_general_data = self.general_data_cache.__setitem__
-        self.logger.debug(f'put_or_delete_state_updates: operations_found_at_inputs={operations_found_at_inputs}')
+        
         if operations_found_at_inputs and operations_found_at_inputs.get('op') == op_name and operations_found_at_inputs.get('input_index') == 0:
             self.logger.debug(f'put_or_delete_state_updates: op={op_name}, height={height}, atomical_id={atomical_id.hex()}, tx_hash={hash_to_hex_str(tx_hash)}')
             tx_numb = pack_le_uint64(tx_num)[:TXNUM_LEN]
@@ -1517,7 +1509,7 @@ class BlockProcessor:
     # apply the seal updates
     def put_or_delete_sealed(self, operations_found_at_inputs, atomical_id, location, Delete=False):
         # Useful for locking container collections, locking parent realms, and even locking any NFT atomical permanently
-        if operations_found_at_inputs and operations_found_at_inputs.get('op') == 'sl' and operations_found_at_inputs.get('input_index') == 0:
+        if is_seal_operation(operations_found_at_inputs):
             self.logger.info(f'put_or_delete_sealed: {atomical_id} at seal operation transaction {hash_to_hex_str(location)}')
             # Save the data so that we can recall later if an atomical was sealed to warn clients
             db_key = b'sealed' + atomical_id
@@ -1556,195 +1548,20 @@ class BlockProcessor:
                 0,
                 Delete
             )
-    def color_nft_atomicals_splat(self, nft_atomicals, tx_hash, tx, tx_num, atomical_ids_touched):
-        # Splat takes all of the NFT atomicals across all inputs (including multiple atomicals at the same utxo) 
-        # and then separates them into their own distinctive output such that the result of the operation is no two atomicals
-        # will share a resulting output. This operation requires that there are at least as many outputs as there are NFT atomicals
-        # If there are not enough, then this is considered a noop. 
-        # If there are enough outputs, then the earliest atomical (sorted lexicographically in ascending order) goes to the 0'th output,
-        # then the second atomical goes to the 1'st output, etc until all atomicals are assigned to their own output.
-        expected_output_index_incrementing = 0 # Begin assigning splatted atomicals at the 0'th index
-        output_colored_map = {}
-        for atomical_id, mint_info in sorted(nft_atomicals.items()):
-            expected_output_index = expected_output_index_incrementing
-            if expected_output_index_incrementing >= len(tx.outputs) or is_unspendable_genesis(tx.outputs[expected_output_index_incrementing].pk_script) or is_unspendable_legacy(tx.outputs[expected_output_index_incrementing].pk_script):
-                expected_output_index = 0
-            output_idx_le = pack_le_uint32(expected_output_index)
-            location = tx_hash + output_idx_le
-            txout = tx.outputs[expected_output_index]
-            scripthash = double_sha256(txout.pk_script)
-            hashX = self.coin.hashX_from_script(txout.pk_script)
-            value_sats = pack_le_uint64(txout.value)
-            put_general_data = self.general_data_cache.__setitem__
-            put_general_data(b'po' + location, txout.pk_script)
-            tx_numb = pack_le_uint64(tx_num)[:TXNUM_LEN]
-            self.put_atomicals_utxo(location, atomical_id, hashX + scripthash + value_sats + pack_le_uint16(0) + tx_numb)
-            atomical_ids_touched.append(atomical_id)
-            expected_output_index_incrementing += 1 
-            output_colored_map[atomical_id] = expected_output_index
-        return output_colored_map
-
-    def color_nft_atomicals_regular(self, operations_found_at_inputs, atomicals_spent_at_inputs, nft_atomicals, tx_hash, tx, tx_num, atomical_ids_touched, height):
-        put_general_data = self.general_data_cache.__setitem__
-        # Use a simplified mapping of NFTs using FIFO to the outputs 
-        output_colored_map = {}
-        if height >= self.coin.ATOMICALS_ACTIVATION_HEIGHT_DMINT:
-            nft_map = self.build_nft_input_idx_to_atomical_map(atomicals_spent_at_inputs)
-            next_output_idx = 0
-            map_output_idxs_for_atomicals = {}
-            for input_idx, atomicals_ids_map in nft_map.items():
-                found_atomical_at_input = False
-                for atomical_id, atomical_info in atomicals_ids_map.items():
-                    found_atomical_at_input = True 
-                    expected_output_index = next_output_idx
-                    if expected_output_index >= len(tx.outputs) or is_unspendable_genesis(tx.outputs[expected_output_index].pk_script) or is_unspendable_legacy(tx.outputs[expected_output_index].pk_script):
-                        expected_output_index = 0
-                    # Also keep them at the 0'th index if the split command was used
-                    if is_split_operation(operations_found_at_inputs):
-                        expected_output_index = 0      
-                    map_output_idxs_for_atomicals[expected_output_index] = map_output_idxs_for_atomicals.get(expected_output_index) or {}
-                    map_output_idxs_for_atomicals[expected_output_index][atomical_id] = atomical_info
-                if found_atomical_at_input:
-                    next_output_idx += 1
-            # We have now built the mapping for all the outputs to color
-            for output_idx, atomical_ids_map in map_output_idxs_for_atomicals.items():
-                output_idx_le = pack_le_uint32(output_idx)
-                location = tx_hash + output_idx_le
-                txout = tx.outputs[output_idx]
-                scripthash = double_sha256(txout.pk_script)
-                hashX = self.coin.hashX_from_script(txout.pk_script)
-                value_sats = pack_le_uint64(txout.value)
-                put_general_data(b'po' + location, txout.pk_script)
-                for atomical_id, atomical_info in atomical_ids_map.items():
-                    # Only allow state or event updates if it is not immutable
-                    if not atomical_info.get('$immutable', None):
-                        self.put_or_delete_state_updates(operations_found_at_inputs, atomical_id, tx_num, tx_hash, output_idx_le, height, 0, False)
-                        self.put_or_delete_state_updates(operations_found_at_inputs, atomical_id, tx_num, tx_hash, output_idx_le, height, 1, False)
-                    # Only allow NFTs to be sealed.
-                    # Useful for locking container collections, locking parent realms, and even locking any NFT atomical permanently
-                    was_sealed = self.put_or_delete_sealed(operations_found_at_inputs, atomical_id, location, False)
-                    if not was_sealed:
-                        # Only advance the UTXO if it was not sealed
-                        tx_numb = pack_le_uint64(tx_num)[:TXNUM_LEN]
-                        self.put_atomicals_utxo(location, atomical_id, hashX + scripthash + value_sats + pack_le_uint16(0) + tx_numb)
-                    atomical_ids_touched.append(atomical_id)
-                    output_colored_map[atomical_id] = output_idx
-            return output_colored_map
-        
-        # Assign NFTs the normal way (1:1 with inputs to outputs) if splat was not requested or if the splat is invalid because there were not enough outputs
-        output_colored_map = {}
-        for atomical_id, mint_info in nft_atomicals.items():
-            if len(mint_info['input_indexes']) > 1:
-                raise IndexError(f'atomical location len is greater than 1. Critical developer or index error. AtomicalId={atomical_id.hex()}')
-            # The expected output index is equal to the input index normally
-            expected_output_index = calculate_nft_output_index_legacy(mint_info['input_indexes'][0], tx, operations_found_at_inputs)
-            output_idx_le = pack_le_uint32(expected_output_index)
-            location = tx_hash + output_idx_le
-            txout = tx.outputs[expected_output_index]
-            scripthash = double_sha256(txout.pk_script)
-            hashX = self.coin.hashX_from_script(txout.pk_script)
-            value_sats = pack_le_uint64(txout.value)
-            put_general_data(b'po' + location, txout.pk_script)
-            # Only allow state or event updates if it is not immutable
-            if not mint_info.get('$immutable', None):
-                self.put_or_delete_state_updates(operations_found_at_inputs, mint_info['atomical_id'], tx_num, tx_hash, output_idx_le, height, 0, False)
-                self.put_or_delete_state_updates(operations_found_at_inputs, mint_info['atomical_id'], tx_num, tx_hash, output_idx_le, height, 1, False)
-            # Only allow NFTs to be sealed.
-            # Useful for locking container collections, locking parent realms, and even locking any NFT atomical permanently
-            was_sealed = self.put_or_delete_sealed(operations_found_at_inputs, mint_info['atomical_id'], location, False)
-            if not was_sealed:
-                # Only advance the UTXO if it was not sealed
-                tx_numb = pack_le_uint64(tx_num)[:TXNUM_LEN]
-                self.put_atomicals_utxo(location, atomical_id, hashX + scripthash + value_sats +pack_le_uint16(0) +  tx_numb)
-            atomical_ids_touched.append(atomical_id)
-            output_colored_map[atomical_id] = expected_output_index
-        return output_colored_map
-    def color_ft_atomicals_split(self, ft_atomicals, tx_hash, tx, tx_num, operations_found_at_inputs, atomical_ids_touched, live_run):
-        cleanly_assigned = True
-        for atomical_id, mint_info in sorted(ft_atomicals.items()):
-            expected_output_indexes = []
-            remaining_value = mint_info['value']
-            # The FT type has the 'split' (y) method which allows us to selectively split (skip) a certain total number of token units (satoshis)
-            # before beginning to color the outputs.
-            # Essentially this makes it possible to "split" out multiple FT's located at the same input
-            # If the input at index 0 has the split operation, then it will apply for the atomical token generally across all inputs and the first output will be skipped
-            total_amount_to_skip = 0
-            # Uses the compact form of atomical id as the keys for developer convenience
-            compact_atomical_id = location_id_bytes_to_compact(atomical_id)
-            total_amount_to_skip_potential = operations_found_at_inputs.get('payload').get(compact_atomical_id)
-            # Sanity check to ensure it is a non-negative integer
-            if isinstance(total_amount_to_skip_potential, int) and total_amount_to_skip_potential >= 0:
-                total_amount_to_skip = total_amount_to_skip_potential
-            total_skipped_so_far = 0
-            for out_idx, txout in enumerate(tx.outputs): 
-                # If the first output should be skipped and we have not yet done so, then skip/ignore it
-                if total_amount_to_skip > 0 and total_skipped_so_far < total_amount_to_skip:
-                    total_skipped_so_far += txout.value 
-                    continue 
-                # For all remaining outputs attach colors as long as there is adequate remaining_value left to cover the entire output value
-                if txout.value <= remaining_value:
-                    expected_output_indexes.append(out_idx)
-                    remaining_value -= txout.value
-                    # We are done assigning all remaining values
-                    if remaining_value == 0:
-                        break
-                # Exit case when we have no more remaining_value to assign or the next output is greater than what we have in remaining_value
-                if txout.value > remaining_value or remaining_value < 0:
-                    cleanly_assigned = False # Used to indicate that all was cleanly assigned
-                    break
-            # Used to indicate that all was cleanly assigned
-            if remaining_value != 0:
-                cleanly_assigned = False
-            # For each expected output to be colored, check for state-like updates
-            for expected_output_index in expected_output_indexes:
-                # only perform the db updates if it is a live run
-                if live_run:
-                    self.build_put_atomicals_utxo(atomical_id, tx_hash, tx, tx_num, expected_output_index)
-            atomical_ids_touched.append(atomical_id)
-        return cleanly_assigned
-  
-    def color_ft_atomicals_regular_perform(self, ft_atomicals, tx_hash, tx, tx_num, operations_found_at_inputs, atomical_ids_touched, height, live_run, sort_fifo):
-        self.logger.debug(f'color_ft_atomicals_regular_perform tx_hash={hash_to_hex_str(tx_hash)} start check')
-        atomical_id_to_expected_outs_map, cleanly_assigned, atomicals_list_result = calculate_outputs_to_color_for_ft_atomical_ids(ft_atomicals, tx_hash, tx, sort_fifo)
-        if not atomical_id_to_expected_outs_map:
-            return None
-        self.logger.debug(f'color_ft_atomicals_regular_perform tx_hash={hash_to_hex_str(tx_hash)} return ft_atomicals={ft_atomicals} atomical_id_to_expected_outs_map={atomical_id_to_expected_outs_map}')
-        sanity_check_sums = {}
-        for atomical_id, outputs_to_color in atomical_id_to_expected_outs_map.items():
-            sanity_check_sums[atomical_id] = 0
-            for expected_output_index in outputs_to_color:
-                # only perform the db updates if it is a live run
-                if live_run:
-                    self.build_put_atomicals_utxo(atomical_id, tx_hash, tx, tx_num, expected_output_index)
-                sanity_check_sums[atomical_id] += tx.outputs[expected_output_index].value
-            atomical_ids_touched.append(atomical_id)
-        # Sanity check that there can be no inflation
-        for atomical_id, ft_info in sorted(ft_atomicals.items()):
-            sum_out_value = sanity_check_sums.get(atomical_id)
-            input_value = ft_info['value']
-            if sum_out_value and sum_out_value > input_value:
-                atomical_id_compact = location_id_bytes_to_compact(atomical_id)
-                self.logger.debug(f'color_ft_atomicals_regular_perform ERROR_SUM tx_hash={hash_to_hex_str(tx_hash)} atomical_id={atomical_id_compact} input_value={input_value} sum_out_value={sum_out_value} {hash_to_hex_str(tx_hash)} ft_info={ft_info} atomical_id_to_expected_outs_map={atomical_id_to_expected_outs_map}')
-                raise IndexError(f'Fatal error the output sum of outputs is greater than input sum for Atomical: atomical_id={atomical_id_compact} input_value={input_value} sum_out_value={sum_out_value} {hash_to_hex_str(tx_hash)}')
-
+    
+    def put_or_delete_event_updates_if_found(self, operations_found_at_inputs, atomical_id, tx_num, tx_hash, tx, height):
         # If there was an event, then save it for the first FT only
-        if operations_found_at_inputs and operations_found_at_inputs.get('op') == 'evt' and operations_found_at_inputs.get('input_index') == 0 and atomicals_list_result and len(atomicals_list_result) > 0 and live_run:
+        if is_event_operation(operations_found_at_inputs):
             # Only allow an event to be posted to the first FT in the list, sorted
-            atomical_id_of_first_ft = atomicals_list_result[0]['atomical_id']
             output_idx_le = pack_le_uint32(0) # Always save to 0th location
             location = tx_hash + output_idx_le
             txout = tx.outputs[0]
             scripthash = double_sha256(txout.pk_script)
             hashX = self.coin.hashX_from_script(txout.pk_script)
             value_sats = pack_le_uint64(txout.value)
-            self.put_or_delete_state_updates(operations_found_at_inputs, atomical_id_of_first_ft, tx_num, tx_hash, output_idx_le, height, 1, False)
+            self.put_or_delete_state_updates(operations_found_at_inputs, atomical_id, tx_num, tx_hash, output_idx_le, height, 1, False)
 
-        return cleanly_assigned 
-
-    def color_ft_atomicals_regular(self, ft_atomicals, tx_hash, tx, tx_num, operations_found_at_inputs, atomical_ids_touched, height, live_run):
-        return self.color_ft_atomicals_regular_perform(ft_atomicals, tx_hash, tx, tx_num, operations_found_at_inputs, atomical_ids_touched, height, live_run, self.is_dmint_activated(height))
-
-    def build_put_atomicals_utxo(self, atomical_id, tx_hash, tx, tx_num, out_idx):
+    def build_put_atomicals_utxo(self, atomical_id, tx_hash, tx, tx_num, out_idx, exponent):
         output_idx_le = pack_le_uint32(out_idx)
         location = tx_hash + output_idx_le
         txout = tx.outputs[out_idx]
@@ -1754,88 +1571,64 @@ class BlockProcessor:
         put_general_data = self.general_data_cache.__setitem__
         put_general_data(b'po' + location, txout.pk_script)
         tx_numb = pack_le_uint64(tx_num)[:TXNUM_LEN]
-        self.put_atomicals_utxo(location, atomical_id, hashX + scripthash + value_sats + pack_le_uint16(0) + tx_numb)
+        self.put_atomicals_utxo(location, atomical_id, hashX + scripthash + value_sats + pack_le_uint16(exponent) + tx_numb)
     
-    # Build a map of atomical id to the type, value, and input indexes
-    # This information is used below to assess which inputs are of which type and therefore which outputs to color
-    def build_atomical_id_info_map(self, map_atomical_ids_to_info, atomicals_entry_list, txin_index):
-        for atomicals_entry in atomicals_entry_list:
-            atomical_id = atomicals_entry['atomical_id']
-            value, = unpack_le_uint64(atomicals_entry['data'][HASHX_LEN + SCRIPTHASH_LEN : HASHX_LEN + SCRIPTHASH_LEN + 8])
-            exponent, = unpack_le_uint16_from(atomicals_entry['data'][HASHX_LEN + SCRIPTHASH_LEN + 8: HASHX_LEN + SCRIPTHASH_LEN + 8 + 2])
-            atomical_mint_info = self.get_atomicals_id_mint_info(atomical_id, True)
-            if not atomical_mint_info: 
-                raise IndexError(f'build_atomical_id_info_map {atomical_id.hex()} not found in mint info. IndexError.')
-            if map_atomical_ids_to_info.get(atomical_id, None) == None:
-                map_atomical_ids_to_info[atomical_id] = {
-                    'atomical_id': atomical_id,
-                    'type': atomical_mint_info['type'],
-                    'value': 0,
-                    'input_indexes': []
-                }
-            map_atomical_ids_to_info[atomical_id]['value'] += value
-            map_atomical_ids_to_info[atomical_id]['input_indexes'].append(txin_index)
-        return map_atomical_ids_to_info
-    
-    # Maps all the inputs that contain NFTs
-    def build_nft_input_idx_to_atomical_map(self, atomicals_spent_at_inputs):
-        input_idx_to_atomical_ids_map = {}
-        for txin_index, atomicals_entry_list in atomicals_spent_at_inputs.items():
-            for atomicals_entry in atomicals_entry_list:
-                atomical_id = atomicals_entry['atomical_id']
-                value, = unpack_le_uint64(atomicals_entry['data'][HASHX_LEN + SCRIPTHASH_LEN : HASHX_LEN + SCRIPTHASH_LEN + 8])
-                atomical_mint_info = self.get_atomicals_id_mint_info(atomical_id, True)
-                if not atomical_mint_info: 
-                    raise IndexError(f'build_atomical_id_info_map {atomical_id.hex()} not found in mint info. IndexError.')
-                if atomical_mint_info['type'] != 'NFT':
+    def put_nft_outputs_by_blueprint(self, nft_blueprint, operations_found_at_inputs, tx_hash, tx, tx_num, height):
+        put_general_data = self.general_data_cache.__setitem__
+        self.logger.debug(f'nft_blueprint={nft_blueprint}')
+        for output_idx, value_info in nft_blueprint.outputs.items():
+            output_idx_le = pack_le_uint32(output_idx)
+            location = tx_hash + output_idx_le
+            txout = tx.outputs[output_idx]
+            scripthash = double_sha256(txout.pk_script)
+            hashX = self.coin.hashX_from_script(txout.pk_script)
+            value_sats = pack_le_uint64(txout.value)
+            put_general_data(b'po' + location, txout.pk_script)
+            for atomical_id, atomical_info in value_info['atomicals'].items():
+                # Only allow state or event updates if it is not immutable
+                if not atomical_info.mint_info.get('$immutable', None):
+                    self.put_or_delete_state_updates(operations_found_at_inputs, atomical_id, tx_num, tx_hash, output_idx_le, height, 0, False)
+                    self.put_or_delete_state_updates(operations_found_at_inputs, atomical_id, tx_num, tx_hash, output_idx_le, height, 1, False)
+                # Only allow NFTs to be sealed.
+                # Useful for locking container collections, locking parent realms, and even locking any NFT atomical permanently
+                was_sealed = self.put_or_delete_sealed(operations_found_at_inputs, atomical_id, location, False)
+                if was_sealed:
                     continue
-                input_idx_to_atomical_ids_map[txin_index] = input_idx_to_atomical_ids_map.get(txin_index) or {}
-                input_idx_to_atomical_ids_map[txin_index][atomical_id] = atomical_mint_info
-        return input_idx_to_atomical_ids_map
+                # Only advance the UTXO if it was not sealed
+                tx_numb = pack_le_uint64(tx_num)[:TXNUM_LEN]
+                self.put_atomicals_utxo(location, atomical_id, hashX + scripthash + value_sats + pack_le_uint16(0) + tx_numb)
+    
+    def put_ft_outputs_by_blueprint(self, ft_blueprint, operations_found_at_inputs, tx_hash, tx, tx_num, height):
+        for output_idx, value_info in ft_blueprint.outputs.items():
+            for atomical_id, atomical_transfer_info in value_info['atomicals'].items():
+                exponent = atomical_transfer_info.exponent
+                self.logger.debug(f'atomical_transfer_info={atomical_transfer_info}')
+                self.build_put_atomicals_utxo(atomical_id, tx_hash, tx, tx_num, output_idx, exponent)
+            # Only allow an event to be posted to the first FT in the list, sorted
+            if ft_blueprint.first_atomical_id:
+                self.put_or_delete_event_updates_if_found(operations_found_at_inputs, ft_blueprint.first_atomical_id, tx_num, tx_hash, tx, height)
 
-    def build_atomical_type_structs(self, atomicals_spent_at_inputs):
-        map_atomical_ids_to_info = {}
-        for txin_index, atomicals_entry_list in atomicals_spent_at_inputs.items():
-            # Accumulate the total input value by atomical_id
-            # The value will be used below to determine the amount of input we can allocate for FT's
-            self.build_atomical_id_info_map(map_atomical_ids_to_info, atomicals_entry_list, txin_index)
-        # Group the atomicals by NFT and FT for easier handling
-        # Also store them in a dict 
-        nft_atomicals = {}
-        ft_atomicals = {}
-        for atomical_id, mint_info in map_atomical_ids_to_info.items(): 
-            if mint_info['type'] == 'NFT':
-                nft_atomicals[atomical_id] = mint_info
-            elif mint_info['type'] == 'FT':
-                ft_atomicals[atomical_id] = mint_info
-            else:
-                raise IndexError(f'color_atomicals_outputs: Invalid type. IndexError')
-        return nft_atomicals, ft_atomicals 
-          
     # Apply the rules to color the outputs of the atomicals
-    def color_atomicals_outputs(self, operations_found_at_inputs, atomicals_spent_at_inputs, tx, tx_hash, tx_num, height, is_unspendable):
-        atomical_ids_touched = []
-        # Identify NFT versus FTs
-        nft_atomicals, ft_atomicals =  self.build_atomical_type_structs(atomicals_spent_at_inputs)
+    def color_atomicals_outputs(self, operations_found_at_inputs, atomicals_spent_at_inputs, tx, tx_hash, tx_num, height):
+        # Build the "blueprint" for how to assign all atomicals
+        blueprint_builder = AtomicalsTransferBlueprintBuilder(self.logger, atomicals_spent_at_inputs, operations_found_at_inputs, tx_hash, tx, self.get_atomicals_id_mint_info, self.is_dmint_activated(height))
         
-        # Process the NFTs
-        should_splat_nft_atomicals = operations_found_at_inputs and operations_found_at_inputs['op'] == 'x' and operations_found_at_inputs['input_index'] == 0
-        if should_splat_nft_atomicals and len(nft_atomicals.keys()) > 0:
-            self.color_nft_atomicals_splat(nft_atomicals, tx_hash, tx, tx_num, atomical_ids_touched)  
-        else:
-            self.color_nft_atomicals_regular(operations_found_at_inputs, atomicals_spent_at_inputs, nft_atomicals, tx_hash, tx, tx_num, atomical_ids_touched, height)  
-        
-        # Process the FTs
-        if len(ft_atomicals) > 0:
-            should_split_ft_atomicals = is_split_operation(operations_found_at_inputs)
-            if should_split_ft_atomicals:
-                if not self.color_ft_atomicals_split(ft_atomicals, tx_hash, tx, tx_num, operations_found_at_inputs, atomical_ids_touched, True):
-                    self.logger.warning(f'ft_burned_split @ tx_hash={hash_to_hex_str(tx_hash)}')
-            else:
-                if not self.color_ft_atomicals_regular(ft_atomicals, tx_hash, tx, tx_num, operations_found_at_inputs, atomical_ids_touched, height, True):
-                    self.logger.warning(f'ft_burned @ tx_hash={hash_to_hex_str(tx_hash)}')
-        return atomical_ids_touched
+        nft_output_blueprint = blueprint_builder.get_nft_output_blueprint()
+        if nft_output_blueprint and len(nft_output_blueprint.outputs):
+            self.logger.debug(f'color_atomicals_outputs nft_output_blueprint={nft_output_blueprint}')
+            self.put_nft_outputs_by_blueprint(nft_output_blueprint, operations_found_at_inputs, tx_hash, tx, tx_num, height)
 
+        ft_output_blueprint = blueprint_builder.get_ft_output_blueprint()
+        if ft_output_blueprint and len(ft_output_blueprint.outputs):
+            self.logger.debug(f'color_atomicals_outputs ft_output_blueprint={ft_output_blueprint}')
+            self.put_ft_outputs_by_blueprint(ft_output_blueprint, operations_found_at_inputs, tx_hash, tx, tx_num, height)
+        
+        # Log that there were tokens burned due to not being cleanly assigned
+        if blueprint_builder.get_are_fts_burned():
+            self.logger.debug(f'color_atomicals_outputs:are_fts_burned=True tx_hash={tx_hash} ft_output_blueprint={ft_output_blueprint}')
+
+        return blueprint_builder
+    
     # Create or delete data that was found at the location
     def create_or_delete_data_location(self, tx_hash, operations_found_at_inputs, Delete=False):
         if not operations_found_at_inputs or operations_found_at_inputs['op'] != 'dat':
@@ -2026,7 +1819,7 @@ class BlockProcessor:
             atomical_id = entry['value']
             mint_info = self.get_atomicals_id_mint_info(atomical_id, False)
             # Sanity check to make sure it matches
-            self.logger.info(f'get_effective_dmitem dmitem_name={dmitem_name} atomical_id={location_id_bytes_to_compact(atomical_id)} parent_container_id={location_id_bytes_to_compact(parent_container_id)} entry={entry}')
+            self.logger.debug(f'get_effective_dmitem dmitem_name={dmitem_name} atomical_id={location_id_bytes_to_compact(atomical_id)} parent_container_id={location_id_bytes_to_compact(parent_container_id)} entry={entry}')
             assert(mint_info['commit_tx_num'] == entry['tx_num'])
             # Get any payments (correct and valid or even premature, just get them all for now)
             payment_entry = self.get_earliest_dmitem_payment(atomical_id)
@@ -2748,7 +2541,7 @@ class BlockProcessor:
         if height >= self.coin.ATOMICALS_ACTIVATION_HEIGHT_DMINT:
             return True 
         return False 
-
+ 
     # Builds a map of the atomicals spent at a tx
     # It uses the spend_atomicals_utxo method but with live_run == False
     def build_atomicals_spent_at_inputs_for_validation_only(self, tx):
@@ -2881,8 +2674,8 @@ class BlockProcessor:
                     self.logger.debug(f'advance_txs: atomicals_operations_found_at_inputs operation_found={operation_found}, operation_input_index={operation_input_index}, size_payload={size_payload}, tx_hash={hash_to_hex_str(tx_hash)}, commit_txid={hash_to_hex_str(commit_txid)}, commit_index={commit_index}, reveal_location_txid={hash_to_hex_str(reveal_location_txid)}, reveal_location_index={reveal_location_index}')
                 
                 # Color the outputs of any transferred NFT/FT atomicals according to the rules
-                atomical_ids_transferred = self.color_atomicals_outputs(atomicals_operations_found_at_inputs, atomicals_spent_at_inputs, tx, tx_hash, tx_num, height, is_unspendable)
-                for atomical_id in atomical_ids_transferred:
+                blueprint_builder = self.color_atomicals_outputs(atomicals_operations_found_at_inputs, atomicals_spent_at_inputs, tx, tx_hash, tx_num, height)
+                for atomical_id in blueprint_builder.get_atomical_ids_spent():
                     has_at_least_one_valid_atomicals_operation = True
                     self.logger.debug(f'advance_txs: color_atomicals_outputs atomical_ids_transferred. atomical_id={atomical_id.hex()}, tx_hash={hash_to_hex_str(tx_hash)}')
                     # Double hash the atomical_id to add it to the history to leverage the existing history db for all operations involving the atomical
@@ -2925,13 +2718,13 @@ class BlockProcessor:
                 # in one and the same tx as making a payment. It's not advisable to do so, but it's a valid possibility
 
                 # Check if there were any payments for subrealms in tx
-                if self.create_or_delete_subrealm_payment_output_if_valid(tx_hash, tx, tx_num, height, atomicals_operations_found_at_inputs, atomicals_spent_at_inputs):
-                    self.logger.debug(f'advance_txs: found valid payment create_or_delete_subrealm_payment_output_if_valid {hash_to_hex_str(tx_hash)}')
+                if self.create_or_delete_subname_payment_output_if_valid(tx_hash, tx, tx_num, height, atomicals_operations_found_at_inputs, atomicals_spent_at_inputs, self.subrealm_data_cache, self.get_expected_subrealm_payment_info, False):
+                    self.logger.debug(f'advance_txs: found valid subrealm payment create_or_delete_subname_payment_output_if_valid {hash_to_hex_str(tx_hash)}')
                     has_at_least_one_valid_atomicals_operation = True
 
                 # Check if there were any payments for dmitems in tx
-                if self.create_or_delete_dmitem_payment_output_if_valid(tx_hash, tx, tx_num, height, atomicals_operations_found_at_inputs, atomicals_spent_at_inputs):
-                    self.logger.debug(f'advance_txs: found valid payment create_or_delete_dmitem_payment_output_if_valid {hash_to_hex_str(tx_hash)}')
+                if self.create_or_delete_subname_payment_output_if_valid(tx_hash, tx, tx_num, height, atomicals_operations_found_at_inputs, atomicals_spent_at_inputs, self.dmitem_data_cache, self.get_expected_dmitem_payment_info, False):
+                    self.logger.debug(f'advance_txs: found valid dmitem payment create_or_delete_subname_payment_output_if_valid {hash_to_hex_str(tx_hash)}')
                     has_at_least_one_valid_atomicals_operation = True
 
                 # Create a proof of work record if there was valid proof of work attached
@@ -2981,197 +2774,48 @@ class BlockProcessor:
             if decentralized_mints > max_mints:
                 raise IndexError(f'validate_no_dft_inflation - inflation_bug_found: atomical_id_of_dft_ticker={location_id_bytes_to_compact(atomical_id_of_dft_ticker)} decentralized_mints={decentralized_mints} max_mints={max_mints}')
     
-    # Check for for output markers for a payment for a subrealm
-    # Same function is used for creating and rollback. Set Delete=True for rollback operation
-    def create_or_delete_subrealm_payment_output_if_valid(self, tx_hash, tx, tx_num, height, operations_found_at_inputs, atomicals_spent_at_inputs, Delete=False):
-        # Do not allow payments to be made when the split command is used because it allows reassignment of outputs
-        if is_split_operation(operations_found_at_inputs):
-            self.logger.warning(f'create_or_delete_subrealm_payment_output_if_valid: invalid payment split op found tx_hash={hash_to_hex_str(tx_hash)}')
+    def create_or_delete_subname_payment_output_if_valid(self, tx_hash, tx, tx_num, height, operations_found_at_inputs, atomicals_spent_at_inputs, subname_data_cache, get_expected_subname_payment_info, Delete=False):
+
+        atomical_id_for_payment, payment_marker_idx = AtomicalsTransferBlueprintBuilder.get_atomical_id_for_payment_marker_if_found(tx)
+        if not atomical_id_for_payment:
             return None 
-
-        # Add the new UTXOs
-        found_atomical_id_for_potential_subrealm = None
-        for idx, txout in enumerate(tx.outputs):
-            found_atomical_id_for_potential_subrealm = is_op_return_subrealm_payment_marker_atomical_id(txout.pk_script)
-            if found_atomical_id_for_potential_subrealm:
-                self.logger.debug(f'create_or_delete_subrealm_payment_output_if_valid: found_atomical_id_for_potential_subrealm tx_hash={hash_to_hex_str(tx_hash)}, {location_id_bytes_to_compact(found_atomical_id_for_potential_subrealm)}')
-                break
-        # Payment atomical id marker was found
-        if found_atomical_id_for_potential_subrealm:
-            self.logger.debug(f'create_or_delete_subrealm_payment_output_if_valid. tx_hash={hash_to_hex_str(tx_hash)}, found_atomical_id_for_potential_subrealm {location_id_bytes_to_compact(found_atomical_id_for_potential_subrealm)}')
-            # Get the details such as expected payment amount/output and which parent realm it belongs to
-            matched_price_point, parent_realm_id, request_subrealm_name = self.get_expected_subrealm_payment_info(found_atomical_id_for_potential_subrealm, height)
-            # An expected payment amount might not be set if there is no valid subrealm minting rules, or something invalid was found
-            if not matched_price_point:
-                self.logger.warning(f'create_or_delete_subrealm_payment_output_if_valid: {hash_to_hex_str(tx_hash)} NOT MATCHED PRICE - create_or_delete_subrealm_payment_output_if_valid found_atomical_id_for_potential_subrealm {location_id_bytes_to_compact(found_atomical_id_for_potential_subrealm)}')
-                return None
-            expected_payment_outputs = matched_price_point['matched_rule'].get('o')
-            if not isinstance(expected_payment_outputs, dict) or len(expected_payment_outputs.keys()) < 1:
-                return None
-            
-            # Each of the elements in the expected script output map must be satisfied for it to be a valid payment
-            nft_atomicals, ft_atomicals = self.build_atomical_type_structs(atomicals_spent_at_inputs)
-            atomical_id_to_output_index_map, ignore, atomicals_list_result = calculate_outputs_to_color_for_ft_atomical_ids(ft_atomicals, tx_hash, tx, self.is_dmint_activated(height))
-            output_idx_to_atomical_id_map = build_reverse_output_to_atomical_id_map(atomical_id_to_output_index_map)
-            expected_output_keys_satisfied = {}
-            for output_script_key, output_script_details in expected_payment_outputs.items():
-                if not output_script_details.get('id', None):
-                    expected_output_keys_satisfied[output_script_key] = False
-                else: 
-                    atomical_id_expected_color_long_from = compact_to_location_id_bytes(output_script_details.get('id'))
-                    expected_output_keys_satisfied[output_script_key + atomical_id_expected_color_long_from.hex()] = False
-            expected_payment_regex = matched_price_point['matched_rule']['p']
-            # Sanity check that request_subrealm_name matches the regex
-            # intentionally assume regex pattern is valid and name matches because the logic path should have already been checked
-            # Any exception here indicates a developer error and the service will intentionally crash
-            # Compile the regular expression
-            if '(' in expected_payment_regex or ')' in expected_payment_regex:
-                self.logger.warning(f'create_or_delete_subrealm_payment_output_if_valid invalid matched regex rule with parens. Fail {expected_payment_regex}')
-                return None
-
-            valid_pattern = re.compile(rf"{expected_payment_regex}")
-            if not valid_pattern.match(request_subrealm_name):
-                raise IndexError(f'valid pattern failed to match request_subrealm_name. DeveloperError {request_subrealm_name} {expected_payment_regex}')
-            # Valid subrealm minting rules were found, scan all the outputs to check for a match
-            for idx, txout in enumerate(tx.outputs):
-                # Found the required payment amount and script
-                output_script_hex = txout.pk_script.hex()
-                expected_output_payment_value_dict = expected_payment_outputs.get(output_script_hex, None)
-                if not expected_output_payment_value_dict or not isinstance(expected_output_payment_value_dict, dict):
-                    continue
-                expected_output_payment_value = expected_output_payment_value_dict.get('v', None)
-                if not expected_output_payment_value or expected_output_payment_value < SUBNAME_MIN_PAYMENT_DUST_LIMIT:
-                    continue 
-                if txout.value >= expected_output_payment_value:
-                    self.logger.debug(f'create_or_delete_subrealm_payment_output_if_valid gt_expected_output_payment_value')
-                    expected_output_payment_id_type = expected_output_payment_value_dict.get('id', None)
-                    # If there was a required color for the payment, then check it here
-                    if expected_output_payment_id_type:
-                        self.logger.debug(f'create_or_delete_subrealm_payment_output_if_valid expected_output_payment_id_type={expected_output_payment_id_type}')
-                        expected_output_payment_id_type_long_form = compact_to_location_id_bytes(expected_output_payment_id_type)
-                        # Check in the reverse map if the current output idx is colored with the expected color
-                        if output_idx_to_atomical_id_map.get(idx, None) and output_idx_to_atomical_id_map[idx].get(expected_output_payment_id_type_long_form, None):
-                            self.logger.debug(f'create_or_delete_subrealm_payment_output_if_valid found_type_id_payment expected_output_payment_id_type={expected_output_payment_id_type}')
-                            expected_output_keys_satisfied[output_script_hex + expected_output_payment_id_type_long_form.hex()] = True # Mark that the output was matched at least once
-                    else: 
-                        self.logger.debug(f'create_or_delete_subrealm_payment_output_if_valid no_type_id_needed')
-                        # Normal satoshis payment
-                        expected_output_keys_satisfied[output_script_hex] = True # Mark that the output was matched at least once
-
-            is_all_outputs_matched = True
-            for expected_output_script, satisfied in expected_output_keys_satisfied.items():
-                if not satisfied:
-                    is_all_outputs_matched = False
-                    self.logger.warning(f'create_or_delete_subrealm_payment_output_if_valid is_all_outputs_matched_not_satisfied={expected_output_keys_satisfied}')
-                    break
-            if is_all_outputs_matched:
-                # Delete or create the record based on whether we are reorg rollback or creating new
-                payment_outpoint = tx_hash + pack_le_uint32(idx)
-                not_initated_by_parent = b'00' # Used to indicate it was minted according to subrealm mint rules
-                if Delete:
-                    self.delete_pay_record(found_atomical_id_for_potential_subrealm, tx_num, payment_outpoint + not_initated_by_parent, b'spay', self.subrealmpay_data_cache)
-                else:
-                    self.put_pay_record(found_atomical_id_for_potential_subrealm, tx_num, payment_outpoint + not_initated_by_parent, b'spay', self.subrealmpay_data_cache)
-                return tx_hash 
-        return None 
-
-    # Same function is used for creating and rollback. Set Delete=True for rollback operation
-    def create_or_delete_dmitem_payment_output_if_valid(self, tx_hash, tx, tx_num, height, operations_found_at_inputs, atomicals_spent_at_inputs, Delete=False):
-        # Do not allow payments to be made when the split command is used because it allows reassignment of outputs
-        if is_split_operation(operations_found_at_inputs):
-            self.logger.debug(f'create_or_delete_dmitem_payment_output_if_valid: invalid payment split op found tx_hash={hash_to_hex_str(tx_hash)}')
+        
+        # Rebuild the blueprint builder here
+        blueprint_builder = AtomicalsTransferBlueprintBuilder(self.logger, atomicals_spent_at_inputs, operations_found_at_inputs, tx_hash, tx, self.get_atomicals_id_mint_info, self.is_dmint_activated(height))
+        if blueprint_builder.is_split_operation():
+            self.logger.warning(f'create_or_delete_subname_payment_output_if_valid: invalid payment split op found tx_hash={hash_to_hex_str(tx_hash)}')
             return None 
-
-        # Add the new UTXOs
-        found_atomical_id_for_potential_dmitem = None
-        for idx, txout in enumerate(tx.outputs):
-            found_atomical_id_for_potential_dmitem = is_op_return_dmitem_payment_marker_atomical_id(txout.pk_script)
-            if found_atomical_id_for_potential_dmitem:
-                self.logger.debug(f'create_or_delete_dmitem_payment_output_if_valid: found_atomical_id_for_potential_dmitem tx_hash={hash_to_hex_str(tx_hash)}, {location_id_bytes_to_compact(found_atomical_id_for_potential_dmitem)}')
-                break
-        # Payment atomical id marker was found
-        if found_atomical_id_for_potential_dmitem:
-            self.logger.debug(f'create_or_delete_dmitem_payment_output_if_valid. tx_hash={hash_to_hex_str(tx_hash)}, found_atomical_id_for_potential_dmitem {location_id_bytes_to_compact(found_atomical_id_for_potential_dmitem)}')
-            # Get the details such as expected payment amount/output and which parent realm it belongs to
-            matched_price_point, parent_realm_id, request_dmitem_name = self.get_expected_dmitem_payment_info(found_atomical_id_for_potential_dmitem, height)
-            # An expected payment amount might not be set if there is no valid dmitem minting rules, or something invalid was found
-            if not matched_price_point:
-                self.logger.warning(f'create_or_delete_dmitem_payment_output_if_valid: {hash_to_hex_str(tx_hash)} NOT MATCHED PRICE - create_or_delete_dmitem_payment_output_if_valid found_atomical_id_for_potential_dmitem {location_id_bytes_to_compact(found_atomical_id_for_potential_dmitem)}')
-                return None
-            expected_payment_outputs = matched_price_point['matched_rule'].get('o')
-            if not isinstance(expected_payment_outputs, dict) or len(expected_payment_outputs.keys()) < 1:
-                return None
-            # Each of the elements in the expected script output map must be satisfied for it to be a valid payment
-            nft_atomicals, ft_atomicals = self.build_atomical_type_structs(atomicals_spent_at_inputs)
-            # Map the ARC20 fungible tokens first
-            atomical_id_to_output_index_map, ignore, atomicals_list_result = calculate_outputs_to_color_for_ft_atomical_ids(ft_atomicals, tx_hash, tx, self.is_dmint_activated(height))
-            output_idx_to_atomical_id_map = build_reverse_output_to_atomical_id_map(atomical_id_to_output_index_map)
-            # Future enhancement is to allow minting by NFT and or holding a realm/subrealm, or glob patterns like txid
-            expected_output_keys_satisfied = {}
-            for output_script_key, output_script_details in expected_payment_outputs.items():
-                if not output_script_details.get('id', None):
-                    expected_output_keys_satisfied[output_script_key] = False
-                else: 
-                    atomical_id_expected_color_long_from = compact_to_location_id_bytes(output_script_details.get('id'))
-                    expected_output_keys_satisfied[output_script_key + atomical_id_expected_color_long_from.hex()] = False
-            expected_payment_regex = matched_price_point['matched_rule']['p']
-            # Sanity check that request_dmitem matches the regex
-            # intentionally assume regex pattern is valid and name matches because the logic path should have already been checked
-            # Any exception here indicates a developer error and the service will intentionally crash
-            # Compile the regular expression
-            if '(' in expected_payment_regex or ')' in expected_payment_regex:
-                self.logger.warning(f'create_or_delete_dmitem_payment_output_if_valid invalid matched regex rule with parens. Fail {expected_payment_regex}')
-                return None
-
-            valid_pattern = re.compile(rf"{expected_payment_regex}")
-            if not valid_pattern.match(request_dmitem_name):
-                raise IndexError(f'valid pattern failed to match request_dmitem_name. DeveloperError {request_dmitem_name} {expected_payment_regex}')
-            # Valid dm item minting rules were found, scan all the outputs to check for a match
-            for idx, txout in enumerate(tx.outputs):
-                # Found the required payment amount and script
-                output_script_hex = txout.pk_script.hex()
-                expected_output_payment_value_dict = expected_payment_outputs.get(output_script_hex, None)
-                if not expected_output_payment_value_dict or not isinstance(expected_output_payment_value_dict, dict):
-                    self.logger.debug(f'create_or_delete_dmitem_payment_output_if_valid expected_output_payment_value_dict not dicttype expected_output_payment_value_dict={expected_output_payment_value_dict}')
-                    continue
-                expected_output_payment_value = expected_output_payment_value_dict.get('v', None)
-                if not expected_output_payment_value or expected_output_payment_value < SUBNAME_MIN_PAYMENT_DUST_LIMIT:
-                    self.logger.warning(f'create_or_delete_dmitem_payment_output_if_valid not dust value SUBNAME_MIN_PAYMENT_DUST_LIMIT expected_output_payment_value_dict={expected_output_payment_value_dict} expected_output_payment_value={expected_output_payment_value}')
-                    continue 
-                if txout.value >= expected_output_payment_value:
-                    self.logger.info(f'create_or_delete_dmitem_payment_output_if_valid gt_expected_output_payment_value')
-                    expected_output_payment_id_type = expected_output_payment_value_dict.get('id', None)
-                    # If there was a required color for the payment, then check it here
-                    if expected_output_payment_id_type:
-                        self.logger.debug(f'create_or_delete_dmitem_payment_output_if_valid expected_output_payment_id_type={expected_output_payment_id_type}')
-                        expected_output_payment_id_type_long_form = compact_to_location_id_bytes(expected_output_payment_id_type)
-                        # Check in the reverse map if the current output idx is colored with the expected color
-                        if output_idx_to_atomical_id_map.get(idx, None) and output_idx_to_atomical_id_map[idx].get(expected_output_payment_id_type_long_form, None):
-                            self.logger.debug(f'create_or_delete_dmitem_payment_output_if_valid found_type_id_payment expected_output_payment_id_type={expected_output_payment_id_type}')
-                            expected_output_keys_satisfied[output_script_hex + expected_output_payment_id_type_long_form.hex()] = True # Mark that the output was matched at least once
-                    
-                    else: 
-                        self.logger.debug(f'create_or_delete_dmitem_payment_output_if_valid no_type_id_needed')
-                        # Normal satoshis payment
-                        expected_output_keys_satisfied[output_script_hex] = True # Mark that the output was matched at least once
-
-            is_all_outputs_matched = True
-            for expected_output_script, satisfied in expected_output_keys_satisfied.items():
-                if not satisfied:
-                    is_all_outputs_matched = False
-                    self.logger.warning(f'create_or_delete_dmitem_payment_output_if_valid is_all_outputs_matched_not_satisfied={expected_output_keys_satisfied} output_idx_to_atomical_id_map={output_idx_to_atomical_id_map}')
-                    break
-            if is_all_outputs_matched:
-                # Delete or create the record based on whether we are reorg rollback or creating new
-                payment_outpoint = tx_hash + pack_le_uint32(idx)
-                not_initated_by_bitwork = b'00' # Used to indicate it was minted according to rules and not bitwork
-                if Delete:
-                    self.delete_pay_record(found_atomical_id_for_potential_dmitem, tx_num, payment_outpoint + not_initated_by_bitwork, b'dmpay', self.dmpay_data_cache)
-                else:
-                    self.put_pay_record(found_atomical_id_for_potential_dmitem, tx_num, payment_outpoint + not_initated_by_bitwork, b'dmpay', self.dmpay_data_cache)
-                return tx_hash 
-        return None 
-
+        
+        matched_price_point, parent_id, request_subname = get_expected_subname_payment_info(atomical_id_for_payment, height)
+        
+        # An expected payment amount might not be set if there is no valid subrealm minting rules, or something invalid was found
+        if not matched_price_point:
+            self.logger.warning(f'create_or_delete_subname_payment_output_if_valid: {hash_to_hex_str(tx_hash)} NOT MATCHED PRICE - create_or_delete_subrealm_payment_output_if_valid atomical_id_for_payment={location_id_bytes_to_compact(atomical_id_for_payment)}')
+            return None
+        
+        regex = matched_price_point['matched_rule']['p']
+        if not is_valid_regex(regex):
+            self.logger.warning(f'create_or_delete_subname_payment_output_if_valid invalid matched regex. regex={regex}')
+            return None 
+        
+        # The pattern should have already matched, sanity check
+        valid_pattern = re.compile(rf"{regex}")
+        if not valid_pattern.match(request_subname):
+            raise IndexError(f'create_or_delete_subname_payment_output_if_valid: valid pattern failed. DeveloperError request_subname={request_subname}, regex={regex}')
+ 
+        if not blueprint_builder.are_payments_satisfied(matched_price_point['matched_rule'].get('o')):
+            self.logger.warning(f'create_or_delete_subname_payment_output_if_valid: payments not satisfied. request_subname={request_subname}, regex={regex}')
+            return None 
+    
+        # Delete or create the record based on whether we are reorg rollback or creating new
+        payment_outpoint = tx_hash + pack_le_uint32(payment_marker_idx)
+        not_initated_by_parent = b'00' # Used to indicate it was minted according to rules payment match
+        if Delete:
+            self.delete_pay_record(atomical_id_for_payment, tx_num, payment_outpoint + not_initated_by_parent, b'spay', subname_data_cache)
+        else:
+            self.put_pay_record(atomical_id_for_payment, tx_num, payment_outpoint + not_initated_by_parent, b'spay', subname_data_cache)
+        return tx_hash 
+     
     def backup_blocks(self, raw_blocks: Sequence[bytes]):
         '''Backup the raw blocks and flush.
 
@@ -3444,10 +3088,10 @@ class BlockProcessor:
                 atomicals_minted += 1
             
             # Rollback any subrealm payments
-            self.create_or_delete_subrealm_payment_output_if_valid(tx_hash, tx, tx_num, self.height, operations_found_at_inputs, atomicals_spent_at_inputs, True)
+            self.create_or_delete_subname_payment_output_if_valid(tx_hash, tx, tx_num, self.height, operations_found_at_inputs, atomicals_spent_at_inputs, self.subrealm_data_cache, self.get_expected_subrealm_payment_info, True)
 
             # Rollback any dmint payments
-            self.create_or_delete_dmitem_payment_output_if_valid(tx_hash, tx, tx_num, self.height, operations_found_at_inputs, atomicals_spent_at_inputs, True)
+            self.create_or_delete_subname_payment_output_if_valid(tx_hash, tx, tx_num, self.height, operations_found_at_inputs, atomicals_spent_at_inputs, self.dmitem_data_cache, self.get_expected_dmitem_payment_info, True)
 
             # If there were any distributed mint creation, then delete
             self.create_or_delete_decentralized_mint_output(operations_found_at_inputs, tx_num, tx_hash, tx, self.height, {}, True)
