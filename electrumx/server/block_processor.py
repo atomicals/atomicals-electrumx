@@ -1359,7 +1359,11 @@ class BlockProcessor:
         if is_name_type and not is_within_acceptable_blocks_for_name_reveal(mint_info['commit_height'], mint_info['reveal_location_height']):
             self.logger.info(f'create_or_delete_atomical: not is_within_acceptable_blocks_for_name_reveal. Not minting Atomical at {hash_to_hex_str(tx_hash)}. Skipping...')
             return None
-            
+
+        if is_name_type and height >= self.coin.ATOMICALS_ACTIVATION_HEIGHT_COMMITZ and mint_info['commit_index'] != 0:
+            self.logger.info(f'create_or_delete_atomical: name type found and commit index is not equal to 0 at txid={hash_to_hex_str(tx_hash)}. Skipping...')
+            return None
+                 
         if valid_create_op_type == 'NFT':
             # Handle the special case of a subrealm and it's $parent_realm (parent realm)
             # Ensure that the parent $parent_realm is at least a valid atomical
@@ -2608,7 +2612,7 @@ class BlockProcessor:
         mint_info_for_ticker = self.get_atomicals_id_mint_info(potential_dmt_atomical_id)
         if not mint_info_for_ticker:
             raise IndexError(f'create_or_delete_decentralized_mint_outputs: mint_info_for_ticker not found for expected atomical={atomical_id}')
-
+ 
         if mint_info_for_ticker['subtype'] != 'decentralized':
             self.logger.info(f'create_or_delete_decentralized_mint_outputs: Detected invalid mint attempt in {hash_to_hex_str(tx_hash)} for ticker {ticker} which is not a decentralized mint type. Ignoring...')
             return None 
@@ -2628,7 +2632,9 @@ class BlockProcessor:
         if commit_tx_height < mint_height:
             self.logger.info(f'create_or_delete_decentralized_mint_output: commit_tx_height={commit_tx_height} is less than ATOMICALS_ACTIVATION_HEIGHT. Skipping...')
             return None
-
+        if height >= self.coin.ATOMICALS_ACTIVATION_HEIGHT_COMMITZ and atomicals_operations_found_at_inputs['commit_index'] != 0:
+            self.logger.info(f'create_or_delete_decentralized_mint_output: commit_index={commit_index} is not equal to 0 in tx {hash_to_hex_str(commit_txid)}. Skipping...')
+            return None
         expected_output_index = 0
         output_idx_le = pack_le_uint32(expected_output_index) 
         location = tx_hash + output_idx_le
