@@ -32,6 +32,7 @@ from electrumx.lib.script import OpCodes, ScriptError, Script, is_unspendable_le
 from electrumx.lib.util import pack_le_uint64, unpack_le_uint16_from, unpack_le_uint64, unpack_le_uint32, unpack_le_uint32_from, pack_le_uint16, pack_le_uint32
 from electrumx.lib.hash import hash_to_hex_str, hex_str_to_hash, double_sha256
 import re
+import os
 import sys
 import base64
 import krock32
@@ -41,8 +42,7 @@ from cbor2 import dumps, loads, CBORDecodeError
 from collections.abc import Mapping
 from functools import reduce
 from merkletools import MerkleTools
-from bitcointx.wallet import CCoinAddress, CBitcoinTestnetAddress
-from bitcointx.core.script import CScript
+from segwit_addr import segwit_scriptpubkey, encode
 
 class AtomicalsValidationError(Exception):
     '''Raised when Atomicals Validation Error'''
@@ -1774,20 +1774,19 @@ def validate_merkle_proof_dmint(expected_root_hash, item_name, possible_bitworkc
 
 
 def get_address_from_output_script(p2tr_output_script_hex):
-    # this function temporary use bitcoinx to get address from outputscript
+    # this function is used for get address from outputscript
     # I will rewrite this method later or use available Python standard libraries. 
     # this method does not cover all use cases; it is just a provisional solution
+
     try:
-        output_script = CScript.fromhex(p2tr_output_script_hex)
-        p2tr_address = CCoinAddress.from_scriptPubKey(output_script)
-        return str(p2tr_address)
+        # "bc" for mainnet, "tb" for testnet
+        if os.environ['NET'] == 'mainnet':
+            hrp = "bc"
+        elif os.environ['NET'] =='testnet':
+            hrp = "tb"
+        witprog = list(bytes.fromhex(p2tr_output_script_hex))[2:34]
+        witver = 1
+        addr = encode(hrp, witver, witprog)
     except Exception as e:
         pass
-    # for testnet
-    try:
-        output_script = CScript.fromhex(p2tr_output_script_hex)
-        p2tr_address = CBitcoinTestnetAddress.from_scriptPubKey(output_script)
-        return str(p2tr_address)
-    except Exception as e:
-        pass
-    return None
+    return addr
