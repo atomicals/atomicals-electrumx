@@ -2632,7 +2632,8 @@ class BlockProcessor:
         if commit_tx_height < mint_height:
             self.logger.info(f'create_or_delete_decentralized_mint_output: commit_tx_height={commit_tx_height} is less than ATOMICALS_ACTIVATION_HEIGHT. Skipping...')
             return None
-        if height >= self.coin.ATOMICALS_ACTIVATION_HEIGHT_COMMITZ and atomicals_operations_found_at_inputs['commit_index'] != 0:
+        commit_index = atomicals_operations_found_at_inputs['commit_index']
+        if height >= self.coin.ATOMICALS_ACTIVATION_HEIGHT_COMMITZ and commit_index != 0:
             self.logger.info(f'create_or_delete_decentralized_mint_output: commit_index={commit_index} is not equal to 0 in tx {hash_to_hex_str(commit_txid)}. Skipping...')
             return None
         expected_output_index = 0
