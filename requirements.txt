@@ -8,3 +8,4 @@ websockets
 regex
 krock32
 merkletools
+python-bitcointx

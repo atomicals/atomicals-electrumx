@@ -41,6 +41,8 @@ from cbor2 import dumps, loads, CBORDecodeError
 from collections.abc import Mapping
 from functools import reduce
 from merkletools import MerkleTools
+from bitcointx.wallet import CCoinAddress, CBitcoinTestnetAddress
+from bitcointx.core.script import CScript
 
 class AtomicalsValidationError(Exception):
     '''Raised when Atomicals Validation Error'''
@@ -1769,3 +1771,23 @@ def validate_merkle_proof_dmint(expected_root_hash, item_name, possible_bitworkc
             return True, concat_str4, target_hash
 
     return False, None, None
+
+
+def get_address_from_output_script(p2tr_output_script_hex):
+    # this function temporary use bitcoinx to get address from outputscript
+    # I will rewrite this method later or use available Python standard libraries. 
+    # this method does not cover all use cases; it is just a provisional solution
+    try:
+        output_script = CScript.fromhex(p2tr_output_script_hex)
+        p2tr_address = CCoinAddress.from_scriptPubKey(output_script)
+        return str(p2tr_address)
+    except Exception as e:
+        pass
+    # for testnet
+    try:
+        output_script = CScript.fromhex(p2tr_output_script_hex)
+        p2tr_address = CBitcoinTestnetAddress.from_scriptPubKey(output_script)
+        return str(p2tr_address)
+    except Exception as e:
+        pass
+    return None

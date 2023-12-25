@@ -1386,6 +1386,44 @@ class DB:
             self.logger.info(f'populate_extended_location_atomical_info atomical{atomical}')
             return atomical
         return await run_in_thread(query_location)
+    
+    # Get the atomical holder info details added.
+    async def populate_extended_atomical_holder_info(self, atomical_id, atomical):
+        def query_holders():
+            holder_dict = {}
+            holders = []
+            atomical_active_location_key_prefix = b'a' + atomical_id
+            # set for get holders
+            for atomical_active_location_key, atomical_active_location_value in self.utxo_db.iterator(prefix=atomical_active_location_key_prefix):
+                if atomical_active_location_value:
+                    location = atomical_active_location_key[1 + ATOMICAL_ID_LEN : 1 + ATOMICAL_ID_LEN + ATOMICAL_ID_LEN]
+                    atomical_output_script_key = b'po' + location
+                    atomical_output_script_value = self.utxo_db.get(atomical_output_script_key)
+                    location_script = atomical_output_script_value
+                    location_value, = unpack_le_uint64(atomical_active_location_value[HASHX_LEN + SCRIPTHASH_LEN : HASHX_LEN + SCRIPTHASH_LEN + 8])
+                    
+                    script = location_script.hex()
+                    # TODO
+                    # some location atomical_id might be burned
+                    # the location alue will less than 1000
+                    if holder_dict.get(script, None):
+                        holder_dict[script] += location_value
+                    else:
+                        holder_dict[script] = location_value
+
+            for script, holding in holder_dict.items():
+                holders.append({
+                    "holding": holding,
+                    "script": script,
+                })
+
+            # Sort by holding count
+            holders.sort(key=lambda x: x['holding'], reverse=True)
+
+            atomical['holders'] = holders
+            self.logger.info(f'get_atomical_total_count atomical{atomical}')
+            return atomical
+        return await run_in_thread(query_holders)
 
     def dump(self):
         i_prefix = b'i'
