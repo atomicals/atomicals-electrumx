@@ -2603,7 +2603,7 @@ class ElectrumX(SessionBase):
             'blockchain.atomicals.find_realms': self.atomicals_search_realms,
             'blockchain.atomicals.find_subrealms': self.atomicals_search_subrealms,
             'blockchain.atomicals.find_containers': self.atomicals_search_containers,
-            'blockchain.atomicals.get_atomical_holder': self.get_atomical_holder,
+            'blockchain.atomicals.get_atomical_holder': self.get_holders,
         }
         if ptuple >= (1, 4, 2):
             handlers['blockchain.scripthash.unsubscribe'] = self.scripthash_unsubscribe
