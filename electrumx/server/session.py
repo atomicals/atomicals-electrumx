@@ -45,7 +45,8 @@ from electrumx.lib.util_atomicals import (
     validate_rules_data,
     AtomicalsValidationError,
     auto_encode_bytes_elements, 
-    validate_merkle_proof_dmint
+    validate_merkle_proof_dmint,
+    get_address_from_output_script
 )
 from electrumx.lib.hash import (HASHX_LEN, Base58Error, hash_to_hex_str,
                                 hex_str_to_hash, sha256, double_sha256)
@@ -1910,6 +1911,32 @@ class ElectrumX(SessionBase):
         '''Return the NFT balances for a scripthash address'''
         hashX = scripthash_to_hashX(scripthash)
         return await self.hashX_nft_balances_atomicals(hashX)
+    
+    async def get_atomical_holder(self, compact_atomical_id, limit=50, offset=0):
+        '''Return the holder by a specific location id```
+        '''
+        formatted_results = []
+        atomical_id = compact_to_location_id_bytes(compact_atomical_id)
+        atomical = await self.atomical_id_get(compact_atomical_id)
+        atomical = await self.db.populate_extended_atomical_holder_info(atomical_id, atomical)
+        if atomical["type"] == "FT":
+            max_supply = atomical.get('$max_supply', 0)
+            for holder in atomical.get("holders", [])[offset:offset+limit]:
+                percent = holder['holding'] / max_supply
+                address = get_address_from_output_script(holder['script'])
+                formatted_results.append({
+                    "percent": percent,
+                    "address": address,
+                    "holding": holder["holding"]
+                })
+        elif atomical["type"] == "NFT":
+            for holder in atomical.get("holders", [])[offset:offset+limit]:
+                address = get_address_from_output_script(holder['script'])
+                formatted_results.append({
+                    "address": address,
+                    "holding": holder["holding"]
+                })
+        return formatted_results
 
     async def hashX_ft_balances_atomicals(self, hashX):
         utxos = await self.db.all_utxos(hashX)
@@ -2575,7 +2602,8 @@ class ElectrumX(SessionBase):
             'blockchain.atomicals.find_tickers': self.atomicals_search_tickers,
             'blockchain.atomicals.find_realms': self.atomicals_search_realms,
             'blockchain.atomicals.find_subrealms': self.atomicals_search_subrealms,
-            'blockchain.atomicals.find_containers': self.atomicals_search_containers
+            'blockchain.atomicals.find_containers': self.atomicals_search_containers,
+            'blockchain.atomicals.get_atomical_holder': self.get_atomical_holder,
         }
         if ptuple >= (1, 4, 2):
             handlers['blockchain.scripthash.unsubscribe'] = self.scripthash_unsubscribe
