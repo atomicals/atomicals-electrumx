@@ -1419,9 +1419,7 @@ class DB:
 
             # Sort by holding count
             holders.sort(key=lambda x: x['holding'], reverse=True)
-
             atomical['holders'] = holders
-            self.logger.info(f'get_atomical_total_count atomical{atomical}')
             return atomical
         return await run_in_thread(query_holders)
 
