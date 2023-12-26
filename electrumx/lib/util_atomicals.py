@@ -42,7 +42,7 @@ from cbor2 import dumps, loads, CBORDecodeError
 from collections.abc import Mapping
 from functools import reduce
 from merkletools import MerkleTools
-from segwit_addr import segwit_scriptpubkey, encode
+from electrumx.lib.segwit_addr import segwit_scriptpubkey, encode
 
 class AtomicalsValidationError(Exception):
     '''Raised when Atomicals Validation Error'''
