@@ -1775,14 +1775,11 @@ def validate_merkle_proof_dmint(expected_root_hash, item_name, possible_bitworkc
 
 def get_address_from_output_script(p2tr_output_script_hex):
     # this function is used for get address from outputscript
-    # I will rewrite this method later or use available Python standard libraries. 
-    # this method does not cover all use cases; it is just a provisional solution
     addr = ''
     try:
         # "bc" for mainnet, "tb" for testnet
-        if os.environ['NET'] == 'mainnet':
-            hrp = "bc"
-        elif os.environ['NET'] =='testnet':
+        hrp = "bc"
+        if os.environ.get('NET', "mainnet") =='testnet':
             hrp = "tb"
         witprog = list(bytes.fromhex(p2tr_output_script_hex))[2:34]
         witver = 1
