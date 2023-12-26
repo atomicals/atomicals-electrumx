@@ -1777,7 +1777,7 @@ def get_address_from_output_script(p2tr_output_script_hex):
     # this function is used for get address from outputscript
     # I will rewrite this method later or use available Python standard libraries. 
     # this method does not cover all use cases; it is just a provisional solution
-
+    addr = ''
     try:
         # "bc" for mainnet, "tb" for testnet
         if os.environ['NET'] == 'mainnet':
