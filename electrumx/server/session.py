@@ -1912,7 +1912,7 @@ class ElectrumX(SessionBase):
         hashX = scripthash_to_hashX(scripthash)
         return await self.hashX_nft_balances_atomicals(hashX)
     
-    async def get_atomical_holder(self, compact_atomical_id, limit=50, offset=0):
+    async def atomicals_get_holders(self, compact_atomical_id, limit=50, offset=0):
         '''Return the holder by a specific location id```
         '''
         formatted_results = []
@@ -2603,7 +2603,7 @@ class ElectrumX(SessionBase):
             'blockchain.atomicals.find_realms': self.atomicals_search_realms,
             'blockchain.atomicals.find_subrealms': self.atomicals_search_subrealms,
             'blockchain.atomicals.find_containers': self.atomicals_search_containers,
-            'blockchain.atomicals.get_atomical_holder': self.get_holders,
+            'blockchain.atomicals.get_holders': self.atomicals_get_holders
         }
         if ptuple >= (1, 4, 2):
             handlers['blockchain.scripthash.unsubscribe'] = self.scripthash_unsubscribe
