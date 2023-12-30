@@ -1,7 +1,6 @@
 from electrumx.lib.util_atomicals import (
     is_compact_atomical_id, 
-    parse_protocols_operations_from_witness_array, 
-    get_nominal_token_value
+    parse_protocols_operations_from_witness_array
 )
 
 def get_highest_exponent(atomicals_array):
