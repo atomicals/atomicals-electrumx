@@ -228,8 +228,9 @@ class AtomicalsTransferBlueprintBuilder:
       output_colored_map = {
         'outputs': {
         },
-        'burned': False
-      }
+        'burned': False,
+        'first_atomical_id': None
+      }                      
       cleanly_assigned = True
       for atomical_id, atomical_info in sorted(ft_atomicals.items()):
           expected_output_indexes = []
