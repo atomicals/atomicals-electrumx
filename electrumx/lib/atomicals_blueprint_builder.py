@@ -132,7 +132,7 @@ class AtomicalsTransferBlueprintBuilder:
           for atomicals_entry in atomicals_entry_list:
               atomical_id = atomicals_entry['atomical_id']
               value, = unpack_le_uint64(atomicals_entry['data'][HASHX_LEN + SCRIPTHASH_LEN : HASHX_LEN + SCRIPTHASH_LEN + 8])
-              atomical_mint_info = self.get_atomicals_id_mint_info(atomical_id)
+              atomical_mint_info = self.get_atomicals_id_mint_info(atomical_id, False)
               if not atomical_mint_info: 
                   raise AtomicalsTransferBlueprintBuilderError(f'build_atomical_id_info_map {atomical_id.hex()} not found in mint info. IndexError.')
               if atomical_mint_info['type'] != 'NFT':
@@ -303,7 +303,7 @@ class AtomicalsTransferBlueprintBuilder:
           exponent, = unpack_le_uint16_from(atomicals_entry['data'][HASHX_LEN + SCRIPTHASH_LEN + 8: HASHX_LEN + SCRIPTHASH_LEN + 8 + 2])
           # Perform a cache lookup for the mint information since we do not want to query multiple times for same input atomical_id
           if not atomicals_id_mint_info_map.get(atomical_id):
-              atomical_mint_info = self.get_atomicals_id_mint_info(atomical_id)
+              atomical_mint_info = self.get_atomicals_id_mint_info(atomical_id, False)
               if not atomical_mint_info: 
                   raise AtomicalsTransferBlueprintBuilderError(f'build_atomical_id_info_map {atomical_id.hex()} not found in mint info. IndexError.')
               atomicals_id_mint_info_map[atomical_id] = atomical_mint_info
