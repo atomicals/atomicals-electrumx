@@ -337,9 +337,9 @@ class AtomicalsTransferBlueprintBuilder:
           map_atomical_ids_to_info[atomical_id]['expected_total_satvalue_output'] = expected_satvalue
       return map_atomical_ids_to_info
   
-  def __build_atomical_type_structs(self):
+  def __build_atomical_type_structs(self, atomicals_spent_at_inputs):
       map_atomical_ids_to_info = {}
-      for txin_index, atomicals_entry_list in self.atomicals_spent_at_inputs.items():
+      for txin_index, atomicals_entry_list in atomicals_spent_at_inputs.items():
           # Accumulate the total input value by atomical_id
           # The value will be used below to determine the amount of input we can allocate for FT's
           self.__build_atomical_id_info_map(map_atomical_ids_to_info, atomicals_entry_list, txin_index)
