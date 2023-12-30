@@ -106,7 +106,7 @@ def pad_bytes_n(val, n):
     new_val = new_val + bytes(extra_bytes_needed)
     return new_val
 
-def pad_bytes64(val)
+def pad_bytes64(val):
     return pad_bytes_n(val, 64)
 
 # Atomical NFT/FT mint information is stored in the b'mi' index and is pickle encoded dictionary
