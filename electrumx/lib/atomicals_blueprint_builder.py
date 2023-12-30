@@ -283,8 +283,8 @@ class AtomicalsTransferBlueprintBuilder:
       return self.color_ft_atomicals_regular_perform(ft_atomicals, tx_hash, tx, tx_num, operations_found_at_inputs, atomical_ids_touched, height, live_run, self.is_dmint_activated(height))
 
   def __calculate_output_blueprint(self, nft_atomicals, ft_atomicals, atomicals_spent_at_inputs, operations_found_at_inputs, sort_fifo):
-      nft_blueprint = self.calculate_output_blueprint_nfts(nft_atomicals, atomicals_spent_at_inputs, operations_found_at_inputs, sort_fifo)
-      ft_blueprint = self.calculate_output_blueprint_fts(ft_atomicals, atomicals_spent_at_inputs, operations_found_at_inputs, sort_fifo)
+      nft_blueprint = self.__calculate_output_blueprint_nfts(nft_atomicals, atomicals_spent_at_inputs, operations_found_at_inputs, sort_fifo)
+      ft_blueprint = self.__calculate_output_blueprint_fts(ft_atomicals, atomicals_spent_at_inputs, operations_found_at_inputs, sort_fifo)
       return nft_blueprint, ft_blueprint 
       
   # Builds a map and image of all the inputs and their satvalue and tokenvalue (adjusted by exponent)
