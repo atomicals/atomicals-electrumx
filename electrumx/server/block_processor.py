@@ -550,21 +550,30 @@ class BlockProcessor:
 
     # Get the mint information and LRU cache it for fast retrieval
     # Used for quickly getting the mint information for an atomical
-    def get_atomicals_id_mint_info(self, atomical_id):
+    def get_atomicals_id_mint_info(self, atomical_id, with_cache):
         result = None
-        try:
+        if with_cache:
+            self.logger.info(f'get_atomicals_id_mint_info with_cache={with_cache} atomical_id={atomical_id}')
             result = self.atomicals_id_cache[atomical_id]
-        except KeyError:
-            # Now check the mint cache (before flush to db)
-            try:
-                self.logger.info(f'get_atomicals_id_mint_info general_data_cache atomical_id={atomical_id}')
-                result = unpack_mint_info(self.general_data_cache[b'mi' + atomical_id])
-            except KeyError:
-                mint_info_dump = self.db.get_atomical_mint_info_dump(atomical_id)
-                if not mint_info_dump:
-                    return None
-                result = unpack_mint_info(mint_info_dump)
+            if result:
+                self.logger.info(f'get_atomicals_id_mint_info hit=True with_cache={with_cache} atomical_id={atomical_id}')
+                return result 
+        
+        result = self.general_data_cache.get(b'mi' + atomical_id)
+        if result:
+            self.logger.info(f'get_atomicals_id_mint_info hit=True general_data_cache=True atomical_id={atomical_id}')
+            result = unpack_mint_info(result)
             self.atomicals_id_cache[atomical_id] = result
+            return result 
+        
+        mint_info_dump = self.db.get_atomical_mint_info_dump(atomical_id)
+        if not mint_info_dump:
+            self.logger.info(f'get_atomicals_id_mint_info get_atomical_mint_info_dump=True atomical_id={atomical_id}')
+            return None
+        
+        result = unpack_mint_info(mint_info_dump)
+        self.atomicals_id_cache[atomical_id] = result
+        self.logger.info(f'get_atomicals_id_mint_info no_cache=True with_cache={with_cache} atomical_id={atomical_id}')
         return result 
 
     # Get the mint information and LRU cache it for fast retrieval
@@ -579,7 +588,7 @@ class BlockProcessor:
     # Get basic atomical information in a format that can be attached to utxos in an RPC call
     # Must be called for known existing atomicals or will throw an exception
     def get_atomicals_id_mint_info_basic_struct(self, atomical_id):
-        result = self.get_atomicals_id_mint_info(atomical_id)
+        result = self.get_atomicals_id_mint_info(atomical_id, True)
         obj = {
             'atomical_id': location_id_bytes_to_compact(result['id']),
             'atomical_number': result['number'],
@@ -592,7 +601,7 @@ class BlockProcessor:
     # Get the expected payment amount and destination for an atomical subrealm
     def get_expected_subrealm_payment_info(self, found_atomical_id_for_potential_subrealm, current_height):
         # Lookup the subrealm atomical to obtain the details of which subrealm parent it is for
-        found_atomical_mint_info_for_potential_subrealm = self.get_atomicals_id_mint_info(found_atomical_id_for_potential_subrealm)
+        found_atomical_mint_info_for_potential_subrealm = self.get_atomicals_id_mint_info(found_atomical_id_for_potential_subrealm, False)
         if found_atomical_mint_info_for_potential_subrealm:
             # Found the mint information. Use the mint details to determine the parent realm id and name requested
             # Along with the price that was expected according to the mint reveal height
@@ -669,7 +678,7 @@ class BlockProcessor:
  
     def get_expected_dmitem_payment_info(self, found_atomical_id_for_potential_dmitem, current_height):
         # Lookup the dmitem atomical to obtain the details of which container parent it is for
-        found_atomical_mint_info_for_potential_dmitem = self.get_atomicals_id_mint_info(found_atomical_id_for_potential_dmitem)
+        found_atomical_mint_info_for_potential_dmitem = self.get_atomicals_id_mint_info(found_atomical_id_for_potential_dmitem, False)
         if not found_atomical_mint_info_for_potential_dmitem:
             self.logger.info(f'get_expected_dmitem_payment_info: not found_atomical_mint_info_for_potential_dmitem {found_atomical_id_for_potential_dmitem}')
             return None, None, None
@@ -1370,7 +1379,7 @@ class BlockProcessor:
             if mint_info.get('$request_subrealm'):
                 parent_atomical_id_compact = mint_info['$parent_realm']
                 parent_atomical_id = compact_to_location_id_bytes(parent_atomical_id_compact)
-                parent_atomical_mint_info = self.get_atomicals_id_mint_info(parent_atomical_id)
+                parent_atomical_mint_info = self.get_atomicals_id_mint_info(parent_atomical_id, False)
                 if not parent_atomical_mint_info:
                     self.logger.info(f'create_or_delete_atomical: found invalid $parent_realm for $request_realm and therefore returned FALSE in Transaction {hash_to_hex_str(tx_hash)}. Skipping...') 
                     return None
@@ -1380,7 +1389,7 @@ class BlockProcessor:
             if mint_info.get('$request_dmitem'):
                 parent_atomical_id_compact = mint_info['$parent_container']
                 parent_atomical_id = compact_to_location_id_bytes(parent_atomical_id_compact)
-                parent_atomical_mint_info = self.get_atomicals_id_mint_info(parent_atomical_id)
+                parent_atomical_mint_info = self.get_atomicals_id_mint_info(parent_atomical_id, False)
                 if not parent_atomical_mint_info:
                     self.logger.info(f'create_or_delete_atomical: found invalid $parent_container for $request_dmitem and therefore returned FALSE in Transaction {hash_to_hex_str(tx_hash)}. Skipping...') 
                     return None
@@ -1736,7 +1745,7 @@ class BlockProcessor:
             atomical_id = atomicals_entry['atomical_id']
             value, = unpack_le_uint64(atomicals_entry['data'][HASHX_LEN + SCRIPTHASH_LEN : HASHX_LEN + SCRIPTHASH_LEN + 8])
             exponent, = unpack_le_uint16_from(atomicals_entry['data'][HASHX_LEN + SCRIPTHASH_LEN + 8: HASHX_LEN + SCRIPTHASH_LEN + 8 + 2])
-            atomical_mint_info = self.get_atomicals_id_mint_info(atomical_id)
+            atomical_mint_info = self.get_atomicals_id_mint_info(atomical_id, False)
             if not atomical_mint_info: 
                 raise IndexError(f'build_atomical_id_info_map {atomical_id.hex()} not found in mint info. IndexError.')
             if map_atomical_ids_to_info.get(atomical_id, None) == None:
@@ -1757,7 +1766,7 @@ class BlockProcessor:
             for atomicals_entry in atomicals_entry_list:
                 atomical_id = atomicals_entry['atomical_id']
                 value, = unpack_le_uint64(atomicals_entry['data'][HASHX_LEN + SCRIPTHASH_LEN : HASHX_LEN + SCRIPTHASH_LEN + 8])
-                atomical_mint_info = self.get_atomicals_id_mint_info(atomical_id)
+                atomical_mint_info = self.get_atomicals_id_mint_info(atomical_id, False)
                 if not atomical_mint_info: 
                     raise IndexError(f'build_atomical_id_info_map {atomical_id.hex()} not found in mint info. IndexError.')
                 if atomical_mint_info['type'] != 'NFT':
@@ -1924,7 +1933,7 @@ class BlockProcessor:
             return None, None, [] 
         for entry in all_entries:
             atomical_id = entry['value']
-            mint_info = self.get_atomicals_id_mint_info(atomical_id)
+            mint_info = self.get_atomicals_id_mint_info(atomical_id, False)
             # Sanity check to make sure it matches
             self.logger.info(f'get_effective_subrealm subrealm_name={subrealm_name} atomical_id={location_id_bytes_to_compact(atomical_id)} parent_realm_id={location_id_bytes_to_compact(parent_realm_id)}entry={entry}')
             assert(mint_info['commit_tx_num'] == entry['tx_num'])
@@ -1997,7 +2006,7 @@ class BlockProcessor:
             return None, None, [] 
         for entry in all_entries:
             atomical_id = entry['value']
-            mint_info = self.get_atomicals_id_mint_info(atomical_id)
+            mint_info = self.get_atomicals_id_mint_info(atomical_id, False)
             # Sanity check to make sure it matches
             self.logger.info(f'get_effective_dmitem dmitem_name={dmitem_name} atomical_id={location_id_bytes_to_compact(atomical_id)} parent_container_id={location_id_bytes_to_compact(parent_container_id)} entry={entry}')
             assert(mint_info['commit_tx_num'] == entry['tx_num'])
@@ -2058,7 +2067,7 @@ class BlockProcessor:
         if len(all_entries) > 0:
             candidate_entry = all_entries[0]
             atomical_id = candidate_entry['value']
-            mint_info = self.get_atomicals_id_mint_info(atomical_id)
+            mint_info = self.get_atomicals_id_mint_info(atomical_id, False)
             # Sanity check to make sure it matches
             assert(mint_info['commit_tx_num'] == candidate_entry['tx_num'])
             # Only consider the name as valid if the required MINT_REALM_CONTAINER_TICKER_COMMIT_REVEAL_DELAY_BLOCKS has elapsed from the earliest
@@ -2609,7 +2618,7 @@ class BlockProcessor:
             self.logger.info(f'create_or_delete_decentralized_mint_output: potential_dmt_atomical_id not found for dmt operation in {hash_to_hex_str(tx_hash)}. Attempt was made for invalid ticker mint info. Ignoring...')
             return None 
 
-        mint_info_for_ticker = self.get_atomicals_id_mint_info(potential_dmt_atomical_id)
+        mint_info_for_ticker = self.get_atomicals_id_mint_info(potential_dmt_atomical_id, False)
         if not mint_info_for_ticker:
             raise IndexError(f'create_or_delete_decentralized_mint_outputs: mint_info_for_ticker not found for expected atomical={atomical_id}')
  
