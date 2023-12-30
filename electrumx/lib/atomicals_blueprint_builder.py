@@ -21,6 +21,7 @@ def get_nominal_token_value(value, exponent):
     return value / (10**exponent)
 
 def get_adjusted_sats_needed_by_exponent(value, exponent):
+    print(f'value={value} exponent={exponent}')
     return value * (10**exponent)
 
 def get_token_satoshi_exponent_values(ft_info):
