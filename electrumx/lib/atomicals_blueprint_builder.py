@@ -206,7 +206,7 @@ class AtomicalsTransferBlueprintBuilder:
             'outputs': self.__calculate_nft_atomicals_regular(nft_atomicals, tx, atomicals_spent_at_inputs, operations_found_at_inputs, sort_fifo)  
           }
       
-  def calculate_output_blueprint_fts(ft_atomicals, atomicals_spent_at_inputs, operations_found_at_inputs, sort_fifo):
+  def __calculate_output_blueprint_fts(ft_atomicals, atomicals_spent_at_inputs, operations_found_at_inputs, sort_fifo):
       if not ft_atomicals or len(ft_atomicals) == 0:
           return {
               'outputs': {},
