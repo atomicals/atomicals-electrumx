@@ -1608,10 +1608,12 @@ class BlockProcessor:
         
         nft_output_blueprint = blueprint_builder.get_nft_output_blueprint()
         if nft_output_blueprint:
+            self.logger.info(f'color_atomicals_outputs nft_output_blueprint={nft_output_blueprint}')
             self.put_nft_outputs_by_blueprint(nft_output_blueprint, operations_found_at_inputs, tx_hash, tx, tx_num, height)
 
         ft_output_blueprint = blueprint_builder.get_ft_output_blueprint()
         if ft_output_blueprint:
+            self.logger.info(f'color_atomicals_outputs ft_output_blueprint={ft_output_blueprint}')
             self.put_ft_outputs_by_blueprint(ft_output_blueprint, operations_found_at_inputs, tx_hash, tx, tx_num, height)
         
         # Log that there were tokens burned due to not being cleanly assigned

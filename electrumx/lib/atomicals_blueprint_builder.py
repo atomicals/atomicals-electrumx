@@ -423,14 +423,14 @@ class AtomicalsTransferBlueprintBuilder:
       # There was still some token units left, but there were no more outputs to take the quantity. Tokens were burned.
       return False, expected_output_indexes 
 
-  def get_nft_output_blueprint():
+  def get_nft_output_blueprint(self):
     return nft_output_blueprint
   
-  def get_ft_output_blueprint():
+  def get_ft_output_blueprint(self):
     return ft_output_blueprint
 
-  def get_are_fts_burned():
+  def get_are_fts_burned(self):
     return self.are_fts_burned
 
-  def get_atomical_ids_spent():
+  def get_atomical_ids_spent(self):
     return self.atomical_ids_spent
