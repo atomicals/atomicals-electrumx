@@ -424,10 +424,10 @@ class AtomicalsTransferBlueprintBuilder:
       return False, expected_output_indexes 
 
   def get_nft_output_blueprint(self):
-    return nft_output_blueprint
+    return self.nft_output_blueprint
   
   def get_ft_output_blueprint(self):
-    return ft_output_blueprint
+    return self.ft_output_blueprint
 
   def get_are_fts_burned(self):
     return self.are_fts_burned
