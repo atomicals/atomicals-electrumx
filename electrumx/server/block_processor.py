@@ -66,8 +66,7 @@ from electrumx.lib.util_atomicals import (
     is_splat_operation,
     is_seal_operation,
     is_event_operation,
-    is_split_operation,
-    get_nominal_token_value
+    is_split_operation
 )
 
 from elecrumnx.lib.atomicals_blueprint_builder import AtomicalsTransferBlueprintBuilder, calculate_outputs_to_color_for_ft_atomical_ids
