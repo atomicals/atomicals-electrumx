@@ -57,7 +57,6 @@ from electrumx.lib.util_atomicals import (
     is_valid_ticker_string, 
     get_mint_info_op_factory,
     convert_db_mint_info_to_rpc_mint_info_format,
-    calculate_outputs_to_color_for_ft_atomical_ids,
     build_reverse_output_to_atomical_id_map,
     calculate_latest_state_from_mod_history,
     validate_rules_data,
@@ -73,7 +72,7 @@ from electrumx.lib.util_atomicals import (
     get_nominal_token_value
 )
 
-from elecrumnx.lib.atomicals_blueprint_builder import AtomicalsTransferBlueprintBuilder 
+from elecrumnx.lib.atomicals_blueprint_builder import AtomicalsTransferBlueprintBuilder, calculate_outputs_to_color_for_ft_atomical_ids
 
 import copy
 
@@ -1699,28 +1698,6 @@ class BlockProcessor:
             value_sats = pack_le_uint64(txout.value)
             self.put_or_delete_state_updates(operations_found_at_inputs, atomical_id, tx_num, tx_hash, output_idx_le, height, 1, False)
 
-    def color_ft_atomicals_regular_perform(self, ft_atomicals, tx_hash, tx, tx_num, operations_found_at_inputs, atomical_ids_touched, height, live_run, sort_fifo):
-        self.logger.info(f'color_ft_atomicals_regular_perform tx_hash={hash_to_hex_str(tx_hash)} start check')
-        atomical_id_to_expected_outs_map, cleanly_assigned, atomicals_list_result = calculate_outputs_to_color_for_ft_atomical_ids(ft_atomicals, tx_hash, tx, sort_fifo)
-        if not atomical_id_to_expected_outs_map:
-            return None, None
-        self.logger.info(f'color_ft_atomicals_regular_perform tx_hash={hash_to_hex_str(tx_hash)} cleanly_assigned={cleanly_assigned} ft_atomicals={ft_atomicals} atomical_id_to_expected_outs_map={atomical_id_to_expected_outs_map} atomicals_list_result={atomicals_list_result}')
-        validate_ft_transfer_has_no_inflation(atomical_id_to_expected_outs_map, ft_atomicals)
-        if live_run:
-            for atomical_id, expected_outputs_entry in atomical_id_to_expected_outs_map.items():
-                exponent = expected_outputs_entry['exponent']
-                for expected_output_index in expected_outputs_entry['expected_outputs']:
-                    self.build_put_atomicals_utxo(atomical_id, tx_hash, tx, tx_num, expected_output_index, exponent)
-                atomical_ids_touched.append(atomical_id)
-            # Only allow an event to be posted to the first FT in the list, sorted
-            if atomicals_list_result and len(atomicals_list_result) > 0:
-                self.put_or_delete_event_updates_if_found(operations_found_at_inputs, atomicals_list_result[0]['atomical_id'], tx_num, tx_hash, tx, height)
-        self.logger.info(f'color_ft_atomicals_regular_perform tx_hash={hash_to_hex_str(tx_hash)} end check cleanly_assigned={cleanly_assigned}')
-        return cleanly_assigned, atomical_id_to_expected_outs_map
-
-    def color_ft_atomicals_regular(self, ft_atomicals, tx_hash, tx, tx_num, operations_found_at_inputs, atomical_ids_touched, height, live_run):
-        return self.color_ft_atomicals_regular_perform(ft_atomicals, tx_hash, tx, tx_num, operations_found_at_inputs, atomical_ids_touched, height, live_run, self.is_dmint_activated(height))
-
     def build_put_atomicals_utxo(self, atomical_id, tx_hash, tx, tx_num, out_idx, exponent):
         output_idx_le = pack_le_uint32(out_idx)
         location = tx_hash + output_idx_le
@@ -2936,7 +2913,7 @@ class BlockProcessor:
             
             # Each of the elements in the expected script output map must be satisfied for it to be a valid payment
             nft_atomicals, ft_atomicals = self.build_atomical_type_structs(atomicals_spent_at_inputs)
-            atomical_id_to_output_index_map, ignore, atomicals_list_result = calculate_outputs_to_color_for_ft_atomical_ids(ft_atomicals, tx_hash, tx, self.is_dmint_activated(height))
+            atomical_id_to_output_index_map, ignore, atomicals_list_result = calculate_outputs_to_color_for_ft_atomical_ids(ft_atomicals, self.is_dmint_activated(height))
             output_idx_to_atomical_id_map = build_reverse_output_to_atomical_id_map(atomical_id_to_output_index_map)
             expected_output_keys_satisfied = {}
             for output_script_key, output_script_details in expected_payment_outputs.items():
@@ -3029,7 +3006,7 @@ class BlockProcessor:
             # Each of the elements in the expected script output map must be satisfied for it to be a valid payment
             nft_atomicals, ft_atomicals = self.build_atomical_type_structs(atomicals_spent_at_inputs)
             # Map the ARC20 fungible tokens first
-            atomical_id_to_output_index_map, ignore, atomicals_list_result = calculate_outputs_to_color_for_ft_atomical_ids(ft_atomicals, tx_hash, tx, self.is_dmint_activated(height))
+            atomical_id_to_output_index_map, ignore, atomicals_list_result = calculate_outputs_to_color_for_ft_atomical_ids(ft_atomicals, self.is_dmint_activated(height))
             output_idx_to_atomical_id_map = build_reverse_output_to_atomical_id_map(atomical_id_to_output_index_map)
             # Future enhancement is to allow minting by NFT and or holding a realm/subrealm, or glob patterns like txid
             expected_output_keys_satisfied = {}
