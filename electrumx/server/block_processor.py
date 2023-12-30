@@ -1566,7 +1566,7 @@ class BlockProcessor:
                 input_idx_to_atomical_ids_map[txin_index][atomical_id] = atomical_mint_info
         return input_idx_to_atomical_ids_map
 
-    def put_nft_outputs_by_blueprint(nft_blueprint, operations_found_at_inputs, tx_hash, tx, tx_num, height):
+    def put_nft_outputs_by_blueprint(self, nft_blueprint, operations_found_at_inputs, tx_hash, tx, tx_num, height):
         put_general_data = self.general_data_cache.__setitem__
         for output_idx, value_info in nft_blueprint['outputs'].items():
             output_idx_le = pack_le_uint32(output_idx)
@@ -1590,7 +1590,7 @@ class BlockProcessor:
                 tx_numb = pack_le_uint64(tx_num)[:TXNUM_LEN]
                 self.put_atomicals_utxo(location, atomical_id, hashX + scripthash + value_sats + pack_le_uint16(0) + tx_numb)
     
-    def put_ft_outputs_by_blueprint(ft_blueprint, operations_found_at_inputs, tx_hash, tx, tx_num, height):
+    def put_ft_outputs_by_blueprint(self, ft_blueprint, operations_found_at_inputs, tx_hash, tx, tx_num, height):
         put_general_data = self.general_data_cache.__setitem__
         for output_idx, value_info in ft_blueprint['outputs'].items():
             for atomical_id, atomical_info in value_info['atomicals'].items():
