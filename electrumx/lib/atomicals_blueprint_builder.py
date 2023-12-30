@@ -3,6 +3,8 @@ from electrumx.lib.util_atomicals import (
     parse_protocols_operations_from_witness_array
 )
 
+from electrumx.lib.hash import hash_to_hex_str, HASHX_LEN, double_sha256
+
 from electrumx.lib.util import (
     chunks, class_logger, pack_le_uint32, unpack_le_uint32, pack_le_uint64, unpack_le_uint64, pack_be_uint64, unpack_be_uint64, OldTaskGroup, pack_byte, pack_le_uint16, unpack_le_uint16_from
 )
