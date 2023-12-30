@@ -1617,7 +1617,7 @@ class BlockProcessor:
             self.put_ft_outputs_by_blueprint(ft_output_blueprint, operations_found_at_inputs, tx_hash, tx, tx_num, height)
         
         # Log that there were tokens burned due to not being cleanly assigned
-        if blueprint_builder.are_fts_burned():
+        if blueprint_builder.get_are_fts_burned():
             self.logger.info(f'color_atomicals_outputs:are_fts_burned=True tx_hash={tx_hash} ft_output_blueprint={ft_output_blueprint}')
 
         return blueprint_builder.get_atomical_ids_spent()
