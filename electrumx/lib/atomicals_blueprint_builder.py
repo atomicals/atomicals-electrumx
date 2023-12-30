@@ -430,7 +430,7 @@ class AtomicalsTransferBlueprintBuilder:
   def get_ft_output_blueprint():
     return ft_output_blueprint
 
-  def get_are_fts_burned()
+  def get_are_fts_burned():
     return self.are_fts_burned
 
   def get_atomical_ids_spent():
