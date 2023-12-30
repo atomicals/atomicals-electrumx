@@ -69,7 +69,7 @@ from electrumx.lib.util_atomicals import (
     is_split_operation
 )
 
-from elecrumnx.lib.atomicals_blueprint_builder import AtomicalsTransferBlueprintBuilder, calculate_outputs_to_color_for_ft_atomical_ids
+from electrumx.lib.atomicals_blueprint_builder import AtomicalsTransferBlueprintBuilder, calculate_outputs_to_color_for_ft_atomical_ids
 
 import copy
 
