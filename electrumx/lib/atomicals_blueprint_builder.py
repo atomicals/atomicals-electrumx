@@ -3,6 +3,10 @@ from electrumx.lib.util_atomicals import (
     parse_protocols_operations_from_witness_array
 )
 
+from electrumx.lib.util import (
+    chunks, class_logger, pack_le_uint32, unpack_le_uint32, pack_le_uint64, unpack_le_uint64, pack_be_uint64, unpack_be_uint64, OldTaskGroup, pack_byte, pack_le_uint16, unpack_le_uint16_from
+)
+
 def get_highest_exponent(atomicals_array):
     max = 0
     for entry in atomicals_array:
