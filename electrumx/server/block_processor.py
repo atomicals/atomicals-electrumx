@@ -63,7 +63,6 @@ from electrumx.lib.util_atomicals import (
     AtomicalsValidationError,
     get_container_dmint_format_status,
     validate_dmitem_mint_args_with_container_dmint,
-    calculate_nft_output_index_legacy,
     validate_ft_transfer_has_no_inflation,
     is_splat_operation,
     is_seal_operation,
