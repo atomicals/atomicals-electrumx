@@ -528,53 +528,10 @@ class BlockProcessor:
         atomicals_spent_at_inputs = self.build_atomicals_spent_at_inputs_for_validation_only(tx)
         # Build a structure of organizing into NFT and FTs
         # Note: We do not validate anything with NFTs, just FTs
-        nft_atomicals, ft_atomicals =  self.build_atomical_type_structs(atomicals_spent_at_inputs)
-        
-        # There are no FT atomicals therefore just return true
-        if len(ft_atomicals) == 0:
-            return True, {
-                'success': True,
-                'inputs': {
-                    'nft_atomicals': nft_atomicals,
-                    'ft_atomicals': ft_atomicals
-                }
-            } 
+        # nft_atomicals, ft_atomicals =  self.build_atomical_type_structs(atomicals_spent_at_inputs)
 
-        # Check if it was the split y operation because that is handled differently
-        should_split_ft_atomicals = is_split_operation(operations_found_at_inputs)
-        cleanly_assigned = False 
-        colored_outs_map = {}
-        if should_split_ft_atomicals:
-            cleanly_assigned, colored_outs_map = self.color_ft_atomicals_split(ft_atomicals, tx_hash, tx, tx_num, operations_found_at_inputs, atomical_ids_touched, False)
-        else:
-            # Prepare the logic check to determine if the FTs are cleanly assigned (ie: no accidental burning loss would occur)
-            cleanly_assigned, colored_outs_map = self.color_ft_atomicals_regular(ft_atomicals, tx_hash, tx, 0, operations_found_at_inputs, [], self.height, False)
-        # Everything would have been cleanly assigned
-        if cleanly_assigned:
-            return True, {
-                'success': True,
-                'is_split_op': should_split_ft_atomicals,
-                'inputs': {
-                    'nft_atomicals': nft_atomicals,
-                    'ft_atomicals': ft_atomicals
-                },
-                'outputs': {
-                    'fts': colored_outs_map
-                }
-            }
-        return False, {
-            'success': False,
-            'is_split_op': should_split_ft_atomicals,
-            'inputs': {
-                'nfts': nft_atomicals,
-                'fts': ft_atomicals
-            },
-            'outputs': {
-                'fts': colored_outs_map
-            }
-        }
-        # A problem was detected and a loss of FTs would have happened
-        # raise AtomicalsValidationError(f'detected invalid ft token inputs and outputs for tx_hash={hash_to_hex_str(tx_hash)}')
+        # Always fail for now
+        raise AtomicalsValidationError(f'detected invalid ft token inputs and outputs for tx_hash={hash_to_hex_str(tx_hash)}')
     
     # Query general data including the cache
     def get_general_data_with_cache(self, key):
