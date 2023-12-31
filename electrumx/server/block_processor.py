@@ -555,7 +555,7 @@ class BlockProcessor:
         result = None
         if with_cache:
             self.logger.info(f'get_atomicals_id_mint_info with_cache={with_cache} atomical_id={atomical_id}')
-            result = self.atomicals_id_cache[atomical_id]
+            result = self.atomicals_id_cache.get(atomical_id)
             if result:
                 self.logger.info(f'get_atomicals_id_mint_info hit=True with_cache={with_cache} atomical_id={atomical_id}')
                 return result 
@@ -2634,7 +2634,7 @@ class BlockProcessor:
             self.logger.info(f'create_or_delete_decentralized_mint_output: potential_dmt_atomical_id not found for dmt operation in {hash_to_hex_str(tx_hash)}. Attempt was made for invalid ticker mint info. Ignoring...')
             return None 
 
-        mint_info_for_ticker = self.get_atomicals_id_mint_info(potential_dmt_atomical_id, False)
+        mint_info_for_ticker = self.get_atomicals_id_mint_info(potential_dmt_atomical_id, True)
         if not mint_info_for_ticker:
             raise IndexError(f'create_or_delete_decentralized_mint_outputs: mint_info_for_ticker not found for expected atomical={atomical_id}')
  
