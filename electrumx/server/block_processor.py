@@ -2921,9 +2921,9 @@ class BlockProcessor:
                     has_at_least_one_valid_atomicals_operation = True
 
                 # Create a proof of work record if there was valid proof of work attached
-                if self.create_or_delete_pow_records(tx_hash, tx_num, height, atomicals_operations_found_at_inputs):
-                    has_at_least_one_valid_atomicals_operation = True
-                    self.logger.info(f'advance_txs: create_or_delete_pow_records tx_hash={hash_to_hex_str(tx_hash)}')
+                # if self.create_or_delete_pow_records(tx_hash, tx_num, height, atomicals_operations_found_at_inputs):
+                #    has_at_least_one_valid_atomicals_operation = True
+                #    self.logger.info(f'advance_txs: create_or_delete_pow_records tx_hash={hash_to_hex_str(tx_hash)}')
 
                 # Concat the tx_hash if there was at least one valid atomicals operation
                 if self.is_atomicals_activated(height) and has_at_least_one_valid_atomicals_operation:
