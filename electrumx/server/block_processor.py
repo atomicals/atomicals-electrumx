@@ -2083,7 +2083,7 @@ class BlockProcessor:
         if len(all_entries) > 0:
             candidate_entry = all_entries[0]
             atomical_id = candidate_entry['value']
-            mint_info = self.get_atomicals_id_mint_info(atomical_id, False)
+            mint_info = self.get_atomicals_id_mint_info(atomical_id, True)
             # Sanity check to make sure it matches
             assert(mint_info['commit_tx_num'] == candidate_entry['tx_num'])
             # Only consider the name as valid if the required MINT_REALM_CONTAINER_TICKER_COMMIT_REVEAL_DELAY_BLOCKS has elapsed from the earliest
