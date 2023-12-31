@@ -2673,7 +2673,7 @@ class BlockProcessor:
             # Count the number of existing b'gi' entries and ensure it is strictly less than max_mints
             decentralized_mints = self.get_distmints_count_by_atomical_id(potential_dmt_atomical_id, True)
             if decentralized_mints > max_mints:
-                raise IndexError(f'create_or_delete_decentralized_mint_outputs :Fatal IndexError decentralized_mints > max_mints for {atomical}. Too many mints detected in db')
+                raise IndexError(f'create_or_delete_decentralized_mint_outputs :Fatal IndexError decentralized_mints > max_mints for {location_id_bytes_to_compact(potential_dmt_atomical_id)}. Too many mints detected in db')
             if decentralized_mints < max_mints:
                 self.logger.info(f'create_or_delete_decentralized_mint_outputs: found mint request in {hash_to_hex_str(tx_hash)} for {ticker}. Checking for any POW in distributed mint record...')
                 # If this was a POW mint, then validate that the POW is valid
