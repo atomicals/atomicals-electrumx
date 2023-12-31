@@ -282,6 +282,7 @@ class BlockProcessor:
         self.atomicals_id_cache = pylru.lrucache(1000000)
         self.atomicals_rpc_format_cache = pylru.lrucache(100000)
         self.atomicals_rpc_general_cache = pylru.lrucache(100000)
+        self.atomicals_dft_mint_count_cache = pylru.lrucache(1000)        # tracks number of minted tokens per dft mint to make processing faster per blocks
   
     async def run_in_thread_with_lock(self, func, *args):
         # Run in a thread to prevent blocking.  Shielded so that
@@ -817,17 +818,32 @@ class BlockProcessor:
 
     # Get the total number of distributed mints for an atomical id and check the cache and db
     # This can be a heavy operation with many 10's of thousands in the db
-    def get_distmints_count_by_atomical_id(self, atomical_id):
+    def get_distmints_count_by_atomical_id(self, atomical_id, use_block_db_cache):
         # Count the number of mints in the cache and add it to the number of mints in the db below
         cache_count = 0
         location_map_for_atomical = self.distmint_data_cache.get(atomical_id, None)
         if location_map_for_atomical != None:
             cache_count = len(location_map_for_atomical.keys())
-        # Query all the gi key in the db for the atomical
-        prefix = b'gi' + atomical_id
+        
+        def lookup_db_count(atomical_id):
+            # Query all the gi key in the db for the atomical
+            prefix = b'gi' + atomical_id
+            count = 0
+            for atomical_gi_db_key, atomical_gi_db_value in self.db.utxo_db.iterator(prefix=prefix):
+                count += 1
+            return count 
+
         db_count = 0
-        for atomical_gi_db_key, atomical_gi_db_value in self.db.utxo_db.iterator(prefix=prefix):
-            db_count += 1
+        # If we use the block db cache then check the cache for the cached mints from the db
+        if use_block_db_cache: 
+            db_count = self.atomicals_dft_mint_count_cache.get(atomical_id)
+            # If the cache key was not found then query from the db the first time to populate
+            if db_count == None:
+                # We got the db count as of the latest block
+                db_count = lookup_db_count(atomical_id)
+        else:
+            # No block db cache was used, grab it from the db now
+            db_count = lookup_db_count(atomical_id)
         # The number minted is equal to the cache and db
         total_mints = cache_count + db_count
         # Some sanity checks to make sure no developer error 
@@ -2655,7 +2671,7 @@ class BlockProcessor:
         # Mint is valid and active if the value is what is expected
         if mint_amount == txout.value:
             # Count the number of existing b'gi' entries and ensure it is strictly less than max_mints
-            decentralized_mints = self.get_distmints_count_by_atomical_id(potential_dmt_atomical_id)
+            decentralized_mints = self.get_distmints_count_by_atomical_id(potential_dmt_atomical_id, True)
             if decentralized_mints > max_mints:
                 raise IndexError(f'create_or_delete_decentralized_mint_outputs :Fatal IndexError decentralized_mints > max_mints for {atomical}. Too many mints detected in db')
             if decentralized_mints < max_mints:
@@ -2751,6 +2767,7 @@ class BlockProcessor:
         self.atomicals_rpc_format_cache.clear()
         self.atomicals_rpc_general_cache.clear()
         self.atomicals_id_cache.clear()
+        self.atomicals_dft_mint_count_cache.clear()
         # Track the Atomicals hash for the block
         # First we concatenate the previous block height hash to chain them together
         # The purpose of this is to create a unique hash fingerprint to make it easy to determine if indexers (such as this one) or other implementations
@@ -2785,8 +2802,9 @@ class BlockProcessor:
         to_le_uint32 = pack_le_uint32
         to_le_uint64 = pack_le_uint64
         to_be_uint64 = pack_be_uint64
-
-        found_match = False
+        
+        # track which dft tickers have mints to perform a sanity check at the end
+        atomical_ids_which_have_valid_dft_mints = {}
         for tx, tx_hash in txs:
             has_at_least_one_valid_atomicals_operation = False
             hashXs = []
@@ -2882,6 +2900,7 @@ class BlockProcessor:
                 # Check to create a distributed mint output from a valid tx
                 atomical_id_of_distmint = self.create_or_delete_decentralized_mint_output(atomicals_operations_found_at_inputs, tx_num, tx_hash, tx, height)
                 if atomical_id_of_distmint:
+                    atomical_ids_which_have_valid_dft_mints[atomical_id_of_distmint] = True
                     has_at_least_one_valid_atomicals_operation = True
                     # Double hash the atomical_id_of_distmint to add it to the history to leverage the existing history db for all operations involving the atomical
                     append_hashX(double_sha256(atomical_id_of_distmint))
@@ -2908,6 +2927,12 @@ class BlockProcessor:
             update_touched(hashXs)
             tx_num += 1
 
+        # dft mint sanity check here
+        # Because we are using a cache of the minted dfts from the db
+        # We track all the mints of a dft for their atomical ids and then perform one final lookup going straight to db as well
+        # Then we ensure the max mints cannot be exceeded just in case
+        self.validate_no_dft_inflation(atomical_ids_which_have_valid_dft_mints)
+
         self.db.history.add_unflushed(hashXs_by_tx, self.tx_count)
         self.tx_count = tx_num
         self.db.tx_counts.append(tx_num)
@@ -2921,7 +2946,18 @@ class BlockProcessor:
             self.logger.info(f'Calculated Atomicals Block Hash: height={height}, atomicals_block_hash={hash_to_hex_str(current_height_atomicals_block_hash)}')   
         
         return undo_info, atomicals_undo_info
-
+    
+    # Sanity safety check method to call at end of block processing to ensure no dft token inflation
+    def validate_no_dft_inflation(self, atomical_id_map):
+        for atomical_id_of_dft_ticker, notused in atomical_id_map.items():
+            # Get the max mints allowed for the dft ticker (if set)
+            mint_info_for_ticker = self.get_atomicals_id_mint_info(atomical_id_of_dft_ticker, False)
+            max_mints = mint_info_for_ticker['$max_mints']
+            # Count the number of existing b'gi' entries and ensure it is strictly less than max_mints
+            decentralized_mints = self.get_distmints_count_by_atomical_id(atomical_id_of_dft_ticker, False)
+            if decentralized_mints > max_mints:
+                raise IndexError(f'validate_no_dft_inflation - inflation_bug_found: atomical_id_of_dft_ticker={location_id_bytes_to_compact(atomical_id_of_dft_ticker)} decentralized_mints={decentralized_mints} max_mints={max_mints}')
+    
     # Check for for output markers for a payment for a subrealm
     # Same function is used for creating and rollback. Set Delete=True for rollback operation
     def create_or_delete_subrealm_payment_output_if_valid(self, tx_hash, tx, tx_num, height, operations_found_at_inputs, atomicals_spent_at_inputs, Delete=False):
