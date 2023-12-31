@@ -2868,15 +2868,6 @@ class BlockProcessor:
                     reveal_location_index = atomicals_operations_found_at_inputs['reveal_location_index']
                     self.logger.info(f'advance_txs: atomicals_operations_found_at_inputs operation_found={operation_found}, operation_input_index={operation_input_index}, size_payload={size_payload}, tx_hash={hash_to_hex_str(tx_hash)}, commit_txid={hash_to_hex_str(commit_txid)}, commit_index={commit_index}, reveal_location_txid={hash_to_hex_str(reveal_location_txid)}, reveal_location_index={reveal_location_index}')
                 
-                # Create NFT/FT atomicals if it is defined in the tx
-                created_atomical_id = self.create_or_delete_atomical(atomicals_operations_found_at_inputs, atomicals_spent_at_inputs, header, height, tx_num, atomical_num, tx, tx_hash, False)
-                if created_atomical_id:
-                    has_at_least_one_valid_atomicals_operation = True
-                    atomical_num += 1
-                    # Double hash the created_atomical_id to add it to the history to leverage the existing history db for all operations involving the atomical
-                    append_hashX(double_sha256(created_atomical_id))
-                    self.logger.info(f'advance_txs: create_or_delete_atomical created_atomical_id atomical_id={created_atomical_id.hex()}, tx_hash={hash_to_hex_str(tx_hash)}')
-
                 # Color the outputs of any transferred NFT/FT atomicals according to the rules
                 atomical_ids_transferred = self.color_atomicals_outputs(atomicals_operations_found_at_inputs, atomicals_spent_at_inputs, tx, tx_hash, tx_num, height, is_unspendable)
                 for atomical_id in atomical_ids_transferred:
@@ -2885,6 +2876,40 @@ class BlockProcessor:
                     # Double hash the atomical_id to add it to the history to leverage the existing history db for all operations involving the atomical
                     append_hashX(double_sha256(atomical_id))
                 
+                # Track whether we encountered a valid operation so we can skip other steps in the processing pipeline for efficiency
+                already_found_valid_operation = False
+                
+                # Distributed FT mints can be created as long as it is a valid $ticker and the $max_mints has not been reached
+                # Check to create a distributed mint output from a valid tx
+                atomical_id_of_distmint = self.create_or_delete_decentralized_mint_output(atomicals_operations_found_at_inputs, tx_num, tx_hash, tx, height)
+                if atomical_id_of_distmint:
+                    already_found_valid_operation = True
+                    atomical_ids_which_have_valid_dft_mints[atomical_id_of_distmint] = True
+                    has_at_least_one_valid_atomicals_operation = True
+                    # Double hash the atomical_id_of_distmint to add it to the history to leverage the existing history db for all operations involving the atomical
+                    append_hashX(double_sha256(atomical_id_of_distmint))
+                    self.logger.info(f'advance_txs: create_or_delete_decentralized_mint_output:atomical_id_of_distmint - atomical_id={atomical_id_of_distmint.hex()}, tx_hash={hash_to_hex_str(tx_hash)}')
+          
+                # Create NFT/FT atomicals if it is defined in the tx
+                if not already_found_valid_operation:
+                    created_atomical_id = self.create_or_delete_atomical(atomicals_operations_found_at_inputs, atomicals_spent_at_inputs, header, height, tx_num, atomical_num, tx, tx_hash, False)
+                    if created_atomical_id:
+                        already_found_valid_operation = True
+                        has_at_least_one_valid_atomicals_operation = True
+                        atomical_num += 1
+                        # Double hash the created_atomical_id to add it to the history to leverage the existing history db for all operations involving the atomical
+                        append_hashX(double_sha256(created_atomical_id))
+                        self.logger.info(f'advance_txs: create_or_delete_atomical created_atomical_id atomical_id={created_atomical_id.hex()}, tx_hash={hash_to_hex_str(tx_hash)}')
+
+                # Check if there were any regular 'dat' files definitions
+                if not already_found_valid_operation:
+                    if self.create_or_delete_data_location(tx_hash, atomicals_operations_found_at_inputs):
+                        has_at_least_one_valid_atomicals_operation = True
+                        already_found_valid_operation = True 
+
+                # Note: We do not skip checking for payment tx's even if already_found_valid_operation = True because there could be valid mints
+                # in one and the same tx as making a payment. It's not advisable to do so, but it's a valid possibility
+
                 # Check if there were any payments for subrealms in tx
                 if self.create_or_delete_subrealm_payment_output_if_valid(tx_hash, tx, tx_num, height, atomicals_operations_found_at_inputs, atomicals_spent_at_inputs):
                     self.logger.info(f'advance_txs: found valid payment create_or_delete_subrealm_payment_output_if_valid {hash_to_hex_str(tx_hash)}')
@@ -2893,20 +2918,6 @@ class BlockProcessor:
                 # Check if there were any payments for dmitems in tx
                 if self.create_or_delete_dmitem_payment_output_if_valid(tx_hash, tx, tx_num, height, atomicals_operations_found_at_inputs, atomicals_spent_at_inputs):
                     self.logger.info(f'advance_txs: found valid payment create_or_delete_dmitem_payment_output_if_valid {hash_to_hex_str(tx_hash)}')
-                    has_at_least_one_valid_atomicals_operation = True
-
-                # Distributed FT mints can be created as long as it is a valid $ticker and the $max_mints has not been reached
-                # Check to create a distributed mint output from a valid tx
-                atomical_id_of_distmint = self.create_or_delete_decentralized_mint_output(atomicals_operations_found_at_inputs, tx_num, tx_hash, tx, height)
-                if atomical_id_of_distmint:
-                    atomical_ids_which_have_valid_dft_mints[atomical_id_of_distmint] = True
-                    has_at_least_one_valid_atomicals_operation = True
-                    # Double hash the atomical_id_of_distmint to add it to the history to leverage the existing history db for all operations involving the atomical
-                    append_hashX(double_sha256(atomical_id_of_distmint))
-                    self.logger.info(f'advance_txs: create_or_delete_decentralized_mint_output:atomical_id_of_distmint - atomical_id={atomical_id_of_distmint.hex()}, tx_hash={hash_to_hex_str(tx_hash)}')
-          
-                # Check if there were any regular 'dat' files definitions
-                if self.create_or_delete_data_location(tx_hash, atomicals_operations_found_at_inputs):
                     has_at_least_one_valid_atomicals_operation = True
 
                 # Create a proof of work record if there was valid proof of work attached
@@ -2940,7 +2951,7 @@ class BlockProcessor:
             
         if self.is_atomicals_activated(height):
             # Save the atomicals hash for the current block
-            current_height_atomicals_block_hash = self.coin.header_hash(concatenation_of_tx_hashes_with_valid_atomical_operation.join())
+            current_height_atomicals_block_hash = self.coin.header_hash(b''.join(concatenation_of_tx_hashes_with_valid_atomical_operation))
             put_general_data(b'tt' + pack_le_uint32(height), current_height_atomicals_block_hash)
             self.logger.info(f'Calculated Atomicals Block Hash: height={height}, atomicals_block_hash={hash_to_hex_str(current_height_atomicals_block_hash)}')   
         
