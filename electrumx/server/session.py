@@ -341,7 +341,6 @@ class SessionManager:
                     site = web.TCPSite(runner, host, service.port)
                     await site.start()
                 except Exception as e:
-                    print(e)
                     self.logger.error(f'{kind} server failed to listen on {service.address}: {e}')
                 else:
                     self.logger.info(f'{kind} server listening on {service.address}')
