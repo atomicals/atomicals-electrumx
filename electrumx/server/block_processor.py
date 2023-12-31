@@ -2774,16 +2774,16 @@ class BlockProcessor:
         # are correctly tracking which transaction hashes have valid atomicals operations in them.
         # It makes it really easy to see if anyone goes out of sync and identify the problem within the most recent block
         # Use the block hash as the starting point
-        concatenation_of_tx_hashes_with_valid_atomical_operation = b''
+        concatenation_of_tx_hashes_with_valid_atomical_operation = []
         prev_atomicals_block_hash = b''
         if self.is_atomicals_activated(height):
             block_header_hash = self.coin.header_hash(header)
             if height == self.coin.ATOMICALS_ACTIVATION_HEIGHT:
                 self.logger.info(f'Atomicals Genesis Block Hash: {hash_to_hex_str(block_header_hash)}')
-                concatenation_of_tx_hashes_with_valid_atomical_operation = block_header_hash
+                concatenation_of_tx_hashes_with_valid_atomical_operation.append(block_header_hash)
             elif height > self.coin.ATOMICALS_ACTIVATION_HEIGHT:
                 prev_atomicals_block_hash = self.get_general_data_with_cache(b'tt' + pack_le_uint32(height - 1))
-                concatenation_of_tx_hashes_with_valid_atomical_operation = block_header_hash + prev_atomicals_block_hash
+                concatenation_of_tx_hashes_with_valid_atomical_operation.append(block_header_hash + prev_atomicals_block_hash)
         # Use local vars for speed in the loops
         undo_info = []
         atomicals_undo_info = []
@@ -2877,7 +2877,6 @@ class BlockProcessor:
                     append_hashX(double_sha256(created_atomical_id))
                     self.logger.info(f'advance_txs: create_or_delete_atomical created_atomical_id atomical_id={created_atomical_id.hex()}, tx_hash={hash_to_hex_str(tx_hash)}')
 
-
                 # Color the outputs of any transferred NFT/FT atomicals according to the rules
                 atomical_ids_transferred = self.color_atomicals_outputs(atomicals_operations_found_at_inputs, atomicals_spent_at_inputs, tx, tx_hash, tx_num, height, is_unspendable)
                 for atomical_id in atomical_ids_transferred:
@@ -2917,7 +2916,7 @@ class BlockProcessor:
 
                 # Concat the tx_hash if there was at least one valid atomicals operation
                 if self.is_atomicals_activated(height) and has_at_least_one_valid_atomicals_operation:
-                    concatenation_of_tx_hashes_with_valid_atomical_operation += tx_hash
+                    concatenation_of_tx_hashes_with_valid_atomical_operation.append(tx_hash)
                     self.logger.info(f'advance_txs: has_at_least_one_valid_atomicals_operation tx_hash={hash_to_hex_str(tx_hash)}')
 
                 if has_at_least_one_valid_atomicals_operation:
@@ -2941,7 +2940,7 @@ class BlockProcessor:
             
         if self.is_atomicals_activated(height):
             # Save the atomicals hash for the current block
-            current_height_atomicals_block_hash = self.coin.header_hash(concatenation_of_tx_hashes_with_valid_atomical_operation)
+            current_height_atomicals_block_hash = self.coin.header_hash(concatenation_of_tx_hashes_with_valid_atomical_operation.join())
             put_general_data(b'tt' + pack_le_uint32(height), current_height_atomicals_block_hash)
             self.logger.info(f'Calculated Atomicals Block Hash: height={height}, atomicals_block_hash={hash_to_hex_str(current_height_atomicals_block_hash)}')   
         
