@@ -24,9 +24,11 @@ def success_resp(data) -> web.Response:
 def request_middleware(self) -> web_middlewares:
     async def factory(app: web.Application, handler):
         async def middleware_handler(request):
-            # print('Request {} comming'.format(request))
-            self.logger.info('Request {} comming'.format(request))
+            print('Request {} comming'.format(request))
+            # self.logger.info('Request {} comming'.format(request))
             response = await handler(request)
+            if isinstance(response) == web.Response:
+                return response
             return success_resp(response)
         return middleware_handler
     return factory
