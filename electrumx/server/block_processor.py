@@ -2675,7 +2675,7 @@ class BlockProcessor:
             if decentralized_mints > max_mints:
                 raise IndexError(f'create_or_delete_decentralized_mint_outputs :Fatal IndexError decentralized_mints > max_mints for {location_id_bytes_to_compact(potential_dmt_atomical_id)}. Too many mints detected in db')
             if decentralized_mints < max_mints:
-                self.logger.info(f'create_or_delete_decentralized_mint_outputs: found mint request in {hash_to_hex_str(tx_hash)} for {ticker}. Checking for any POW in distributed mint record...')
+                self.logger.debug(f'create_or_delete_decentralized_mint_outputs: found mint request in {hash_to_hex_str(tx_hash)} for {ticker}. Checking for any POW in distributed mint record...')
                 # If this was a POW mint, then validate that the POW is valid
                 mint_pow_commit = mint_info_for_ticker.get('$mint_bitworkc') 
                 mint_pow_reveal = mint_info_for_ticker.get('$mint_bitworkr') 
@@ -2684,28 +2684,28 @@ class BlockProcessor:
                     commit_txid = atomicals_operations_found_at_inputs['commit_txid']
                     valid_commit_str, bitwork_commit_parts = is_valid_bitwork_string(mint_pow_commit)
                     if not valid_commit_str:
-                        self.logger.info(f'create_or_delete_decentralized_mint_output: not valid_commit_str {hash_to_hex_str(tx_hash)}...')
+                        self.logger.debug(f'create_or_delete_decentralized_mint_output: not valid_commit_str {hash_to_hex_str(tx_hash)}...')
                         return None
                     mint_bitwork_prefix = bitwork_commit_parts['prefix']
                     mint_bitwork_ext = bitwork_commit_parts['ext']
                     if is_proof_of_work_prefix_match(commit_txid, mint_bitwork_prefix, mint_bitwork_ext):
-                        self.logger.info(f'create_or_delete_decentralized_mint_outputs: has VALID mint_bitworkc {valid_commit_str} for {hash_to_hex_str(commit_txid)} for {ticker}. Continuing to mint...')
+                        self.logger.debug(f'create_or_delete_decentralized_mint_outputs: has VALID mint_bitworkc {valid_commit_str} for {hash_to_hex_str(commit_txid)} for {ticker}. Continuing to mint...')
                     else:
-                        self.logger.info(f'create_or_delete_decentralized_mint_outputs: has INVALID mint_bitworkc {valid_commit_str} because the pow is invalid for {hash_to_hex_str(commit_txid)} for {ticker}. Skipping invalid mint attempt...')
+                        self.logger.debug(f'create_or_delete_decentralized_mint_outputs: has INVALID mint_bitworkc {valid_commit_str} because the pow is invalid for {hash_to_hex_str(commit_txid)} for {ticker}. Skipping invalid mint attempt...')
                         return None
                 if mint_pow_reveal:
                     # It required reveal proof of work
                     reveal_txid = atomicals_operations_found_at_inputs['reveal_location_txid']
                     valid_reveal_str, bitwork_reveal_parts = is_valid_bitwork_string(mint_pow_reveal)
                     if not valid_reveal_str:
-                        self.logger.info(f'create_or_delete_decentralized_mint_output: not valid_reveal_str {hash_to_hex_str(tx_hash)}...')
+                        self.logger.debug(f'create_or_delete_decentralized_mint_output: not valid_reveal_str {hash_to_hex_str(tx_hash)}...')
                         return None
                     mint_bitwork_prefix = bitwork_reveal_parts['prefix']
                     mint_bitwork_ext = bitwork_reveal_parts['ext']
                     if is_proof_of_work_prefix_match(reveal_txid, mint_bitwork_prefix, mint_bitwork_ext):
-                        self.logger.info(f'create_or_delete_decentralized_mint_outputs: has VALID mint_bitworkr {valid_reveal_str} for {hash_to_hex_str(reveal_txid)} for {ticker}. Continuing to mint...')
+                        self.logger.debug(f'create_or_delete_decentralized_mint_outputs: has VALID mint_bitworkr {valid_reveal_str} for {hash_to_hex_str(reveal_txid)} for {ticker}. Continuing to mint...')
                     else:
-                        self.logger.info(f'create_or_delete_decentralized_mint_outputs: has INVALID mint_bitworkr {valid_reveal_str} because the pow is invalid for {hash_to_hex_str(reveal_txid)} for {ticker}. Skipping invalid mint attempt...')
+                        self.logger.debug(f'create_or_delete_decentralized_mint_outputs: has INVALID mint_bitworkr {valid_reveal_str} because the pow is invalid for {hash_to_hex_str(reveal_txid)} for {ticker}. Skipping invalid mint attempt...')
                         return None
                 the_key = b'po' + location
                 if Delete:
@@ -2720,14 +2720,14 @@ class BlockProcessor:
                     tx_numb = pack_le_uint64(tx_num)[:TXNUM_LEN]
                     self.put_atomicals_utxo(location, potential_dmt_atomical_id, hashX + scripthash + value_sats + pack_le_uint16(0) + tx_numb)
                     self.put_decentralized_mint_data(potential_dmt_atomical_id, location, scripthash + value_sats)
-                    self.logger.info( f'create_or_delete_decentralized_mint_outputs found valid request in {hash_to_hex_str(tx_hash)} for {ticker}. Granting and creating decentralized mint...')
+                    self.logger.debug( f'create_or_delete_decentralized_mint_outputs found valid request in {hash_to_hex_str(tx_hash)} for {ticker}. Granting and creating decentralized mint...')
                     return potential_dmt_atomical_id
             else:
-                self.logger.info(f'create_or_delete_decentralized_mint_outputs found invalid mint operation because it is minted out completely. Ignoring...')
+                self.logger.debug(f'create_or_delete_decentralized_mint_outputs found invalid mint operation because it is minted out completely. Ignoring...')
         else: 
-            self.logger.info(f'create_or_delete_decentralized_mint_outputs: found invalid mint operation in {tx_hash} for {ticker} because incorrect txout.value {txout.value} when expected {mint_amount}')
+            self.logger.debug(f'create_or_delete_decentralized_mint_outputs: found invalid mint operation in {tx_hash} for {ticker} because incorrect txout.value {txout.value} when expected {mint_amount}')
         
-        self.logger.info(f'create_or_delete_decentralized_mint_outputs general failure {potential_dmt_atomical_id}')
+        self.logger.debug(f'create_or_delete_decentralized_mint_outputs general failure {potential_dmt_atomical_id}')
         return None
 
     def is_atomicals_activated(self, height): 
