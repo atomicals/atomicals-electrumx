@@ -2888,7 +2888,7 @@ class BlockProcessor:
                     has_at_least_one_valid_atomicals_operation = True
                     # Double hash the atomical_id_of_distmint to add it to the history to leverage the existing history db for all operations involving the atomical
                     append_hashX(double_sha256(atomical_id_of_distmint))
-                    self.logger.info(f'advance_txs: create_or_delete_decentralized_mint_output:atomical_id_of_distmint - atomical_id={atomical_id_of_distmint.hex()}, tx_hash={hash_to_hex_str(tx_hash)}')
+                    self.logger.debug(f'advance_txs: create_or_delete_decentralized_mint_output:atomical_id_of_distmint - atomical_id={atomical_id_of_distmint.hex()}, tx_hash={hash_to_hex_str(tx_hash)}')
           
                 # Create NFT/FT atomicals if it is defined in the tx
                 if not already_found_valid_operation:
@@ -2928,7 +2928,6 @@ class BlockProcessor:
                 # Concat the tx_hash if there was at least one valid atomicals operation
                 if self.is_atomicals_activated(height) and has_at_least_one_valid_atomicals_operation:
                     concatenation_of_tx_hashes_with_valid_atomical_operation.append(tx_hash)
-                    self.logger.info(f'advance_txs: has_at_least_one_valid_atomicals_operation tx_hash={hash_to_hex_str(tx_hash)}')
 
                 if has_at_least_one_valid_atomicals_operation:
                     put_general_data(b'th' + pack_le_uint32(height) + pack_le_uint64(tx_num) + tx_hash, tx_hash)
