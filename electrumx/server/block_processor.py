@@ -2680,11 +2680,12 @@ class BlockProcessor:
         scripthash = double_sha256(txout.pk_script)
         hashX = self.coin.hashX_from_script(txout.pk_script)
         value_sats = pack_le_uint64(txout.value)
+        end_timer_p3 = time.time_ns()
         # Mint is valid and active if the value is what is expected
         if mint_amount == txout.value:
             # Count the number of existing b'gi' entries and ensure it is strictly less than max_mints
             decentralized_mints = self.get_distmints_count_by_atomical_id(dmt_mint_atomical_id, True)
-            end_timer_p3 = time.time_ns()
+            end_timer_p4 = time.time_ns()
             if decentralized_mints > max_mints:
                 raise IndexError(f'create_or_delete_decentralized_mint_outputs :Fatal IndexError decentralized_mints > max_mints for {location_id_bytes_to_compact(dmt_mint_atomical_id)}. Too many mints detected in db')
             if decentralized_mints < max_mints:
@@ -2747,6 +2748,8 @@ class BlockProcessor:
                     timings['total_s3'] += end_timer_p3 - end_timer_p2
                     timings['total_s4'] += end_timer_p4 - end_timer_p3
                     timings['total_s5'] += end_timer_p5 - end_timer_p4
+                    timings['total_s6'] += end_timer_p6 - end_timer_p5
+                    timings['total_s7'] += end_timer_p7 - end_timer_p6
                     timings['total_success'] += end_timer_success - start_timer
                     timings['total_dft_success'] += 1
                     return dmt_mint_atomical_id
@@ -2844,6 +2847,8 @@ class BlockProcessor:
             'total_s3': 0,
             'total_s4': 0,
             'total_s5': 0,
+            'total_s6': 0,
+            'total_s7': 0,
             'total_success': 0,
             'total_dft_success': 0
         }
