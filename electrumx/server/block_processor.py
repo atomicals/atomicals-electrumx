@@ -554,27 +554,27 @@ class BlockProcessor:
     def get_atomicals_id_mint_info(self, atomical_id, with_cache):
         result = None
         if with_cache:
-            self.logger.info(f'get_atomicals_id_mint_info with_cache={with_cache} atomical_id={atomical_id}')
+            self.logger.debug(f'get_atomicals_id_mint_info with_cache={with_cache} atomical_id={atomical_id}')
             result = self.atomicals_id_cache.get(atomical_id)
             if result:
-                self.logger.info(f'get_atomicals_id_mint_info hit=True with_cache={with_cache} atomical_id={atomical_id}')
+                self.logger.debug(f'get_atomicals_id_mint_info hit=True with_cache={with_cache} atomical_id={atomical_id}')
                 return result 
         
         result = self.general_data_cache.get(b'mi' + atomical_id)
         if result:
-            self.logger.info(f'get_atomicals_id_mint_info hit=True general_data_cache=True atomical_id={atomical_id}')
+            self.logger.debug(f'get_atomicals_id_mint_info hit=True general_data_cache=True atomical_id={atomical_id}')
             result = unpack_mint_info(result)
             self.atomicals_id_cache[atomical_id] = result
             return result 
         
         mint_info_dump = self.db.get_atomical_mint_info_dump(atomical_id)
         if not mint_info_dump:
-            self.logger.info(f'get_atomicals_id_mint_info get_atomical_mint_info_dump=True atomical_id={atomical_id}')
+            self.logger.debug(f'get_atomicals_id_mint_info get_atomical_mint_info_dump=True atomical_id={atomical_id}')
             return None
         
         result = unpack_mint_info(mint_info_dump)
         self.atomicals_id_cache[atomical_id] = result
-        self.logger.info(f'get_atomicals_id_mint_info no_cache=True with_cache={with_cache} atomical_id={atomical_id}')
+        self.logger.debug(f'get_atomicals_id_mint_info no_cache=True with_cache={with_cache} atomical_id={atomical_id}')
         return result 
 
     # Get the mint information and LRU cache it for fast retrieval
