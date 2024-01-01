@@ -2665,6 +2665,8 @@ class BlockProcessor:
         if height >= self.coin.ATOMICALS_ACTIVATION_HEIGHT_COMMITZ and commit_index != 0:
             self.logger.info(f'create_or_delete_decentralized_mint_output: commit_index={commit_index} is not equal to 0 in tx {hash_to_hex_str(commit_txid)}. Skipping...')
             return None
+        
+        dmt_mint_atomical_id = mint_info_for_ticker['atomical_id']
         expected_output_index = 0
         output_idx_le = pack_le_uint32(expected_output_index) 
         location = tx_hash + output_idx_le
@@ -2675,9 +2677,9 @@ class BlockProcessor:
         # Mint is valid and active if the value is what is expected
         if mint_amount == txout.value:
             # Count the number of existing b'gi' entries and ensure it is strictly less than max_mints
-            decentralized_mints = self.get_distmints_count_by_atomical_id(potential_dmt_atomical_id, True)
+            decentralized_mints = self.get_distmints_count_by_atomical_id(dmt_mint_atomical_id, True)
             if decentralized_mints > max_mints:
-                raise IndexError(f'create_or_delete_decentralized_mint_outputs :Fatal IndexError decentralized_mints > max_mints for {location_id_bytes_to_compact(potential_dmt_atomical_id)}. Too many mints detected in db')
+                raise IndexError(f'create_or_delete_decentralized_mint_outputs :Fatal IndexError decentralized_mints > max_mints for {location_id_bytes_to_compact(dmt_mint_atomical_id)}. Too many mints detected in db')
             if decentralized_mints < max_mints:
                 self.logger.debug(f'create_or_delete_decentralized_mint_outputs: found mint request in {hash_to_hex_str(tx_hash)} for {ticker}. Checking for any POW in distributed mint record...')
                 # If this was a POW mint, then validate that the POW is valid
@@ -2716,22 +2718,22 @@ class BlockProcessor:
                     atomicals_found_list = self.spend_atomicals_utxo(tx_hash, expected_output_index, True)
                     assert(len(atomicals_found_list) > 0)
                     self.delete_general_data(the_key)
-                    self.delete_decentralized_mint_data(potential_dmt_atomical_id, location)
-                    return potential_dmt_atomical_id
+                    self.delete_decentralized_mint_data(dmt_mint_atomical_id, location)
+                    return dmt_mint_atomical_id
                 else:
                     put_general_data = self.general_data_cache.__setitem__
                     put_general_data(the_key, txout.pk_script)
                     tx_numb = pack_le_uint64(tx_num)[:TXNUM_LEN]
-                    self.put_atomicals_utxo(location, potential_dmt_atomical_id, hashX + scripthash + value_sats + pack_le_uint16(0) + tx_numb)
-                    self.put_decentralized_mint_data(potential_dmt_atomical_id, location, scripthash + value_sats)
+                    self.put_atomicals_utxo(location, dmt_mint_atomical_id, hashX + scripthash + value_sats + pack_le_uint16(0) + tx_numb)
+                    self.put_decentralized_mint_data(dmt_mint_atomical_id, location, scripthash + value_sats)
                     self.logger.debug( f'create_or_delete_decentralized_mint_outputs found valid request in {hash_to_hex_str(tx_hash)} for {ticker}. Granting and creating decentralized mint...')
-                    return potential_dmt_atomical_id
+                    return dmt_mint_atomical_id
             else:
                 self.logger.debug(f'create_or_delete_decentralized_mint_outputs found invalid mint operation because it is minted out completely. Ignoring...')
         else: 
             self.logger.debug(f'create_or_delete_decentralized_mint_outputs: found invalid mint operation in {tx_hash} for {ticker} because incorrect txout.value {txout.value} when expected {mint_amount}')
         
-        self.logger.debug(f'create_or_delete_decentralized_mint_outputs general failure {potential_dmt_atomical_id}')
+        self.logger.debug(f'create_or_delete_decentralized_mint_outputs general failure {dmt_mint_atomical_id}')
         return None
 
     def is_atomicals_activated(self, height): 
