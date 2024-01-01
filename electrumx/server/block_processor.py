@@ -2619,7 +2619,7 @@ class BlockProcessor:
         return atomical 
 
     # Create a distributed mint output as long as the rules are satisfied
-    def create_or_delete_decentralized_mint_output(self, atomicals_operations_found_at_inputs, tx_num, tx_hash, tx, height, Delete=False):
+    def create_or_delete_decentralized_mint_output(self, atomicals_operations_found_at_inputs, tx_num, tx_hash, tx, height, ticker_cache, Delete):
         if not atomicals_operations_found_at_inputs:
             return None
 
@@ -2629,15 +2629,19 @@ class BlockProcessor:
         
         # get the potential dmt (distributed mint) atomical_id from the ticker given
         ticker = dmt_return_struct['$mint_ticker']
-        status, potential_dmt_atomical_id, all_entries = self.get_effective_ticker(ticker, height)
-        if status != 'verified':
-            self.logger.info(f'create_or_delete_decentralized_mint_output: potential_dmt_atomical_id not found for dmt operation in {hash_to_hex_str(tx_hash)}. Attempt was made for invalid ticker mint info. Ignoring...')
-            return None 
 
-        mint_info_for_ticker = self.get_atomicals_id_mint_info(potential_dmt_atomical_id, True)
+        # Save the mint info for the ticker
+        mint_info_for_ticker = ticker_cache.get(ticker):
         if not mint_info_for_ticker:
-            raise IndexError(f'create_or_delete_decentralized_mint_outputs: mint_info_for_ticker not found for expected atomical={atomical_id}')
- 
+            status, potential_dmt_atomical_id, all_entries = self.get_effective_ticker(ticker, height)
+            if status != 'verified':
+                self.logger.info(f'create_or_delete_decentralized_mint_output: potential_dmt_atomical_id not found for dmt operation in {hash_to_hex_str(tx_hash)}. Attempt was made for invalid ticker mint info. Ignoring...')
+                return None 
+            mint_info_for_ticker = self.get_atomicals_id_mint_info(potential_dmt_atomical_id, True)
+            if not mint_info_for_ticker:
+                raise IndexError(f'create_or_delete_decentralized_mint_outputs: mint_info_for_ticker not found for expected atomical={atomical_id}')
+            ticker_cache[ticker] = mint_info_for_ticker
+
         if mint_info_for_ticker['subtype'] != 'decentralized':
             self.logger.info(f'create_or_delete_decentralized_mint_outputs: Detected invalid mint attempt in {hash_to_hex_str(tx_hash)} for ticker {ticker} which is not a decentralized mint type. Ignoring...')
             return None 
@@ -2805,6 +2809,9 @@ class BlockProcessor:
         
         # track which dft tickers have mints to perform a sanity check at the end
         atomical_ids_which_have_valid_dft_mints = {}
+        # Speed up distmint processing by caching the ticker mint request info
+        distmint_ticker_cache = {}
+        
         for tx, tx_hash in txs:
             has_at_least_one_valid_atomicals_operation = False
             hashXs = []
@@ -2881,7 +2888,7 @@ class BlockProcessor:
                 
                 # Distributed FT mints can be created as long as it is a valid $ticker and the $max_mints has not been reached
                 # Check to create a distributed mint output from a valid tx
-                atomical_id_of_distmint = self.create_or_delete_decentralized_mint_output(atomicals_operations_found_at_inputs, tx_num, tx_hash, tx, height)
+                atomical_id_of_distmint = self.create_or_delete_decentralized_mint_output(atomicals_operations_found_at_inputs, tx_num, tx_hash, tx, height, distmint_ticker_cache, False)
                 if atomical_id_of_distmint:
                     already_found_valid_operation = True
                     atomical_ids_which_have_valid_dft_mints[atomical_id_of_distmint] = True
@@ -3436,7 +3443,7 @@ class BlockProcessor:
             self.create_or_delete_dmitem_payment_output_if_valid(tx_hash, tx, tx_num, self.height, operations_found_at_inputs, atomicals_spent_at_inputs, True)
 
             # If there were any distributed mint creation, then delete
-            self.create_or_delete_decentralized_mint_output(operations_found_at_inputs, tx_num, tx_hash, tx, self.height, True)
+            self.create_or_delete_decentralized_mint_output(operations_found_at_inputs, tx_num, tx_hash, tx, self.height, {}, True)
 
             # Check if there were any regular 'dat' files definitions to delete
             self.create_or_delete_data_location(tx_hash, operations_found_at_inputs, True)
