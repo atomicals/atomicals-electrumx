@@ -2838,7 +2838,7 @@ class BlockProcessor:
         dft_count = 0
         # Distributed FT mints can be created as long as it is a valid $ticker and the $max_mints has not been reached
         # Check to create a distributed mint output from a valid tx
-        distmint_timings = {
+        dft_timings = {
             'total_s1': 0,
             'total_s2': 0,
             'total_s3': 0,
@@ -2922,7 +2922,7 @@ class BlockProcessor:
                 # Track whether we encountered a valid operation so we can skip other steps in the processing pipeline for efficiency
                 already_found_valid_operation = False
                 
-                atomical_id_of_distmint = self.create_or_delete_decentralized_mint_output(atomicals_operations_found_at_inputs, tx_num, tx_hash, tx, height, distmint_ticker_cache, distmint_timings, False)
+                atomical_id_of_distmint = self.create_or_delete_decentralized_mint_output(atomicals_operations_found_at_inputs, tx_num, tx_hash, tx, height, distmint_ticker_cache, dft_timings, False)
                 if atomical_id_of_distmint:
                     dft_count += 1
                     already_found_valid_operation = True
@@ -2933,7 +2933,7 @@ class BlockProcessor:
                     self.logger.debug(f'advance_txs: create_or_delete_decentralized_mint_output:atomical_id_of_distmint - atomical_id={atomical_id_of_distmint.hex()}, tx_hash={hash_to_hex_str(tx_hash)}')
                     
                     if dft_count % 50 == 0:
-                        self.logger.info(f'timings={timings}')
+                        self.logger.info(f'dft_timings={dft_timings}')
                         self.logger.info(f'height={height} dft_count={dft_count}')
           
                 # Create NFT/FT atomicals if it is defined in the tx
