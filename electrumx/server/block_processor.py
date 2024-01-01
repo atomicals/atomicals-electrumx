@@ -860,7 +860,7 @@ class BlockProcessor:
         location_id = tx_hash + idx_packed
         cache_map = self.atomicals_utxo_cache.get(location_id)
         if cache_map:
-            self.logger.info(f'spend_atomicals_utxo: cache_map. location_id={location_id_bytes_to_compact(location_id)} has Atomicals...')
+            self.logger.debug(f'spend_atomicals_utxo: cache_map. location_id={location_id_bytes_to_compact(location_id)} has Atomicals...')
             atomicals_data_list_cached = []
             for key in cache_map.keys(): 
                 value_with_tombstone = cache_map[key]
@@ -2708,7 +2708,7 @@ class BlockProcessor:
                         self.logger.debug(f'create_or_delete_decentralized_mint_outputs: has INVALID mint_bitworkc {valid_commit_str} because the pow is invalid for {hash_to_hex_str(commit_txid)} for {ticker}. Skipping invalid mint attempt...')
                         return None
                 
-                end_timer_p4 = time.time_ns()
+                end_timer_p5 = time.time_ns()
                 
                 if mint_pow_reveal:
                     # It required reveal proof of work
@@ -2725,7 +2725,7 @@ class BlockProcessor:
                         self.logger.debug(f'create_or_delete_decentralized_mint_outputs: has INVALID mint_bitworkr {valid_reveal_str} because the pow is invalid for {hash_to_hex_str(reveal_txid)} for {ticker}. Skipping invalid mint attempt...')
                         return None
                 
-                end_timer_p5 = time.time_ns()
+                end_timer_p6 = time.time_ns()
 
                 the_key = b'po' + location
                 if Delete:
@@ -2749,7 +2749,7 @@ class BlockProcessor:
                     timings['total_s4'] += end_timer_p4 - end_timer_p3
                     timings['total_s5'] += end_timer_p5 - end_timer_p4
                     timings['total_s6'] += end_timer_p6 - end_timer_p5
-                    timings['total_s7'] += end_timer_p7 - end_timer_p6
+                    timings['total_s7'] += end_timer_success - end_timer_p6
                     timings['total_success'] += end_timer_success - start_timer
                     timings['total_dft_success'] += 1
                     return dmt_mint_atomical_id
