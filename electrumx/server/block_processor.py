@@ -873,7 +873,7 @@ class BlockProcessor:
                 if live_run:
                     value_with_tombstone['found_in_cache'] = True
                     value_with_tombstone['deleted'] = True  # Flag it as deleted so the b'a' active location will not be written on flushed
-                self.logger.info(f'spend_atomicals_utxo: cache_map. key={key}, location_id={location_id_bytes_to_compact(location_id)} atomical_id={location_id_bytes_to_compact(key)}, value={value}')
+                self.logger.debug(f'spend_atomicals_utxo: cache_map. key={key}, location_id={location_id_bytes_to_compact(location_id)} atomical_id={location_id_bytes_to_compact(key)}, value={value}')
             if len(atomicals_data_list_cached) > 0:
                 return atomicals_data_list_cached
         # Search the locations of existing atomicals
@@ -895,7 +895,7 @@ class BlockProcessor:
             # Only do the db delete if this was a live run
             if live_run:
                 self.delete_general_data(b'a' + atomical_id + location_id)
-                self.logger.info(f'spend_atomicals_utxo: utxo_db. location_id={location_id_bytes_to_compact(location_id)} atomical_id={location_id_bytes_to_compact(atomical_id)}, value={atomical_i_db_value}')
+                self.logger.debug(f'spend_atomicals_utxo: utxo_db. location_id={location_id_bytes_to_compact(location_id)} atomical_id={location_id_bytes_to_compact(atomical_id)}, value={atomical_i_db_value}')
             
             atomicals_data_list.append({
                 'atomical_id': atomical_id,
@@ -2619,10 +2619,12 @@ class BlockProcessor:
         return atomical 
 
     # Create a distributed mint output as long as the rules are satisfied
-    def create_or_delete_decentralized_mint_output(self, atomicals_operations_found_at_inputs, tx_num, tx_hash, tx, height, ticker_cache, Delete):
+    def create_or_delete_decentralized_mint_output(self, atomicals_operations_found_at_inputs, tx_num, tx_hash, tx, height, ticker_cache, timings, Delete):
         if not atomicals_operations_found_at_inputs:
             return None
-
+        
+        start_timer = time.time_ns()
+        
         dmt_valid, dmt_return_struct = is_valid_dmt_op_format(tx_hash, atomicals_operations_found_at_inputs)
         if not dmt_valid:
             return None
@@ -2642,6 +2644,8 @@ class BlockProcessor:
                 raise IndexError(f'create_or_delete_decentralized_mint_outputs: mint_info_for_ticker not found for expected atomical={atomical_id}')
             ticker_cache[ticker] = mint_info_for_ticker
 
+        end_timer_p1 = time.time_ns()
+
         if mint_info_for_ticker['subtype'] != 'decentralized':
             self.logger.info(f'create_or_delete_decentralized_mint_outputs: Detected invalid mint attempt in {hash_to_hex_str(tx_hash)} for ticker {ticker} which is not a decentralized mint type. Ignoring...')
             return None 
@@ -2659,13 +2663,15 @@ class BlockProcessor:
             self.logger.info(f'create_or_delete_decentralized_mint_output: commit_txid not found for distmint reveal_tx {hash_to_hex_str(commit_txid)}. Skipping...')
             return None
         if commit_tx_height < mint_height:
-            self.logger.info(f'create_or_delete_decentralized_mint_output: commit_tx_height={commit_tx_height} is less than ATOMICALS_ACTIVATION_HEIGHT. Skipping...')
+            self.logger.info(f'create_or_delete_decentralized_mint_output: commit_tx_height={commit_tx_height} is less than DFT mint_height. Skipping...')
             return None
         commit_index = atomicals_operations_found_at_inputs['commit_index']
         if height >= self.coin.ATOMICALS_ACTIVATION_HEIGHT_COMMITZ and commit_index != 0:
             self.logger.info(f'create_or_delete_decentralized_mint_output: commit_index={commit_index} is not equal to 0 in tx {hash_to_hex_str(commit_txid)}. Skipping...')
             return None
         
+        end_timer_p2 = time.time_ns()
+
         dmt_mint_atomical_id = mint_info_for_ticker['atomical_id']
         expected_output_index = 0
         output_idx_le = pack_le_uint32(expected_output_index) 
@@ -2678,6 +2684,7 @@ class BlockProcessor:
         if mint_amount == txout.value:
             # Count the number of existing b'gi' entries and ensure it is strictly less than max_mints
             decentralized_mints = self.get_distmints_count_by_atomical_id(dmt_mint_atomical_id, True)
+            end_timer_p3 = time.time_ns()
             if decentralized_mints > max_mints:
                 raise IndexError(f'create_or_delete_decentralized_mint_outputs :Fatal IndexError decentralized_mints > max_mints for {location_id_bytes_to_compact(dmt_mint_atomical_id)}. Too many mints detected in db')
             if decentralized_mints < max_mints:
@@ -2699,6 +2706,9 @@ class BlockProcessor:
                     else:
                         self.logger.debug(f'create_or_delete_decentralized_mint_outputs: has INVALID mint_bitworkc {valid_commit_str} because the pow is invalid for {hash_to_hex_str(commit_txid)} for {ticker}. Skipping invalid mint attempt...')
                         return None
+                
+                end_timer_p4 = time.time_ns()
+                
                 if mint_pow_reveal:
                     # It required reveal proof of work
                     reveal_txid = atomicals_operations_found_at_inputs['reveal_location_txid']
@@ -2713,6 +2723,9 @@ class BlockProcessor:
                     else:
                         self.logger.debug(f'create_or_delete_decentralized_mint_outputs: has INVALID mint_bitworkr {valid_reveal_str} because the pow is invalid for {hash_to_hex_str(reveal_txid)} for {ticker}. Skipping invalid mint attempt...')
                         return None
+                
+                end_timer_p5 = time.time_ns()
+
                 the_key = b'po' + location
                 if Delete:
                     atomicals_found_list = self.spend_atomicals_utxo(tx_hash, expected_output_index, True)
@@ -2727,6 +2740,15 @@ class BlockProcessor:
                     self.put_atomicals_utxo(location, dmt_mint_atomical_id, hashX + scripthash + value_sats + pack_le_uint16(0) + tx_numb)
                     self.put_decentralized_mint_data(dmt_mint_atomical_id, location, scripthash + value_sats)
                     self.logger.debug( f'create_or_delete_decentralized_mint_outputs found valid request in {hash_to_hex_str(tx_hash)} for {ticker}. Granting and creating decentralized mint...')
+                     
+                    end_timer_success = time.time_ns()
+                    timings['total_s1'] += end_timer_p1 - start_timer
+                    timings['total_s2'] += end_timer_p2 - end_timer_p1
+                    timings['total_s3'] += end_timer_p3 - end_timer_p2
+                    timings['total_s4'] += end_timer_p4 - end_timer_p3
+                    timings['total_s5'] += end_timer_p5 - end_timer_p4
+                    timings['total_success'] += end_timer_success - start_timer
+                    timings['total_dft_success'] += 1
                     return dmt_mint_atomical_id
             else:
                 self.logger.debug(f'create_or_delete_decentralized_mint_outputs found invalid mint operation because it is minted out completely. Ignoring...')
@@ -2813,7 +2835,7 @@ class BlockProcessor:
         atomical_ids_which_have_valid_dft_mints = {}
         # Speed up distmint processing by caching the ticker mint request info
         distmint_ticker_cache = {}
-        dmint_count = 0
+        dft_count = 0
 
         for tx, tx_hash in txs:
             has_at_least_one_valid_atomicals_operation = False
@@ -2891,17 +2913,20 @@ class BlockProcessor:
                 
                 # Distributed FT mints can be created as long as it is a valid $ticker and the $max_mints has not been reached
                 # Check to create a distributed mint output from a valid tx
-                atomical_id_of_distmint = self.create_or_delete_decentralized_mint_output(atomicals_operations_found_at_inputs, tx_num, tx_hash, tx, height, distmint_ticker_cache, False)
+                distmint_timings = {}
+                atomical_id_of_distmint = self.create_or_delete_decentralized_mint_output(atomicals_operations_found_at_inputs, tx_num, tx_hash, tx, height, distmint_ticker_cache, distmint_timings, False)
                 if atomical_id_of_distmint:
-                    dmint_count += 1
+                    dft_count += 1
                     already_found_valid_operation = True
                     atomical_ids_which_have_valid_dft_mints[atomical_id_of_distmint] = True
                     has_at_least_one_valid_atomicals_operation = True
                     # Double hash the atomical_id_of_distmint to add it to the history to leverage the existing history db for all operations involving the atomical
                     append_hashX(double_sha256(atomical_id_of_distmint))
                     self.logger.debug(f'advance_txs: create_or_delete_decentralized_mint_output:atomical_id_of_distmint - atomical_id={atomical_id_of_distmint.hex()}, tx_hash={hash_to_hex_str(tx_hash)}')
-                    if dmint_count % 100 == 0:
-                        self.logger.info(f'dmint_count={dmint_count}')
+                    
+                    if dft_count % 50 == 0:
+                        self.logger.info(f'timings={timings}')
+                        self.logger.info(f'height={height} dft_count={dft_count}')
           
                 # Create NFT/FT atomicals if it is defined in the tx
                 if not already_found_valid_operation:
@@ -3449,7 +3474,7 @@ class BlockProcessor:
             self.create_or_delete_dmitem_payment_output_if_valid(tx_hash, tx, tx_num, self.height, operations_found_at_inputs, atomicals_spent_at_inputs, True)
 
             # If there were any distributed mint creation, then delete
-            self.create_or_delete_decentralized_mint_output(operations_found_at_inputs, tx_num, tx_hash, tx, self.height, {}, True)
+            self.create_or_delete_decentralized_mint_output(operations_found_at_inputs, tx_num, tx_hash, tx, self.height, {}, {}, True)
 
             # Check if there were any regular 'dat' files definitions to delete
             self.create_or_delete_data_location(tx_hash, operations_found_at_inputs, True)

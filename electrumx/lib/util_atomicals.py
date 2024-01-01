@@ -1382,16 +1382,16 @@ def assign_expected_outputs_basic(atomical_id, ft_value, tx, start_out_idx):
             remaining_value -= txout.value
             if remaining_value == 0:
                 # The token input was fully exhausted cleanly into the outputs
-                print(f'assign_expected_outputs_basic return_success atomical_id={location_id_bytes_to_compact(atomical_id)} expected_output_indexes={expected_output_indexes}')
+                # print(f'assign_expected_outputs_basic return_success atomical_id={location_id_bytes_to_compact(atomical_id)} expected_output_indexes={expected_output_indexes}')
                 return True, expected_output_indexes
         # Exit case output is greater than what we have in remaining_value
         else:
-            print(f'assign_expected_outputs_basic return_middle  atomical_id={location_id_bytes_to_compact(atomical_id)} expected_output_indexes={expected_output_indexes}')
+            # print(f'assign_expected_outputs_basic return_middle  atomical_id={location_id_bytes_to_compact(atomical_id)} expected_output_indexes={expected_output_indexes}')
             # There was still some token units left, but the next output was greater than the amount. Therefore we burned the remainder tokens.
             return False, expected_output_indexes
         idx_count += 1
     # There was still some token units left, but there were no more outputs to take the quantity. Tokens were burned.
-    print(f'assign_expected_outputs_basic return_ending with  atomical_id={location_id_bytes_to_compact(atomical_id)} expected_output_indexes={expected_output_indexes}')
+    # print(f'assign_expected_outputs_basic return_ending with  atomical_id={location_id_bytes_to_compact(atomical_id)} expected_output_indexes={expected_output_indexes}')
     return False, expected_output_indexes 
 
 def build_reverse_output_to_atomical_id_map(atomical_id_to_output_index_map):
