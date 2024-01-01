@@ -2811,6 +2811,7 @@ class BlockProcessor:
         atomical_ids_which_have_valid_dft_mints = {}
         # Speed up distmint processing by caching the ticker mint request info
         distmint_ticker_cache = {}
+        dmint_count = 0
         
         for tx, tx_hash in txs:
             has_at_least_one_valid_atomicals_operation = False
@@ -2890,12 +2891,15 @@ class BlockProcessor:
                 # Check to create a distributed mint output from a valid tx
                 atomical_id_of_distmint = self.create_or_delete_decentralized_mint_output(atomicals_operations_found_at_inputs, tx_num, tx_hash, tx, height, distmint_ticker_cache, False)
                 if atomical_id_of_distmint:
+                    dmint_count += 1
                     already_found_valid_operation = True
                     atomical_ids_which_have_valid_dft_mints[atomical_id_of_distmint] = True
                     has_at_least_one_valid_atomicals_operation = True
                     # Double hash the atomical_id_of_distmint to add it to the history to leverage the existing history db for all operations involving the atomical
                     append_hashX(double_sha256(atomical_id_of_distmint))
                     self.logger.debug(f'advance_txs: create_or_delete_decentralized_mint_output:atomical_id_of_distmint - atomical_id={atomical_id_of_distmint.hex()}, tx_hash={hash_to_hex_str(tx_hash)}')
+                    if dmint_count % 100 == 0:
+                        self.logger.debug(f'dmint_count={dmint_count}')
           
                 # Create NFT/FT atomicals if it is defined in the tx
                 if not already_found_valid_operation:
