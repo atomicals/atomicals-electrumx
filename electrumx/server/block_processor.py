@@ -1829,10 +1829,10 @@ class BlockProcessor:
             should_split_ft_atomicals = is_split_operation(operations_found_at_inputs)
             if should_split_ft_atomicals:
                 if not self.color_ft_atomicals_split(ft_atomicals, tx_hash, tx, tx_num, operations_found_at_inputs, atomical_ids_touched, True):
-                    self.logger.info(f'color_atomicals_outputs:color_ft_atomicals_split cleanly_assigned=False tx_hash={tx_hash}')
+                    self.logger.warning(f'color_atomicals_outputs:color_ft_atomicals_split cleanly_assigned=False tx_hash={tx_hash}')
             else:
                 if not self.color_ft_atomicals_regular(ft_atomicals, tx_hash, tx, tx_num, operations_found_at_inputs, atomical_ids_touched, height, True):
-                    self.logger.info(f'color_atomicals_outputs:color_ft_atomicals_regular cleanly_assigned=False tx_hash={tx_hash}')
+                    self.logger.warning(f'color_atomicals_outputs:color_ft_atomicals_regular cleanly_assigned=False tx_hash={tx_hash}')
         return atomical_ids_touched
 
     # Create or delete data that was found at the location
@@ -2624,8 +2624,6 @@ class BlockProcessor:
         if not atomicals_operations_found_at_inputs:
             return None
         
-        start_timer = time.time_ns()
-        
         dmt_valid, dmt_return_struct = is_valid_dmt_op_format(tx_hash, atomicals_operations_found_at_inputs)
         if not dmt_valid:
             return None
@@ -2644,8 +2642,6 @@ class BlockProcessor:
             if not mint_info_for_ticker:
                 raise IndexError(f'create_or_delete_decentralized_mint_outputs: mint_info_for_ticker not found for expected atomical={atomical_id}')
             ticker_cache[ticker] = mint_info_for_ticker
-
-        end_timer_p1 = time.time_ns()
 
         if mint_info_for_ticker['subtype'] != 'decentralized':
             self.logger.info(f'create_or_delete_decentralized_mint_outputs: Detected invalid mint attempt in {hash_to_hex_str(tx_hash)} for ticker {ticker} which is not a decentralized mint type. Ignoring...')
@@ -2670,9 +2666,7 @@ class BlockProcessor:
         if height >= self.coin.ATOMICALS_ACTIVATION_HEIGHT_COMMITZ and commit_index != 0:
             self.logger.info(f'create_or_delete_decentralized_mint_output: commit_index={commit_index} is not equal to 0 in tx {hash_to_hex_str(commit_txid)}. Skipping...')
             return None
-        
-        end_timer_p2 = time.time_ns()
-
+    
         dmt_mint_atomical_id = mint_info_for_ticker['atomical_id']
         expected_output_index = 0
         output_idx_le = pack_le_uint32(expected_output_index) 
@@ -2681,12 +2675,10 @@ class BlockProcessor:
         scripthash = double_sha256(txout.pk_script)
         hashX = self.coin.hashX_from_script(txout.pk_script)
         value_sats = pack_le_uint64(txout.value)
-        end_timer_p3 = time.time_ns()
         # Mint is valid and active if the value is what is expected
         if mint_amount == txout.value:
             # Count the number of existing b'gi' entries and ensure it is strictly less than max_mints
             decentralized_mints = self.get_distmints_count_by_atomical_id(dmt_mint_atomical_id, True)
-            end_timer_p4 = time.time_ns()
             if decentralized_mints > max_mints:
                 raise IndexError(f'create_or_delete_decentralized_mint_outputs :Fatal IndexError decentralized_mints > max_mints for {location_id_bytes_to_compact(dmt_mint_atomical_id)}. Too many mints detected in db')
             if decentralized_mints < max_mints:
@@ -2709,8 +2701,6 @@ class BlockProcessor:
                         self.logger.debug(f'create_or_delete_decentralized_mint_outputs: has INVALID mint_bitworkc {valid_commit_str} because the pow is invalid for {hash_to_hex_str(commit_txid)} for {ticker}. Skipping invalid mint attempt...')
                         return None
                 
-                end_timer_p5 = time.time_ns()
-                
                 if mint_pow_reveal:
                     # It required reveal proof of work
                     reveal_txid = atomicals_operations_found_at_inputs['reveal_location_txid']
@@ -2725,8 +2715,6 @@ class BlockProcessor:
                     else:
                         self.logger.debug(f'create_or_delete_decentralized_mint_outputs: has INVALID mint_bitworkr {valid_reveal_str} because the pow is invalid for {hash_to_hex_str(reveal_txid)} for {ticker}. Skipping invalid mint attempt...')
                         return None
-                
-                end_timer_p6 = time.time_ns()
 
                 the_key = b'po' + location
                 if Delete:
@@ -2742,17 +2730,6 @@ class BlockProcessor:
                     self.put_atomicals_utxo(location, dmt_mint_atomical_id, hashX + scripthash + value_sats + pack_le_uint16(0) + tx_numb)
                     self.put_decentralized_mint_data(dmt_mint_atomical_id, location, scripthash + value_sats)
                     self.logger.debug( f'create_or_delete_decentralized_mint_outputs found valid request in {hash_to_hex_str(tx_hash)} for {ticker}. Granting and creating decentralized mint...')
-                     
-                    end_timer_success = time.time_ns()
-                    timings['total_s1'] += end_timer_p1 - start_timer
-                    timings['total_s2'] += end_timer_p2 - end_timer_p1
-                    timings['total_s3'] += end_timer_p3 - end_timer_p2
-                    timings['total_s4'] += end_timer_p4 - end_timer_p3
-                    timings['total_s5'] += end_timer_p5 - end_timer_p4
-                    timings['total_s6'] += end_timer_p6 - end_timer_p5
-                    timings['total_s7'] += end_timer_success - end_timer_p6
-                    timings['total_success'] += end_timer_success - start_timer
-                    timings['total_dft_success'] += 1
                     return dmt_mint_atomical_id
             else:
                 self.logger.debug(f'create_or_delete_decentralized_mint_outputs found invalid mint operation because it is minted out completely. Ignoring...')
@@ -2840,20 +2817,6 @@ class BlockProcessor:
         # Speed up distmint processing by caching the ticker mint request info
         distmint_ticker_cache = {}
         dft_count = 0
-        # Distributed FT mints can be created as long as it is a valid $ticker and the $max_mints has not been reached
-        # Check to create a distributed mint output from a valid tx
-        dft_timings = {
-            'total_s1': 0,
-            'total_s2': 0,
-            'total_s3': 0,
-            'total_s4': 0,
-            'total_s5': 0,
-            'total_s6': 0,
-            'total_s7': 0,
-            'total_success': 0,
-            'total_dft_success': 0
-        }
-
         for tx, tx_hash in txs:
             has_at_least_one_valid_atomicals_operation = False
             hashXs = []
@@ -2938,8 +2901,7 @@ class BlockProcessor:
                     append_hashX(double_sha256(atomical_id_of_distmint))
                     self.logger.debug(f'advance_txs: create_or_delete_decentralized_mint_output:atomical_id_of_distmint - atomical_id={atomical_id_of_distmint.hex()}, tx_hash={hash_to_hex_str(tx_hash)}')
                     
-                    if dft_count % 50 == 0:
-                        self.logger.info(f'dft_timings={dft_timings}')
+                    if dft_count % 100 == 0:
                         self.logger.info(f'height={height} dft_count={dft_count}')
           
                 # Create NFT/FT atomicals if it is defined in the tx
