@@ -2857,22 +2857,22 @@ class BlockProcessor:
                 # Detect all protocol operations in the transaction witness inputs
                 # Only parse witness information for Atomicals if activated
                 atomicals_operations_found_at_inputs = parse_protocols_operations_from_witness_array(tx, tx_hash)
-                if atomicals_operations_found_at_inputs:
+                # if atomicals_operations_found_at_inputs:
                     # Log information to help troubleshoot
-                    size_payload = sys.getsizeof(atomicals_operations_found_at_inputs['payload_bytes'])
-                    operation_found = atomicals_operations_found_at_inputs['op']
-                    operation_input_index = atomicals_operations_found_at_inputs['input_index']
-                    commit_txid = atomicals_operations_found_at_inputs['commit_txid']
-                    commit_index = atomicals_operations_found_at_inputs['commit_index']
-                    reveal_location_txid = atomicals_operations_found_at_inputs['reveal_location_txid']
-                    reveal_location_index = atomicals_operations_found_at_inputs['reveal_location_index']
-                    self.logger.info(f'advance_txs: atomicals_operations_found_at_inputs operation_found={operation_found}, operation_input_index={operation_input_index}, size_payload={size_payload}, tx_hash={hash_to_hex_str(tx_hash)}, commit_txid={hash_to_hex_str(commit_txid)}, commit_index={commit_index}, reveal_location_txid={hash_to_hex_str(reveal_location_txid)}, reveal_location_index={reveal_location_index}')
+                    # size_payload = sys.getsizeof(atomicals_operations_found_at_inputs['payload_bytes'])
+                    # operation_found = atomicals_operations_found_at_inputs['op']
+                    # operation_input_index = atomicals_operations_found_at_inputs['input_index']
+                    # commit_txid = atomicals_operations_found_at_inputs['commit_txid']
+                    # commit_index = atomicals_operations_found_at_inputs['commit_index']
+                    # reveal_location_txid = atomicals_operations_found_at_inputs['reveal_location_txid']
+                    # reveal_location_index = atomicals_operations_found_at_inputs['reveal_location_index']
+                    # self.logger.info(f'advance_txs: atomicals_operations_found_at_inputs operation_found={operation_found}, operation_input_index={operation_input_index}, size_payload={size_payload}, tx_hash={hash_to_hex_str(tx_hash)}, commit_txid={hash_to_hex_str(commit_txid)}, commit_index={commit_index}, reveal_location_txid={hash_to_hex_str(reveal_location_txid)}, reveal_location_index={reveal_location_index}')
                 
                 # Color the outputs of any transferred NFT/FT atomicals according to the rules
                 atomical_ids_transferred = self.color_atomicals_outputs(atomicals_operations_found_at_inputs, atomicals_spent_at_inputs, tx, tx_hash, tx_num, height, is_unspendable)
                 for atomical_id in atomical_ids_transferred:
                     has_at_least_one_valid_atomicals_operation = True
-                    self.logger.info(f'advance_txs: color_atomicals_outputs atomical_ids_transferred. atomical_id={atomical_id.hex()}, tx_hash={hash_to_hex_str(tx_hash)}')
+                    self.logger.debug(f'advance_txs: color_atomicals_outputs atomical_ids_transferred. atomical_id={atomical_id.hex()}, tx_hash={hash_to_hex_str(tx_hash)}')
                     # Double hash the atomical_id to add it to the history to leverage the existing history db for all operations involving the atomical
                     append_hashX(double_sha256(atomical_id))
                 
@@ -2899,7 +2899,7 @@ class BlockProcessor:
                         atomical_num += 1
                         # Double hash the created_atomical_id to add it to the history to leverage the existing history db for all operations involving the atomical
                         append_hashX(double_sha256(created_atomical_id))
-                        self.logger.info(f'advance_txs: create_or_delete_atomical created_atomical_id atomical_id={created_atomical_id.hex()}, tx_hash={hash_to_hex_str(tx_hash)}')
+                        self.logger.debug(f'advance_txs: create_or_delete_atomical created_atomical_id atomical_id={created_atomical_id.hex()}, tx_hash={hash_to_hex_str(tx_hash)}')
 
                 # Check if there were any regular 'dat' files definitions
                 if not already_found_valid_operation:
@@ -2912,12 +2912,12 @@ class BlockProcessor:
 
                 # Check if there were any payments for subrealms in tx
                 if self.create_or_delete_subrealm_payment_output_if_valid(tx_hash, tx, tx_num, height, atomicals_operations_found_at_inputs, atomicals_spent_at_inputs):
-                    self.logger.info(f'advance_txs: found valid payment create_or_delete_subrealm_payment_output_if_valid {hash_to_hex_str(tx_hash)}')
+                    self.logger.debug(f'advance_txs: found valid payment create_or_delete_subrealm_payment_output_if_valid {hash_to_hex_str(tx_hash)}')
                     has_at_least_one_valid_atomicals_operation = True
 
                 # Check if there were any payments for dmitems in tx
                 if self.create_or_delete_dmitem_payment_output_if_valid(tx_hash, tx, tx_num, height, atomicals_operations_found_at_inputs, atomicals_spent_at_inputs):
-                    self.logger.info(f'advance_txs: found valid payment create_or_delete_dmitem_payment_output_if_valid {hash_to_hex_str(tx_hash)}')
+                    self.logger.debug(f'advance_txs: found valid payment create_or_delete_dmitem_payment_output_if_valid {hash_to_hex_str(tx_hash)}')
                     has_at_least_one_valid_atomicals_operation = True
 
                 # Create a proof of work record if there was valid proof of work attached
