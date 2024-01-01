@@ -2836,6 +2836,17 @@ class BlockProcessor:
         # Speed up distmint processing by caching the ticker mint request info
         distmint_ticker_cache = {}
         dft_count = 0
+        # Distributed FT mints can be created as long as it is a valid $ticker and the $max_mints has not been reached
+        # Check to create a distributed mint output from a valid tx
+        distmint_timings = {
+            'total_s1': 0,
+            'total_s2': 0,
+            'total_s3': 0,
+            'total_s4': 0,
+            'total_s5': 0,
+            'total_success': 0,
+            'total_dft_success': 0
+        }
 
         for tx, tx_hash in txs:
             has_at_least_one_valid_atomicals_operation = False
@@ -2911,9 +2922,6 @@ class BlockProcessor:
                 # Track whether we encountered a valid operation so we can skip other steps in the processing pipeline for efficiency
                 already_found_valid_operation = False
                 
-                # Distributed FT mints can be created as long as it is a valid $ticker and the $max_mints has not been reached
-                # Check to create a distributed mint output from a valid tx
-                distmint_timings = {}
                 atomical_id_of_distmint = self.create_or_delete_decentralized_mint_output(atomicals_operations_found_at_inputs, tx_num, tx_hash, tx, height, distmint_ticker_cache, distmint_timings, False)
                 if atomical_id_of_distmint:
                     dft_count += 1
