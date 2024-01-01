@@ -70,8 +70,7 @@ class FlushData:
     # atomicals_undo_infos operates exactly similarly to undo_infos and contains enough information to reconstruct all indexes on reorg rollback
     atomicals_undo_infos = attr.ib()    # type: List[Tuple[Sequence[bytes], int]]
     # atomicals_adds is used to track atomicals locations and unspent utxos with the b'i' and b'a' indexes
-    # It uses a field 'deleted' to indicate whether to write the b'a' (active unspent utxo) or not - because it may have been spent before the cache flushed
-    # Maps location_id to atomical_ids and the value/deleted entry
+    # Maps location_id to atomical_ids and the value entry
     atomicals_adds = attr.ib()          # type: Dict[bytes, Dict[bytes, { value: bytes, deleted: Boolean}] ] 
     # general_adds is a general purpose storage for key-value, used for the majority of atomicals data
     general_adds = attr.ib()            # type: List[Tuple[Sequence[bytes], Sequence[bytes]]]
@@ -614,9 +613,8 @@ class DB:
                 exponent = value[HASHX_LEN + SCRIPTHASH_LEN + 8: HASHX_LEN + SCRIPTHASH_LEN + 8 + 2]
                 tx_numb = value[-TXNUM_LEN:]  
                 batch_put(b'i' + location_key + atomical_id, hashX + scripthash + value_sats + exponent + tx_numb) 
-                # Add the active b'a' atomicals location if it was not deleted
-                if not value_with_tombstone.get('deleted', False):
-                    batch_put(b'a' + atomical_id + location_key, hashX + scripthash + value_sats + exponent + tx_numb) 
+
+                batch_put(b'a' + atomical_id + location_key, hashX + scripthash + value_sats + exponent + tx_numb)
         flush_data.atomicals_adds.clear()
  
         # Distributed mint data adds

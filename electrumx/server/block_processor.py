@@ -812,7 +812,6 @@ class BlockProcessor:
         # Use a tombstone to mark deleted because even if it's removed we must
         # store the b'i' value
         self.atomicals_utxo_cache[location_id][atomical_id] = {
-            'deleted': False,
             'value': value
         }
 
@@ -858,7 +857,7 @@ class BlockProcessor:
         '''Spend the atomicals entry for UTXO and return atomicals[].'''
         idx_packed = pack_le_uint32(tx_idx)
         location_id = tx_hash + idx_packed
-        cache_map = self.atomicals_utxo_cache.get(location_id)
+        cache_map = self.atomicals_utxo_cache.pop(location_id)
         if cache_map:
             self.logger.info(f'spend_atomicals_utxo: cache_map. location_id={location_id_bytes_to_compact(location_id)} has Atomicals...')
             atomicals_data_list_cached = []
@@ -872,7 +871,6 @@ class BlockProcessor:
                 })
                 if live_run:
                     value_with_tombstone['found_in_cache'] = True
-                    value_with_tombstone['deleted'] = True  # Flag it as deleted so the b'a' active location will not be written on flushed
                 self.logger.info(f'spend_atomicals_utxo: cache_map. key={key}, location_id={location_id_bytes_to_compact(location_id)} atomical_id={location_id_bytes_to_compact(key)}, value={value}')
             if len(atomicals_data_list_cached) > 0:
                 return atomicals_data_list_cached
