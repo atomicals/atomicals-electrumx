@@ -841,7 +841,7 @@ class BlockProcessor:
             if db_count == None:
                 # We got the db count as of the latest block
                 db_count = lookup_db_count(atomical_id)
-                atomicals_dft_mint_count_cache[atomical_id] = db_count
+                self.atomicals_dft_mint_count_cache[atomical_id] = db_count
         else:
             # No block db cache was used, grab it from the db now
             db_count = lookup_db_count(atomical_id)
