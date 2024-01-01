@@ -823,7 +823,7 @@ class BlockProcessor:
         cache_count = 0
         location_map_for_atomical = self.distmint_data_cache.get(atomical_id, None)
         if location_map_for_atomical != None:
-            cache_count = len(location_map_for_atomical.keys())
+            cache_count = len(location_map_for_atomical)
         
         def lookup_db_count(atomical_id):
             # Query all the gi key in the db for the atomical
@@ -1060,7 +1060,7 @@ class BlockProcessor:
         if not is_valid_realm_string_name(request_realm):
             return False 
         # Also check that there is no candidates already committed earlier than the current one
-        self.logger.info(f'create_or_delete_realm_entry_if_requested mint_info={mint_info} request_realm={request_realm}')
+        self.logger.debug(f'create_or_delete_realm_entry_if_requested mint_info={mint_info} request_realm={request_realm}')
         status, atomical_id, candidates = self.get_effective_realm(request_realm, height)
         for candidate in candidates:
             if candidate['tx_num'] < mint_info['commit_tx_num']:
@@ -1105,7 +1105,7 @@ class BlockProcessor:
             candidate_tx_num = candidate['tx_num']
             mint_info_commit_tx_num = mint_info['commit_tx_num']
             if candidate_tx_num < mint_info_commit_tx_num:
-                self.logger.info(f'create_or_delete_ticker_entry_if_requested: request_ticker={request_ticker}, candidate_tx_num={candidate_tx_num}, mint_info_commit_tx_num={mint_info_commit_tx_num}')
+                self.logger.debug(f'create_or_delete_ticker_entry_if_requested: request_ticker={request_ticker}, candidate_tx_num={candidate_tx_num}, mint_info_commit_tx_num={mint_info_commit_tx_num}')
                 return False
         if Delete: 
             self.delete_name_element_template(b'tick', b'', mint_info.get('$request_ticker'), mint_info['commit_tx_num'], mint_info['id'], self.ticker_data_cache)
@@ -1121,13 +1121,13 @@ class BlockProcessor:
         if not is_valid_subrealm_string_name(request_subrealm):
             return False
         parent_realm_id, mint_initiated_result = self.get_subrealm_parent_realm_info(mint_info, atomicals_spent_at_inputs, height)
-        self.logger.info(f'create_or_delete_subrealm_entry_if_requested mint_initiated_result={mint_initiated_result} check_if_bitwork_mint')
+        self.logger.debug(f'create_or_delete_subrealm_entry_if_requested mint_initiated_result={mint_initiated_result} check_if_bitwork_mint')
         if parent_realm_id:
-            self.logger.info(f'create_or_delete_subrealm_entry_if_requested: has_parent_realm_id request_subrealm={request_subrealm} parent_realm_id={parent_realm_id}')
+            self.logger.debug(f'create_or_delete_subrealm_entry_if_requested: has_parent_realm_id request_subrealm={request_subrealm} parent_realm_id={parent_realm_id}')
             # Also check that there is no candidates already committed earlier than the current one
             status, atomical_id, candidates = self.get_effective_subrealm(parent_realm_id, request_subrealm, height)
             if status and status == 'verified':
-                self.logger.info(f'create_or_delete_subrealm_entry_if_requested: verified_already_exists, parent_realm_id {parent_realm_id}, request_subrealm={request_subrealm} ')
+                self.logger.debug(f'create_or_delete_subrealm_entry_if_requested: verified_already_exists, parent_realm_id {parent_realm_id}, request_subrealm={request_subrealm} ')
                 # Do not attempt to mint subrealm if there is one verified already
                 return False
             if Delete:
