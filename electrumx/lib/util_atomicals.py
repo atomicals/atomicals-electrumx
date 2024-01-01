@@ -1442,29 +1442,29 @@ def calculate_outputs_to_color_for_ft_atomical_ids(ft_atomicals, tx_hash, tx, so
         atomical_id = item['atomical_id']
         v = item['ft_info']['value']
         cleanly_assigned, expected_outputs = assign_expected_outputs_basic(atomical_id, v, tx, next_start_out_idx)
-        print(f'calculate_outputs_to_color_for_ft_atomical_ids check_if_cleanly_assigned cleanly_assigned={cleanly_assigned} v={v} next_start_out_idx={next_start_out_idx} tx_hash={hash_to_hex_str(tx_hash)} atomical_id={location_id_bytes_to_compact(atomical_id)} v={v} next_start_out_idx={next_start_out_idx}')
+        # print(f'calculate_outputs_to_color_for_ft_atomical_ids check_if_cleanly_assigned cleanly_assigned={cleanly_assigned} v={v} next_start_out_idx={next_start_out_idx} tx_hash={hash_to_hex_str(tx_hash)} atomical_id={location_id_bytes_to_compact(atomical_id)} v={v} next_start_out_idx={next_start_out_idx}')
         if cleanly_assigned and len(expected_outputs) > 0:
             next_start_out_idx = expected_outputs[-1] + 1
-            print(f'calculate_outputs_to_color_for_ft_atomical_ids check_if_cleanly_assigned_after_in_if cleanly_assigned={cleanly_assigned} tx_hash={hash_to_hex_str(tx_hash)} atomical_id={location_id_bytes_to_compact(atomical_id)} value={v} next_start_out_idx={next_start_out_idx} expected_outputs={expected_outputs}')
+            # print(f'calculate_outputs_to_color_for_ft_atomical_ids check_if_cleanly_assigned_after_in_if cleanly_assigned={cleanly_assigned} tx_hash={hash_to_hex_str(tx_hash)} atomical_id={location_id_bytes_to_compact(atomical_id)} value={v} next_start_out_idx={next_start_out_idx} expected_outputs={expected_outputs}')
             potential_atomical_ids_to_output_idxs_map[atomical_id] = expected_outputs
         else:
-            print(f'calculate_outputs_to_color_for_ft_atomical_ids check_if_cleanly_assigned_after_in_if was_not_cleanly_assigned_else cleanly_assigned={cleanly_assigned} tx_hash={hash_to_hex_str(tx_hash)} atomical_id={location_id_bytes_to_compact(atomical_id)} value={v} next_start_out_idx={next_start_out_idx} expected_outputs={expected_outputs}')
+            # print(f'calculate_outputs_to_color_for_ft_atomical_ids check_if_cleanly_assigned_after_in_if was_not_cleanly_assigned_else cleanly_assigned={cleanly_assigned} tx_hash={hash_to_hex_str(tx_hash)} atomical_id={location_id_bytes_to_compact(atomical_id)} value={v} next_start_out_idx={next_start_out_idx} expected_outputs={expected_outputs}')
             # Erase the potential for safety
             potential_atomical_ids_to_output_idxs_map = {}
             non_clean_output_slots = True
             break
     # If the output slots did not fit cleanly, then default to just assigning everything from the 0'th output index
     if non_clean_output_slots:
-        print(f'calculate_outputs_to_color_for_ft_atomical_ids non_clean_output_slots {non_clean_output_slots} {ft_atomicals} ')
+        # print(f'calculate_outputs_to_color_for_ft_atomical_ids non_clean_output_slots {non_clean_output_slots} {ft_atomicals} ')
         potential_atomical_ids_to_output_idxs_map = {}
         for item in atomical_list:
             atomical_id = item['atomical_id']
             cleanly_assigned, expected_outputs = assign_expected_outputs_basic(atomical_id, item['ft_info']['value'], tx, 0)
             potential_atomical_ids_to_output_idxs_map[atomical_id] = expected_outputs
-        print(f'calculate_outputs_to_color_for_ft_atomical_ids non_clean_output_slots_finally_assignment_map {non_clean_output_slots} tx_hash={hash_to_hex_str(tx_hash)} {ft_atomicals} potential_atomical_ids_to_output_idxs_map={potential_atomical_ids_to_output_idxs_map}')
+        # print(f'calculate_outputs_to_color_for_ft_atomical_ids non_clean_output_slots_finally_assignment_map {non_clean_output_slots} tx_hash={hash_to_hex_str(tx_hash)} {ft_atomicals} potential_atomical_ids_to_output_idxs_map={potential_atomical_ids_to_output_idxs_map}')
         return potential_atomical_ids_to_output_idxs_map, not non_clean_output_slots, atomical_list
     else:
-        print(f'calculate_outputs_to_color_for_ft_atomical_ids underflow_val potential_atomical_ids_to_output_idxs_map={potential_atomical_ids_to_output_idxs_map}')
+        # print(f'calculate_outputs_to_color_for_ft_atomical_ids underflow_val potential_atomical_ids_to_output_idxs_map={potential_atomical_ids_to_output_idxs_map}')
         return potential_atomical_ids_to_output_idxs_map, not non_clean_output_slots, atomical_list
 
 def is_split_operation(operations_found_at_inputs):

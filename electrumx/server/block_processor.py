@@ -933,7 +933,7 @@ class BlockProcessor:
     # Function to put the container, realm, and ticker names to the db.
     # This does not handle subrealms, because subrealms have a payment component and are handled slightly differently in another method
     def put_name_element_template(self, db_prefix_key, optional_subject_prefix, subject, tx_num, payload_value, name_data_cache): 
-        self.logger.info(f'put_name_element_template: db_prefix_key={db_prefix_key}, optional_subject_prefix={optional_subject_prefix}, subject={subject}, tx_num={tx_num}, payload_value={payload_value.hex()}')
+        self.logger.debug(f'put_name_element_template: db_prefix_key={db_prefix_key}, optional_subject_prefix={optional_subject_prefix}, subject={subject}, tx_num={tx_num}, payload_value={payload_value.hex()}')
         subject_enc = subject.encode()
         record_key = db_prefix_key + optional_subject_prefix + subject_enc + pack_le_uint16(len(subject_enc))
         if not name_data_cache.get(record_key):
@@ -943,7 +943,7 @@ class BlockProcessor:
     # Function to delete the container, realm, and ticker names from the db.
     # This does not handle subrealms, because subrealms have a payment component and are handled slightly differently in another method
     def delete_name_element_template(self, db_delete_prefix, optional_subject_prefix, subject, tx_num, expected_entry_value, name_data_cache): 
-        self.logger.info(f'delete_name_element_template: db_delete_prefix={db_delete_prefix}, optional_subject_prefix={optional_subject_prefix}, subject={subject}, tx_num={tx_num}, expected_entry_value={expected_entry_value.hex()}')
+        self.logger.debug(f'delete_name_element_template: db_delete_prefix={db_delete_prefix}, optional_subject_prefix={optional_subject_prefix}, subject={subject}, tx_num={tx_num}, expected_entry_value={expected_entry_value.hex()}')
         subject_enc = subject.encode() 
         record_key = db_delete_prefix + optional_subject_prefix + subject_enc + pack_le_uint16(len(subject_enc))
         # Check if it's located in the cache first
@@ -969,14 +969,14 @@ class BlockProcessor:
         return cached_value or db_value
 
     def put_pay_record(self, atomical_id, tx_num, payload_value, db_prefix, pay_data_cache): 
-        self.logger.info(f'put_pay_record: db_prefix={db_prefix} atomical_id={location_id_bytes_to_compact(atomical_id)}, tx_num={tx_num}, payload_value={payload_value.hex()}')
+        self.logger.debug(f'put_pay_record: db_prefix={db_prefix} atomical_id={location_id_bytes_to_compact(atomical_id)}, tx_num={tx_num}, payload_value={payload_value.hex()}')
         record_key = db_prefix + atomical_id
         if not pay_data_cache.get(record_key):
             pay_data_cache[record_key] = {}
         pay_data_cache[record_key][tx_num] = payload_value
 
     def delete_pay_record(self, atomical_id, tx_num, expected_entry_value, db_prefix, pay_data_cache): 
-        self.logger.info(f'delete_pay_record: atomical_id={location_id_bytes_to_compact(atomical_id)}, tx_num={tx_num}, expected_entry_value={expected_entry_value.hex()}')
+        self.logger.debug(f'delete_pay_record: atomical_id={location_id_bytes_to_compact(atomical_id)}, tx_num={tx_num}, expected_entry_value={expected_entry_value.hex()}')
         record_key = db_prefix + atomical_id
         # Check if it's located in the cache first
         name_map = pay_data_cache.get(record_key)
@@ -1702,11 +1702,11 @@ class BlockProcessor:
         return cleanly_assigned
   
     def color_ft_atomicals_regular_perform(self, ft_atomicals, tx_hash, tx, tx_num, operations_found_at_inputs, atomical_ids_touched, height, live_run, sort_fifo):
-        self.logger.info(f'color_ft_atomicals_regular_perform tx_hash={hash_to_hex_str(tx_hash)} start check')
+        self.logger.debug(f'color_ft_atomicals_regular_perform tx_hash={hash_to_hex_str(tx_hash)} start check')
         atomical_id_to_expected_outs_map, cleanly_assigned, atomicals_list_result = calculate_outputs_to_color_for_ft_atomical_ids(ft_atomicals, tx_hash, tx, sort_fifo)
         if not atomical_id_to_expected_outs_map:
             return None
-        self.logger.info(f'color_ft_atomicals_regular_perform tx_hash={hash_to_hex_str(tx_hash)} return ft_atomicals={ft_atomicals} atomical_id_to_expected_outs_map={atomical_id_to_expected_outs_map}')
+        self.logger.debug(f'color_ft_atomicals_regular_perform tx_hash={hash_to_hex_str(tx_hash)} return ft_atomicals={ft_atomicals} atomical_id_to_expected_outs_map={atomical_id_to_expected_outs_map}')
         sanity_check_sums = {}
         for atomical_id, outputs_to_color in atomical_id_to_expected_outs_map.items():
             sanity_check_sums[atomical_id] = 0
@@ -1722,7 +1722,7 @@ class BlockProcessor:
             input_value = ft_info['value']
             if sum_out_value and sum_out_value > input_value:
                 atomical_id_compact = location_id_bytes_to_compact(atomical_id)
-                self.logger.info(f'color_ft_atomicals_regular_perform ERROR_SUM tx_hash={hash_to_hex_str(tx_hash)} atomical_id={atomical_id_compact} input_value={input_value} sum_out_value={sum_out_value} {hash_to_hex_str(tx_hash)} ft_info={ft_info} atomical_id_to_expected_outs_map={atomical_id_to_expected_outs_map}')
+                self.logger.debug(f'color_ft_atomicals_regular_perform ERROR_SUM tx_hash={hash_to_hex_str(tx_hash)} atomical_id={atomical_id_compact} input_value={input_value} sum_out_value={sum_out_value} {hash_to_hex_str(tx_hash)} ft_info={ft_info} atomical_id_to_expected_outs_map={atomical_id_to_expected_outs_map}')
                 raise IndexError(f'Fatal error the output sum of outputs is greater than input sum for Atomical: atomical_id={atomical_id_compact} input_value={input_value} sum_out_value={sum_out_value} {hash_to_hex_str(tx_hash)}')
 
         # If there was an event, then save it for the first FT only
@@ -2838,7 +2838,7 @@ class BlockProcessor:
                         atomicals_spent_at_inputs[txin_index] = atomicals_transferred_list
                         for atomical_spent in atomicals_transferred_list:
                             atomical_id = atomical_spent['atomical_id']
-                            self.logger.info(f'atomicals_transferred_list - tx_hash={hash_to_hex_str(tx_hash)}, txin_index={txin_index}, txin_hash={hash_to_hex_str(txin.prev_hash)}, txin_previdx={txin.prev_idx}, atomical_id_spent={atomical_id.hex()}')
+                            self.logger.debug(f'atomicals_transferred_list - tx_hash={hash_to_hex_str(tx_hash)}, txin_index={txin_index}, txin_hash={hash_to_hex_str(txin.prev_hash)}, txin_previdx={txin.prev_idx}, atomical_id_spent={atomical_id.hex()}')
                     # Get the undo format for the spent atomicals
                     reformatted_for_undo_entries = []
                     for atomicals_entry in atomicals_transferred_list:
@@ -2901,7 +2901,7 @@ class BlockProcessor:
                     append_hashX(double_sha256(atomical_id_of_distmint))
                     self.logger.debug(f'advance_txs: create_or_delete_decentralized_mint_output:atomical_id_of_distmint - atomical_id={atomical_id_of_distmint.hex()}, tx_hash={hash_to_hex_str(tx_hash)}')
                     if dmint_count % 100 == 0:
-                        self.logger.debug(f'dmint_count={dmint_count}')
+                        self.logger.info(f'dmint_count={dmint_count}')
           
                 # Create NFT/FT atomicals if it is defined in the tx
                 if not already_found_valid_operation:
