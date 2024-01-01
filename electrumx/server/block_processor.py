@@ -799,7 +799,7 @@ class BlockProcessor:
     # Save distributed mint information for the atomical
     # Mints are only stored if they are less than the max_mints amount
     def put_decentralized_mint_data(self, atomical_id, location_id, value): 
-        self.logger.info(f'put_decentralized_mint_data: atomical_id={atomical_id.hex()}, location_id={location_id.hex()}, value={value.hex()}')
+        self.logger.debug(f'put_decentralized_mint_data: atomical_id={atomical_id.hex()}, location_id={location_id.hex()}, value={value.hex()}')
         if self.distmint_data_cache.get(atomical_id) == None: 
             self.distmint_data_cache[atomical_id] = {}
         self.distmint_data_cache[atomical_id][location_id] = value
