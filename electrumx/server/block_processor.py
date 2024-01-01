@@ -806,7 +806,7 @@ class BlockProcessor:
 
     # Save atomicals UTXO to cache that will be flushed to db
     def put_atomicals_utxo(self, location_id, atomical_id, value): 
-        self.logger.info(f'put_atomicals_utxo: atomical_id={location_id_bytes_to_compact(atomical_id)}, location_id={location_id_bytes_to_compact(location_id)}, value={value.hex()}')
+        self.logger.debug(f'put_atomicals_utxo: atomical_id={location_id_bytes_to_compact(atomical_id)}, location_id={location_id_bytes_to_compact(location_id)}, value={value.hex()}')
         if self.atomicals_utxo_cache.get(location_id) == None: 
             self.atomicals_utxo_cache[location_id] = {}
         # Use a tombstone to mark deleted because even if it's removed we must
