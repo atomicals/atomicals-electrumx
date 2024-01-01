@@ -935,7 +935,7 @@ def parse_operation_from_script(script, n):
     # check the 3 letter protocol operations
     if n + three_letter_op_len < script_len:
         atom_op = script[n : n + three_letter_op_len].hex()
-        print(f'Atomicals op script found: {atom_op}')
+        # print(f'Atomicals op script found: {atom_op}')
         if atom_op == "036e6674":
             atom_op_decoded = 'nft'  # nft - Mint non-fungible token
         elif atom_op == "03646674":  
@@ -1075,8 +1075,8 @@ def parse_protocols_operations_from_witness_for_input(txinwitness):
                             # Parse to ensure it is in the right format
                             operation_type, payload = parse_operation_from_script(script, n + 5)
                             if operation_type != None:
-                                print(f'Atomicals envelope and operation found: {operation_type}')
-                                print(f'Atomicals envelope payload: {payload.hex()}')
+                                # print(f'Atomicals envelope and operation found: {operation_type}')
+                                # print(f'Atomicals envelope payload: {payload.hex()}')
                                 return operation_type, payload
                             break
                 if found_operation_definition:
