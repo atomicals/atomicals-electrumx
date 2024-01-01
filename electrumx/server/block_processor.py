@@ -2631,7 +2631,7 @@ class BlockProcessor:
         ticker = dmt_return_struct['$mint_ticker']
 
         # Save the mint info for the ticker
-        mint_info_for_ticker = ticker_cache.get(ticker):
+        mint_info_for_ticker = ticker_cache.get(ticker)
         if not mint_info_for_ticker:
             status, potential_dmt_atomical_id, all_entries = self.get_effective_ticker(ticker, height)
             if status != 'verified':
@@ -2812,7 +2812,7 @@ class BlockProcessor:
         # Speed up distmint processing by caching the ticker mint request info
         distmint_ticker_cache = {}
         dmint_count = 0
-        
+
         for tx, tx_hash in txs:
             has_at_least_one_valid_atomicals_operation = False
             hashXs = []
