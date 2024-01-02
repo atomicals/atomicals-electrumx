@@ -1770,6 +1770,16 @@ class HttpHandler(object):
             'result': return_result
         }
         return res
+    
+    def auto_populate_container_regular_items_fields(self, items):
+        if not items or not isinstance(items, dict):
+            return {}
+        for item, value in items.items():
+            provided_id = value.get('id') 
+            value['status'] = 'verified'
+            if provided_id and isinstance(provided_id, bytes) and len(provided_id) == 36:
+                value['$id'] = location_id_bytes_to_compact(provided_id)
+        return auto_encode_bytes_elements(items)
 
     async def atomicals_get_container_items(self, request):
         params = await self.format_params(request)
