@@ -1,0 +1,5 @@
+https://cdn.atomicals.xyz/snapshots/824012/atomicalselectrumx-0.tar
+https://cdn.atomicals.xyz/snapshots/824012/atomicalselectrumx-1.tar
+https://cdn.atomicals.xyz/snapshots/824012/atomicalselectrumx-2.tar
+https://cdn.atomicals.xyz/snapshots/824012/atomicalselectrumx-3.tar
+https://cdn.atomicals.xyz/snapshots/824012/atomicalselectrumx-4.tar
