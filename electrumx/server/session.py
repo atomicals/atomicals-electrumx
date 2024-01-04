@@ -54,7 +54,7 @@ from electrumx.lib.hash import (HASHX_LEN, Base58Error, hash_to_hex_str,
 from electrumx.lib.merkle import MerkleCache
 from electrumx.lib.text import sessions_lines
 from electrumx.server.daemon import DaemonError
-from electrumx.server.http_middleware import error_middleware, request_middleware
+from electrumx.server.http_middleware import rate_limiter, error_middleware, request_middleware
 from electrumx.server.http_session import HttpHandler
 from electrumx.server.peers import PeerManager
 from electrumx.lib.script import SCRIPTHASH_LEN
@@ -336,6 +336,7 @@ class SessionManager:
                     # common proxy
                     app.router.add_get('/proxy/{method}', handler.handle_get_method)
                     app.router.add_post('/proxy/{method}', handler.handle_post_method)
+                    app['rate_limiter'] = rate_limiter
                     runner = web.AppRunner(app)
                     await runner.setup()
                     site = web.TCPSite(runner, host, service.port)
