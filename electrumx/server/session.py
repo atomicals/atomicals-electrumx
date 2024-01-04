@@ -29,6 +29,7 @@ from aiorpcx import (Event, JSONRPCAutoDetect, JSONRPCConnection,
                      NewlineFramer, TaskTimeout, timeout_after, run_in_thread)
 
 import electrumx
+from electrumx.lib.script2addr import get_address_from_output_script
 import electrumx.lib.util as util
 from electrumx.lib.util import OldTaskGroup, unpack_le_uint64
 from electrumx.lib.util_atomicals import (
@@ -45,8 +46,7 @@ from electrumx.lib.util_atomicals import (
     validate_rules_data,
     AtomicalsValidationError,
     auto_encode_bytes_elements, 
-    validate_merkle_proof_dmint,
-    get_address_from_output_script
+    validate_merkle_proof_dmint
 )
 from electrumx.lib.hash import (HASHX_LEN, Base58Error, hash_to_hex_str,
                                 hex_str_to_hash, sha256, double_sha256)
@@ -1923,17 +1923,15 @@ class ElectrumX(SessionBase):
             max_supply = atomical.get('$max_supply', 0)
             for holder in atomical.get("holders", [])[offset:offset+limit]:
                 percent = holder['holding'] / max_supply
-                address = get_address_from_output_script(holder['script'])
                 formatted_results.append({
                     "percent": percent,
-                    "address": address,
+                    "address": get_address_from_output_script(bytes.fromhex(holder['script'])),
                     "holding": holder["holding"]
                 })
         elif atomical["type"] == "NFT":
             for holder in atomical.get("holders", [])[offset:offset+limit]:
-                address = get_address_from_output_script(holder['script'])
                 formatted_results.append({
-                    "address": address,
+                    "address": get_address_from_output_script(bytes.fromhex(holder['script'])),
                     "holding": holder["holding"]
                 })
         return formatted_results

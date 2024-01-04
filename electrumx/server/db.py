@@ -1402,9 +1402,6 @@ class DB:
                     location_value, = unpack_le_uint64(atomical_active_location_value[HASHX_LEN + SCRIPTHASH_LEN : HASHX_LEN + SCRIPTHASH_LEN + 8])
                     
                     script = location_script.hex()
-                    # TODO
-                    # some location atomical_id might be burned
-                    # the location alue will less than 1000
                     if holder_dict.get(script, None):
                         holder_dict[script] += location_value
                     else:
