@@ -160,9 +160,10 @@ def is_atomical_id_long_form_string(value):
 
 # Check whether the value is a 36 byte sequence
 def is_atomical_id_long_form_bytes(value):
+    if not isinstance(value, bytes):
+        return False 
     try:
-        raw_hash = hex_str_to_hash(value)
-        if len(raw_hash) == 36:
+        if len(value) == 36:
             return True
     except (ValueError, TypeError):
         pass
