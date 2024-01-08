@@ -23,6 +23,7 @@ import asyncio
 
 import attr
 import pylru
+from aiohttp import web
 from aiorpcx import (Event, JSONRPCAutoDetect, JSONRPCConnection,
                      ReplyAndDisconnect, Request, RPCError, RPCSession,
                      handler_invocation, serve_rs, serve_ws, sleep,
@@ -53,6 +54,8 @@ from electrumx.lib.hash import (HASHX_LEN, Base58Error, hash_to_hex_str,
 from electrumx.lib.merkle import MerkleCache
 from electrumx.lib.text import sessions_lines
 from electrumx.server.daemon import DaemonError
+from electrumx.server.http_middleware import rate_limiter, error_middleware, request_middleware
+from electrumx.server.http_session import HttpHandler
 from electrumx.server.peers import PeerManager
 from electrumx.lib.script import SCRIPTHASH_LEN
 
@@ -213,29 +216,159 @@ class SessionManager:
     async def _start_servers(self, services):
         for service in services:
             kind = service.protocol.upper()
-            if service.protocol in self.env.SSL_PROTOCOLS:
-                sslc = self._ssl_context()
+            if service.protocol == 'http':
+                host = None if service.host == 'all_interfaces' else str(service.host)
+                try:
+                    app = web.Application(middlewares=[
+                        error_middleware(self),
+                        request_middleware(self)
+                    ])
+                    handler = HttpHandler(self, self.db, self.mempool, self.peer_mgr, kind)
+                    # GET
+                    app.router.add_get('/proxy', handler.proxy)
+                    app.router.add_get('/proxy/health', handler.health)
+                    app.router.add_get('/proxy/blockchain.block.header', handler.block_header)
+                    app.router.add_get('/proxy/blockchain.block.headers', handler.block_headers)
+                    app.router.add_get('/proxy/blockchain.estimatefee', handler.estimatefee)
+                    # app.router.add_get('/proxy/headers.subscribe', handler.headers_subscribe)
+                    # app.router.add_get('/proxy/relayfee', handler.relayfee)
+                    app.router.add_get('/proxy/blockchain.scripthash.get_balance', handler.scripthash_get_balance)
+                    app.router.add_get('/proxy/blockchain.scripthash.get_history', handler.scripthash_get_history)
+                    app.router.add_get('/proxy/blockchain.scripthash.get_mempool', handler.scripthash_get_mempool)
+                    app.router.add_get('/proxy/blockchain.scripthash.listunspent', handler.scripthash_listunspent)
+                    app.router.add_get('/proxy/blockchain.scripthash.subscribe', handler.scripthash_subscribe)
+                    app.router.add_get('/proxy/blockchain.transaction.broadcast', handler.transaction_broadcast)
+                    app.router.add_get('/proxy/blockchain.transaction.get', handler.transaction_get)
+                    app.router.add_get('/proxy/blockchain.transaction.get_merkle', handler.transaction_merkle)
+                    app.router.add_get('/proxy/blockchain.transaction.id_from_pos', handler.transaction_id_from_pos)
+                    # app.router.add_get('/proxy/server.add_peer', handler.add_peer)
+                    app.router.add_get('/proxy/server.banner', handler.banner)
+                    app.router.add_get('/proxy/server.donation_address', handler.donation_address)
+                    app.router.add_get('/proxy/server.features', handler.server_features_async)
+                    app.router.add_get('/proxy/server.peers.subscribe', handler.peers_subscribe)
+                    app.router.add_get('/proxy/server.ping', handler.ping)
+                    # app.router.add_get('/proxy/server.version', handler.server_version)
+                    app.router.add_get('/proxy/blockchain.atomicals.validate', handler.transaction_broadcast_validate)
+                    app.router.add_get('/proxy/blockchain.atomicals.get_ft_balances_scripthash', handler.atomicals_get_ft_balances)
+                    app.router.add_get('/proxy/blockchain.atomicals.get_nft_balances_scripthash', handler.atomicals_get_nft_balances)
+                    app.router.add_get('/proxy/blockchain.atomicals.listscripthash', handler.atomicals_listscripthash)
+                    app.router.add_get('/proxy/blockchain.atomicals.list', handler.atomicals_list)
+                    app.router.add_get('/proxy/blockchain.atomicals.get_numbers', handler.atomicals_num_to_id)
+                    app.router.add_get('/proxy/blockchain.atomicals.get_block_txs', handler.atomicals_block_txs)
+                    app.router.add_get('/proxy/blockchain.atomicals.dump', handler.atomicals_dump)
+                    app.router.add_get('/proxy/blockchain.atomicals.at_location', handler.atomicals_at_location)
+                    app.router.add_get('/proxy/blockchain.atomicals.get_location', handler.atomicals_get_location)
+                    app.router.add_get('/proxy/blockchain.atomicals.get', handler.atomicals_get)
+                    app.router.add_get('/proxy/blockchain.atomicals.get_global', handler.atomicals_get_global)
+                    app.router.add_get('/proxy/blockchain.atomicals.get_state', handler.atomical_get_state)
+                    app.router.add_get('/proxy/blockchain.atomicals.get_state_history', handler.atomical_get_state_history)
+                    app.router.add_get('/proxy/blockchain.atomicals.get_events', handler.atomical_get_events)
+                    app.router.add_get('/proxy/blockchain.atomicals.get_tx_history', handler.atomicals_get_tx_history)
+                    app.router.add_get('/proxy/blockchain.atomicals.get_realm_info', handler.atomicals_get_realm_info)
+                    app.router.add_get('/proxy/blockchain.atomicals.get_by_realm', handler.atomicals_get_by_realm)
+                    app.router.add_get('/proxy/blockchain.atomicals.get_by_subrealm', handler.atomicals_get_by_subrealm)
+                    app.router.add_get('/proxy/blockchain.atomicals.get_by_dmitem', handler.atomicals_get_by_dmitem)
+                    app.router.add_get('/proxy/blockchain.atomicals.get_by_ticker', handler.atomicals_get_by_ticker)
+                    app.router.add_get('/proxy/blockchain.atomicals.get_by_container', handler.atomicals_get_by_container)
+                    app.router.add_get('/proxy/blockchain.atomicals.get_by_container_item', handler.atomicals_get_by_container_item)
+                    app.router.add_get('/proxy/blockchain.atomicals.get_by_container_item_validate', handler.atomicals_get_by_container_item_validation)
+                    app.router.add_get('/proxy/blockchain.atomicals.get_container_items', handler.atomicals_get_container_items)
+                    app.router.add_get('/proxy/blockchain.atomicals.get_ft_info', handler.atomicals_get_ft_info)
+                    app.router.add_get('/proxy/blockchain.atomicals.find_tickers', handler.atomicals_search_tickers)
+                    app.router.add_get('/proxy/blockchain.atomicals.find_realms', handler.atomicals_search_realms)
+                    app.router.add_get('/proxy/blockchain.atomicals.find_subrealms', handler.atomicals_search_subrealms)
+                    app.router.add_get('/proxy/blockchain.atomicals.find_containers', handler.atomicals_search_containers)
+                    app.router.add_get('/proxy/blockchain.atomicals.get_holders', handler.atomicals_get_holders)
+                    # POST
+                    app.router.add_post('/proxy', handler.proxy)
+                    app.router.add_post('/proxy/blockchain.block.header', handler.block_header)
+                    app.router.add_post('/proxy/blockchain.block.headers', handler.block_headers)
+                    app.router.add_post('/proxy/blockchain.estimatefee', handler.estimatefee)
+                    # app.router.add_post('/proxy/headers.subscribe', handler.headers_subscribe)
+                    # app.router.add_post('/proxy/relayfee', handler.relayfee)
+                    app.router.add_post('/proxy/blockchain.scripthash.get_balance', handler.scripthash_get_balance)
+                    app.router.add_post('/proxy/blockchain.scripthash.get_history', handler.scripthash_get_history)
+                    app.router.add_post('/proxy/blockchain.scripthash.get_mempool', handler.scripthash_get_mempool)
+                    app.router.add_post('/proxy/blockchain.scripthash.listunspent', handler.scripthash_listunspent)
+                    app.router.add_post('/proxy/blockchain.scripthash.subscribe', handler.scripthash_subscribe)
+                    app.router.add_post('/proxy/blockchain.transaction.broadcast', handler.transaction_broadcast)
+                    app.router.add_post('/proxy/blockchain.transaction.get', handler.transaction_get)
+                    app.router.add_post('/proxy/blockchain.transaction.get_merkle', handler.transaction_merkle)
+                    app.router.add_post('/proxy/blockchain.transaction.id_from_pos', handler.transaction_id_from_pos)
+                    # app.router.add_post('/proxy/server.add_peer', handler.add_peer)
+                    # app.router.add_post('/proxy/server.banner', handler.banner)
+                    app.router.add_post('/proxy/server.donation_address', handler.donation_address)
+                    app.router.add_post('/proxy/server.features', handler.server_features_async)
+                    app.router.add_post('/proxy/server.peers.subscribe', handler.peers_subscribe)
+                    app.router.add_post('/proxy/server.ping', handler.ping)
+                    # app.router.add_post('/proxy/server.version', handler.server_version)
+                    app.router.add_post('/proxy/blockchain.atomicals.validate', handler.transaction_broadcast_validate)
+                    app.router.add_post('/proxy/blockchain.atomicals.get_ft_balances_scripthash', handler.atomicals_get_ft_balances)
+                    app.router.add_post('/proxy/blockchain.atomicals.get_nft_balances_scripthash', handler.atomicals_get_nft_balances)
+                    app.router.add_post('/proxy/blockchain.atomicals.listscripthash', handler.atomicals_listscripthash)
+                    app.router.add_post('/proxy/blockchain.atomicals.list', handler.atomicals_list)
+                    app.router.add_post('/proxy/blockchain.atomicals.get_numbers', handler.atomicals_num_to_id)
+                    app.router.add_post('/proxy/blockchain.atomicals.get_block_txs', handler.atomicals_block_txs)
+                    app.router.add_post('/proxy/blockchain.atomicals.dump', handler.atomicals_dump)
+                    app.router.add_post('/proxy/blockchain.atomicals.at_location', handler.atomicals_at_location)
+                    app.router.add_post('/proxy/blockchain.atomicals.get_location', handler.atomicals_get_location)
+                    app.router.add_post('/proxy/blockchain.atomicals.get', handler.atomicals_get)
+                    app.router.add_post('/proxy/blockchain.atomicals.get_global', handler.atomicals_get_global)
+                    app.router.add_post('/proxy/blockchain.atomicals.get_state', handler.atomical_get_state)
+                    app.router.add_post('/proxy/blockchain.atomicals.get_state_history', handler.atomical_get_state_history)
+                    app.router.add_post('/proxy/blockchain.atomicals.get_events', handler.atomical_get_events)
+                    app.router.add_post('/proxy/blockchain.atomicals.get_tx_history', handler.atomicals_get_tx_history)
+                    app.router.add_post('/proxy/blockchain.atomicals.get_realm_info', handler.atomicals_get_realm_info)
+                    app.router.add_post('/proxy/blockchain.atomicals.get_by_realm', handler.atomicals_get_by_realm)
+                    app.router.add_post('/proxy/blockchain.atomicals.get_by_subrealm', handler.atomicals_get_by_subrealm)
+                    app.router.add_post('/proxy/blockchain.atomicals.get_by_dmitem', handler.atomicals_get_by_dmitem)
+                    app.router.add_post('/proxy/blockchain.atomicals.get_by_ticker', handler.atomicals_get_by_ticker)
+                    app.router.add_post('/proxy/blockchain.atomicals.get_by_container', handler.atomicals_get_by_container)
+                    app.router.add_post('/proxy/blockchain.atomicals.get_by_container_item', handler.atomicals_get_by_container_item)
+                    app.router.add_post('/proxy/blockchain.atomicals.get_by_container_item_validate', handler.atomicals_get_by_container_item_validation)
+                    app.router.add_post('/proxy/blockchain.atomicals.get_container_items', handler.atomicals_get_container_items)
+                    app.router.add_post('/proxy/blockchain.atomicals.get_ft_info', handler.atomicals_get_ft_info)
+                    app.router.add_post('/proxy/blockchain.atomicals.find_tickers', handler.atomicals_search_tickers)
+                    app.router.add_post('/proxy/blockchain.atomicals.find_realms', handler.atomicals_search_realms)
+                    app.router.add_post('/proxy/blockchain.atomicals.find_subrealms', handler.atomicals_search_subrealms)
+                    app.router.add_post('/proxy/blockchain.atomicals.find_containers', handler.atomicals_search_containers)
+                    app.router.add_post('/proxy/blockchain.atomicals.get_holders', handler.atomicals_get_holders)
+                    # common proxy
+                    app.router.add_get('/proxy/{method}', handler.handle_get_method)
+                    app.router.add_post('/proxy/{method}', handler.handle_post_method)
+                    app['rate_limiter'] = rate_limiter
+                    runner = web.AppRunner(app)
+                    await runner.setup()
+                    site = web.TCPSite(runner, host, service.port)
+                    await site.start()
+                except Exception as e:
+                    self.logger.error(f'{kind} server failed to listen on {service.address}: {e}')
+                else:
+                    self.logger.info(f'{kind} server listening on {service.address}')
             else:
-                sslc = None
-            if service.protocol == 'rpc':
-                session_class = LocalRPC
-            else:
-                session_class = self.env.coin.SESSIONCLS
-            if service.protocol in ('ws', 'wss'):
-                serve = serve_ws
-            else:
-                serve = serve_rs
-            # FIXME: pass the service not the kind
-            session_factory = partial(session_class, self, self.db, self.mempool,
-                                      self.peer_mgr, kind)
-            host = None if service.host == 'all_interfaces' else str(service.host)
-            try:
-                self.servers[service] = await serve(session_factory, host,
-                                                    service.port, ssl=sslc)
-            except OSError as e:    # don't suppress CancelledError
-                self.logger.error(f'{kind} server failed to listen on {service.address}: {e}')
-            else:
-                self.logger.info(f'{kind} server listening on {service.address}')
+                if service.protocol in self.env.SSL_PROTOCOLS:
+                    sslc = self._ssl_context()
+                else:
+                    sslc = None
+                if service.protocol == 'rpc':
+                    session_class = LocalRPC
+                else:
+                    session_class = self.env.coin.SESSIONCLS
+                if service.protocol in ('ws', 'wss'):
+                    serve = serve_ws
+                else:
+                    serve = serve_rs
+                # FIXME: pass the service not the kind
+                session_factory = partial(session_class, self, self.db, self.mempool,
+                                        self.peer_mgr, kind)
+                host = None if service.host == 'all_interfaces' else str(service.host)
+                try:
+                    self.servers[service] = await serve(session_factory, host,
+                                                        service.port, ssl=sslc)
+                except OSError as e:    # don't suppress CancelledError
+                    self.logger.error(f'{kind} server failed to listen on {service.address}: {e}')
+                else:
+                    self.logger.info(f'{kind} server listening on {service.address}')
 
 
     async def _start_external_servers(self):

@@ -116,13 +116,16 @@ class Daemon:
 
     async def _send_data(self, data):
         async with self.workqueue_semaphore:
-            async with self.session.post(self.current_url(), data=data) as resp:
-                kind = resp.headers.get('Content-Type', None)
-                if kind == 'application/json':
-                    return await resp.json(loads=json_deserialize)
-                text = await resp.text()
-                text = text.strip() or resp.reason
-                raise ServiceRefusedError(text)
+            if self.session:
+                async with self.session.post(self.current_url(), data=data) as resp:
+                    kind = resp.headers.get('Content-Type', None)
+                    if kind == 'application/json':
+                        return await resp.json(loads=json_deserialize)
+                    text = await resp.text()
+                    text = text.strip() or resp.reason
+                    raise ServiceRefusedError(text)
+            else:
+                raise aiohttp.ClientConnectionError
 
     async def _send(self, payload, processor):
         '''Send a payload to be converted to JSON.
