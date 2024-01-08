@@ -181,7 +181,7 @@ class AtomicalsTransferBlueprintBuilder:
     self.nft_atomicals = nft_atomicals
     self.ft_atomicals = ft_atomicals
     if len(ft_atomicals) > 0 or len(nft_atomicals) > 0:
-      self.logger.info(f'atomicals_spent_at_inputs={atomicals_spent_at_inputs} operations_found_at_inputs={operations_found_at_inputs}')
+      self.logger.info(f'tx_hash={hash_to_hex_str(tx_hash)} atomicals_spent_at_inputs={atomicals_spent_at_inputs} operations_found_at_inputs={operations_found_at_inputs}')
     nft_output_blueprint, ft_output_blueprint = AtomicalsTransferBlueprintBuilder.calculate_output_blueprint(self.get_atomicals_id_mint_info, self.tx, self.nft_atomicals, self.ft_atomicals, self.atomicals_spent_at_inputs, self.operations_found_at_inputs, self.sort_fifo)
     self.nft_output_blueprint = nft_output_blueprint
     self.ft_output_blueprint = ft_output_blueprint
