@@ -6,6 +6,7 @@ from electrumx.lib.util_atomicals import (
     is_op_return_subrealm_payment_marker_atomical_id,
     is_op_return_dmitem_payment_marker_atomical_id,
     compact_to_location_id_bytes,
+    encode_atomical_ids_hex,
     SUBNAME_MIN_PAYMENT_DUST_LIMIT
 )
 from electrumx.lib.hash import hash_to_hex_str, HASHX_LEN
@@ -184,7 +185,7 @@ class AtomicalsTransferBlueprintBuilder:
     self.nft_output_blueprint = nft_output_blueprint
     self.ft_output_blueprint = ft_output_blueprint
     if len(ft_atomicals) > 0 or len(nft_atomicals) > 0:
-      self.logger.info(f'tx_hash={hash_to_hex_str(tx_hash)} atomicals_spent_at_inputs={atomicals_spent_at_inputs} operations_found_at_inputs={operations_found_at_inputs}')
+      self.logger.info(f'tx_hash={hash_to_hex_str(tx_hash)} atomicals_spent_at_inputs={encode_atomical_ids_hex(atomicals_spent_at_inputs)} operations_found_at_inputs={operations_found_at_inputs}')
       if len(ft_output_blueprint.outputs) > 1: 
         self.logger.info(f'multiple_outputs tx_hash={hash_to_hex_str(tx_hash)}')
 
