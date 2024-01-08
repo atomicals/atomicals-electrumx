@@ -180,11 +180,14 @@ class AtomicalsTransferBlueprintBuilder:
     nft_atomicals, ft_atomicals, atomical_ids_spent = AtomicalsTransferBlueprintBuilder.build_atomical_input_summaries_by_type(self.get_atomicals_id_mint_info, atomicals_spent_at_inputs)
     self.nft_atomicals = nft_atomicals
     self.ft_atomicals = ft_atomicals
-    if len(ft_atomicals) > 0 or len(nft_atomicals) > 0:
-      self.logger.info(f'tx_hash={hash_to_hex_str(tx_hash)} atomicals_spent_at_inputs={atomicals_spent_at_inputs} operations_found_at_inputs={operations_found_at_inputs}')
     nft_output_blueprint, ft_output_blueprint = AtomicalsTransferBlueprintBuilder.calculate_output_blueprint(self.get_atomicals_id_mint_info, self.tx, self.nft_atomicals, self.ft_atomicals, self.atomicals_spent_at_inputs, self.operations_found_at_inputs, self.sort_fifo)
     self.nft_output_blueprint = nft_output_blueprint
     self.ft_output_blueprint = ft_output_blueprint
+    if len(ft_atomicals) > 0 or len(nft_atomicals) > 0:
+      self.logger.info(f'tx_hash={hash_to_hex_str(tx_hash)} atomicals_spent_at_inputs={atomicals_spent_at_inputs} operations_found_at_inputs={operations_found_at_inputs}')
+      if len(ft_output_blueprint.outputs) > 1: 
+        self.logger.info(f'multiple_outputs tx_hash={hash_to_hex_str(tx_hash)}')
+
     self.are_fts_burned = ft_output_blueprint.burned
     self.atomical_ids_spent = atomical_ids_spent
 
