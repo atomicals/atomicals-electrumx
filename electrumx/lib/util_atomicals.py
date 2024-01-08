@@ -42,7 +42,6 @@ from cbor2 import dumps, loads, CBORDecodeError
 from collections.abc import Mapping
 from functools import reduce
 from merkletools import MerkleTools
-from electrumx.lib.segwit_addr import segwit_scriptpubkey, encode
 
 class AtomicalsValidationError(Exception):
     '''Raised when Atomicals Validation Error'''
@@ -1757,19 +1756,3 @@ def validate_merkle_proof_dmint(expected_root_hash, item_name, possible_bitworkc
             return True, concat_str4, target_hash
 
     return False, None, None
-
-
-def get_address_from_output_script(p2tr_output_script_hex):
-    # this function is used for get address from outputscript
-    addr = ''
-    try:
-        # "bc" for mainnet, "tb" for testnet
-        hrp = "bc"
-        if os.environ.get('NET', "mainnet") =='testnet':
-            hrp = "tb"
-        witprog = list(bytes.fromhex(p2tr_output_script_hex))[2:34]
-        witver = 1
-        addr = encode(hrp, witver, witprog)
-    except Exception as e:
-        pass
-    return addr
