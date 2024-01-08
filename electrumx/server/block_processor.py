@@ -40,6 +40,7 @@ from electrumx.lib.util_atomicals import (
     has_requested_proof_of_work, 
     is_valid_container_string_name, 
     expand_spend_utxo_data,
+    encode_tx_hash_hex,
     SUBREALM_MINT_PATH,
     DMINT_PATH,
     MINT_SUBNAME_RULES_BECOME_EFFECTIVE_IN_BLOCKS,
@@ -544,33 +545,33 @@ class BlockProcessor:
     def get_atomicals_id_mint_info(self, atomical_id, with_cache):
         result = None
         if with_cache:
-            self.logger.debug(f'get_atomicals_id_mint_info with_cache={with_cache} atomical_id={atomical_id}')
+            self.logger.debug(f'get_atomicals_id_mint_info with_cache={with_cache} atomical_id={location_id_bytes_to_compact(atomical_id)}')
             result = self.atomicals_id_cache.get(atomical_id)
             if result:
-                self.logger.debug(f'get_atomicals_id_mint_info hit=True with_cache={with_cache} atomical_id={atomical_id}')
+                self.logger.debug(f'get_atomicals_id_mint_info hit=True with_cache={with_cache} atomical_id={location_id_bytes_to_compact(atomical_id)}')
                 return result 
         
         result = self.general_data_cache.get(b'mi' + atomical_id)
         if result:
-            self.logger.debug(f'get_atomicals_id_mint_info hit=True general_data_cache=True atomical_id={atomical_id}')
+            self.logger.debug(f'get_atomicals_id_mint_info hit=True general_data_cache=True atomical_id={location_id_bytes_to_compact(atomical_id)}')
             result = unpack_mint_info(result)
             self.atomicals_id_cache[atomical_id] = result
             return result 
         
         mint_info_dump = self.db.get_atomical_mint_info_dump(atomical_id)
         if not mint_info_dump:
-            self.logger.debug(f'get_atomicals_id_mint_info get_atomical_mint_info_dump=True atomical_id={atomical_id}')
+            self.logger.debug(f'get_atomicals_id_mint_info get_atomical_mint_info_dump=True atomical_id={location_id_bytes_to_compact(atomical_id)}')
             return None
         
         result = unpack_mint_info(mint_info_dump)
         self.atomicals_id_cache[atomical_id] = result
-        self.logger.debug(f'get_atomicals_id_mint_info no_cache=True with_cache={with_cache} atomical_id={atomical_id}')
+        self.logger.debug(f'get_atomicals_id_mint_info no_cache=True with_cache={with_cache} atomical_id={location_id_bytes_to_compact(atomical_id)}')
         return result 
 
     # Get the mint information and LRU cache it for fast retrieval
     # Used for quickly getting the mint information for an atomical
-    def get_atomicals_id_mint_info_extended(self, atomical_id):
-        found_atomical = self.get_base_mint_info_by_atomical_id(atomical_id)
+    def get_atomicals_id_mint_info_extended_notused(self, atomical_id):
+        found_atomical = self.get_atomicals_id_mint_info(atomical_id, True)
         if not found_atomical:
             return None 
         self.populate_extended_atomical_subtype_info(found_atomical)
@@ -598,23 +599,23 @@ class BlockProcessor:
             # Along with the price that was expected according to the mint reveal height
             args = found_atomical_mint_info_for_potential_subrealm.get('args')
             if not args:
-                return None, None, None
+                return None, None, None, None
             args_subrealm = args.get('request_subrealm')
             if not args_subrealm:
-                return None, None, None
+                return None, None, None, None
             request_subrealm = found_atomical_mint_info_for_potential_subrealm.get('$request_subrealm')
             # Check that $request_subrealm was set because it will only be set if the basic validation succeeded
             # If it's not set, then the atomical subrealm mint was not valid on a basic level and must be rejected
             if not request_subrealm:
                 self.logger.info(f'get_expected_subrealm_payment_info: not request_subrealm. request_subrealm={request_subrealm}')
-                return None, None, None
+                return None, None, None, None
             # Sanity check
             assert(args_subrealm == request_subrealm)
             # Also ensure that the claim_type == 'rule'
             claim_type = found_atomical_mint_info_for_potential_subrealm['args'].get('claim_type')
             if not isinstance(claim_type, str) or claim_type != 'rule':
                 self.logger.info(f'get_expected_subrealm_payment_info: not claim_type rule. request_subrealm={request_subrealm}')
-                return None, None, None
+                return None, None, None, None
 
             # More sanity checks on the formats and validity
             if isinstance(request_subrealm, str) and is_valid_subrealm_string_name(request_subrealm):
@@ -624,7 +625,7 @@ class BlockProcessor:
                     # The reveal_location_height (mint/reveal height) is too old and this payment came in far too late
                     # Ignore the payment therefore.
                     self.logger.info(f'get_expected_subrealm_payment_info: not is_within_acceptable_blocks_for_sub_item_payment. request_subrealm={request_subrealm}')
-                    return None, None, None
+                    return None, None, None, None
                 # The parent realm id is in a compact form string to make it easier for users and developers
                 # Only store the details if the pid is also set correctly
                 request_parent_realm_id_compact = found_atomical_mint_info_for_potential_subrealm['args'].get('parent_realm')
@@ -633,25 +634,33 @@ class BlockProcessor:
                 assert(request_parent_realm_id_compact == parent_realm_id_compact)
                 if isinstance(parent_realm_id_compact, str) and is_compact_atomical_id(parent_realm_id_compact):
                     # We have a validated potential parent id, now look it up to see if the parent is a valid atomical
-                    found_parent_mint_info = self.get_atomicals_id_mint_info_extended(parent_realm_id)
+                    found_parent_mint_info = self.get_base_mint_info_by_atomical_id(parent_realm_id)
                     if found_parent_mint_info:
+                        self.logger.info(f'found_parent_mint_info={found_parent_mint_info}')
+                        # self.populate_extended_atomical_subtype_info(found_parent_mint_info)
                         # We have found the parent atomical, which may or may not be a valid realm
                         # Do the basic check for $request_realm which indicates it succeeded the basic validity checks
-                        args_realm = found_parent_mint_info['mint_info']['args'].get('request_realm') or found_parent_mint_info['mint_info']['args'].get('request_subrealm')
-                        request_realm = found_parent_mint_info.get('$request_realm') or found_parent_mint_info.get('$request_subrealm')
+                        # args_realm = found_parent_mint_info['mint_info']['args'].get('request_realm') or found_parent_mint_info['mint_info']['args'].get('request_subrealm')
+                        request_realm = found_parent_mint_info.get('$request_realm')
+                        request_subrealm = found_parent_mint_info.get('$request_subrealm')
                         # One or both was empty and therefore didn't pass the basic checks
                         # Someone apparently made a payment marker for an invalid parent realm id. They made a mistake, ignoring it..
-                        if not args_realm or not request_subrealm: 
-                            self.logger.info(f'get_expected_subrealm_payment_info: not args_realm or not request_subrealm. request_subrealm={request_subrealm}')
-                            return None, None, None
+                        if not request_realm and not request_subrealm: 
+                            self.logger.info(f'get_expected_subrealm_payment_info: not request_realm or not request_subrealm. request_subrealm={request_subrealm}')
+                            return None, None, None, None
+                        
                         # Make sure it's the right type and format checks pass again just in case
-                        if not isinstance(request_realm, str) or not is_valid_realm_string_name(request_realm):
-                            self.logger.info(f'get_expected_subrealm_payment_info: not isinstance(request_realm, str) or not is_valid_realm_string_name(request_realm). request_subrealm={request_subrealm}')
-                            return None, None, None
-
+                        if request_realm and (not isinstance(request_realm, str) or not is_valid_realm_string_name(request_realm)):
+                            self.logger.info(f'get_expected_subrealm_payment_info invalid realm request name request_realm={request_realm}')
+                            return None, None, None, None
+                        
+                        if request_subrealm and (not isinstance(request_subrealm, str) or not is_valid_subrealm_string_name(request_subrealm)):
+                            self.logger.info(f'get_expected_subrealm_payment_info invalid subrealm request name request_subrealm={request_subrealm}')
+                            return None, None, None, None
+                        
                         if not found_parent_mint_info.get('$full_realm_name'):
                             self.logger.info(f'get_expected_subrealm_payment_info: not full_realm_name. request_subrealm={request_subrealm}, parent_realm_id_compact={parent_realm_id_compact}')
-                            return None, None, None
+                            return None, None, None, None
 
                         # At this point we know we have a valid parent, but because realm allocation is delayed by MINT_REALM_CONTAINER_TICKER_COMMIT_REVEAL_DELAY_BLOCKS
                         # ... we do not actually know if the parent was awarded the realm or not until the required heights are met
@@ -663,45 +672,45 @@ class BlockProcessor:
                         matched_price_point, state_at_height = self.get_applicable_rule_by_height(parent_realm_id, request_subrealm, expected_payment_height - MINT_SUBNAME_RULES_BECOME_EFFECTIVE_IN_BLOCKS, SUBREALM_MINT_PATH)
                         if matched_price_point:
                             self.logger.info(f'get_expected_subrealm_payment_info: matched_price_point={matched_price_point}, request_subrealm={request_subrealm}')
-                            return matched_price_point, parent_realm_id, request_subrealm
+                            return matched_price_point, parent_realm_id, request_subrealm, 'subrealm'
         self.logger.info(f'get_expected_subrealm_payment_info: not found_atomical_mint_info_for_potential_subrealm {found_atomical_id_for_potential_subrealm}')
-        return None, None, None
+        return None, None, None, None
  
     def get_expected_dmitem_payment_info(self, found_atomical_id_for_potential_dmitem, current_height):
         # Lookup the dmitem atomical to obtain the details of which container parent it is for
         found_atomical_mint_info_for_potential_dmitem = self.get_atomicals_id_mint_info(found_atomical_id_for_potential_dmitem, False)
         if not found_atomical_mint_info_for_potential_dmitem:
             self.logger.info(f'get_expected_dmitem_payment_info: not found_atomical_mint_info_for_potential_dmitem {location_id_bytes_to_compact(found_atomical_id_for_potential_dmitem)}')
-            return None, None, None
+            return None, None, None, None
         # Found the mint information. Use the mint details to determine the parent realm id and name requested
         # Along with the price that was expected according to the mint reveal height
         args = found_atomical_mint_info_for_potential_dmitem.get('args')
         if not args:
             self.logger.info(f'get_expected_dmitem_payment_info: not_args_found found_atomical_mint_info_for_potential_dmitem {location_id_bytes_to_compact(found_atomical_id_for_potential_dmitem)} ')
-            return None, None, None
+            return None, None, None, None
         args_dmitem = args.get('request_dmitem')
         if not args_dmitem:
             self.logger.info(f'get_expected_dmitem_payment_info: not_args_request_dmitem_found found_atomical_mint_info_for_potential_dmitem {location_id_bytes_to_compact(found_atomical_id_for_potential_dmitem)}')
-            return None, None, None
+            return None, None, None, None
         request_dmitem = found_atomical_mint_info_for_potential_dmitem.get('$request_dmitem')
         # Check that $request_dmitem was set because it will only be set if the basic validation succeeded
         # If it's not set, then the atomical dm item mint was not valid on a basic level and must be rejected
         if not request_dmitem:
             self.logger.info(f'get_expected_dmitem_payment_info: not request_dmitem. request_dmitem={request_dmitem}')
-            return None, None, None
+            return None, None, None, None
         # Sanity check
         assert(args_dmitem == request_dmitem)
         # More sanity checks on the formats and validity
         if not isinstance(request_dmitem, str) or len(request_dmitem) == 0:
             self.logger.info(f'get_expected_dmitem_payment_info: request_dmitem is not a str or is empty {location_id_bytes_to_compact(found_atomical_id_for_potential_dmitem)} request_dmitem={request_dmitem}')
-            return None, None, None
+            return None, None, None, None
         # Validate that the current payment came in before MINT_SUBNAME_COMMIT_PAYMENT_DELAY_BLOCKS after the mint reveal of the atomical
         # This is done to ensure that payments must be made in a timely fashion or else someone else can claim the subrealm
         if not is_within_acceptable_blocks_for_sub_item_payment(found_atomical_mint_info_for_potential_dmitem['commit_height'], current_height):
             # The reveal_location_height (mint/reveal height) is too old and this payment came in far too late
             # Ignore the payment therefore.
             self.logger.info(f'get_expected_dmitem_payment_info: not is_within_acceptable_blocks_for_sub_item_payment. request_subrealm={request_dmitem}')
-            return None, None, None
+            return None, None, None, None
         # The parent realm id is in a compact form string to make it easier for users and developers
         # Only store the details if the pid is also set correctly
         request_parent_container_id_compact = found_atomical_mint_info_for_potential_dmitem['args'].get('parent_container')
@@ -710,12 +719,16 @@ class BlockProcessor:
         assert(request_parent_container_id_compact == parent_container_id_compact)
         if not isinstance(parent_container_id_compact, str) or not is_compact_atomical_id(parent_container_id_compact):
             self.logger.info(f'get_expected_dmitem_payment_info: parent_container_id_compact not string or compact atomical id {location_id_bytes_to_compact(found_atomical_id_for_potential_dmitem)} parent_container_id_compact={parent_container_id_compact}')
-            return None, None, None
+            return None, None, None, None
         # We have a validated potential parent id, now look it up to see if the parent is a valid atomical
-        found_parent_mint_info = self.get_atomicals_id_mint_info_extended(parent_container_id)
+        # found_parent_mint_info = self.get_base_mint_info_by_atomical_id(parent_container_id)
+        found_parent_mint_info = self.get_base_mint_info_by_atomical_id(parent_container_id)
         if not found_parent_mint_info:
-            self.logger.info(f'get_expected_dmitem_payment_info: not found_parent_mint_info found_atomical_id_for_potential_dmitem={location_id_bytes_to_compact(found_atomical_id_for_potential_dmitem)}')
-            return None, None, None
+            self.logger.info(f'get_expected_dmitem_payment_info: not found_parent_mint_info found_atomical_id_for_potential_dmitem={location_id_bytes_to_compact(found_atomical_id_for_potential_dmitem)} parent_container_id_compact={parent_container_id_compact} found_atomical_mint_info_for_potential_dmitem={found_atomical_mint_info_for_potential_dmitem}')
+            return None, None, None, None
+        
+        self.logger.info(f'found_parent_mint_info={found_parent_mint_info}')
+        # self.populate_extended_atomical_subtype_info(found_parent_mint_info)
         # We have found the parent atomical, which may or may not be a valid realm
         # Do the basic check for $request_realm which indicates it succeeded the basic validity checks
         request_container_and_dmitem = found_parent_mint_info.get('$request_container') or found_parent_mint_info.get('$request_dmitem')
@@ -723,14 +736,14 @@ class BlockProcessor:
         # Someone apparently made a payment marker for an invalid parent realm id. They made a mistake, ignoring it..
         if not request_container_and_dmitem:
             self.logger.info(f'get_expected_dmitem_payment_info: not request_container_and_dmitem. found_parent_mint_info={found_parent_mint_info} request_dmitem={request_dmitem}')
-            return None, None, None
+            return None, None, None, None
         # Make sure it's the right type and format checks pass again just in case
         if not isinstance(request_dmitem, str):
             self.logger.info(f'get_expected_dmitem_payment_info: not isinstance(request_dmitem, str). request_dmitem={request_dmitem}')
-            return None, None, None
+            return None, None, None, None
         if not found_parent_mint_info.get('$container'):
             self.logger.info(f'get_expected_dmitem_payment_info: not container. found_parent_mint_info={found_parent_mint_info} request_dmitem={request_dmitem}, parent_container_id_compact={parent_container_id_compact}')
-            return None, None, None
+            return None, None, None, None
         # At this point we know we have a valid parent, but because container allocation is delayed by MINT_REALM_CONTAINER_TICKER_COMMIT_REVEAL_DELAY_BLOCKS
         # ... we do not actually know if the parent was awarded the container or not until the required heights are met
         # Nonetheless, someone DID make a payment and referenced the parent by the specific atomical id and therefore we will try to apply to payment
@@ -741,12 +754,14 @@ class BlockProcessor:
         matched_price_point, state_at_height_not_used = self.get_applicable_rule_by_height(parent_container_id, request_dmitem, expected_payment_height - MINT_SUBNAME_RULES_BECOME_EFFECTIVE_IN_BLOCKS, DMINT_PATH)
         if matched_price_point:
             self.logger.info(f'get_expected_dmitem_payment_info: matched_price_point={matched_price_point}, request_dmitem={request_dmitem}, parent_container_id={parent_container_id}')
-            return matched_price_point, parent_container_id, request_dmitem
+            return matched_price_point, parent_container_id, request_dmitem, 'dmitem'
         self.logger.info(f'get_expected_dmitem_payment_info: not matched_price_point request_dmitem={request_dmitem} parent_container_id={parent_container_id} found_atomical_id_for_potential_dmitem={found_atomical_id_for_potential_dmitem}')
-        return None, None, None
+        return None, None, None, None
     
     def get_earliest_dmitem_payment(self, atomical_id):
         dmpay_key_atomical_id = b'dmpay' + atomical_id
+        #if '080803f3912c60fbf50864953b2ef9a03fe817b6f7db9cffb71729ceeea9aa3ci0' == location_id_bytes_to_compact(atomical_id):
+            # self.logger.info(f'superduper_cache_analysis={encode_atomical_ids_hex(self.dmpay_data_cache)}')
         # Check if it's located in the cache first
         dmitempay_value = self.dmpay_data_cache.get(dmpay_key_atomical_id)
         payments = []
@@ -757,16 +772,12 @@ class BlockProcessor:
                 'payment_tx_outpoint': pay_outpoint[:36],
                 'mint_initiated': pay_outpoint[36:]
                     })
-
         db_payments = self.db.get_earliest_dmitem_payments(atomical_id)
         payments.extend(db_payments)
         payments.sort(key=lambda x: x['tx_num'])
         if len(payments) > 0:
             return payments[0]
-        return None
-        
-       
-
+        return None   
 
     def get_earliest_subrealm_payment(self, atomical_id):
         spay_key_atomical_id = b'spay' + atomical_id
@@ -913,14 +924,14 @@ class BlockProcessor:
         if state_map:
             cached_value = state_map.pop(db_key_suffix, None)
             if cached_value != expected_entry_value:
-                raise IndexError(f'IndexerError: delete_state_data cache data does not match expected value {expected_entry_value} {db_value}')
+                raise IndexError(f'IndexError: delete_state_data cache data does not match expected value {expected_entry_value} {db_value}')
             # return  intentionally fall through to catch in db just in case
 
         db_delete_key = db_key_prefix + db_key_suffix
         db_value = self.db.utxo_db.get(db_delete_key)
         if db_value:
             if db_value != expected_entry_value: 
-                raise IndexError(f'IndexerError: delete_state_data db data does not match expected atomical id {expected_entry_value} {db_value}')
+                raise IndexError(f'IndexError: delete_state_data db data does not match expected atomical id {expected_entry_value} {db_value}')
             self.delete_general_data(db_delete_key)
         return cached_value or db_value
 
@@ -947,7 +958,7 @@ class BlockProcessor:
             cached_value = name_map.get(tx_num)
             if cached_value:
                 if cached_value != expected_entry_value:
-                    raise IndexerError(f'IndexerError: delete_name_element_template cache name data does not match expected value {db_delete_prefix} {subject} {tx_num} {expected_entry_value} {cached_value}')
+                    raise IndexError(f'IndexError: delete_name_element_template cache name data does not match expected value {db_delete_prefix} {subject} {tx_num} {expected_entry_value} {cached_value}')
                 # remove from the cache
                 name_map.pop(tx_num)
             # Intentionally fall through to catch it in the db as well just in case
@@ -958,13 +969,17 @@ class BlockProcessor:
         db_value = self.db.utxo_db.get(db_delete_key)
         if db_value:
             if db_value != expected_entry_value: 
-                raise IndexerError(f'IndexerError: delete_name_element_template db data does not match expected atomical id {db_delete_prefix} {subject} {tx_num} {expected_entry_value} {db_value}')
+                raise IndexError(f'IndexError: delete_name_element_template db data does not match expected atomical id {db_delete_prefix} {subject} {tx_num} {expected_entry_value} {db_value}')
             self.delete_general_data(db_delete_key)
         return cached_value or db_value
 
     def put_pay_record(self, atomical_id, tx_num, payload_value, db_prefix, pay_data_cache): 
         self.logger.debug(f'put_pay_record: db_prefix={db_prefix} atomical_id={location_id_bytes_to_compact(atomical_id)}, tx_num={tx_num}, payload_value={payload_value.hex()}')
         record_key = db_prefix + atomical_id
+        # put_pay_record: record_key=b'dmpay<\xaa\xa9\xee\xce)\x17\xb7\xff\x9c\xdb\xf7\xb6\x17\xe8?\xa0\xf9.;\x95d\x08\xf5\xfb`,\x91\xf3\x03\x08\x08\x00\x00\x00\x00'
+        # dmpay_key_atomical_id=     b'dmpay<\xaa\xa9\xee\xce)\x17\xb7\xff\x9c\xdb\xf7\xb6\x17\xe8?\xa0\xf9.;\x95d\x08\xf5\xfb`,\x91\xf3\x03\x08\x08\x00\x00\x00\x00'
+        # self.logger.debug(f'put_pay_record: record_key={record_key} record_key={record_key.hex()} atomical_id={location_id_bytes_to_compact(atomical_id)} pay_data_cache={encode_atomical_ids_hex(pay_data_cache)}')
+        
         if not pay_data_cache.get(record_key):
             pay_data_cache[record_key] = {}
         pay_data_cache[record_key][tx_num] = payload_value
@@ -979,7 +994,7 @@ class BlockProcessor:
             cached_value = name_map.get(tx_num)
             if cached_value:
                 if cached_value != expected_entry_value:
-                    raise IndexerError(f'IndexerError: delete_pay_record cache name data does not match expected value {atomical_id} {expected_entry_value} {cached_value}')
+                    raise IndexError(f'IndexError: delete_pay_record cache name data does not match expected value {atomical_id} {expected_entry_value} {cached_value}')
                 # remove from the cache
                 name_map.pop(tx_num)
             # Intentionally fall through to catch it in the db as well just in case
@@ -990,7 +1005,7 @@ class BlockProcessor:
         db_value = self.db.utxo_db.get(db_delete_key)
         if db_value:
             if db_value != expected_entry_value: 
-                raise IndexerError(f'IndexerError: delete_pay_record db data does not match expected atomical id {atomical_id} {tx_num} {expected_entry_value} {db_value}')
+                raise IndexError(f'IndexError: delete_pay_record db data does not match expected atomical id {atomical_id} {tx_num} {expected_entry_value} {db_value}')
             self.delete_general_data(db_delete_key)
         return cached_value or db_value
 
@@ -1159,7 +1174,9 @@ class BlockProcessor:
             self.logger.debug(f'create_or_delete_dmitem_entry_if_requested: has_parent_container_id request_dmitem={request_dmitem} parent_container_id={parent_container_id}')
             # Also check that there is no candidates already committed earlier than the current one
             status, atomical_id, candidates = self.get_effective_dmitem(parent_container_id, request_dmitem, height)
+            self.logger.debug(f'get_effective_dmitem_status status={status} candidates={encode_atomical_ids_hex(candidates)}')
             if status and status == 'verified':
+                self.logger.debug(f'atomical_id={location_id_bytes_to_compact(atomical_id)}')
                 self.logger.warning(f'create_or_delete_dmitem_entry_if_requested: verified_already_exists, parent_container_id {location_id_bytes_to_compact(parent_container_id)}, request_dmitem={request_dmitem} ')
                 # Do not attempt to mint if there is one verified already
                 return False
@@ -1417,7 +1434,9 @@ class BlockProcessor:
             if height >= self.coin.ATOMICALS_ACTIVATION_HEIGHT_DMINT:
                 if not self.create_or_delete_dmitem_entry_if_requested(mint_info, operations_found_at_inputs['payload'], height, Delete):
                     return None
-
+                # else: 
+                    # if '08080eb2004324439a5a077e2e5d0fdd9c35055d025a928264dddafe9877047ci0' == location_id_bytes_to_compact(mint_info['atomical_id']):
+                    #    raise IndexError('create_or_delete_dmitem_entry_if_requested atomical_id_ ' + location_id_bytes_to_compact(mint_info['atomical_id']))
             if not Delete:
                 if not self.validate_and_create_nft_mint_utxo(mint_info, txout, height, tx_hash):
                     self.logger.info(f'create_or_delete_atomical: validate_and_create_nft_mint_utxo returned FALSE in Transaction {hash_to_hex_str(tx_hash)}. Skipping...') 
@@ -1573,6 +1592,7 @@ class BlockProcessor:
         tx_numb = pack_le_uint64(tx_num)[:TXNUM_LEN]
         self.put_atomicals_utxo(location, atomical_id, hashX + scripthash + value_sats + pack_le_uint16(exponent) + tx_numb)
     
+ 
     def put_nft_outputs_by_blueprint(self, nft_blueprint, operations_found_at_inputs, tx_hash, tx, tx_num, height):
         put_general_data = self.general_data_cache.__setitem__
         self.logger.debug(f'nft_blueprint={nft_blueprint}')
@@ -1586,7 +1606,7 @@ class BlockProcessor:
             put_general_data(b'po' + location, txout.pk_script)
             for atomical_id, atomical_info in value_info['atomicals'].items():
                 # Only allow state or event updates if it is not immutable
-                if not atomical_info.mint_info.get('$immutable', None):
+                if not atomical_info.mint_info.get('$immutable'):
                     self.put_or_delete_state_updates(operations_found_at_inputs, atomical_id, tx_num, tx_hash, output_idx_le, height, 0, False)
                     self.put_or_delete_state_updates(operations_found_at_inputs, atomical_id, tx_num, tx_hash, output_idx_le, height, 1, False)
                 # Only allow NFTs to be sealed.
@@ -1810,6 +1830,7 @@ class BlockProcessor:
                     'tx_num': tx_num,
                     'cache': True
                 })
+        self.logger.info(f'get_effective_dmitem_db_prefix={db_prefix} parent_container_id={parent_container_id} dmitem_name={dmitem_name} dmitem_name_enc={dmitem_name_enc}')
         db_entries = self.db.get_name_entries_template(db_prefix, parent_container_id + dmitem_name_enc + pack_le_uint16(len(dmitem_name_enc)))
         all_entries.extend(db_entries)
         all_entries.sort(key=lambda x: x['tx_num'])
@@ -1819,10 +1840,14 @@ class BlockProcessor:
             atomical_id = entry['value']
             mint_info = self.get_atomicals_id_mint_info(atomical_id, False)
             # Sanity check to make sure it matches
-            self.logger.debug(f'get_effective_dmitem dmitem_name={dmitem_name} atomical_id={location_id_bytes_to_compact(atomical_id)} parent_container_id={location_id_bytes_to_compact(parent_container_id)} entry={entry}')
+            self.logger.debug(f'get_effective_dmitem dmitem_name={dmitem_name} atomical_id={location_id_bytes_to_compact(atomical_id)} parent_container_id={location_id_bytes_to_compact(parent_container_id)} entry={entry} height={height}')
             assert(mint_info['commit_tx_num'] == entry['tx_num'])
             # Get any payments (correct and valid or even premature, just get them all for now)
+            if dmitem_name == '235':
+                self.logger.info(f'super_analysis_235 atomical_id={location_id_bytes_to_compact(atomical_id)}')
+
             payment_entry = self.get_earliest_dmitem_payment(atomical_id)
+            self.logger.debug(f'get_effective_dmitem_payment_entry={payment_entry}')
             # If the current candidate doesn't have a payment entry and the MINT_SUBNAME_COMMIT_PAYMENT_DELAY_BLOCKS has passed
             # Then we know the candidate is expired and invalid
             if mint_info['commit_height'] <= current_height - MINT_SUBNAME_COMMIT_PAYMENT_DELAY_BLOCKS:
@@ -1906,15 +1931,6 @@ class BlockProcessor:
                 atomical['mint_data']['fields'] = {}
         return atomical 
 
-    # temporary non lru version
-    async def get_base_mint_info_rpc_format_by_atomical_id_no_cache(self, atomical_id):
-        atomical_result = await self.get_base_mint_info_by_atomical_id_async(atomical_id)
-        if not atomical_result:
-            return None
-        convert_db_mint_info_to_rpc_mint_info_format(self.coin.header_hash, atomical_result)
-        self.populate_extended_field_summary_atomical_info(atomical_id, atomical_result)
-        return atomical_result
-        
     async def get_base_mint_info_rpc_format_by_atomical_id(self, atomical_id):
         atomical_result = None
         try:
@@ -2008,8 +2024,11 @@ class BlockProcessor:
         return ft_results
 
     # Get the raw stored mint info in the db
-    def get_raw_mint_info_by_atomical_id(self, atomical_id):
+    def get_raw_mint_info_by_atomical_id_notused(self, atomical_id):
         atomical_mint_info_key = b'mi' + atomical_id
+
+
+
         atomical_mint_info_value = self.db.utxo_db.get(atomical_mint_info_key)
         if not atomical_mint_info_value:
             return None
@@ -2019,17 +2038,17 @@ class BlockProcessor:
     # Does not retrieve the active b'a' locations in this method because there could be many thousands (in the case of FTs)
     # Another method is provided to layer on the active location and gives the user control over whether to retrieve them
     def get_base_mint_info_by_atomical_id(self, atomical_id):
-        init_mint_info = self.get_raw_mint_info_by_atomical_id(atomical_id)
+        init_mint_info = self.get_atomicals_id_mint_info(atomical_id, True)
         if not init_mint_info:
             return None
-        # Get Atomical number and check match
-        atomical_number = init_mint_info['number']
-        atomical_number_key = b'n' + pack_be_uint64(atomical_number)
-        atomical_number_value = self.db.utxo_db.get(atomical_number_key)
-        if not atomical_number_value:
-            raise IndexError(f'get_base_mint_info_by_atomical_id: not atomical_number_value. IndexError. {atomical_number}')
         
-        assert(atomical_number_value == atomical_id)
+        atomical_number = init_mint_info['number']
+        # Get Atomical number and check match
+        # atomical_number_key = b'n' + pack_be_uint64(atomical_number)
+        # atomical_number_value = self.db.utxo_db.get(atomical_number_key)
+        # if not atomical_number_value:
+        #     raise IndexError(f'get_base_mint_info_by_atomical_id: not atomical_number_value. IndexError. {atomical_number}')
+        # assert(atomical_number_value == atomical_id)
 
         atomical = {
             'atomical_id': atomical_id,
@@ -2191,7 +2210,7 @@ class BlockProcessor:
         for raw_candidate_entry in raw_candidate_entries:
             candidate_atomical_id = raw_candidate_entry['value']
             candidate_atomical_id_compact = location_id_bytes_to_compact(candidate_atomical_id)
-            raw_mint_info_for_candidate_id = self.get_raw_mint_info_by_atomical_id(candidate_atomical_id)
+            raw_mint_info_for_candidate_id = self.get_atomicals_id_mint_info(candidate_atomical_id, True)
             # self.logger.info(f'build_atomical_id_to_candidate_map: raw_mint_info_for_candidate_id={raw_mint_info_for_candidate_id}, candidate_atomical_id={candidate_atomical_id}')
             atomical_id_to_candidates_map[candidate_atomical_id] = {
                 'commit_height': raw_mint_info_for_candidate_id['commit_height'],
@@ -2219,7 +2238,7 @@ class BlockProcessor:
             self.logger.debug(f'build_applicable_rule_map: candidate_entry={candidate_entry}')
             subrealm_candidate_atomical_id = candidate_entry['value']
             subrealm_candidate_atomical_id_compact = location_id_bytes_to_compact(subrealm_candidate_atomical_id)
-            raw_mint_info_for_candidate_id = self.get_raw_mint_info_by_atomical_id(subrealm_candidate_atomical_id)
+            raw_mint_info_for_candidate_id = self.get_atomicals_id_mint_info(subrealm_candidate_atomical_id, True)
             applicable_rule_map[subrealm_candidate_atomical_id] = {
                 'commit_height': raw_mint_info_for_candidate_id['commit_height'],
                 'reveal_location_height': raw_mint_info_for_candidate_id['reveal_location_height']
@@ -2251,7 +2270,7 @@ class BlockProcessor:
             self.logger.debug(f'build_applicable_rule_map: candidate_entry={candidate_entry}')
             candidate_atomical_id = candidate_entry['value']
             candidate_atomical_id_compact = location_id_bytes_to_compact(candidate_atomical_id)
-            raw_mint_info_for_candidate_id = self.get_raw_mint_info_by_atomical_id(candidate_atomical_id)
+            raw_mint_info_for_candidate_id = self.get_atomicals_id_mint_info(candidate_atomical_id, True)
             applicable_rule_map[candidate_atomical_id] = {
                 'commit_height': raw_mint_info_for_candidate_id['commit_height'],
                 'reveal_location_height': raw_mint_info_for_candidate_id['reveal_location_height']
@@ -2274,6 +2293,7 @@ class BlockProcessor:
 
     # Populate the specific name or request type for containers, tickers, and realms (sub-realms excluded)
     def populate_name_subtype_specific_fields(self, atomical, type_str, get_effective_name_func):
+        self.logger.info(f'atomical={atomical}')
         request_name = atomical['mint_info'].get('$request_' + type_str)
         if not request_name:
             return None, None
@@ -2369,6 +2389,7 @@ class BlockProcessor:
         # 
         # TOP-REALM (TLR) Type Fields
         #
+        self.logger.info(f'populate_extended_atomical_subtype_info atomical={atomical}')
         the_name_request, is_atomical_name_verified_found = self.populate_name_subtype_specific_fields(atomical, 'realm', self.get_effective_realm)
         if is_atomical_name_verified_found:
             atomical['subtype'] = 'realm'
@@ -2570,6 +2591,7 @@ class BlockProcessor:
         self.atomicals_rpc_general_cache.clear()
         self.atomicals_id_cache.clear()
         self.atomicals_dft_mint_count_cache.clear()
+        txids = []
         # Track the Atomicals hash for the block
         # First we concatenate the previous block height hash to chain them together
         # The purpose of this is to create a unique hash fingerprint to make it easy to determine if indexers (such as this one) or other implementations
@@ -2700,7 +2722,10 @@ class BlockProcessor:
                 # Create NFT/FT atomicals if it is defined in the tx
                 if not already_found_valid_operation:
                     created_atomical_id = self.create_or_delete_atomical(atomicals_operations_found_at_inputs, atomicals_spent_at_inputs, header, height, tx_num, atomical_num, tx, tx_hash, False)
+                    
                     if created_atomical_id:
+                        if hash_to_hex_str(tx_hash) == '4074041505b69b1afcb98b1ded40102b4b694af2fa0c56ea31e5b0c56b7a1591':
+                            raise IndexError('created_atomical_id txhash' + location_id_bytes_to_compact(created_atomical_id))
                         already_found_valid_operation = True
                         has_at_least_one_valid_atomicals_operation = True
                         atomical_num += 1
@@ -2718,15 +2743,41 @@ class BlockProcessor:
                 # in one and the same tx as making a payment. It's not advisable to do so, but it's a valid possibility
 
                 # Check if there were any payments for subrealms in tx
-                if self.create_or_delete_subname_payment_output_if_valid(tx_hash, tx, tx_num, height, atomicals_operations_found_at_inputs, atomicals_spent_at_inputs, self.subrealm_data_cache, self.get_expected_subrealm_payment_info, False):
+                if self.create_or_delete_subname_payment_output_if_valid(tx_hash, tx, tx_num, height, atomicals_operations_found_at_inputs, atomicals_spent_at_inputs,  b'spay', self.subrealmpay_data_cache, self.get_expected_subrealm_payment_info, False):
                     self.logger.debug(f'advance_txs: found valid subrealm payment create_or_delete_subname_payment_output_if_valid {hash_to_hex_str(tx_hash)}')
                     has_at_least_one_valid_atomicals_operation = True
 
                 # Check if there were any payments for dmitems in tx
-                if self.create_or_delete_subname_payment_output_if_valid(tx_hash, tx, tx_num, height, atomicals_operations_found_at_inputs, atomicals_spent_at_inputs, self.dmitem_data_cache, self.get_expected_dmitem_payment_info, False):
+                if self.create_or_delete_subname_payment_output_if_valid(tx_hash, tx, tx_num, height, atomicals_operations_found_at_inputs, atomicals_spent_at_inputs,  b'dmpay', self.dmpay_data_cache, self.get_expected_dmitem_payment_info, False):
                     self.logger.debug(f'advance_txs: found valid dmitem payment create_or_delete_subname_payment_output_if_valid {hash_to_hex_str(tx_hash)}')
                     has_at_least_one_valid_atomicals_operation = True
 
+                if hash_to_hex_str(tx_hash) == '36cb0bb8509199b2f16948d962bb72a176ecd7483804e67a11d31f4aeb2f2537':
+                    # self.logger.debug(f'found payment 36cb0bb8509199b2f16948d962bb72a176ecd7483804e67a11d31f4aeb2f2537 height={height}')
+                    # raise IndexError('36cb0bb8509199b2f16948d962bb72a176ecd7483804e67a11d31f4aeb2f2537')
+                    # raise IndexError(f'found payment 36cb0bb8509199b2f16948d962bb72a176ecd7483804e67a11d31f4aeb2f2537i')
+                    # pass 
+                    pass
+                if hash_to_hex_str(tx_hash) == '060e10a698c34edc14120df26ba2d02c7966f7bdbb931e2a79246a1cc874b3ff':
+                    pass
+                    # self.logger.debug(f'found payment 060e10a698c34edc14120df26ba2d02c7966f7bdbb931e2a79246a1cc874b3ff height={height}')
+                    # raise IndexError('060e10a698c34edc14120df26ba2d02c7966f7bdbb931e2a79246a1cc874b3ff')
+                if hash_to_hex_str(tx_hash) == '6de82a789040954655faf66c854287519546d4302a43eb8e1f122f37173057a2':
+                    self.logger.debug(f'found payment 6de82a789040954655faf66c854287519546d4302a43eb8e1f122f37173057a2 height={height}')
+                    # raise IndexError('6de82a789040954655faf66c854287519546d4302a43eb8e1f122f37173057a2')
+                
+                if hash_to_hex_str(tx_hash) == 'a062e3ea48839dc820bb101347921c2bb43728bf47ac265b639d1faddfeefe5c':
+                    self.logger.debug(f'found commit 100d8a932f0ef236a1983a23203b61ccf22c9a9371032f8a7d6a53cfc6cb4e63i0 of the  reveal tx of the atomical a062e3ea48839dc820bb101347921c2bb43728bf47ac265b639d1faddfeefe5c height={height} which will be paid by 6de82a789040954655faf66c854287519546d4302a43eb8e1f122f37173057a2i3')
+                    # raise IndexError(f'found commit 100d8a932f0ef236a1983a23203b61ccf22c9a9371032f8a7d6a53cfc6cb4e63i0 of the  reveal tx of the atomical a062e3ea48839dc820bb101347921c2bb43728bf47ac265b639d1faddfeefe5c height={height} which will be paid by 6de82a789040954655faf66c854287519546d4302a43eb8e1f122f37173057a2i3')
+                
+                if hash_to_hex_str(tx_hash) == '1c5c17726edeb07ab6517e786e45424be30350ec1db39ecf4e378d2e82d34e74':
+                    self.logger.debug(f'found paymet 1c5c17726edeb07ab6517e786e45424be30350ec1db39ecf4e378d2e82d34e74 ')
+                    raise IndexError(f'found paymet 1c5c17726edeb07ab6517e786e45424be30350ec1db39ecf4e378d2e82d34e74 ')
+                
+                if hash_to_hex_str(tx_hash) == '11d4891e53b4ade1f97427793b10d2cb91245ed928220d9060ef3f8ac70e41de':
+                    self.logger.debug(f'found subrealm mint 11d4891e53b4ade1f97427793b10d2cb91245ed928220d9060ef3f8ac70e41de ')
+                    raise IndexError(f'found subrealm mint  11d4891e53b4ade1f97427793b10d2cb91245ed928220d9060ef3f8ac70e41de ')
+                
                 # Create a proof of work record if there was valid proof of work attached
                 if self.create_or_delete_pow_records(tx_hash, tx_num, height, atomicals_operations_found_at_inputs):
                     has_at_least_one_valid_atomicals_operation = True
@@ -2737,6 +2788,7 @@ class BlockProcessor:
                     concatenation_of_tx_hashes_with_valid_atomical_operation.append(tx_hash)
 
                 if has_at_least_one_valid_atomicals_operation:
+                    txids.append(tx_hash)
                     put_general_data(b'th' + pack_le_uint32(height) + pack_le_uint64(tx_num) + tx_hash, tx_hash)
                     
             append_hashXs(hashXs)
@@ -2761,6 +2813,24 @@ class BlockProcessor:
             put_general_data(b'tt' + pack_le_uint32(height), current_height_atomicals_block_hash)
             self.logger.info(f'height={height}, atomicals_block_hash={hash_to_hex_str(current_height_atomicals_block_hash)}')   
         
+        #if height == 819221:
+            # self.logger.info(f'atomicals_block_hash={hash_to_hex_str(current_height_atomicals_block_hash)} txids={encode_tx_hash_hex(txids)}')
+            # raise IndexError('hit')
+        # quantum container height is 820407 put at Jan 10 18:09:12 
+
+        # Jan 10 18:12:33
+        # quantum item 9666 at 100d8a932f0ef236a1983a23203b61ccf22c9a9371032f8a7d6a53cfc6cb4e63i0
+        # "commit_tx_num": 933157310,
+        #    "commit_height": 820546,
+        #    "reveal_location_txid": "a062e3ea48839dc820bb101347921c2bb43728bf47ac265b639d1faddfeefe5c",
+        #    "reveal_location_index": 0,
+        #    "reveal_location": "a062e3ea48839dc820bb101347921c2bb43728bf47ac265b639d1faddfeefe5ci0",
+        #    "reveal_location_tx_num": 933157311,
+        #    "reveal_location_height": 820546,
+        if height == 820551: # or height == 820546:
+            self.logger.info(f'atomicals_block_hash={hash_to_hex_str(current_height_atomicals_block_hash)} txids={encode_tx_hash_hex(txids)}')
+            # time.sleep(3000) # Sleep for 3000 seconds
+            # raise IndexError('hit')
         return undo_info, atomicals_undo_info
     
     # Sanity safety check method to call at end of block processing to ensure no dft token inflation
@@ -2774,10 +2844,16 @@ class BlockProcessor:
             if decentralized_mints > max_mints:
                 raise IndexError(f'validate_no_dft_inflation - inflation_bug_found: atomical_id_of_dft_ticker={location_id_bytes_to_compact(atomical_id_of_dft_ticker)} decentralized_mints={decentralized_mints} max_mints={max_mints}')
     
-    def create_or_delete_subname_payment_output_if_valid(self, tx_hash, tx, tx_num, height, operations_found_at_inputs, atomicals_spent_at_inputs, subname_data_cache, get_expected_subname_payment_info, Delete=False):
+    def create_or_delete_subname_payment_output_if_valid(self, tx_hash, tx, tx_num, height, operations_found_at_inputs, atomicals_spent_at_inputs, db_prefix, subname_data_cache, get_expected_subname_payment_info, Delete=False):
 
-        atomical_id_for_payment, payment_marker_idx = AtomicalsTransferBlueprintBuilder.get_atomical_id_for_payment_marker_if_found(tx)
+        atomical_id_for_payment, payment_marker_idx, entity_type = AtomicalsTransferBlueprintBuilder.get_atomical_id_for_payment_marker_if_found(tx)
         if not atomical_id_for_payment:
+            return None 
+        
+        # Make sure the payment type for the right type subrealm or dmitem is correct
+        if entity_type == 'subrealm' and db_prefix != b'spay':
+            return None 
+        if entity_type == 'dmitem' and db_prefix != b'dmpay':
             return None 
         
         # Rebuild the blueprint builder here
@@ -2786,8 +2862,11 @@ class BlockProcessor:
             self.logger.warning(f'create_or_delete_subname_payment_output_if_valid: invalid payment split op found tx_hash={hash_to_hex_str(tx_hash)}')
             return None 
         
-        matched_price_point, parent_id, request_subname = get_expected_subname_payment_info(atomical_id_for_payment, height)
+        matched_price_point, parent_id, request_subname, subname_type = get_expected_subname_payment_info(atomical_id_for_payment, height)
         
+        # 08080f502d3f69edbb5371c15f109ab31ecd21cbf897055bb72d608d8e27206ai0
+        # 2645381cc5ebf847a7583966dad879947f5feb7e5259d99c2dc801f46db56472
+        # 2d8183dbf0e8a268e7755ce5b4c71eb7d367f45703afaa9d311ea3065fb1f7f0i3
         # An expected payment amount might not be set if there is no valid subrealm minting rules, or something invalid was found
         if not matched_price_point:
             self.logger.warning(f'create_or_delete_subname_payment_output_if_valid: {hash_to_hex_str(tx_hash)} NOT MATCHED PRICE - create_or_delete_subrealm_payment_output_if_valid atomical_id_for_payment={location_id_bytes_to_compact(atomical_id_for_payment)}')
@@ -2795,7 +2874,7 @@ class BlockProcessor:
         
         regex = matched_price_point['matched_rule']['p']
         if not is_valid_regex(regex):
-            self.logger.warning(f'create_or_delete_subname_payment_output_if_valid invalid matched regex. regex={regex}')
+            self.logger.warning(f'create_or_delete_subname_payment_output_if_valid invalid matched regex. regex={regex} atomical_id_for_payment={location_id_bytes_to_compact(atomical_id_for_payment)}')
             return None 
         
         # The pattern should have already matched, sanity check
@@ -2804,16 +2883,36 @@ class BlockProcessor:
             raise IndexError(f'create_or_delete_subname_payment_output_if_valid: valid pattern failed. DeveloperError request_subname={request_subname}, regex={regex}')
  
         if not blueprint_builder.are_payments_satisfied(matched_price_point['matched_rule'].get('o')):
-            self.logger.warning(f'create_or_delete_subname_payment_output_if_valid: payments not satisfied. request_subname={request_subname}, regex={regex}')
+            self.logger.warning(f'create_or_delete_subname_payment_output_if_valid: payments not satisfied. request_subname={request_subname}, regex={regex} atomical_id_for_payment={location_id_bytes_to_compact(atomical_id_for_payment)}')
             return None 
     
         # Delete or create the record based on whether we are reorg rollback or creating new
         payment_outpoint = tx_hash + pack_le_uint32(payment_marker_idx)
         not_initated_by_parent = b'00' # Used to indicate it was minted according to rules payment match
         if Delete:
-            self.delete_pay_record(atomical_id_for_payment, tx_num, payment_outpoint + not_initated_by_parent, b'spay', subname_data_cache)
+            self.delete_pay_record(atomical_id_for_payment, tx_num, payment_outpoint + not_initated_by_parent, db_prefix, subname_data_cache)
         else:
-            self.put_pay_record(atomical_id_for_payment, tx_num, payment_outpoint + not_initated_by_parent, b'spay', subname_data_cache)
+            self.logger.info(f'create_or_delete_subname_payment_output_if_valid_db_prefix={db_prefix} parent_container_id={parent_id} dmitem_name={request_subname} dmitem_name_enc={request_subname.encode()}')
+            self.logger.info(f'create_or_delete_subname_payment_output_if_valid atomical_id_for_payment={location_id_bytes_to_compact(atomical_id_for_payment)} db_prefix={db_prefix} payment_outpoint_compact={location_id_bytes_to_compact(payment_outpoint)} payment_outpoint={payment_outpoint.hex()}')
+            # if location_id_bytes_to_compact(atomical_id_for_payment) == '080803f3912c60fbf50864953b2ef9a03fe817b6f7db9cffb71729ceeea9aa3ci0':
+            # a062e3ea48839dc820bb101347921c2bb43728bf47ac265b639d1faddfeefe5c
+            #    pass
+                # raise IndexError(f'found 080803f3912c60fbf50864953b2ef9a03fe817b6f7db9cffb71729ceeea9aa3ci0 for payment put')
+            
+            self.put_pay_record(atomical_id_for_payment, tx_num, payment_outpoint + not_initated_by_parent, db_prefix, subname_data_cache)
+        
+            if hash_to_hex_str(tx_hash) == '36cb0bb8509199b2f16948d962bb72a176ecd7483804e67a11d31f4aeb2f2537':
+                self.logger.debug(f'found payment 36cb0bb8509199b2f16948d962bb72a176ecd7483804e67a11d31f4aeb2f2537 db_prefix={db_prefix} height={height} atomical_id_for_payment={location_id_bytes_to_compact(atomical_id_for_payment)} subname_data_cache={encode_atomical_ids_hex(subname_data_cache)}')
+                # raise IndexError('payment made 36cb0bb8509199b2f16948d962bb72a176ecd7483804e67a11d31f4aeb2f2537')
+                    # raise IndexError(f'found payment 36cb0bb8509199b2f16948d962bb72a176ecd7483804e67a11d31f4a
+            
+            if hash_to_hex_str(tx_hash) == '060e10a698c34edc14120df26ba2d02c7966f7bdbb931e2a79246a1cc874b3ff':
+                self.logger.debug(f'found payment 060e10a698c34edc14120df26ba2d02c7966f7bdbb931e2a79246a1cc874b3ff db_prefix={db_prefix} height={height} atomical_id_for_payment={location_id_bytes_to_compact(atomical_id_for_payment)} subname_data_cache={encode_atomical_ids_hex(subname_data_cache)}')
+                raise IndexError('payment made 060e10a698c34edc14120df26ba2d02c7966f7bdbb931e2a79246a1cc874b3ff')
+                    # raise IndexError(f'found payment 36cb0bb8509199b2f16948d962bb72a176ecd7483804e67a11d31f4a
+
+            # 
+            
         return tx_hash 
      
     def backup_blocks(self, raw_blocks: Sequence[bytes]):
@@ -3088,10 +3187,10 @@ class BlockProcessor:
                 atomicals_minted += 1
             
             # Rollback any subrealm payments
-            self.create_or_delete_subname_payment_output_if_valid(tx_hash, tx, tx_num, self.height, operations_found_at_inputs, atomicals_spent_at_inputs, self.subrealm_data_cache, self.get_expected_subrealm_payment_info, True)
+            self.create_or_delete_subname_payment_output_if_valid(tx_hash, tx, tx_num, self.height, operations_found_at_inputs, atomicals_spent_at_inputs, b'spay', self.subrealmpay_data_cache, self.get_expected_subrealm_payment_info, True)
 
             # Rollback any dmint payments
-            self.create_or_delete_subname_payment_output_if_valid(tx_hash, tx, tx_num, self.height, operations_found_at_inputs, atomicals_spent_at_inputs, self.dmitem_data_cache, self.get_expected_dmitem_payment_info, True)
+            self.create_or_delete_subname_payment_output_if_valid(tx_hash, tx, tx_num, self.height, operations_found_at_inputs, atomicals_spent_at_inputs, b'dmpay', self.dmpay_data_cache, self.get_expected_dmitem_payment_info, True)
 
             # If there were any distributed mint creation, then delete
             self.create_or_delete_decentralized_mint_output(operations_found_at_inputs, tx_num, tx_hash, tx, self.height, {}, True)

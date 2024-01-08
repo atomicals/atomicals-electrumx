@@ -164,7 +164,7 @@ def test_empty_spends_ft_single_burned_under():
     assert(len(nft_output_blueprint.outputs) == 0)
  
     ft_output_blueprint = blueprint_builder.get_ft_output_blueprint()
-    assert(len(ft_output_blueprint.outputs) == 1)
+    assert(len(ft_output_blueprint.outputs) == 0)
     assert(ft_output_blueprint.first_atomical_id == subject_atomical_id)
     assert(blueprint_builder.get_are_fts_burned() == True)
 

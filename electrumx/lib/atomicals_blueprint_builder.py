@@ -6,6 +6,7 @@ from electrumx.lib.util_atomicals import (
     is_op_return_subrealm_payment_marker_atomical_id,
     is_op_return_dmitem_payment_marker_atomical_id,
     compact_to_location_id_bytes,
+    encode_atomical_ids_hex,
     SUBNAME_MIN_PAYMENT_DUST_LIMIT
 )
 from electrumx.lib.hash import hash_to_hex_str, HASHX_LEN
@@ -180,11 +181,14 @@ class AtomicalsTransferBlueprintBuilder:
     nft_atomicals, ft_atomicals, atomical_ids_spent = AtomicalsTransferBlueprintBuilder.build_atomical_input_summaries_by_type(self.get_atomicals_id_mint_info, atomicals_spent_at_inputs)
     self.nft_atomicals = nft_atomicals
     self.ft_atomicals = ft_atomicals
-    if len(ft_atomicals) > 0 or len(nft_atomicals) > 0:
-      self.logger.info(f'atomicals_spent_at_inputs={atomicals_spent_at_inputs} operations_found_at_inputs={operations_found_at_inputs}')
     nft_output_blueprint, ft_output_blueprint = AtomicalsTransferBlueprintBuilder.calculate_output_blueprint(self.get_atomicals_id_mint_info, self.tx, self.nft_atomicals, self.ft_atomicals, self.atomicals_spent_at_inputs, self.operations_found_at_inputs, self.sort_fifo)
     self.nft_output_blueprint = nft_output_blueprint
     self.ft_output_blueprint = ft_output_blueprint
+    if len(ft_atomicals) > 0 or len(nft_atomicals) > 0:
+      self.logger.info(f'tx_hash={hash_to_hex_str(tx_hash)} atomicals_spent_at_inputs={encode_atomical_ids_hex(atomicals_spent_at_inputs)} operations_found_at_inputs={operations_found_at_inputs}')
+      if len(ft_output_blueprint.outputs) > 1: 
+        self.logger.info(f'multiple_outputs tx_hash={hash_to_hex_str(tx_hash)}')
+
     self.are_fts_burned = ft_output_blueprint.burned
     self.atomical_ids_spent = atomical_ids_spent
 
@@ -222,15 +226,23 @@ class AtomicalsTransferBlueprintBuilder:
   def build_nft_input_idx_to_atomical_map(cls, get_atomicals_id_mint_info, atomicals_spent_at_inputs):
     input_idx_to_atomical_ids_map = {}
     for txin_index, atomicals_entry_list in atomicals_spent_at_inputs.items():
-        for atomicals_entry in atomicals_entry_list:
-            atomical_id = atomicals_entry['atomical_id']
-            atomical_mint_info = get_atomicals_id_mint_info(atomical_id, True)
-            if not atomical_mint_info: 
-                raise AtomicalsTransferBlueprintBuilderError(f'build_nft_input_idx_to_atomical_map {atomical_id.hex()} not found in mint info. IndexError.')
-            if atomical_mint_info['type'] != 'NFT':
-                continue
-            input_idx_to_atomical_ids_map[txin_index] = input_idx_to_atomical_ids_map.get(txin_index) or {}
-            input_idx_to_atomical_ids_map[txin_index][atomical_id] = atomical_mint_info
+      for atomicals_entry in atomicals_entry_list:
+        atomical_id = atomicals_entry['atomical_id']
+        atomical_mint_info = get_atomicals_id_mint_info(atomical_id, True)
+        if not atomical_mint_info: 
+            raise AtomicalsTransferBlueprintBuilderError(f'build_nft_input_idx_to_atomical_map {atomical_id.hex()} not found in mint info. IndexError.')
+        if atomical_mint_info['type'] != 'NFT':
+            continue
+        input_idx_to_atomical_ids_map[txin_index] = input_idx_to_atomical_ids_map.get(txin_index) or {}
+        # map_atomical_ids_to_summaries[atomical_id] = AtomicalInputSummary(atomical_id, atomicals_id_mint_info_map[atomical_id]['type'], atomicals_id_mint_info_map[atomical_id])
+        # map_atomical_ids_to_summaries[atomical_id].apply_input(txin_index, value, exponent)
+        input_idx_to_atomical_ids_map[txin_index][atomical_id] = AtomicalInputSummary(atomical_id, atomical_mint_info['type'], atomical_mint_info)
+        # Populate the summary information
+        value = atomicals_entry['data_ex']['value']
+        # Exponent is always 0 for NFTs
+        exponent = atomicals_entry['data_ex']['exponent']
+        assert(exponent == 0)
+        input_idx_to_atomical_ids_map[txin_index][atomical_id].apply_input(txin_index, value, exponent)
     return input_idx_to_atomical_ids_map
 
   @classmethod
@@ -417,12 +429,10 @@ class AtomicalsTransferBlueprintBuilder:
       # For each input atomical spent at the current input...
       for atomicals_entry in atomicals_entry_list:
           atomical_id = atomicals_entry['atomical_id']
-          
           # value, = unpack_le_uint64(atomicals_entry['data'][HASHX_LEN + SCRIPTHASH_LEN : HASHX_LEN + SCRIPTHASH_LEN + 8])
           # exponent, = unpack_le_uint16_from(atomicals_entry['data'][HASHX_LEN + SCRIPTHASH_LEN + 8: HASHX_LEN + SCRIPTHASH_LEN + 8 + 2])
           value = atomicals_entry['data_ex']['value']
           exponent = atomicals_entry['data_ex']['exponent'] 
-
           # assert(value == atomicals_entry['data_ex']['value'])
           # assert(exponent == atomicals_entry['data_ex']['exponent'])
           # Perform a cache lookup for the mint information since we do not want to query multiple times for same input atomical_id
@@ -513,14 +523,16 @@ class AtomicalsTransferBlueprintBuilder:
   def get_atomical_id_for_payment_marker_if_found(cls, tx):
     ''' Get the atomical id if found for a payment marker op_return'''
     found_atomical_id = None
-    marker_idx = None
     for idx, txout in enumerate(tx.outputs):
         # Note that we accept 'p' and 'd' as payment marker types for either dmitem or subrealm payments now
-        found_atomical_id = is_op_return_subrealm_payment_marker_atomical_id(txout.pk_script) or is_op_return_dmitem_payment_marker_atomical_id(txout.pk_script)
-        marker_idx = idx
+        found_atomical_id = is_op_return_subrealm_payment_marker_atomical_id(txout.pk_script)
         if found_atomical_id:
-          break
-    return found_atomical_id, marker_idx
+          return found_atomical_id, idx, 'subrealm'
+        found_atomical_id = is_op_return_dmitem_payment_marker_atomical_id(txout.pk_script)
+        if found_atomical_id:
+          return found_atomical_id, idx, 'dmitem'
+        
+    return found_atomical_id, None, None
   
   def are_payments_satisfied(self, expected_payment_outputs):
     if not isinstance(expected_payment_outputs, dict) or len(expected_payment_outputs.keys()) < 1:
@@ -531,7 +543,7 @@ class AtomicalsTransferBlueprintBuilder:
       return None 
     
     # Just in case also ensure there was a payment marker for the current tx
-    atomical_id_to_pay = AtomicalsTransferBlueprintBuilder.get_atomical_id_for_payment_marker_if_found(self.tx)
+    atomical_id_to_pay, marker_idx, entity_type = AtomicalsTransferBlueprintBuilder.get_atomical_id_for_payment_marker_if_found(self.tx)
     if not atomical_id_to_pay:
       return None 
     
