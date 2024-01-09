@@ -2793,7 +2793,7 @@ class BlockProcessor:
             self.logger.warning(f'create_or_delete_subname_payment_output_if_valid: invalid payment split op found tx_hash={hash_to_hex_str(tx_hash)}')
             return None 
         
-        atomical_info = self.get_atomicals_id_mint_info(atomical_id_for_payment)
+        atomical_info = self.get_atomicals_id_mint_info(atomical_id_for_payment, True)
 
         if db_prefix == b'spay':
             if not atomical_info.get('request_subrealm'):
