@@ -1814,6 +1814,7 @@ class BlockProcessor:
                     'tx_num': tx_num,
                     'cache': True
                 })
+        self.logger.info(f'get_effective_dmitem_db_prefix={db_prefix} parent_container_id={parent_container_id} dmitem_name={dmitem_name} dmitem_name_enc={dmitem_name_enc}')
         db_entries = self.db.get_name_entries_template(db_prefix, parent_container_id + dmitem_name_enc + pack_le_uint16(len(dmitem_name_enc)))
         all_entries.extend(db_entries)
         all_entries.sort(key=lambda x: x['tx_num'])
@@ -2852,7 +2853,7 @@ class BlockProcessor:
         if Delete:
             self.delete_pay_record(atomical_id_for_payment, tx_num, payment_outpoint + not_initated_by_parent, db_prefix, subname_data_cache)
         else:
-
+            self.logger.info(f'create_or_delete_subname_payment_output_if_valid_db_prefix={db_prefix} parent_container_id={parent_id} dmitem_name={request_subname} dmitem_name_enc={request_subname.encode()}')
             self.logger.info(f'create_or_delete_subname_payment_output_if_valid atomical_id_for_payment={location_id_bytes_to_compact(atomical_id_for_payment)} db_prefix={db_prefix} payment_outpoint_compact={location_id_bytes_to_compact(payment_outpoint)} payment_outpoint={payment_outpoint.hex()}')
             if location_id_bytes_to_compact(atomical_id_for_payment) == '080803f3912c60fbf50864953b2ef9a03fe817b6f7db9cffb71729ceeea9aa3ci0':
                 pass
