@@ -2710,8 +2710,9 @@ class BlockProcessor:
                     
                     
                     if created_atomical_id:
-                        if hash_to_hex_str(tx_hash) == '4074041505b69b1afcb98b1ded40102b4b694af2fa0c56ea31e5b0c56b7a1591':
-                            raise IndexError('created_atomical_id txhash' + location_id_bytes_to_compact(created_atomical_id))
+                        #if hash_to_hex_str(tx_hash) == '4074041505b69b1afcb98b1ded40102b4b694af2fa0c56ea31e5b0c56b7a1591':
+                            # pass
+                            # raise IndexError('created_atomical_id txhash' + location_id_bytes_to_compact(created_atomical_id))
                         already_found_valid_operation = True
                         has_at_least_one_valid_atomicals_operation = True
                         atomical_num += 1
