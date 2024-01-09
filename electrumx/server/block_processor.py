@@ -1585,6 +1585,7 @@ class BlockProcessor:
             value_sats = pack_le_uint64(txout.value)
             put_general_data(b'po' + location, txout.pk_script)
             for atomical_id, atomical_info in value_info['atomicals'].items():
+                self.logger.info(f'put_nft_outputs_by_blueprint_atomical_info={atomical_info}')
                 # Only allow state or event updates if it is not immutable
                 if not atomical_info.mint_info.get('$immutable', None):
                     self.put_or_delete_state_updates(operations_found_at_inputs, atomical_id, tx_num, tx_hash, output_idx_le, height, 0, False)
