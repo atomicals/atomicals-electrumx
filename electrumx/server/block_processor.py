@@ -2572,7 +2572,7 @@ class BlockProcessor:
         self.atomicals_rpc_general_cache.clear()
         self.atomicals_id_cache.clear()
         self.atomicals_dft_mint_count_cache.clear()
-
+        txids = []
         # Track the Atomicals hash for the block
         # First we concatenate the previous block height hash to chain them together
         # The purpose of this is to create a unique hash fingerprint to make it easy to determine if indexers (such as this one) or other implementations
@@ -2740,6 +2740,7 @@ class BlockProcessor:
                     concatenation_of_tx_hashes_with_valid_atomical_operation.append(tx_hash)
 
                 if has_at_least_one_valid_atomicals_operation:
+                    txids.append(tx_hash)
                     put_general_data(b'th' + pack_le_uint32(height) + pack_le_uint64(tx_num) + tx_hash, tx_hash)
                     
             append_hashXs(hashXs)
@@ -2765,7 +2766,7 @@ class BlockProcessor:
             self.logger.info(f'height={height}, atomicals_block_hash={hash_to_hex_str(current_height_atomicals_block_hash)}')   
         
         if height == 819221:
-            self.logger.info(f'concatenation_of_tx_hashes_with_valid_atomical_operation={encode_tx_hash_hex(concatenation_of_tx_hashes_with_valid_atomical_operation)}')
+            self.logger.info(f'txids={encode_tx_hash_hex(txids)}')
             raise IndexError('hit')
         return undo_info, atomicals_undo_info
     
