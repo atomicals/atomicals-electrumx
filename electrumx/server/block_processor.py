@@ -2721,12 +2721,12 @@ class BlockProcessor:
                 # in one and the same tx as making a payment. It's not advisable to do so, but it's a valid possibility
 
                 # Check if there were any payments for subrealms in tx
-                if self.create_or_delete_subname_payment_output_if_valid(tx_hash, tx, tx_num, height, atomicals_operations_found_at_inputs, b'spay', atomicals_spent_at_inputs, self.subrealm_data_cache, self.get_expected_subrealm_payment_info, False):
+                if self.create_or_delete_subname_payment_output_if_valid(tx_hash, tx, tx_num, height, atomicals_operations_found_at_inputs, atomicals_spent_at_inputs,  b'spay', self.subrealm_data_cache, self.get_expected_subrealm_payment_info, False):
                     self.logger.debug(f'advance_txs: found valid subrealm payment create_or_delete_subname_payment_output_if_valid {hash_to_hex_str(tx_hash)}')
                     has_at_least_one_valid_atomicals_operation = True
 
                 # Check if there were any payments for dmitems in tx
-                if self.create_or_delete_subname_payment_output_if_valid(tx_hash, tx, tx_num, height, atomicals_operations_found_at_inputs, b'dmpay', atomicals_spent_at_inputs, self.dmitem_data_cache, self.get_expected_dmitem_payment_info, False):
+                if self.create_or_delete_subname_payment_output_if_valid(tx_hash, tx, tx_num, height, atomicals_operations_found_at_inputs, atomicals_spent_at_inputs,  b'dmpay',self.dmitem_data_cache, self.get_expected_dmitem_payment_info, False):
                     self.logger.debug(f'advance_txs: found valid dmitem payment create_or_delete_subname_payment_output_if_valid {hash_to_hex_str(tx_hash)}')
                     has_at_least_one_valid_atomicals_operation = True
 
