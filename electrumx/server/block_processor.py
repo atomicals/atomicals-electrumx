@@ -2796,11 +2796,11 @@ class BlockProcessor:
         atomical_info = self.get_atomicals_id_mint_info(atomical_id_for_payment, True)
 
         if db_prefix == b'spay':
-            if not atomical_info.get('request_subrealm'):
+            if not atomical_info.get('$request_subrealm'):
                 self.logger.warning(f'NOT_SUBREALM_REQUEST tx_hash={hash_to_hex_str(tx_hash)} atomical_info={atomical_info}')
                 return None 
         elif db_prefix == b'dmpay':
-            if not atomical_info.get('request_dmitem'):
+            if not atomical_info.get('$request_dmitem'):
                 self.logger.warning(f'NOT_DMITEM_REQUEST tx_hash={hash_to_hex_str(tx_hash)} atomical_info={atomical_info}')
                 return None 
             
