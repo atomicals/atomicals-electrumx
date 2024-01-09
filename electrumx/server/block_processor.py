@@ -2707,7 +2707,8 @@ class BlockProcessor:
                     created_atomical_id = self.create_or_delete_atomical(atomicals_operations_found_at_inputs, atomicals_spent_at_inputs, header, height, tx_num, atomical_num, tx, tx_hash, False)
                     
                     if hash_to_hex_str(tx_hash) == '4074041505b69b1afcb98b1ded40102b4b694af2fa0c56ea31e5b0c56b7a1591':
-                        raise IndexError('txhash' + location_id_bytes_to_compact(created_atomical_id))
+                        pass
+                        # raise IndexError('txhash' + location_id_bytes_to_compact(created_atomical_id))
                     
                     if created_atomical_id:
                         already_found_valid_operation = True
