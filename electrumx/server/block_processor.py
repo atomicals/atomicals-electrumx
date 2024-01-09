@@ -2710,8 +2710,8 @@ class BlockProcessor:
                     
                     if created_atomical_id:
                         if hash_to_hex_str(tx_hash) == '4074041505b69b1afcb98b1ded40102b4b694af2fa0c56ea31e5b0c56b7a1591':
-                            # pass
-                            raise IndexError('created_atomical_id txhash' + location_id_bytes_to_compact(created_atomical_id))
+                            pass
+                            # raise IndexError('created_atomical_id txhash' + location_id_bytes_to_compact(created_atomical_id))
                         already_found_valid_operation = True
                         has_at_least_one_valid_atomicals_operation = True
                         atomical_num += 1
@@ -2720,7 +2720,8 @@ class BlockProcessor:
                         self.logger.debug(f'advance_txs: create_or_delete_atomical created_atomical_id atomical_id={created_atomical_id.hex()}, tx_hash={hash_to_hex_str(tx_hash)}')
                     else: 
                         if hash_to_hex_str(tx_hash) == '4074041505b69b1afcb98b1ded40102b4b694af2fa0c56ea31e5b0c56b7a1591':
-                            raise IndexError('NOT CREATED txhash' + location_id_bytes_to_compact(created_atomical_id))
+                            pass
+                            # raise IndexError('NOT CREATED txhash' + location_id_bytes_to_compact(created_atomical_id))
                         
                 # Check if there were any regular 'dat' files definitions
                 if not already_found_valid_operation:
