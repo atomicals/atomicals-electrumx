@@ -2799,7 +2799,7 @@ class BlockProcessor:
         
         regex = matched_price_point['matched_rule']['p']
         if not is_valid_regex(regex):
-            self.logger.warning(f'create_or_delete_subname_payment_output_if_valid invalid matched regex. regex={regex}')
+            self.logger.warning(f'create_or_delete_subname_payment_output_if_valid invalid matched regex. regex={regex} atomical_id_for_payment={location_id_bytes_to_compact(atomical_id_for_payment)}')
             return None 
         
         # The pattern should have already matched, sanity check
@@ -2808,7 +2808,7 @@ class BlockProcessor:
             raise IndexError(f'create_or_delete_subname_payment_output_if_valid: valid pattern failed. DeveloperError request_subname={request_subname}, regex={regex}')
  
         if not blueprint_builder.are_payments_satisfied(matched_price_point['matched_rule'].get('o')):
-            self.logger.warning(f'create_or_delete_subname_payment_output_if_valid: payments not satisfied. request_subname={request_subname}, regex={regex}')
+            self.logger.warning(f'create_or_delete_subname_payment_output_if_valid: payments not satisfied. request_subname={request_subname}, regex={regex} atomical_id_for_payment={location_id_bytes_to_compact(atomical_id_for_payment)}')
             return None 
     
         # Delete or create the record based on whether we are reorg rollback or creating new
