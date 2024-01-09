@@ -452,7 +452,6 @@ class AtomicalsTransferBlueprintBuilder:
   @classmethod
   def build_atomical_input_summaries_by_type(cls, get_atomicals_id_mint_info, atomicals_spent_at_inputs):
       map_atomical_ids_to_summaries = {}
-      print(f'atomicals_spent_at_inputs={atomicals_spent_at_inputs}')
       for txin_index, atomicals_entry_list in atomicals_spent_at_inputs.items():
           # Accumulate the total input value by atomical_id
           # The value will be used below to determine the amount of input we can allocate for FT's
