@@ -2783,8 +2783,14 @@ class BlockProcessor:
     
     def create_or_delete_subname_payment_output_if_valid(self, tx_hash, tx, tx_num, height, operations_found_at_inputs, atomicals_spent_at_inputs, db_prefix, subname_data_cache, get_expected_subname_payment_info, Delete=False):
 
-        atomical_id_for_payment, payment_marker_idx = AtomicalsTransferBlueprintBuilder.get_atomical_id_for_payment_marker_if_found(tx)
+        atomical_id_for_payment, payment_marker_idx, entity_type = AtomicalsTransferBlueprintBuilder.get_atomical_id_for_payment_marker_if_found(tx)
         if not atomical_id_for_payment:
+            return None 
+        
+        # Make sure the payment type for the right type subrealm or dmitem is correct
+        if entity_type == 'subrealm' and db_prefix != b'spay':
+            return None 
+        if entity_type == 'dmitem' and db_prefix != b'dmpay':
             return None 
         
         # Rebuild the blueprint builder here

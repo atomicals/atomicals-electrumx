@@ -523,14 +523,16 @@ class AtomicalsTransferBlueprintBuilder:
   def get_atomical_id_for_payment_marker_if_found(cls, tx):
     ''' Get the atomical id if found for a payment marker op_return'''
     found_atomical_id = None
-    marker_idx = None
     for idx, txout in enumerate(tx.outputs):
         # Note that we accept 'p' and 'd' as payment marker types for either dmitem or subrealm payments now
-        found_atomical_id = is_op_return_subrealm_payment_marker_atomical_id(txout.pk_script) or is_op_return_dmitem_payment_marker_atomical_id(txout.pk_script)
-        marker_idx = idx
+        found_atomical_id = is_op_return_subrealm_payment_marker_atomical_id(txout.pk_script)
         if found_atomical_id:
-          break
-    return found_atomical_id, marker_idx
+          return found_atomical_id, idx, 'subrealm'
+        found_atomical_id = is_op_return_dmitem_payment_marker_atomical_id(txout.pk_script)
+        if found_atomical_id:
+          return found_atomical_id, idx, 'dmitem'
+        
+    return found_atomical_id, None, None
   
   def are_payments_satisfied(self, expected_payment_outputs):
     if not isinstance(expected_payment_outputs, dict) or len(expected_payment_outputs.keys()) < 1:
@@ -541,7 +543,7 @@ class AtomicalsTransferBlueprintBuilder:
       return None 
     
     # Just in case also ensure there was a payment marker for the current tx
-    atomical_id_to_pay = AtomicalsTransferBlueprintBuilder.get_atomical_id_for_payment_marker_if_found(self.tx)
+    atomical_id_to_pay, marker_idx, entity_type = AtomicalsTransferBlueprintBuilder.get_atomical_id_for_payment_marker_if_found(self.tx)
     if not atomical_id_to_pay:
       return None 
     
