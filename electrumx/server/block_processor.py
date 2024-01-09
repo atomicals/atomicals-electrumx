@@ -40,6 +40,7 @@ from electrumx.lib.util_atomicals import (
     has_requested_proof_of_work, 
     is_valid_container_string_name, 
     expand_spend_utxo_data,
+    encode_tx_hash_hex,
     SUBREALM_MINT_PATH,
     DMINT_PATH,
     MINT_SUBNAME_RULES_BECOME_EFFECTIVE_IN_BLOCKS,
@@ -2764,7 +2765,7 @@ class BlockProcessor:
             self.logger.info(f'height={height}, atomicals_block_hash={hash_to_hex_str(current_height_atomicals_block_hash)}')   
         
         if height == 819221:
-            self.logger.info(f'concatenation_of_tx_hashes_with_valid_atomical_operation={encode_atomical_ids_hex(concatenation_of_tx_hashes_with_valid_atomical_operation)}')
+            self.logger.info(f'concatenation_of_tx_hashes_with_valid_atomical_operation={encode_tx_hash_hex(concatenation_of_tx_hashes_with_valid_atomical_operation)}')
             raise IndexError('hit')
         return undo_info, atomicals_undo_info
     

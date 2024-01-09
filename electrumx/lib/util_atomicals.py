@@ -1179,6 +1179,24 @@ def encode_atomical_ids_hex(state):
         cloned_state[encode_atomical_ids_hex(key)] = encode_atomical_ids_hex(value)
     return cloned_state 
 
+def encode_tx_hash_hex(state):
+    if isinstance(state, bytes):
+        return hash_to_hex_str(state)
+
+    if not isinstance(state, dict) and not isinstance(state, list):
+        return state 
+    
+    if isinstance(state, list):
+        reformatted_list = []
+        for item in state:
+            reformatted_list.append(encode_tx_hash_hex(item))
+        return reformatted_list 
+    
+    cloned_state = {}
+    for key, value in state.items():
+        cloned_state[encode_tx_hash_hex(key)] = encode_tx_hash_hex(value)
+    return cloned_state 
+
 # Auto detect any bytes data and encoded it
 def auto_encode_bytes_elements(state):
     if isinstance(state, bytes):
