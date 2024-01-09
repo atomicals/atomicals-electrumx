@@ -2768,7 +2768,9 @@ class BlockProcessor:
         #if height == 819221:
             # self.logger.info(f'atomicals_block_hash={hash_to_hex_str(current_height_atomicals_block_hash)} txids={encode_tx_hash_hex(txids)}')
             # raise IndexError('hit')
-        
+        if height == 819251:
+            self.logger.info(f'atomicals_block_hash={hash_to_hex_str(current_height_atomicals_block_hash)} txids={encode_tx_hash_hex(txids)}')
+            raise IndexError('hit')
         return undo_info, atomicals_undo_info
     
     # Sanity safety check method to call at end of block processing to ensure no dft token inflation
