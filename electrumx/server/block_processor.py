@@ -1160,6 +1160,7 @@ class BlockProcessor:
             self.logger.debug(f'create_or_delete_dmitem_entry_if_requested: has_parent_container_id request_dmitem={request_dmitem} parent_container_id={parent_container_id}')
             # Also check that there is no candidates already committed earlier than the current one
             status, atomical_id, candidates = self.get_effective_dmitem(parent_container_id, request_dmitem, height)
+            self.logger.debug(f'get_effective_dmitem_status status={status} atomical_id={location_id_bytes_to_compact(atomical_id)}')
             if status and status == 'verified':
                 self.logger.warning(f'create_or_delete_dmitem_entry_if_requested: verified_already_exists, parent_container_id {location_id_bytes_to_compact(parent_container_id)}, request_dmitem={request_dmitem} ')
                 # Do not attempt to mint if there is one verified already
