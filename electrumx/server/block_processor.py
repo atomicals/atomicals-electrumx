@@ -2706,18 +2706,22 @@ class BlockProcessor:
                 if not already_found_valid_operation:
                     created_atomical_id = self.create_or_delete_atomical(atomicals_operations_found_at_inputs, atomicals_spent_at_inputs, header, height, tx_num, atomical_num, tx, tx_hash, False)
                     
-                    # if hash_to_hex_str(tx_hash) == '4074041505b69b1afcb98b1ded40102b4b694af2fa0c56ea31e5b0c56b7a1591':
-                        # pass
-                        #raise IndexError('txhash' + location_id_bytes_to_compact(created_atomical_id))
+                    
                     
                     if created_atomical_id:
+                        if hash_to_hex_str(tx_hash) == '4074041505b69b1afcb98b1ded40102b4b694af2fa0c56ea31e5b0c56b7a1591':
+                            # pass
+                            raise IndexError('created_atomical_id txhash' + location_id_bytes_to_compact(created_atomical_id))
                         already_found_valid_operation = True
                         has_at_least_one_valid_atomicals_operation = True
                         atomical_num += 1
                         # Double hash the created_atomical_id to add it to the history to leverage the existing history db for all operations involving the atomical
                         append_hashX(double_sha256(created_atomical_id))
                         self.logger.debug(f'advance_txs: create_or_delete_atomical created_atomical_id atomical_id={created_atomical_id.hex()}, tx_hash={hash_to_hex_str(tx_hash)}')
-
+                    else: 
+                        if hash_to_hex_str(tx_hash) == '4074041505b69b1afcb98b1ded40102b4b694af2fa0c56ea31e5b0c56b7a1591':
+                            raise IndexError('NOT CREATED txhash' + location_id_bytes_to_compact(created_atomical_id))
+                        
                 # Check if there were any regular 'dat' files definitions
                 if not already_found_valid_operation:
                     if self.create_or_delete_data_location(tx_hash, atomicals_operations_found_at_inputs):
