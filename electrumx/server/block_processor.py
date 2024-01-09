@@ -2707,11 +2707,9 @@ class BlockProcessor:
                     created_atomical_id = self.create_or_delete_atomical(atomicals_operations_found_at_inputs, atomicals_spent_at_inputs, header, height, tx_num, atomical_num, tx, tx_hash, False)
                     
                     
-                    
                     if created_atomical_id:
                         if hash_to_hex_str(tx_hash) == '4074041505b69b1afcb98b1ded40102b4b694af2fa0c56ea31e5b0c56b7a1591':
-                            pass
-                            # raise IndexError('created_atomical_id txhash' + location_id_bytes_to_compact(created_atomical_id))
+                            raise IndexError('created_atomical_id txhash' + location_id_bytes_to_compact(created_atomical_id))
                         already_found_valid_operation = True
                         has_at_least_one_valid_atomicals_operation = True
                         atomical_num += 1
@@ -2751,7 +2749,6 @@ class BlockProcessor:
                     self.logger.debug(f'found payment 060e10a698c34edc14120df26ba2d02c7966f7bdbb931e2a79246a1cc874b3ff height={height}')
                     raise IndexError('060e10a698c34edc14120df26ba2d02c7966f7bdbb931e2a79246a1cc874b3ff')
 
-        
                 # Create a proof of work record if there was valid proof of work attached
                 if self.create_or_delete_pow_records(tx_hash, tx_num, height, atomicals_operations_found_at_inputs):
                     has_at_least_one_valid_atomicals_operation = True
