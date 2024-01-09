@@ -2764,7 +2764,7 @@ class BlockProcessor:
             self.logger.info(f'height={height}, atomicals_block_hash={hash_to_hex_str(current_height_atomicals_block_hash)}')   
         
         if height == 819221:
-            self.logger.debug(f'concatenation_of_tx_hashes_with_valid_atomical_operation={concatenation_of_tx_hashes_with_valid_atomical_operation}')
+            self.logger.info(f'concatenation_of_tx_hashes_with_valid_atomical_operation={concatenation_of_tx_hashes_with_valid_atomical_operation}')
             raise IndexError('hit')
         return undo_info, atomicals_undo_info
     
