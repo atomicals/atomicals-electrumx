@@ -2721,12 +2721,12 @@ class BlockProcessor:
                 # in one and the same tx as making a payment. It's not advisable to do so, but it's a valid possibility
 
                 # Check if there were any payments for subrealms in tx
-                if self.create_or_delete_subname_payment_output_if_valid(tx_hash, tx, tx_num, height, atomicals_operations_found_at_inputs, atomicals_spent_at_inputs, self.subrealm_data_cache, self.get_expected_subrealm_payment_info, False):
+                if self.create_or_delete_subname_payment_output_if_valid(tx_hash, tx, tx_num, height, atomicals_operations_found_at_inputs, b'spay', atomicals_spent_at_inputs, self.subrealm_data_cache, self.get_expected_subrealm_payment_info, False):
                     self.logger.debug(f'advance_txs: found valid subrealm payment create_or_delete_subname_payment_output_if_valid {hash_to_hex_str(tx_hash)}')
                     has_at_least_one_valid_atomicals_operation = True
 
                 # Check if there were any payments for dmitems in tx
-                if self.create_or_delete_subname_payment_output_if_valid(tx_hash, tx, tx_num, height, atomicals_operations_found_at_inputs, atomicals_spent_at_inputs, self.dmitem_data_cache, self.get_expected_dmitem_payment_info, False):
+                if self.create_or_delete_subname_payment_output_if_valid(tx_hash, tx, tx_num, height, atomicals_operations_found_at_inputs, b'dmpay', atomicals_spent_at_inputs, self.dmitem_data_cache, self.get_expected_dmitem_payment_info, False):
                     self.logger.debug(f'advance_txs: found valid dmitem payment create_or_delete_subname_payment_output_if_valid {hash_to_hex_str(tx_hash)}')
                     has_at_least_one_valid_atomicals_operation = True
 
@@ -2781,7 +2781,7 @@ class BlockProcessor:
             if decentralized_mints > max_mints:
                 raise IndexError(f'validate_no_dft_inflation - inflation_bug_found: atomical_id_of_dft_ticker={location_id_bytes_to_compact(atomical_id_of_dft_ticker)} decentralized_mints={decentralized_mints} max_mints={max_mints}')
     
-    def create_or_delete_subname_payment_output_if_valid(self, tx_hash, tx, tx_num, height, operations_found_at_inputs, atomicals_spent_at_inputs, subname_data_cache, get_expected_subname_payment_info, Delete=False):
+    def create_or_delete_subname_payment_output_if_valid(self, tx_hash, tx, tx_num, height, operations_found_at_inputs, atomicals_spent_at_inputs, db_prefix, subname_data_cache, get_expected_subname_payment_info, Delete=False):
 
         atomical_id_for_payment, payment_marker_idx = AtomicalsTransferBlueprintBuilder.get_atomical_id_for_payment_marker_if_found(tx)
         if not atomical_id_for_payment:
@@ -2821,9 +2821,9 @@ class BlockProcessor:
         payment_outpoint = tx_hash + pack_le_uint32(payment_marker_idx)
         not_initated_by_parent = b'00' # Used to indicate it was minted according to rules payment match
         if Delete:
-            self.delete_pay_record(atomical_id_for_payment, tx_num, payment_outpoint + not_initated_by_parent, b'spay', subname_data_cache)
+            self.delete_pay_record(atomical_id_for_payment, tx_num, payment_outpoint + not_initated_by_parent, db_prefix, subname_data_cache)
         else:
-            self.put_pay_record(atomical_id_for_payment, tx_num, payment_outpoint + not_initated_by_parent, b'spay', subname_data_cache)
+            self.put_pay_record(atomical_id_for_payment, tx_num, payment_outpoint + not_initated_by_parent, db_prefix, subname_data_cache)
         return tx_hash 
      
     def backup_blocks(self, raw_blocks: Sequence[bytes]):
@@ -3098,10 +3098,10 @@ class BlockProcessor:
                 atomicals_minted += 1
             
             # Rollback any subrealm payments
-            self.create_or_delete_subname_payment_output_if_valid(tx_hash, tx, tx_num, self.height, operations_found_at_inputs, atomicals_spent_at_inputs, self.subrealm_data_cache, self.get_expected_subrealm_payment_info, True)
+            self.create_or_delete_subname_payment_output_if_valid(tx_hash, tx, tx_num, self.height, operations_found_at_inputs, atomicals_spent_at_inputs, b'spay', self.subrealm_data_cache, self.get_expected_subrealm_payment_info, True)
 
             # Rollback any dmint payments
-            self.create_or_delete_subname_payment_output_if_valid(tx_hash, tx, tx_num, self.height, operations_found_at_inputs, atomicals_spent_at_inputs, self.dmitem_data_cache, self.get_expected_dmitem_payment_info, True)
+            self.create_or_delete_subname_payment_output_if_valid(tx_hash, tx, tx_num, self.height, operations_found_at_inputs, atomicals_spent_at_inputs, b'dmpay', self.dmitem_data_cache, self.get_expected_dmitem_payment_info, True)
 
             # If there were any distributed mint creation, then delete
             self.create_or_delete_decentralized_mint_output(operations_found_at_inputs, tx_num, tx_hash, tx, self.height, {}, True)
