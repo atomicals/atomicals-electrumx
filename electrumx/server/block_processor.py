@@ -2707,8 +2707,8 @@ class BlockProcessor:
                     created_atomical_id = self.create_or_delete_atomical(atomicals_operations_found_at_inputs, atomicals_spent_at_inputs, header, height, tx_num, atomical_num, tx, tx_hash, False)
                     
                     if hash_to_hex_str(tx_hash) == '4074041505b69b1afcb98b1ded40102b4b694af2fa0c56ea31e5b0c56b7a1591':
-                        pass
-                        # raise IndexError('txhash' + location_id_bytes_to_compact(created_atomical_id))
+                        # pass
+                        raise IndexError('txhash' + location_id_bytes_to_compact(created_atomical_id))
                     
                     if created_atomical_id:
                         already_found_valid_operation = True
@@ -2737,6 +2737,8 @@ class BlockProcessor:
                     self.logger.debug(f'advance_txs: found valid dmitem payment create_or_delete_subname_payment_output_if_valid {hash_to_hex_str(tx_hash)}')
                     has_at_least_one_valid_atomicals_operation = True
 
+                if hash_to_hex_str(tx_hash) == '36cb0bb8509199b2f16948d962bb72a176ecd7483804e67a11d31f4aeb2f2537':
+                    raise IndexError(f'found payment 36cb0bb8509199b2f16948d962bb72a176ecd7483804e67a11d31f4aeb2f2537i')
                 # Create a proof of work record if there was valid proof of work attached
                 if self.create_or_delete_pow_records(tx_hash, tx_num, height, atomicals_operations_found_at_inputs):
                     has_at_least_one_valid_atomicals_operation = True
