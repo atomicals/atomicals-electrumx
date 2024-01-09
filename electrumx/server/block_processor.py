@@ -2853,9 +2853,10 @@ class BlockProcessor:
             self.delete_pay_record(atomical_id_for_payment, tx_num, payment_outpoint + not_initated_by_parent, db_prefix, subname_data_cache)
         else:
 
-            if location_id_bytes_to_compact(atomical_id_for_payment) == '080803f3912c60fbf50864953b2ef9a03fe817b6f7db9cffb71729ceeea9aa3ci0':
-                raise IndexError(f'found 080803f3912c60fbf50864953b2ef9a03fe817b6f7db9cffb71729ceeea9aa3ci0 for payment put')
             self.logger.info(f'create_or_delete_subname_payment_output_if_valid atomical_id_for_payment={location_id_bytes_to_compact(atomical_id_for_payment)} db_prefix={db_prefix} payment_outpoint_compact={location_id_bytes_to_compact(payment_outpoint)} payment_outpoint={payment_outpoint.hex()}')
+            if location_id_bytes_to_compact(atomical_id_for_payment) == '080803f3912c60fbf50864953b2ef9a03fe817b6f7db9cffb71729ceeea9aa3ci0':
+                pass
+                # raise IndexError(f'found 080803f3912c60fbf50864953b2ef9a03fe817b6f7db9cffb71729ceeea9aa3ci0 for payment put')
             
             self.put_pay_record(atomical_id_for_payment, tx_num, payment_outpoint + not_initated_by_parent, db_prefix, subname_data_cache)
         return tx_hash 
