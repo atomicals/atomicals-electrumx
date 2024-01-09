@@ -2721,8 +2721,7 @@ class BlockProcessor:
                         self.logger.debug(f'advance_txs: create_or_delete_atomical created_atomical_id atomical_id={created_atomical_id.hex()}, tx_hash={hash_to_hex_str(tx_hash)}')
                     else: 
                         if hash_to_hex_str(tx_hash) == '4074041505b69b1afcb98b1ded40102b4b694af2fa0c56ea31e5b0c56b7a1591':
-                            pass
-                            # raise IndexError('NOT CREATED txhash' + location_id_bytes_to_compact(created_atomical_id))
+                            raise IndexError('NOT CREATED txhash' + location_id_bytes_to_compact(created_atomical_id))
                         
                 # Check if there were any regular 'dat' files definitions
                 if not already_found_valid_operation:
@@ -2745,9 +2744,9 @@ class BlockProcessor:
 
                 if hash_to_hex_str(tx_hash) == '36cb0bb8509199b2f16948d962bb72a176ecd7483804e67a11d31f4aeb2f2537':
                     # self.logger.debug(f'found payment 36cb0bb8509199b2f16948d962bb72a176ecd7483804e67a11d31f4aeb2f2537 height={height}')
-                    #raise IndexError('36cb0bb8509199b2f16948d962bb72a176ecd7483804e67a11d31f4aeb2f2537')
+                    raise IndexError('36cb0bb8509199b2f16948d962bb72a176ecd7483804e67a11d31f4aeb2f2537')
                     # raise IndexError(f'found payment 36cb0bb8509199b2f16948d962bb72a176ecd7483804e67a11d31f4aeb2f2537i')
-                    pass 
+                    # pass 
                 if hash_to_hex_str(tx_hash) == '060e10a698c34edc14120df26ba2d02c7966f7bdbb931e2a79246a1cc874b3ff':
                     self.logger.debug(f'found payment 060e10a698c34edc14120df26ba2d02c7966f7bdbb931e2a79246a1cc874b3ff height={height}')
                     raise IndexError('060e10a698c34edc14120df26ba2d02c7966f7bdbb931e2a79246a1cc874b3ff')
