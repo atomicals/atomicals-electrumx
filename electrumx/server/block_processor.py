@@ -2795,6 +2795,9 @@ class BlockProcessor:
         
         matched_price_point, parent_id, request_subname = get_expected_subname_payment_info(atomical_id_for_payment, height)
         
+        # 08080f502d3f69edbb5371c15f109ab31ecd21cbf897055bb72d608d8e27206ai0
+        # 2645381cc5ebf847a7583966dad879947f5feb7e5259d99c2dc801f46db56472
+        # 2d8183dbf0e8a268e7755ce5b4c71eb7d367f45703afaa9d311ea3065fb1f7f0i3
         # An expected payment amount might not be set if there is no valid subrealm minting rules, or something invalid was found
         if not matched_price_point:
             self.logger.warning(f'create_or_delete_subname_payment_output_if_valid: {hash_to_hex_str(tx_hash)} NOT MATCHED PRICE - create_or_delete_subrealm_payment_output_if_valid atomical_id_for_payment={location_id_bytes_to_compact(atomical_id_for_payment)}')
