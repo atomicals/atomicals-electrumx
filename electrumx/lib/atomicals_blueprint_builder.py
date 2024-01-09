@@ -226,15 +226,23 @@ class AtomicalsTransferBlueprintBuilder:
   def build_nft_input_idx_to_atomical_map(cls, get_atomicals_id_mint_info, atomicals_spent_at_inputs):
     input_idx_to_atomical_ids_map = {}
     for txin_index, atomicals_entry_list in atomicals_spent_at_inputs.items():
-        for atomicals_entry in atomicals_entry_list:
-            atomical_id = atomicals_entry['atomical_id']
-            atomical_mint_info = get_atomicals_id_mint_info(atomical_id, True)
-            if not atomical_mint_info: 
-                raise AtomicalsTransferBlueprintBuilderError(f'build_nft_input_idx_to_atomical_map {atomical_id.hex()} not found in mint info. IndexError.')
-            if atomical_mint_info['type'] != 'NFT':
-                continue
-            input_idx_to_atomical_ids_map[txin_index] = input_idx_to_atomical_ids_map.get(txin_index) or {}
-            input_idx_to_atomical_ids_map[txin_index][atomical_id] = atomical_mint_info
+      for atomicals_entry in atomicals_entry_list:
+        atomical_id = atomicals_entry['atomical_id']
+        atomical_mint_info = get_atomicals_id_mint_info(atomical_id, True)
+        if not atomical_mint_info: 
+            raise AtomicalsTransferBlueprintBuilderError(f'build_nft_input_idx_to_atomical_map {atomical_id.hex()} not found in mint info. IndexError.')
+        if atomical_mint_info['type'] != 'NFT':
+            continue
+        input_idx_to_atomical_ids_map[txin_index] = input_idx_to_atomical_ids_map.get(txin_index) or {}
+        # map_atomical_ids_to_summaries[atomical_id] = AtomicalInputSummary(atomical_id, atomicals_id_mint_info_map[atomical_id]['type'], atomicals_id_mint_info_map[atomical_id])
+        # map_atomical_ids_to_summaries[atomical_id].apply_input(txin_index, value, exponent)
+        input_idx_to_atomical_ids_map[txin_index][atomical_id] = AtomicalInputSummary(atomical_id, atomical_mint_info['type'], atomical_mint_info)
+        # Populate the summary information
+        value = atomicals_entry['data_ex']['value']
+        # Exponent is always 0 for NFTs
+        exponent = atomicals_entry['data_ex']['exponent']
+        assert(exponent == 0)
+        input_idx_to_atomical_ids_map[txin_index][atomical_id].apply_input(txin_index, value, exponent)
     return input_idx_to_atomical_ids_map
 
   @classmethod
@@ -421,12 +429,10 @@ class AtomicalsTransferBlueprintBuilder:
       # For each input atomical spent at the current input...
       for atomicals_entry in atomicals_entry_list:
           atomical_id = atomicals_entry['atomical_id']
-          
           # value, = unpack_le_uint64(atomicals_entry['data'][HASHX_LEN + SCRIPTHASH_LEN : HASHX_LEN + SCRIPTHASH_LEN + 8])
           # exponent, = unpack_le_uint16_from(atomicals_entry['data'][HASHX_LEN + SCRIPTHASH_LEN + 8: HASHX_LEN + SCRIPTHASH_LEN + 8 + 2])
           value = atomicals_entry['data_ex']['value']
           exponent = atomicals_entry['data_ex']['exponent'] 
-
           # assert(value == atomicals_entry['data_ex']['value'])
           # assert(exponent == atomicals_entry['data_ex']['exponent'])
           # Perform a cache lookup for the mint information since we do not want to query multiple times for same input atomical_id
