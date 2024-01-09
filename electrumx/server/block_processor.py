@@ -2741,10 +2741,10 @@ class BlockProcessor:
                     has_at_least_one_valid_atomicals_operation = True
 
                 if hash_to_hex_str(tx_hash) == '36cb0bb8509199b2f16948d962bb72a176ecd7483804e67a11d31f4aeb2f2537':
-                    self.logger.debug(f'found payment 36cb0bb8509199b2f16948d962bb72a176ecd7483804e67a11d31f4aeb2f2537 height={height}')
-                    raise IndexError('36cb0bb8509199b2f16948d962bb72a176ecd7483804e67a11d31f4aeb2f2537')
+                    # self.logger.debug(f'found payment 36cb0bb8509199b2f16948d962bb72a176ecd7483804e67a11d31f4aeb2f2537 height={height}')
+                    #raise IndexError('36cb0bb8509199b2f16948d962bb72a176ecd7483804e67a11d31f4aeb2f2537')
                     # raise IndexError(f'found payment 36cb0bb8509199b2f16948d962bb72a176ecd7483804e67a11d31f4aeb2f2537i')
-                
+                    pass 
                 if hash_to_hex_str(tx_hash) == '060e10a698c34edc14120df26ba2d02c7966f7bdbb931e2a79246a1cc874b3ff':
                     self.logger.debug(f'found payment 060e10a698c34edc14120df26ba2d02c7966f7bdbb931e2a79246a1cc874b3ff height={height}')
                     raise IndexError('060e10a698c34edc14120df26ba2d02c7966f7bdbb931e2a79246a1cc874b3ff')
