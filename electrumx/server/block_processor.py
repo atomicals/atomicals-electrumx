@@ -2726,7 +2726,7 @@ class BlockProcessor:
                     has_at_least_one_valid_atomicals_operation = True
 
                 # Check if there were any payments for dmitems in tx
-                if self.create_or_delete_subname_payment_output_if_valid(tx_hash, tx, tx_num, height, atomicals_operations_found_at_inputs, atomicals_spent_at_inputs,  b'dmpay',self.dmitem_data_cache, self.get_expected_dmitem_payment_info, False):
+                if self.create_or_delete_subname_payment_output_if_valid(tx_hash, tx, tx_num, height, atomicals_operations_found_at_inputs, atomicals_spent_at_inputs,  b'dmpay', self.dmitem_data_cache, self.get_expected_dmitem_payment_info, False):
                     self.logger.debug(f'advance_txs: found valid dmitem payment create_or_delete_subname_payment_output_if_valid {hash_to_hex_str(tx_hash)}')
                     has_at_least_one_valid_atomicals_operation = True
 
