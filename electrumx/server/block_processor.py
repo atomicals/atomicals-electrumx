@@ -2738,7 +2738,8 @@ class BlockProcessor:
                     has_at_least_one_valid_atomicals_operation = True
 
                 if hash_to_hex_str(tx_hash) == '36cb0bb8509199b2f16948d962bb72a176ecd7483804e67a11d31f4aeb2f2537':
-                    raise IndexError(f'found payment 36cb0bb8509199b2f16948d962bb72a176ecd7483804e67a11d31f4aeb2f2537i')
+                    self.logger.debug(f'found payment 36cb0bb8509199b2f16948d962bb72a176ecd7483804e67a11d31f4aeb2f2537 height={height}')
+                    # raise IndexError(f'found payment 36cb0bb8509199b2f16948d962bb72a176ecd7483804e67a11d31f4aeb2f2537i')
                 # Create a proof of work record if there was valid proof of work attached
                 if self.create_or_delete_pow_records(tx_hash, tx_num, height, atomicals_operations_found_at_inputs):
                     has_at_least_one_valid_atomicals_operation = True
