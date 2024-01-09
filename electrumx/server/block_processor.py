@@ -1586,7 +1586,6 @@ class BlockProcessor:
             value_sats = pack_le_uint64(txout.value)
             put_general_data(b'po' + location, txout.pk_script)
             for atomical_id, atomical_info in value_info['atomicals'].items():
-                self.logger.info(f'put_nft_outputs_by_blueprint_atomical_info={atomical_info}')
                 # Only allow state or event updates if it is not immutable
                 if not atomical_info.mint_info.get('$immutable'):
                     self.put_or_delete_state_updates(operations_found_at_inputs, atomical_id, tx_num, tx_hash, output_idx_le, height, 0, False)
@@ -2572,6 +2571,7 @@ class BlockProcessor:
         self.atomicals_rpc_general_cache.clear()
         self.atomicals_id_cache.clear()
         self.atomicals_dft_mint_count_cache.clear()
+
         # Track the Atomicals hash for the block
         # First we concatenate the previous block height hash to chain them together
         # The purpose of this is to create a unique hash fingerprint to make it easy to determine if indexers (such as this one) or other implementations
@@ -2763,6 +2763,8 @@ class BlockProcessor:
             put_general_data(b'tt' + pack_le_uint32(height), current_height_atomicals_block_hash)
             self.logger.info(f'height={height}, atomicals_block_hash={hash_to_hex_str(current_height_atomicals_block_hash)}')   
         
+        if height == 819221:
+            raise IndexError('hit')
         return undo_info, atomicals_undo_info
     
     # Sanity safety check method to call at end of block processing to ensure no dft token inflation
