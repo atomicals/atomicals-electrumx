@@ -2766,7 +2766,7 @@ class BlockProcessor:
             self.logger.info(f'height={height}, atomicals_block_hash={hash_to_hex_str(current_height_atomicals_block_hash)}')   
         
         if height == 819221:
-            self.logger.info(f'txids={encode_tx_hash_hex(txids)}')
+            self.logger.info(f'atomicals_block_hash={hash_to_hex_str(current_height_atomicals_block_hash)} txids={encode_tx_hash_hex(txids)}')
             raise IndexError('hit')
         return undo_info, atomicals_undo_info
     
