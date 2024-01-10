@@ -2855,6 +2855,8 @@ class BlockProcessor:
             # if location_id_bytes_to_compact(atomical_id_for_payment) == '080803f3912c60fbf50864953b2ef9a03fe817b6f7db9cffb71729ceeea9aa3ci0':
             #    pass
                 # raise IndexError(f'found 080803f3912c60fbf50864953b2ef9a03fe817b6f7db9cffb71729ceeea9aa3ci0 for payment put')
+            self.put_pay_record(atomical_id_for_payment, tx_num, payment_outpoint + not_initated_by_parent, db_prefix, subname_data_cache)
+        
             if hash_to_hex_str(tx_hash) == '36cb0bb8509199b2f16948d962bb72a176ecd7483804e67a11d31f4aeb2f2537':
                 self.logger.debug(f'found payment 36cb0bb8509199b2f16948d962bb72a176ecd7483804e67a11d31f4aeb2f2537 db_prefix={db_prefix} height={height} atomical_id_for_payment={location_id_bytes_to_compact(atomical_id_for_payment)} subname_data_cache={encode_atomical_ids_hex(subname_data_cache)}')
                 raise IndexError('payment made 36cb0bb8509199b2f16948d962bb72a176ecd7483804e67a11d31f4aeb2f2537')
@@ -2866,7 +2868,7 @@ class BlockProcessor:
                     # raise IndexError(f'found payment 36cb0bb8509199b2f16948d962bb72a176ecd7483804e67a11d31f4a
 
             # 
-            self.put_pay_record(atomical_id_for_payment, tx_num, payment_outpoint + not_initated_by_parent, db_prefix, subname_data_cache)
+            
         return tx_hash 
      
     def backup_blocks(self, raw_blocks: Sequence[bytes]):
