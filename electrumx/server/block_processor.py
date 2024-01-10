@@ -766,8 +766,7 @@ class BlockProcessor:
         self.logger.info(f'sorted_payments={payments}')
         if len(payments) > 0:
             return payments[0]
-        return None
-        
+        return None   
 
     def get_earliest_subrealm_payment(self, atomical_id):
         spay_key_atomical_id = b'spay' + atomical_id
@@ -914,14 +913,14 @@ class BlockProcessor:
         if state_map:
             cached_value = state_map.pop(db_key_suffix, None)
             if cached_value != expected_entry_value:
-                raise IndexError(f'IndexerError: delete_state_data cache data does not match expected value {expected_entry_value} {db_value}')
+                raise IndexError(f'IndexError: delete_state_data cache data does not match expected value {expected_entry_value} {db_value}')
             # return  intentionally fall through to catch in db just in case
 
         db_delete_key = db_key_prefix + db_key_suffix
         db_value = self.db.utxo_db.get(db_delete_key)
         if db_value:
             if db_value != expected_entry_value: 
-                raise IndexError(f'IndexerError: delete_state_data db data does not match expected atomical id {expected_entry_value} {db_value}')
+                raise IndexError(f'IndexError: delete_state_data db data does not match expected atomical id {expected_entry_value} {db_value}')
             self.delete_general_data(db_delete_key)
         return cached_value or db_value
 
@@ -948,7 +947,7 @@ class BlockProcessor:
             cached_value = name_map.get(tx_num)
             if cached_value:
                 if cached_value != expected_entry_value:
-                    raise IndexerError(f'IndexerError: delete_name_element_template cache name data does not match expected value {db_delete_prefix} {subject} {tx_num} {expected_entry_value} {cached_value}')
+                    raise IndexError(f'IndexError: delete_name_element_template cache name data does not match expected value {db_delete_prefix} {subject} {tx_num} {expected_entry_value} {cached_value}')
                 # remove from the cache
                 name_map.pop(tx_num)
             # Intentionally fall through to catch it in the db as well just in case
@@ -959,13 +958,17 @@ class BlockProcessor:
         db_value = self.db.utxo_db.get(db_delete_key)
         if db_value:
             if db_value != expected_entry_value: 
-                raise IndexerError(f'IndexerError: delete_name_element_template db data does not match expected atomical id {db_delete_prefix} {subject} {tx_num} {expected_entry_value} {db_value}')
+                raise IndexError(f'IndexError: delete_name_element_template db data does not match expected atomical id {db_delete_prefix} {subject} {tx_num} {expected_entry_value} {db_value}')
             self.delete_general_data(db_delete_key)
         return cached_value or db_value
 
     def put_pay_record(self, atomical_id, tx_num, payload_value, db_prefix, pay_data_cache): 
         self.logger.debug(f'put_pay_record: db_prefix={db_prefix} atomical_id={location_id_bytes_to_compact(atomical_id)}, tx_num={tx_num}, payload_value={payload_value.hex()}')
         record_key = db_prefix + atomical_id
+
+        self.logger.debug(f'put_pay_record: record_key={record_key} atomical_id={location_id_bytes_to_compact(atomical_id)}')
+        
+
         if not pay_data_cache.get(record_key):
             pay_data_cache[record_key] = {}
         pay_data_cache[record_key][tx_num] = payload_value
@@ -980,7 +983,7 @@ class BlockProcessor:
             cached_value = name_map.get(tx_num)
             if cached_value:
                 if cached_value != expected_entry_value:
-                    raise IndexerError(f'IndexerError: delete_pay_record cache name data does not match expected value {atomical_id} {expected_entry_value} {cached_value}')
+                    raise IndexError(f'IndexError: delete_pay_record cache name data does not match expected value {atomical_id} {expected_entry_value} {cached_value}')
                 # remove from the cache
                 name_map.pop(tx_num)
             # Intentionally fall through to catch it in the db as well just in case
@@ -991,7 +994,7 @@ class BlockProcessor:
         db_value = self.db.utxo_db.get(db_delete_key)
         if db_value:
             if db_value != expected_entry_value: 
-                raise IndexerError(f'IndexerError: delete_pay_record db data does not match expected atomical id {atomical_id} {tx_num} {expected_entry_value} {db_value}')
+                raise IndexError(f'IndexError: delete_pay_record db data does not match expected atomical id {atomical_id} {tx_num} {expected_entry_value} {db_value}')
             self.delete_general_data(db_delete_key)
         return cached_value or db_value
 
