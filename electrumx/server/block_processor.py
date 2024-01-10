@@ -748,6 +748,7 @@ class BlockProcessor:
     
     def get_earliest_dmitem_payment(self, atomical_id):
         dmpay_key_atomical_id = b'dmpay' + atomical_id
+        self.logger.info(f'get_earliest_dmitem_payment dmpay_key_atomical_id={dmpay_key_atomical_id} atomical_id={location_id_bytes_to_compact(atomical_id)}')
         # Check if it's located in the cache first
         dmitempay_value = self.dmpay_data_cache.get(dmpay_key_atomical_id)
         payments = []
@@ -758,10 +759,11 @@ class BlockProcessor:
                 'payment_tx_outpoint': pay_outpoint[:36],
                 'mint_initiated': pay_outpoint[36:]
                     })
-
+        self.logger.info(f'payments={payments}')
         db_payments = self.db.get_earliest_dmitem_payments(atomical_id)
         payments.extend(db_payments)
         payments.sort(key=lambda x: x['tx_num'])
+        self.logger.info(f'sorted_payments={payments}')
         if len(payments) > 0:
             return payments[0]
         return None
