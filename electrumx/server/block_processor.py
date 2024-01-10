@@ -748,8 +748,6 @@ class BlockProcessor:
     
     def get_earliest_dmitem_payment(self, atomical_id):
         dmpay_key_atomical_id = b'dmpay' + atomical_id
-        self.logger.info(f'get_earliest_dmitem_payment dmpay_key_atomical_id={dmpay_key_atomical_id} atomical_id={location_id_bytes_to_compact(atomical_id)}')
-        
         if '080803f3912c60fbf50864953b2ef9a03fe817b6f7db9cffb71729ceeea9aa3ci0' == location_id_bytes_to_compact(atomical_id):
             self.logger.info(f'superduper_cache_analysis={encode_atomical_ids_hex(self.dmpay_data_cache)}')
         # Check if it's located in the cache first
@@ -766,7 +764,6 @@ class BlockProcessor:
         db_payments = self.db.get_earliest_dmitem_payments(atomical_id)
         payments.extend(db_payments)
         payments.sort(key=lambda x: x['tx_num'])
-        self.logger.info(f'sorted_payments={payments}')
         if len(payments) > 0:
             return payments[0]
         return None   
@@ -2803,7 +2800,7 @@ class BlockProcessor:
             # raise IndexError('hit')
         if height == 819252:
             self.logger.info(f'atomicals_block_hash={hash_to_hex_str(current_height_atomicals_block_hash)} txids={encode_tx_hash_hex(txids)}')
-            raise IndexError('hit')
+            # raise IndexError('hit')
         return undo_info, atomicals_undo_info
     
     # Sanity safety check method to call at end of block processing to ensure no dft token inflation
