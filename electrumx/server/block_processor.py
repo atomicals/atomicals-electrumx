@@ -1836,6 +1836,9 @@ class BlockProcessor:
             self.logger.debug(f'get_effective_dmitem dmitem_name={dmitem_name} atomical_id={location_id_bytes_to_compact(atomical_id)} parent_container_id={location_id_bytes_to_compact(parent_container_id)} entry={entry} height={height}')
             assert(mint_info['commit_tx_num'] == entry['tx_num'])
             # Get any payments (correct and valid or even premature, just get them all for now)
+            if dmitem_name == '235':
+                self.logger.info('super_analysis_235')
+                
             payment_entry = self.get_earliest_dmitem_payment(atomical_id)
             self.logger.debug(f'get_effective_dmitem_payment_entry={payment_entry}')
             # If the current candidate doesn't have a payment entry and the MINT_SUBNAME_COMMIT_PAYMENT_DELAY_BLOCKS has passed
