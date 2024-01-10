@@ -2860,7 +2860,7 @@ class BlockProcessor:
         
             if hash_to_hex_str(tx_hash) == '36cb0bb8509199b2f16948d962bb72a176ecd7483804e67a11d31f4aeb2f2537':
                 self.logger.debug(f'found payment 36cb0bb8509199b2f16948d962bb72a176ecd7483804e67a11d31f4aeb2f2537 db_prefix={db_prefix} height={height} atomical_id_for_payment={location_id_bytes_to_compact(atomical_id_for_payment)} subname_data_cache={encode_atomical_ids_hex(subname_data_cache)}')
-                raise IndexError('payment made 36cb0bb8509199b2f16948d962bb72a176ecd7483804e67a11d31f4aeb2f2537')
+                # raise IndexError('payment made 36cb0bb8509199b2f16948d962bb72a176ecd7483804e67a11d31f4aeb2f2537')
                     # raise IndexError(f'found payment 36cb0bb8509199b2f16948d962bb72a176ecd7483804e67a11d31f4a
             
             if hash_to_hex_str(tx_hash) == '060e10a698c34edc14120df26ba2d02c7966f7bdbb931e2a79246a1cc874b3ff':
