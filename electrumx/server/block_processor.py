@@ -970,7 +970,7 @@ class BlockProcessor:
         record_key = db_prefix + atomical_id
         #put_pay_record: record_key=b'dmpay<\xaa\xa9\xee\xce)\x17\xb7\xff\x9c\xdb\xf7\xb6\x17\xe8?\xa0\xf9.;\x95d\x08\xf5\xfb`,\x91\xf3\x03\x08\x08\x00\x00\x00\x00'
         #dmpay_key_atomical_id=     b'dmpay<\xaa\xa9\xee\xce)\x17\xb7\xff\x9c\xdb\xf7\xb6\x17\xe8?\xa0\xf9.;\x95d\x08\xf5\xfb`,\x91\xf3\x03\x08\x08\x00\x00\x00\x00'
-        self.logger.debug(f'put_pay_record: record_key={record_key} atomical_id={location_id_bytes_to_compact(atomical_id)} pay_data_cache={encode_atomical_ids_hex(pay_data_cache)}')
+        self.logger.debug(f'put_pay_record: record_key={record_key} record_key={record_key.hex()} atomical_id={location_id_bytes_to_compact(atomical_id)} pay_data_cache={encode_atomical_ids_hex(pay_data_cache)}')
         
 
         if not pay_data_cache.get(record_key):
@@ -2722,8 +2722,8 @@ class BlockProcessor:
                     
                     if created_atomical_id:
                         if hash_to_hex_str(tx_hash) == '4074041505b69b1afcb98b1ded40102b4b694af2fa0c56ea31e5b0c56b7a1591':
-                            # pass
-                            raise IndexError('created_atomical_id txhash' + location_id_bytes_to_compact(created_atomical_id))
+                            pass
+                            # raise IndexError('created_atomical_id txhash' + location_id_bytes_to_compact(created_atomical_id))
                         already_found_valid_operation = True
                         has_at_least_one_valid_atomicals_operation = True
                         atomical_num += 1
