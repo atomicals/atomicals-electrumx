@@ -766,8 +766,6 @@ class BlockProcessor:
             return payments[0]
         return None
         
-       
-
 
     def get_earliest_subrealm_payment(self, atomical_id):
         spay_key_atomical_id = b'spay' + atomical_id
@@ -2854,10 +2852,13 @@ class BlockProcessor:
         else:
             self.logger.info(f'create_or_delete_subname_payment_output_if_valid_db_prefix={db_prefix} parent_container_id={parent_id} dmitem_name={request_subname} dmitem_name_enc={request_subname.encode()}')
             self.logger.info(f'create_or_delete_subname_payment_output_if_valid atomical_id_for_payment={location_id_bytes_to_compact(atomical_id_for_payment)} db_prefix={db_prefix} payment_outpoint_compact={location_id_bytes_to_compact(payment_outpoint)} payment_outpoint={payment_outpoint.hex()}')
-            if location_id_bytes_to_compact(atomical_id_for_payment) == '080803f3912c60fbf50864953b2ef9a03fe817b6f7db9cffb71729ceeea9aa3ci0':
-                pass
+            # if location_id_bytes_to_compact(atomical_id_for_payment) == '080803f3912c60fbf50864953b2ef9a03fe817b6f7db9cffb71729ceeea9aa3ci0':
+            #    pass
                 # raise IndexError(f'found 080803f3912c60fbf50864953b2ef9a03fe817b6f7db9cffb71729ceeea9aa3ci0 for payment put')
-            
+            if hash_to_hex_str(tx_hash) == '36cb0bb8509199b2f16948d962bb72a176ecd7483804e67a11d31f4aeb2f2537':
+                self.logger.debug(f'found payment 36cb0bb8509199b2f16948d962bb72a176ecd7483804e67a11d31f4aeb2f2537 db_prefix={db_prefix} height={height} atomical_id_for_payment={location_id_bytes_to_compact(atomical_id_for_payment)}')
+                # raise IndexError('36cb0bb8509199b2f16948d962bb72a176ecd7483804e67a11d31f4aeb2f2537')
+                    # raise IndexError(f'found payment 36cb0bb8509199b2f16948d962bb72a176ecd7483804e67a11d31f4a
             self.put_pay_record(atomical_id_for_payment, tx_num, payment_outpoint + not_initated_by_parent, db_prefix, subname_data_cache)
         return tx_hash 
      
