@@ -3159,10 +3159,10 @@ class BlockProcessor:
                 atomicals_minted += 1
             
             # Rollback any subrealm payments
-            self.create_or_delete_subname_payment_output_if_valid(tx_hash, tx, tx_num, self.height, operations_found_at_inputs, atomicals_spent_at_inputs, b'spay', self.subrealm_data_cache, self.get_expected_subrealm_payment_info, True)
+            self.create_or_delete_subname_payment_output_if_valid(tx_hash, tx, tx_num, self.height, operations_found_at_inputs, atomicals_spent_at_inputs, b'spay', self.subrealmpay_data_cache, self.get_expected_subrealm_payment_info, True)
 
             # Rollback any dmint payments
-            self.create_or_delete_subname_payment_output_if_valid(tx_hash, tx, tx_num, self.height, operations_found_at_inputs, atomicals_spent_at_inputs, b'dmpay', self.dmitem_data_cache, self.get_expected_dmitem_payment_info, True)
+            self.create_or_delete_subname_payment_output_if_valid(tx_hash, tx, tx_num, self.height, operations_found_at_inputs, atomicals_spent_at_inputs, b'dmpay', self.dmpay_data_cache, self.get_expected_dmitem_payment_info, True)
 
             # If there were any distributed mint creation, then delete
             self.create_or_delete_decentralized_mint_output(operations_found_at_inputs, tx_num, tx_hash, tx, self.height, {}, True)
