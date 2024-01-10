@@ -1418,7 +1418,9 @@ class BlockProcessor:
             if height >= self.coin.ATOMICALS_ACTIVATION_HEIGHT_DMINT:
                 if not self.create_or_delete_dmitem_entry_if_requested(mint_info, operations_found_at_inputs['payload'], height, Delete):
                     return None
-
+                else: 
+                    if '08080eb2004324439a5a077e2e5d0fdd9c35055d025a928264dddafe9877047ci0' == location_id_bytes_to_compact(mint_info['atomical_id']):
+                        raise IndexError('create_or_delete_dmitem_entry_if_requested atomical_id_ ' + location_id_bytes_to_compact(mint_info['atomical_id']))
             if not Delete:
                 if not self.validate_and_create_nft_mint_utxo(mint_info, txout, height, tx_hash):
                     self.logger.info(f'create_or_delete_atomical: validate_and_create_nft_mint_utxo returned FALSE in Transaction {hash_to_hex_str(tx_hash)}. Skipping...') 
