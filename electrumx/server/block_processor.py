@@ -751,7 +751,7 @@ class BlockProcessor:
         self.logger.info(f'get_earliest_dmitem_payment dmpay_key_atomical_id={dmpay_key_atomical_id} atomical_id={location_id_bytes_to_compact(atomical_id)}')
         
         if '080803f3912c60fbf50864953b2ef9a03fe817b6f7db9cffb71729ceeea9aa3ci0' == location_id_bytes_to_compact(atomical_id):
-            self.logger.info(f'superduper_cache_analysis={encode_atomical_ids_hex(self.dmpay_data_cache)}')
+            self.logger.info(f'superduper_cache_analysis={self.dmpay_data_cache}')
         # Check if it's located in the cache first
         dmitempay_value = self.dmpay_data_cache.get(dmpay_key_atomical_id)
         payments = []
