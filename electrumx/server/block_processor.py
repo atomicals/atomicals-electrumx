@@ -965,8 +965,9 @@ class BlockProcessor:
     def put_pay_record(self, atomical_id, tx_num, payload_value, db_prefix, pay_data_cache): 
         self.logger.debug(f'put_pay_record: db_prefix={db_prefix} atomical_id={location_id_bytes_to_compact(atomical_id)}, tx_num={tx_num}, payload_value={payload_value.hex()}')
         record_key = db_prefix + atomical_id
-
-        self.logger.debug(f'put_pay_record: record_key={record_key} atomical_id={location_id_bytes_to_compact(atomical_id)}')
+        #put_pay_record: record_key=b'dmpay<\xaa\xa9\xee\xce)\x17\xb7\xff\x9c\xdb\xf7\xb6\x17\xe8?\xa0\xf9.;\x95d\x08\xf5\xfb`,\x91\xf3\x03\x08\x08\x00\x00\x00\x00'
+        #dmpay_key_atomical_id=     b'dmpay<\xaa\xa9\xee\xce)\x17\xb7\xff\x9c\xdb\xf7\xb6\x17\xe8?\xa0\xf9.;\x95d\x08\xf5\xfb`,\x91\xf3\x03\x08\x08\x00\x00\x00\x00'
+        self.logger.debug(f'put_pay_record: record_key={record_key} atomical_id={location_id_bytes_to_compact(atomical_id)} pay_data_cache={encode_atomical_ids_hex(pay_data_cache)}')
         
 
         if not pay_data_cache.get(record_key):
