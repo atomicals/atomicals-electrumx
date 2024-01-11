@@ -13,8 +13,9 @@ from decimal import Decimal
 import electrumx
 from electrumx.lib.hash import HASHX_LEN, double_sha256, hash_to_hex_str, hex_str_to_hash, sha256
 import electrumx.lib.util as util
-from electrumx.lib.util_atomicals import SUBREALM_MINT_PATH, AtomicalsValidationError, auto_encode_bytes_elements, calculate_latest_state_from_mod_history, compact_to_location_id_bytes, format_name_type_candidates_to_rpc, format_name_type_candidates_to_rpc_for_subname, get_address_from_output_script, is_compact_atomical_id, location_id_bytes_to_compact, validate_merkle_proof_dmint, validate_rules_data
+from electrumx.lib.util_atomicals import SUBREALM_MINT_PATH, AtomicalsValidationError, auto_encode_bytes_elements, calculate_latest_state_from_mod_history, compact_to_location_id_bytes, format_name_type_candidates_to_rpc, format_name_type_candidates_to_rpc_for_subname, is_compact_atomical_id, location_id_bytes_to_compact, validate_merkle_proof_dmint, validate_rules_data
 from electrumx.server.daemon import DaemonError
+from electrumx.lib.script2addr import get_address_from_output_script
 
 
 BAD_REQUEST = 1
