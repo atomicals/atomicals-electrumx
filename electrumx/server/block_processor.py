@@ -669,6 +669,7 @@ class BlockProcessor:
                         # Here we go and check for the required payment amount and details now...
                         # We also use the commit_height of the subrealm to determine what price they should be paying
                         expected_payment_height = found_atomical_mint_info_for_potential_subrealm['commit_height']
+                        self.logger.info(f'found_parent_mint_info={found_parent_mint_info} request_realm={request_realm} request_subrealm={request_subrealm}')
                         matched_price_point, state_at_height = self.get_applicable_rule_by_height(parent_realm_id, request_subrealm, expected_payment_height - MINT_SUBNAME_RULES_BECOME_EFFECTIVE_IN_BLOCKS, SUBREALM_MINT_PATH)
                         if matched_price_point:
                             self.logger.info(f'get_expected_subrealm_payment_info: matched_price_point={matched_price_point}, request_subrealm={request_subrealm}')
