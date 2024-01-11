@@ -641,21 +641,21 @@ class BlockProcessor:
                         # We have found the parent atomical, which may or may not be a valid realm
                         # Do the basic check for $request_realm which indicates it succeeded the basic validity checks
                         # args_realm = found_parent_mint_info['mint_info']['args'].get('request_realm') or found_parent_mint_info['mint_info']['args'].get('request_subrealm')
-                        request_realm = found_parent_mint_info.get('$request_realm')
-                        request_subrealm = found_parent_mint_info.get('$request_subrealm')
+                        parent_request_realm = found_parent_mint_info.get('$request_realm')
+                        parent_request_subrealm = found_parent_mint_info.get('$request_subrealm')
                         # One or both was empty and therefore didn't pass the basic checks
                         # Someone apparently made a payment marker for an invalid parent realm id. They made a mistake, ignoring it..
-                        if not request_realm and not request_subrealm: 
-                            self.logger.info(f'get_expected_subrealm_payment_info: not request_realm or not request_subrealm. request_subrealm={request_subrealm}')
+                        if not parent_request_realm and not parent_request_subrealm: 
+                            self.logger.info(f'get_expected_subrealm_payment_info: not parent_request_realm or not parent_request_subrealm.')
                             return None, None, None, None
                         
                         # Make sure it's the right type and format checks pass again just in case
-                        if request_realm and (not isinstance(request_realm, str) or not is_valid_realm_string_name(request_realm)):
-                            self.logger.info(f'get_expected_subrealm_payment_info invalid realm request name request_realm={request_realm}')
+                        if parent_request_realm and (not isinstance(parent_request_realm, str) or not is_valid_realm_string_name(parent_request_realm)):
+                            self.logger.info(f'get_expected_subrealm_payment_info invalid realm request name parent_request_realm={parent_request_realm}')
                             return None, None, None, None
                         
-                        if request_subrealm and (not isinstance(request_subrealm, str) or not is_valid_subrealm_string_name(request_subrealm)):
-                            self.logger.info(f'get_expected_subrealm_payment_info invalid subrealm request name request_subrealm={request_subrealm}')
+                        if parent_request_subrealm and (not isinstance(parent_request_subrealm, str) or not is_valid_subrealm_string_name(parent_request_subrealm)):
+                            self.logger.info(f'get_expected_subrealm_payment_info invalid subrealm request name parent_request_subrealm={parent_request_subrealm}')
                             return None, None, None, None
                         
                         if not found_parent_mint_info.get('$full_realm_name'):
