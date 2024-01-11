@@ -2777,7 +2777,7 @@ class BlockProcessor:
                 
                 if hash_to_hex_str(tx_hash) == '1c5c17726edeb07ab6517e786e45424be30350ec1db39ecf4e378d2e82d34e74':
                     self.logger.debug(f'found paymet 1c5c17726edeb07ab6517e786e45424be30350ec1db39ecf4e378d2e82d34e74 ')
-                    raise IndexError(f'found paymet 1c5c17726edeb07ab6517e786e45424be30350ec1db39ecf4e378d2e82d34e74 ')
+                    # raise IndexError(f'found paymet 1c5c17726edeb07ab6517e786e45424be30350ec1db39ecf4e378d2e82d34e74 ')
                 
                 if hash_to_hex_str(tx_hash) == '11d4891e53b4ade1f97427793b10d2cb91245ed928220d9060ef3f8ac70e41de':
                     self.logger.debug(f'found subrealm mint 11d4891e53b4ade1f97427793b10d2cb91245ed928220d9060ef3f8ac70e41de ')
