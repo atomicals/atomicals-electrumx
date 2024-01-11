@@ -658,6 +658,10 @@ class BlockProcessor:
                             self.logger.info(f'get_expected_subrealm_payment_info invalid subrealm request name parent_request_subrealm={parent_request_subrealm}')
                             return None, None, None, None
                         
+                        if not isinstance(request_subrealm, str) or not is_valid_subrealm_string_name(request_subrealm):
+                            self.logger.info(f'get_expected_subrealm_payment_info invalid subrealm request name request_subrealm={request_subrealm}')
+                            return None, None, None, None
+                        
                         if not found_parent_mint_info.get('$full_realm_name'):
                             self.logger.info(f'get_expected_subrealm_payment_info: not full_realm_name. request_subrealm={request_subrealm}, parent_realm_id_compact={parent_realm_id_compact}')
                             return None, None, None, None
