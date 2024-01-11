@@ -2776,7 +2776,7 @@ class BlockProcessor:
                 
                 if hash_to_hex_str(tx_hash) == '11d4891e53b4ade1f97427793b10d2cb91245ed928220d9060ef3f8ac70e41de':
                     self.logger.debug(f'found subrealm mint 11d4891e53b4ade1f97427793b10d2cb91245ed928220d9060ef3f8ac70e41de ')
-                    raise IndexError(f'found subrealm mint  11d4891e53b4ade1f97427793b10d2cb91245ed928220d9060ef3f8ac70e41de ')
+                    # raise IndexError(f'found subrealm mint  11d4891e53b4ade1f97427793b10d2cb91245ed928220d9060ef3f8ac70e41de ')
                 
                 # Create a proof of work record if there was valid proof of work attached
                 if self.create_or_delete_pow_records(tx_hash, tx_num, height, atomicals_operations_found_at_inputs):
