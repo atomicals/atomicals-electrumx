@@ -636,8 +636,6 @@ class BlockProcessor:
                     # We have a validated potential parent id, now look it up to see if the parent is a valid atomical
                     found_parent_mint_info = self.get_base_mint_info_by_atomical_id(parent_realm_id)
                     if found_parent_mint_info:
-                        self.logger.info(f'found_parent_mint_info={found_parent_mint_info}')
-                        # self.populate_extended_atomical_subtype_info(found_parent_mint_info)
                         # We have found the parent atomical, which may or may not be a valid realm
                         # Do the basic check for $request_realm which indicates it succeeded the basic validity checks
                         # args_realm = found_parent_mint_info['mint_info']['args'].get('request_realm') or found_parent_mint_info['mint_info']['args'].get('request_subrealm')
@@ -731,9 +729,6 @@ class BlockProcessor:
         if not found_parent_mint_info:
             self.logger.info(f'get_expected_dmitem_payment_info: not found_parent_mint_info found_atomical_id_for_potential_dmitem={location_id_bytes_to_compact(found_atomical_id_for_potential_dmitem)} parent_container_id_compact={parent_container_id_compact} found_atomical_mint_info_for_potential_dmitem={found_atomical_mint_info_for_potential_dmitem}')
             return None, None, None, None
-        
-        self.logger.info(f'found_parent_mint_info={found_parent_mint_info}')
-        # self.populate_extended_atomical_subtype_info(found_parent_mint_info)
         # We have found the parent atomical, which may or may not be a valid realm
         # Do the basic check for $request_realm which indicates it succeeded the basic validity checks
         request_container_and_dmitem = found_parent_mint_info.get('$request_container') or found_parent_mint_info.get('$request_dmitem')
@@ -2394,7 +2389,6 @@ class BlockProcessor:
         # 
         # TOP-REALM (TLR) Type Fields
         #
-        self.logger.info(f'populate_extended_atomical_subtype_info atomical={atomical}')
         the_name_request, is_atomical_name_verified_found = self.populate_name_subtype_specific_fields(atomical, 'realm', self.get_effective_realm)
         if is_atomical_name_verified_found:
             atomical['subtype'] = 'realm'
