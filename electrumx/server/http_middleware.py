@@ -6,6 +6,16 @@ import os
 import traceback
 from aiohttp import web, web_middlewares
 
+def serialize_data(data):
+    if isinstance(data, bytes):
+        return base64.b64encode(data).decode('utf-8')
+    elif isinstance(data, dict):
+        return {key: serialize_data(value) for key, value in data.items()}
+    elif isinstance(data, list):
+        return [serialize_data(element) for element in data]
+    else:
+        return data
+    
 class RateLimiter:
     def __init__(self, max_tokens, refill_interval, delay_after, delay_ms):
         self.tokens = int(max_tokens)
@@ -50,7 +60,7 @@ def error_resp(status_code: int, exception: Exception) -> web.Response:
         content_type='application/json')
 
 def success_resp(data) -> web.Response:
-    result = {"success": True,"response": data}
+    result = {"success": True, "response": serialize_data(data)}
     return web.json_response(data=result)
 
 def request_middleware(self) -> web_middlewares:
