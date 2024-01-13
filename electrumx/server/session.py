@@ -242,7 +242,7 @@ class SessionManager:
                     app.router.add_get('/proxy/blockchain.transaction.get_merkle', handler.transaction_merkle)
                     app.router.add_get('/proxy/blockchain.transaction.id_from_pos', handler.transaction_id_from_pos)
                     # app.router.add_get('/proxy/server.add_peer', handler.add_peer)
-                    app.router.add_get('/proxy/server.banner', handler.banner)
+                    # app.router.add_get('/proxy/server.banner', handler.banner)
                     app.router.add_get('/proxy/server.donation_address', handler.donation_address)
                     app.router.add_get('/proxy/server.features', handler.server_features_async)
                     app.router.add_get('/proxy/server.peers.subscribe', handler.peers_subscribe)
