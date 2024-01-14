@@ -2632,6 +2632,8 @@ class BlockProcessor:
         # get the potential dmt (distributed mint) atomical_id from the ticker given
         ticker = dmt_return_struct['$mint_ticker']
 
+        if hash_to_hex_str(tx_hash) == 'fec2a0ef1a8bfbb0d2379f3aceac8eea2ed9c82c9393186d344e21631c279e62':
+            self.logger.info('found_fec2a0ef1a8bfbb0d2379f3aceac8eea2ed9c82c9393186d344e21631c279e62')
         # Save the mint info for the ticker
         mint_info_for_ticker = ticker_cache.get(ticker)
         if not mint_info_for_ticker:
@@ -2946,6 +2948,9 @@ class BlockProcessor:
                 if has_at_least_one_valid_atomicals_operation:
                     put_general_data(b'th' + pack_le_uint32(height) + pack_le_uint64(tx_num) + tx_hash, tx_hash)
                     
+                if hash_to_hex_str(tx_hash) == 'ce18bfa286d0f49997715b882f99df27cdc58e05d33e93d15c46164e988a798d':
+                    self.logger.info('found_ce18bfa286d0f49997715b882f99df27cdc58e05d33e93d15c46164e988a798d dft init')
+
             append_hashXs(hashXs)
             update_touched(hashXs)
             tx_num += 1
