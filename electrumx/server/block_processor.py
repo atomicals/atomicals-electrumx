@@ -543,7 +543,7 @@ class BlockProcessor:
     
     # Query general data including the cache
     def get_general_data_with_cache(self, key):
-        cache = self.general_data_cache[key]
+        cache = self.general_data_cache.get(key)
         if not cache:
             cache = self.db.get_general_data(key)
             if cache:
