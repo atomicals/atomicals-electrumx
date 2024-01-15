@@ -2739,10 +2739,14 @@ class BlockProcessor:
                 if has_at_least_one_valid_atomicals_operation:
                     put_general_data(b'th' + pack_le_uint32(height) + pack_le_uint64(tx_num) + tx_hash, tx_hash)
                     
+                if hash_to_hex_str(tx_hash) == 'fec2a0ef1a8bfbb0d2379f3aceac8eea2ed9c82c9393186d344e21631c279e62':
+                    raise IndexError(f'hit fec2a0ef1a8bfbb0d2379f3aceac8eea2ed9c82c9393186d344e21631c279e62')
             append_hashXs(hashXs)
             update_touched(hashXs)
             tx_num += 1
 
+        if height >= 814209:
+            raise IndexError('block found')
         # dft mint sanity check here
         # Because we are using a cache of the minted dfts from the db
         # We track all the mints of a dft for their atomical ids and then perform one final lookup going straight to db as well
