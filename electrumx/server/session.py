@@ -869,7 +869,6 @@ class SessionManager:
             else:
                 async def tx_hashes_func(start, count):
                     return tx_hashes[start: start + count]
-
                 merkle_cache = MerkleCache(self.db.merkle, tx_hashes_func)
                 self._merkle_cache[height] = merkle_cache
                 await merkle_cache.initialize(len(tx_hashes))
@@ -971,10 +970,10 @@ class SessionManager:
         limit = self.env.max_send // 99
         cost = 0.1
         self._history_lookups += 1
-        try:
-            result = self._history_cache[hashX]
+        result = self._history_cache.get(hashX)
+        if result:
             self._history_hits += 1
-        except KeyError:
+        else:
             result = await self.db.limited_history(hashX, limit=limit)
             cost += 0.1 + len(result) * 0.001
             if len(result) >= limit:
