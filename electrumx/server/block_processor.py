@@ -2739,8 +2739,8 @@ class BlockProcessor:
                 if has_at_least_one_valid_atomicals_operation:
                     put_general_data(b'th' + pack_le_uint32(height) + pack_le_uint64(tx_num) + tx_hash, tx_hash)
                     
-                if hash_to_hex_str(tx_hash) == 'fec2a0ef1a8bfbb0d2379f3aceac8eea2ed9c82c9393186d344e21631c279e62':
-                    raise IndexError(f'hit fec2a0ef1a8bfbb0d2379f3aceac8eea2ed9c82c9393186d344e21631c279e62')
+                if hash_to_hex_str(tx_hash) == '59324d7b8baf55577922ab16d2acbf4f72cd54143fc738e87f2d64cdb0b95a12':
+                    raise IndexError(f'hit 59324d7b8baf55577922ab16d2acbf4f72cd54143fc738e87f2d64cdb0b95a12')
             append_hashXs(hashXs)
             update_touched(hashXs)
             tx_num += 1
