@@ -1606,6 +1606,8 @@ class ElectrumX(SessionBase):
             'result': return_result
         }
     async def atomicals_get_by_container(self, container):
+        if not isinstance(container, str):
+            raise RPCError(BAD_REQUEST, f'empty container')
         height = self.session_mgr.bp.height
         status, candidate_atomical_id, all_entries = self.session_mgr.bp.get_effective_container(container, height)
         formatted_entries = format_name_type_candidates_to_rpc(all_entries, self.session_mgr.bp.build_atomical_id_to_candidate_map(all_entries))
@@ -1648,6 +1650,8 @@ class ElectrumX(SessionBase):
         return auto_encode_bytes_elements(items)
 
     async def atomicals_get_container_items(self, container, limit, offset):
+        if not isinstance(container, str):
+            raise RPCError(BAD_REQUEST, f'empty container')
         status, candidate_atomical_id, all_entries = self.session_mgr.bp.get_effective_container(container, self.session_mgr.bp.height)
         found_atomical_id = None
         if status == 'verified':
@@ -1695,6 +1699,8 @@ class ElectrumX(SessionBase):
             }
 
     async def atomicals_get_by_container_item(self, container, item_name):
+        if not isinstance(container, str):
+            raise RPCError(BAD_REQUEST, f'empty container')
         height = self.session_mgr.bp.height
         status, candidate_atomical_id, all_entries = self.session_mgr.bp.get_effective_container(container, height)
         found_atomical_id = None
@@ -1723,6 +1729,8 @@ class ElectrumX(SessionBase):
         }
     
     async def atomicals_get_by_container_item_validation(self, container, item_name, bitworkc, bitworkr, main_name, main_hash, proof, check_without_sealed):
+        if not isinstance(container, str):
+            raise RPCError(BAD_REQUEST, f'empty container')
         height = self.session_mgr.bp.height
         status, candidate_atomical_id, all_entries = self.session_mgr.bp.get_effective_container(container, height)
         found_parent_atomical_id = None
