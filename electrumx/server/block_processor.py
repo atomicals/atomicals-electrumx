@@ -543,11 +543,12 @@ class BlockProcessor:
     
     # Query general data including the cache
     def get_general_data_with_cache(self, key):
-        try:
-            return self.general_data_cache[key]
-        except KeyError:
-            return self.db.get_general_data(key)
-        return None 
+        cache = self.general_data_cache.get(key)
+        if not cache:
+            cache = self.db.get_general_data(key)
+            if cache:
+                self.general_data_cache[key] = cache
+        return cache
 
     # Get the mint information and LRU cache it for fast retrieval
     # Used for quickly getting the mint information for an atomical
@@ -807,14 +808,16 @@ class BlockProcessor:
     # Save atomicals UTXO to cache that will be flushed to db
     def put_atomicals_utxo(self, location_id, atomical_id, value): 
         self.logger.debug(f'put_atomicals_utxo: atomical_id={location_id_bytes_to_compact(atomical_id)}, location_id={location_id_bytes_to_compact(location_id)}, value={value.hex()}')
-        if self.atomicals_utxo_cache.get(location_id) == None: 
-            self.atomicals_utxo_cache[location_id] = {}
+        cache = self.atomicals_utxo_cache.get(location_id)
+        if cache is None:
+            cache = {}
         # Use a tombstone to mark deleted because even if it's removed we must
         # store the b'i' value
-        self.atomicals_utxo_cache[location_id][atomical_id] = {
+        cache[atomical_id] = {
             'deleted': False,
             'value': value
         }
+        self.atomicals_utxo_cache[location_id] = cache
 
     # Get the total number of distributed mints for an atomical id and check the cache and db
     # This can be a heavy operation with many 10's of thousands in the db
@@ -838,7 +841,7 @@ class BlockProcessor:
         if use_block_db_cache: 
             db_count = self.atomicals_dft_mint_count_cache.get(atomical_id)
             # If the cache key was not found then query from the db the first time to populate
-            if db_count == None:
+            if not db_count:
                 # We got the db count as of the latest block
                 db_count = lookup_db_count(atomical_id)
                 self.atomicals_dft_mint_count_cache[atomical_id] = db_count
@@ -2123,10 +2126,8 @@ class BlockProcessor:
         return atomical_result
         
     async def get_base_mint_info_rpc_format_by_atomical_id(self, atomical_id):
-        atomical_result = None
-        if atomical_id in self.atomicals_rpc_format_cache:
-            atomical_result = self.atomicals_rpc_format_cache[atomical_id]
-        else:
+        atomical_result = self.atomicals_rpc_format_cache.get(atomical_id)
+        if not atomical_result:
             atomical_result = await self.get_base_mint_info_by_atomical_id_async(atomical_id)
             if not atomical_result:
                 return None
