@@ -248,6 +248,25 @@ class TxSegWit:
     witness: Sequence
     locktime: int
 
+    def serialize(self):
+        return b''.join((
+            pack_le_int32(self.version),
+            bytes([self.marker]),
+            bytes([self.flag]),
+            pack_varint(len(self.inputs)),
+            b''.join(tx_in.serialize() for tx_in in self.inputs),
+            pack_varint(len(self.outputs)),
+            b''.join(tx_out.serialize() for tx_out in self.outputs),
+            b''.join(self._serialize_witness_field(witness_field) for witness_field in self.witness),
+            pack_le_uint32(self.locktime)
+        ))
+
+    def _serialize_witness_field(self, witness_field):
+        return b''.join((
+            pack_varint(len(witness_field)),
+            b''.join(pack_varbytes(item) for item in witness_field)
+        ))
+    
 
 class DeserializerSegWit(Deserializer):
 

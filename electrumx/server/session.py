@@ -184,6 +184,7 @@ class SessionManager:
         self._history_cache = pylru.lrucache(1000)
         self._history_lookups = 0
         self._history_hits = 0
+        self._history_op_cache = pylru.lrucache(1000)
         self._tx_hashes_cache = pylru.lrucache(1000)
         self._tx_hashes_lookups = 0
         self._tx_hashes_hits = 0
@@ -192,6 +193,7 @@ class SessionManager:
         self._merkle_lookups = 0
         self._merkle_hits = 0
         self.estimatefee_cache = pylru.lrucache(1000)
+        self._tx_detail_cache = pylru.lrucache(1000000)
         self.notified_height = None
         self.hsub_results = None
         self._task_group = OldTaskGroup()
@@ -279,6 +281,9 @@ class SessionManager:
                     app.router.add_get('/proxy/blockchain.atomicals.find_subrealms', handler.atomicals_search_subrealms)
                     app.router.add_get('/proxy/blockchain.atomicals.find_containers', handler.atomicals_search_containers)
                     app.router.add_get('/proxy/blockchain.atomicals.get_holders', handler.atomicals_get_holders)
+                    app.router.add_get('/proxy/blockchain.atomicals.transaction', handler.atomicals_transaction)
+                    app.router.add_get('/proxy/blockchain.atomicals.transaction_by_height', handler.transaction_by_height)
+                    app.router.add_get('/proxy/blockchain.atomicals.transaction_by_atomical_id', handler.transaction_by_atomical_id)
                     # POST
                     app.router.add_post('/proxy', handler.proxy)
                     app.router.add_post('/proxy/blockchain.block.header', handler.block_header)
@@ -333,6 +338,10 @@ class SessionManager:
                     app.router.add_post('/proxy/blockchain.atomicals.find_subrealms', handler.atomicals_search_subrealms)
                     app.router.add_post('/proxy/blockchain.atomicals.find_containers', handler.atomicals_search_containers)
                     app.router.add_post('/proxy/blockchain.atomicals.get_holders', handler.atomicals_get_holders)
+                    app.router.add_post('/proxy/blockchain.atomicals.transaction', handler.atomicals_transaction)
+                    app.router.add_post('/proxy/blockchain.atomicals.transaction_by_height', handler.transaction_by_height)
+                    app.router.add_post('/proxy/blockchain.atomicals.transaction_by_atomical_id', handler.transaction_by_atomical_id)
+                    app.router.add_post('/proxy/blockchain.atomicals.transaction_by_scripthash', handler.transaction_by_scripthash)
                     # common proxy
                     app.router.add_get('/proxy/{method}', handler.handle_get_method)
                     app.router.add_post('/proxy/{method}', handler.handle_post_method)
@@ -983,6 +992,33 @@ class SessionManager:
         if isinstance(result, Exception):
             raise result
         return result, cost
+    
+    async def get_history_op_data(self, hashX):
+        count = 50000
+        chunks = util.chunks
+        # self.session_mgr._history_lookups += 1
+        try:
+            return self._history_op_cache[hashX]
+            # self.session_mgr._history_hits += 1
+        except KeyError:
+            history_op_data = []
+            TXNUM_LEN = 5
+            txnum_padding = bytes(8-TXNUM_LEN)
+            for _key, hist in self.db.history.db.iterator(prefix=hashX):
+                for tx_numb in chunks(hist, TXNUM_LEN):
+                    tx_num, = util.unpack_le_uint64(tx_numb + txnum_padding)
+                    count -= 1
+                    tx_hash, tx_height = self.db.fs_tx_hash(tx_num)
+                    tx_op = self.db.get_op_by_tx_num(tx_num)
+                    if tx_op:
+                        history_op_data.append({"tx_num": tx_num, "tx_hash": tx_hash, "height": tx_height, "op": tx_op})
+                if count == 0:
+                    break
+            
+        # cache sort by tx_num
+        history_op_data.sort(key=lambda x: x['tx_num'], reverse=True)
+        self._history_op_cache[hashX] = history_op_data
+        return history_op_data
 
     async def _notify_sessions(self, height, touched):
         '''Notify sessions about height changes and touched addresses.'''
@@ -991,8 +1027,12 @@ class SessionManager:
             await self._refresh_hsub_results(height)
             # Invalidate our history cache for touched hashXs
             cache = self._history_cache
+            op_cache = self._history_op_cache
             for hashX in set(cache).intersection(touched):
                 del cache[hashX]
+                del op_cache[hashX]
+                # set cache when height changes
+                await self.get_history_op_data(hashX)
 
         for session in self.sessions:
             if self._task_group.joined:  # this can happen during shutdown

@@ -9,6 +9,7 @@
 '''Block prefetcher and chain processor.'''
 
 import asyncio
+import os
 import time
 from typing import Sequence, Tuple, List, Callable, Optional, TYPE_CHECKING, Type
 
@@ -271,6 +272,7 @@ class BlockProcessor:
         self.container_data_cache = {}      # Caches the containers created
         self.distmint_data_cache = {}       # Caches the distributed mints created
         self.state_data_cache = {}          # Caches the state updates
+        self.op_data_cache = {}             # Caches the tx op
         self.db_deletes = []
 
         # If the lock is successfully acquired, in-memory chain state
@@ -438,7 +440,8 @@ class BlockProcessor:
                          self.atomical_count,
                          self.atomicals_undo_infos, self.atomicals_utxo_cache, self.general_data_cache, self.ticker_data_cache, 
                          self.realm_data_cache, self.subrealm_data_cache, self.subrealmpay_data_cache, self.dmitem_data_cache, 
-                         self.dmpay_data_cache, self.container_data_cache, self.distmint_data_cache, self.state_data_cache)
+                         self.dmpay_data_cache, self.container_data_cache, self.distmint_data_cache, self.state_data_cache,
+                         self.op_data_cache)
 
     async def flush(self, flush_utxos):
         def flush():
@@ -934,6 +937,17 @@ class BlockProcessor:
                 raise IndexError(f'IndexError: delete_state_data db data does not match expected atomical id {expected_entry_value} {db_value}')
             self.delete_general_data(db_delete_key)
         return cached_value or db_value
+    
+    # Function to cache and eventually flush the op
+    def put_op_data(self, tx_num, tx_hash, op):
+        print(f"op: {op}, txid: {hash_to_hex_str(tx_hash)}")
+        op_list = {"mint-dft": 0, "transfer": 1, "burn": 2, "invalid": 3, "dmint": 4, "dft": 5}
+        op_num = op_list.get(op)
+        print(f"op_num: {op_num}")
+        if op_num:
+            op_prefix_key = b'op' + pack_le_uint64(tx_num)
+            self.logger.info(f'set the cache {op} op transaction detail for {hash_to_hex_str(tx_hash)}')
+            self.op_data_cache[op_prefix_key] = pack_le_uint32(op_num)
 
     # Function to put the container, realm, and ticker names to the db.
     # This does not handle subrealms, because subrealms have a payment component and are handled slightly differently in another method
@@ -1346,6 +1360,7 @@ class BlockProcessor:
             self.logger.info(f'create_or_delete_atomical: commit_txid not found for reveal_tx {hash_to_hex_str(commit_txid)}. Skipping...')
             return None
         if commit_tx_height < self.coin.ATOMICALS_ACTIVATION_HEIGHT:
+            self.put_op_data(tx_num, tx_hash, "invalid")
             self.logger.warning(f'create_or_delete_atomical: commit_tx_height={commit_tx_height} is less than ATOMICALS_ACTIVATION_HEIGHT. Skipping...')
             return None
 
@@ -1356,6 +1371,7 @@ class BlockProcessor:
         # If the client requested any proof of work, then for the mint to be valid, the proof of work (in the commit or reveal, or both) must be valid
         is_pow_requested, pow_result = has_requested_proof_of_work(operations_found_at_inputs)
         if is_pow_requested and not pow_result: 
+            self.put_op_data(tx_num, tx_hash, "invalid")
             self.logger.warning(f'create_or_delete_atomical: proof of work was requested, but the proof of work was invalid. Not minting Atomical at {hash_to_hex_str(tx_hash)}. Skipping...')
             return None 
 
@@ -1370,6 +1386,7 @@ class BlockProcessor:
         
         # Too late to reveal in general
         if not is_within_acceptable_blocks_for_general_reveal(mint_info['commit_height'], mint_info['reveal_location_height']):
+            self.put_op_data(tx_num, tx_hash, "invalid")
             self.logger.warning(f'create_or_delete_atomical: not is_within_acceptable_blocks_for_general_reveal. Not minting Atomical at {hash_to_hex_str(tx_hash)}. Skipping...')
             return None
 
@@ -1388,10 +1405,12 @@ class BlockProcessor:
           
         # Too late to reveal, fail to mint then
         if is_name_type and not is_within_acceptable_blocks_for_name_reveal(mint_info['commit_height'], mint_info['reveal_location_height']):
+            self.put_op_data(tx_num, tx_hash, "invalid")
             self.logger.warning(f'reveal_not_within_acceptable_blocks_for_name_reveal: txid={hash_to_hex_str(tx_hash)}. Skipping...')
             return None
 
         if is_name_type and height >= self.coin.ATOMICALS_ACTIVATION_HEIGHT_COMMITZ and mint_info['commit_index'] != 0:
+            self.put_op_data(tx_num, tx_hash, "invalid")
             self.logger.warning(f'attempt_to_mint_from_non_zero_output: txid={hash_to_hex_str(tx_hash)}. Skipping...')
             return None
                  
@@ -1403,6 +1422,7 @@ class BlockProcessor:
                 parent_atomical_id = compact_to_location_id_bytes(parent_atomical_id_compact)
                 parent_atomical_mint_info = self.get_atomicals_id_mint_info(parent_atomical_id, False)
                 if not parent_atomical_mint_info:
+                    self.put_op_data(tx_num, tx_hash, "invalid")
                     self.logger.warning(f'invalid_parent_realm: txid={hash_to_hex_str(tx_hash)}. Skipping...') 
                     return None
 
@@ -1413,6 +1433,7 @@ class BlockProcessor:
                 parent_atomical_id = compact_to_location_id_bytes(parent_atomical_id_compact)
                 parent_atomical_mint_info = self.get_atomicals_id_mint_info(parent_atomical_id, False)
                 if not parent_atomical_mint_info:
+                    self.put_op_data(tx_num, tx_hash, "invalid")
                     self.logger.warning(f'invalid_parent_container: txid={hash_to_hex_str(tx_hash)}. Skipping...') 
                     return None
 
@@ -1431,8 +1452,11 @@ class BlockProcessor:
                     return None
             if not Delete:
                 if not self.validate_and_create_nft_mint_utxo(mint_info, txout, height, tx_hash):
+                    self.put_op_data(tx_num, tx_hash, "invalid")
                     self.logger.info(f'create_or_delete_atomical: validate_and_create_nft_mint_utxo returned FALSE in Transaction {hash_to_hex_str(tx_hash)}. Skipping...') 
                     return None
+                else:
+                    self.put_op_data(tx_num, tx_hash, "dmint")
 
         elif valid_create_op_type == 'FT':
             # Add $max_supply informative property
@@ -1441,11 +1465,18 @@ class BlockProcessor:
             else: 
                 mint_info['$max_supply'] = txout.value
             if not self.create_or_delete_ticker_entry_if_requested(mint_info, height, Delete):
+                self.put_op_data(tx_num, tx_hash, "invalid")
                 return None
             if not Delete:
                 if not self.validate_and_create_ft_mint_utxo(mint_info, tx_hash):
+                    self.put_op_data(tx_num, tx_hash, "invalid")
                     self.logger.info(f'create_or_delete_atomical: validate_and_create_ft_mint_utxo returned FALSE in Transaction {hash_to_hex_str(tx_hash)}. Skipping...') 
                     return None
+                else:
+                    if mint_info['subtype'] == 'decentralized':
+                        self.put_op_data(tx_num, tx_hash, "mint-dft")
+                    if mint_info.get('$request_ticker'):
+                        self.put_op_data(tx_num, tx_hash, "dft")
         else: 
             raise IndexError(f'Fatal index error Create Invalid')
         
@@ -1627,16 +1658,25 @@ class BlockProcessor:
         
         nft_output_blueprint = blueprint_builder.get_nft_output_blueprint()
         if nft_output_blueprint and len(nft_output_blueprint.outputs):
+            # where is the splat op ???
+            self.logger.debug(f"transfer nft tx_hash={hash_to_hex_str(tx_hash)}")
+            self.put_op_data(tx_num, tx_hash, "transfer")
             self.logger.debug(f'color_atomicals_outputs nft_output_blueprint={nft_output_blueprint}')
             self.put_nft_outputs_by_blueprint(nft_output_blueprint, operations_found_at_inputs, tx_hash, tx, tx_num, height)
 
         ft_output_blueprint = blueprint_builder.get_ft_output_blueprint()
         if ft_output_blueprint and len(ft_output_blueprint.outputs):
-            self.logger.debug(f'color_atomicals_outputs ft_output_blueprint={ft_output_blueprint}')
-            self.put_ft_outputs_by_blueprint(ft_output_blueprint, operations_found_at_inputs, tx_hash, tx, tx_num, height)
+            if blueprint_builder.is_split_operation():
+                self.put_op_data(tx_num, tx_hash, "split")
+            else:
+                self.logger.debug(f"transfer ft tx_hash={hash_to_hex_str(tx_hash)}")
+                self.put_op_data(tx_num, tx_hash, "transfer")
+                self.logger.debug(f'color_atomicals_outputs ft_output_blueprint={ft_output_blueprint}')
+                self.put_ft_outputs_by_blueprint(ft_output_blueprint, operations_found_at_inputs, tx_hash, tx, tx_num, height)
         
         # Log that there were tokens burned due to not being cleanly assigned
         if blueprint_builder.get_are_fts_burned():
+            self.put_op_data(tx_num, tx_hash, "burn")
             self.logger.debug(f'color_atomicals_outputs:are_fts_burned=True tx_hash={tx_hash} ft_output_blueprint={ft_output_blueprint}')
 
         return blueprint_builder
@@ -2556,6 +2596,34 @@ class BlockProcessor:
                 atomicals_spent_at_inputs[txin_index] = atomicals_transferred_list
             txin_index += 1
         return atomicals_spent_at_inputs 
+    
+    # Builds a map of the atomicals spent at a tx
+    # It uses the spend_atomicals_utxo method but with live_run == False
+    def build_atomicals_receive_at_ouutput_for_validation_only(self, tx, txid):
+        spend_atomicals_utxo = self.spend_atomicals_utxo
+        atomicals_receive_at_outputs = {}
+        txout_index = 0
+        for txout in tx.outputs:
+            # Find all the existing transferred atomicals and DO NOT spend the Atomicals utxos (live_run == False)
+
+            atomicals_transferred_list = spend_atomicals_utxo(txid, txout_index, False)
+            if len(atomicals_transferred_list):
+                atomicals_receive_at_outputs[txout_index] = atomicals_transferred_list
+            txout_index += 1
+        return atomicals_receive_at_outputs
+    
+    # Builds a map of the atomicals spent at a tx
+    # It uses the spend_atomicals_utxo method but with live_run == False
+    def build_atomicals_receive_at_ouutput_for_validation_only(self, tx, tx_id):
+        spend_atomicals_utxo = self.spend_atomicals_utxo
+        atomicals_receive_at_outputs = {}
+        txout_index = 0
+        for txout in tx.outputs:
+            atomicals_transferred_list = spend_atomicals_utxo(tx_id, txout_index, False)
+            if len(atomicals_transferred_list):
+                atomicals_receive_at_outputs[txout_index] = atomicals_transferred_list
+            txout_index += 1
+        return atomicals_receive_at_outputs
 
     def advance_txs(
             self,
@@ -2662,6 +2730,7 @@ class BlockProcessor:
                 # Only parse witness information for Atomicals if activated
                 atomicals_operations_found_at_inputs = parse_protocols_operations_from_witness_array(tx, tx_hash, self.is_density_activated(height))
                 if atomicals_operations_found_at_inputs:
+                    # TODO
                     # Log information to help troubleshoot
                     size_payload = sys.getsizeof(atomicals_operations_found_at_inputs['payload_bytes'])
                     operation_found = atomicals_operations_found_at_inputs['op']
@@ -2687,6 +2756,9 @@ class BlockProcessor:
                 if atomical_id_of_distmint:
                     dft_count += 1
                     already_found_valid_operation = True
+                    # found vaild op
+                    self.logger.debug(f"mint-dft {hash_to_hex_str(tx_hash)}")
+                    self.put_op_data(tx_num, tx_hash, "mint-dft")
                     atomical_ids_which_have_valid_dft_mints[atomical_id_of_distmint] = True
                     has_at_least_one_valid_atomicals_operation = True
                     # Double hash the atomical_id_of_distmint to add it to the history to leverage the existing history db for all operations involving the atomical
@@ -2701,6 +2773,9 @@ class BlockProcessor:
                     created_atomical_id = self.create_or_delete_atomical(atomicals_operations_found_at_inputs, atomicals_spent_at_inputs, header, height, tx_num, atomical_num, tx, tx_hash, False)
                     if created_atomical_id:
                         already_found_valid_operation = True
+                        self.logger.debug(f"mint nft {hash_to_hex_str(tx_hash)} id: {location_id_bytes_to_compact(created_atomical_id)}")
+                        self.put_op_data(tx_num, tx_hash, "dmint")
+
                         has_at_least_one_valid_atomicals_operation = True
                         atomical_num += 1
                         # Double hash the created_atomical_id to add it to the history to leverage the existing history db for all operations involving the atomical
@@ -2737,6 +2812,12 @@ class BlockProcessor:
 
                 if has_at_least_one_valid_atomicals_operation:
                     put_general_data(b'th' + pack_le_uint32(height) + pack_le_uint64(tx_num) + tx_hash, tx_hash)
+                    # only save the tx has at least one vaild atomical
+                    raw_tx = tx.serialize()
+                    _tx, _tx_hash = self.coin.DESERIALIZER(raw_tx, 0).read_tx_and_hash()
+                    assert(_tx == tx)
+                    assert(_tx_hash == tx_hash)
+                    put_general_data(b'rtx' + tx_hash, raw_tx)
                     
             append_hashXs(hashXs)
             update_touched(hashXs)
