@@ -1,7 +1,7 @@
 aiorpcX[ws]>=0.22.0,<0.23
 attrs
 plyvel
-pylru
+pylru @ git+https://github.com/atomicals-community/pylru@c9b47f0
 aiohttp>=3.3,<4
 cbor2
 websockets
