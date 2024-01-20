@@ -940,7 +940,7 @@ class BlockProcessor:
     def put_name_element_template(self, db_prefix_key, optional_subject_prefix, subject, tx_num, payload_value, name_data_cache): 
         self.logger.debug(f'put_name_element_template: db_prefix_key={db_prefix_key}, optional_subject_prefix={optional_subject_prefix}, subject={subject}, tx_num={tx_num}, payload_value={payload_value.hex()}')
         subject_enc = subject.encode()
-        record_key = db_prefix_key + optional_subject_prefix + subject_enc + pack_le_uint32(len(subject_enc))
+        record_key = db_prefix_key + optional_subject_prefix + subject_enc + pack_le_uint16(len(subject_enc))
         if not name_data_cache.get(record_key):
             name_data_cache[record_key] = {}
         name_data_cache[record_key][tx_num] = payload_value
@@ -950,7 +950,7 @@ class BlockProcessor:
     def delete_name_element_template(self, db_delete_prefix, optional_subject_prefix, subject, tx_num, expected_entry_value, name_data_cache): 
         self.logger.debug(f'delete_name_element_template: db_delete_prefix={db_delete_prefix}, optional_subject_prefix={optional_subject_prefix}, subject={subject}, tx_num={tx_num}, expected_entry_value={expected_entry_value.hex()}')
         subject_enc = subject.encode() 
-        record_key = db_delete_prefix + optional_subject_prefix + subject_enc + pack_le_uint32(len(subject_enc))
+        record_key = db_delete_prefix + optional_subject_prefix + subject_enc + pack_le_uint16(len(subject_enc))
         # Check if it's located in the cache first
         name_map = name_data_cache.get(record_key)
         cached_value = None
@@ -1879,8 +1879,7 @@ class BlockProcessor:
         # ex: Key: b'rlm' + name bytes + commit_tx_num
         # Value: atomical_id bytes
         subject_enc = subject.encode()
-        # db_prefix_key + optional_subject_prefix + subject_enc + pack_le_uint32(len(subject_enc))
-        cached_name_candidates = name_data_cache.get(db_prefix + subject_enc + pack_le_uint32(len(subject_enc)))
+        cached_name_candidates = name_data_cache.get(db_prefix + subject_enc + pack_le_uint16(len(subject_enc)))
         if cached_name_candidates and len(cached_name_candidates) > 0:
             for tx_num, value in cached_name_candidates.items():
                 all_entries.append({
@@ -1888,7 +1887,7 @@ class BlockProcessor:
                     'tx_num': tx_num,
                     'cache': True
                 })
-        db_entries = self.db.get_name_entries_template(db_prefix, subject_enc + pack_le_uint32(len(subject_enc)))
+        db_entries = self.db.get_name_entries_template(db_prefix, subject_enc + pack_le_uint16(len(subject_enc)))
         all_entries.extend(db_entries)
         # sort by the earliest tx number because it was the first one committed
         all_entries.sort(key=lambda x: x['tx_num'])
