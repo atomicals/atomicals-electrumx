@@ -274,6 +274,7 @@ class SessionManager:
                     app.router.add_get('/proxy/blockchain.atomicals.get_by_container_item_validate', handler.atomicals_get_by_container_item_validation)
                     app.router.add_get('/proxy/blockchain.atomicals.get_container_items', handler.atomicals_get_container_items)
                     app.router.add_get('/proxy/blockchain.atomicals.get_ft_info', handler.atomicals_get_ft_info)
+                    app.router.add_get('/proxy/blockchain.atomicals.get_dft_mints', handler.atomicals_get_dft_mints)
                     app.router.add_get('/proxy/blockchain.atomicals.find_tickers', handler.atomicals_search_tickers)
                     app.router.add_get('/proxy/blockchain.atomicals.find_realms', handler.atomicals_search_realms)
                     app.router.add_get('/proxy/blockchain.atomicals.find_subrealms', handler.atomicals_search_subrealms)
@@ -1380,6 +1381,11 @@ class ElectrumX(SessionBase):
             raise RPCError(BAD_REQUEST, f'"{compact_atomical_id}" is not found')
         return atomical_in_mempool
 
+    async def atomicals_get_dft_mints(self, compact_atomical_id, limit=100, offset=0):
+        atomical_id = compact_to_location_id_bytes(compact_atomical_id)
+        entries = self.session_mgr.bp.get_distmints_by_atomical_id(atomical_id, limit, offset)
+        return entries
+    
     async def atomical_id_get_ft_info(self, compact_atomical_id):
         atomical_id = compact_to_location_id_bytes(compact_atomical_id)
         atomical = await self.session_mgr.bp.get_base_mint_info_rpc_format_by_atomical_id(atomical_id)

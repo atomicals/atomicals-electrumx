@@ -820,6 +820,23 @@ class BlockProcessor:
         }
         self.atomicals_utxo_cache[location_id] = cache
 
+    def get_distmints_by_atomical_id(self, atomical_id, limit, offset):
+        def lookup_gi_entries(atomical_id):
+            # Query all the gi key in the db for the atomical
+            prefix = b'gi' + atomical_id
+            location_ids = []
+            limit_counter = 0
+            offset_counter = 0
+            for atomical_gi_db_key, atomical_gi_db_value in self.db.utxo_db.iterator(prefix=prefix):
+                if offset_counter >= offset:
+                    location_ids.append(atomical_gi_db_value.hex())
+                    limit_counter += 1
+                    if limit_counter >= limit: 
+                        break
+                offset_counter += 1
+            return location_ids 
+        return lookup_gi_entries(atomical_id)
+
     # Get the total number of distributed mints for an atomical id and check the cache and db
     # This can be a heavy operation with many 10's of thousands in the db
     def get_distmints_count_by_atomical_id(self, height, atomical_id, use_block_db_cache):
@@ -846,7 +863,7 @@ class BlockProcessor:
                 # We got the db count as of the latest block
                 db_count = lookup_db_count(atomical_id)
                 self.atomicals_dft_mint_count_cache[atomical_id] = db_count
-                self.logger.info(f'height={height}, dft_atomical_id={location_id_bytes_to_compact(atomical_id)}, db_count={db_count}, cache_count={cache_count}')
+                self.logger.debug(f'height={height}, dft_atomical_id={location_id_bytes_to_compact(atomical_id)}, db_count={db_count}, cache_count={cache_count}')
         else:
             # No block db cache was used, grab it from the db now
             db_count = lookup_db_count(atomical_id)
