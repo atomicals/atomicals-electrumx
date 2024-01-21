@@ -1636,6 +1636,8 @@ def get_subname_request_candidate_status(current_height, atomical_info, status, 
     }
 
 def calculate_expected_bitwork(bitwork_vec, actual_mints, max_mints, target_increment, starting_target):
+    if starting_target < 64 or starting_target > 256:
+        raise Exception(f'Invalid starting target {starting_target}')
     target_steps = int(math.floor(actual_mints / max_mints))
     current_target = starting_target + (target_steps * target_increment)
     return derive_bitwork_prefix_from_target(bitwork_vec, current_target)
