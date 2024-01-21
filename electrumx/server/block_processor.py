@@ -1995,12 +1995,13 @@ class BlockProcessor:
                     remaining = max_mints - (mint_count % max_mints)
                     atomical_result['dft_info']['mint_bitworkc_current_remaining'] = remaining
                     atomical_result['dft_info']['mint_bitworkc_next'] = calculate_expected_bitwork(mint_bitwork_vec, mint_count + remaining, max_mints, mint_bitworkc_inc)
+                    atomical_result['dft_info']['mint_bitworkc_next_next'] = calculate_expected_bitwork(mint_bitwork_vec, mint_count + remaining + max_mints, max_mints, mint_bitworkc_inc)
                 if mint_bitworkr_inc:
                     atomical_result['dft_info']['mint_bitworkr_current'] = calculate_expected_bitwork(mint_bitwork_vec, mint_count, max_mints, mint_bitworkr_inc)
                     remaining = max_mints - (mint_count % max_mints)
                     atomical_result['dft_info']['mint_bitworkr_current_remaining'] = remaining
                     atomical_result['dft_info']['mint_bitworkr_next'] = calculate_expected_bitwork(mint_bitwork_vec, mint_count + remaining, max_mints, mint_bitworkr_inc)
-
+                    atomical_result['dft_info']['mint_bitworkr_next_next'] = calculate_expected_bitwork(mint_bitwork_vec, mint_count + remaining + max_mints, max_mints, mint_bitworkr_inc)
             atomical_result['location_summary'] = {}
             self.populate_location_info_summary(atomical_id, atomical_result['location_summary'])
             self.atomicals_rpc_general_cache[b'dft_info' + atomical_id] = atomical_result
