@@ -2819,7 +2819,7 @@ class BlockProcessor:
             self.logger.info(f'height={height}, atomicals_block_hash={hash_to_hex_str(current_height_atomicals_block_hash)}')   
 
         if height >= 819209:
-            raise IndexError('hit')
+            raise IndexError('819209')
 
         return undo_info, atomicals_undo_info
     
