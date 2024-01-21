@@ -91,8 +91,8 @@ DFT_MINT_AMOUNT_MAX = 100000000
 DFT_MINT_MAX_MIN_COUNT = 1
 # The maximum number (legacy) of DFT max_mints. Set at 500,000 mints mainly for efficieny reasons in legacy.
 DFT_MINT_MAX_MAX_COUNT_LEGACY = 500000
-# The maximum number of DFT max_mints (after legacy 'DENSITY' update). Set at 21,000,000 max mints.
-DFT_MINT_MAX_MAX_COUNT_DENSITY = 21000000
+# The maximum number of DFT max_mints (after legacy 'DENSITY' update). Set at 10,000,000 max mints.
+DFT_MINT_MAX_MAX_COUNT_DENSITY = 10000000
 
 # This would never change, but we put it as a constant for clarity
 DFT_MINT_HEIGHT_MIN = 0
