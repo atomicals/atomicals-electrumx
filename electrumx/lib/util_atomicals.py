@@ -782,7 +782,12 @@ def get_mint_info_op_factory(coin, tx, tx_hash, op_found_struct, atomicals_spent
             mint_info['$mint_bitworkc_start'] = bcs
             mint_info['$mint_bitworkr_start'] = brs
             mint_info['$mint_bitwork_vec'] = bv
-        
+
+            # When in infinite minting mode limit the max mints per phase
+            max_mints = mint_info['$max_mints']
+            if max_mints > 100000:
+                logger.warning(f'DFT init has invalid max_mints must be <= 100000 with infinite mining {hash_to_hex_str(tx_hash)}, {max_mints}. Skipping...')
+                return None, None
         else: 
             mint_info['$mint_mode'] = 'fixed'
 
@@ -1638,6 +1643,10 @@ def get_subname_request_candidate_status(current_height, atomical_info, status, 
 def calculate_expected_bitwork(bitwork_vec, actual_mints, max_mints, target_increment, starting_target):
     if starting_target < 64 or starting_target > 256:
         raise Exception(f'Invalid starting target {starting_target}')
+    if max_mints < 1 or max_mints > 100000:
+        raise Exception(f'Invalid max_mints {starting_target}')
+    if target_increment < 1 or target_increment > 64:
+        raise Exception(f'Invalid target_increment {target_increment}')
     target_steps = int(math.floor(actual_mints / max_mints))
     current_target = starting_target + (target_steps * target_increment)
     return derive_bitwork_prefix_from_target(bitwork_vec, current_target)
