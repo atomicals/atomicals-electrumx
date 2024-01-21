@@ -1988,20 +1988,47 @@ class BlockProcessor:
             if atomical_result.get('$mint_mode') == 'infinite': 
                 mint_bitwork_vec = atomical_result.get('$mint_bitwork_vec')     
                 mint_bitworkc_inc = atomical_result.get('$mint_bitworkc_inc')      
-                mint_bitworkr_inc = atomical_result.get('$mint_bitworkr_inc')     
+                mint_bitworkr_inc = atomical_result.get('$mint_bitworkr_inc') 
                 max_mints = atomical_result.get('$max_mints')     
                 if mint_bitworkc_inc:
-                    atomical_result['dft_info']['mint_bitworkc_current'] = calculate_expected_bitwork(mint_bitwork_vec, mint_count, max_mints, mint_bitworkc_inc)
+                    mint_bitworkc_start = atomical_result['$mint_bitworkc_start']
                     remaining = max_mints - (mint_count % max_mints)
-                    atomical_result['dft_info']['mint_bitworkc_current_remaining'] = remaining
-                    atomical_result['dft_info']['mint_bitworkc_next'] = calculate_expected_bitwork(mint_bitwork_vec, mint_count + remaining, max_mints, mint_bitworkc_inc)
-                    atomical_result['dft_info']['mint_bitworkc_next_next'] = calculate_expected_bitwork(mint_bitwork_vec, mint_count + remaining + max_mints, max_mints, mint_bitworkc_inc)
+                    upcoming_bitworks = [
+                        {
+                            'label': '_current',
+                            'mints': mint_count
+                        },
+                        {
+                            'label': '_next',
+                            'mints':  mint_count + remaining,
+                        },
+                        {
+                            'label': '_next_next',
+                            'mints': mint_count + remaining + max_mints
+                        }
+                    ]
+                    for elem in upcoming_bitworks:
+                        atomical_result['dft_info']['mint_bitworkc' + elem['label']] = calculate_expected_bitwork(mint_bitwork_vec, elem['mints'], max_mints, mint_bitworkc_inc, mint_bitworkc_start)
                 if mint_bitworkr_inc:
-                    atomical_result['dft_info']['mint_bitworkr_current'] = calculate_expected_bitwork(mint_bitwork_vec, mint_count, max_mints, mint_bitworkr_inc)
+                    mint_bitworkr_start = atomical_result['$mint_bitworkr_start']
                     remaining = max_mints - (mint_count % max_mints)
-                    atomical_result['dft_info']['mint_bitworkr_current_remaining'] = remaining
-                    atomical_result['dft_info']['mint_bitworkr_next'] = calculate_expected_bitwork(mint_bitwork_vec, mint_count + remaining, max_mints, mint_bitworkr_inc)
-                    atomical_result['dft_info']['mint_bitworkr_next_next'] = calculate_expected_bitwork(mint_bitwork_vec, mint_count + remaining + max_mints, max_mints, mint_bitworkr_inc)
+                    upcoming_bitworks = [
+                        {
+                            'label': '_current',
+                            'mints': mint_count
+                        },
+                        {
+                            'label': '_next',
+                            'mints':  mint_count + remaining,
+                        },
+                        {
+                            'label': '_next_next',
+                            'mints': mint_count + remaining + max_mints
+                        }
+                    ]
+                    for elem in upcoming_bitworks:
+                        atomical_result['dft_info']['mint_bitworkr' + elem['label']] = calculate_expected_bitwork(mint_bitwork_vec, elem['mints'], max_mints, mint_bitworkr_inc, mint_bitworkr_start)
+
             atomical_result['location_summary'] = {}
             self.populate_location_info_summary(atomical_id, atomical_result['location_summary'])
             self.atomicals_rpc_general_cache[b'dft_info' + atomical_id] = atomical_result
@@ -2528,15 +2555,18 @@ class BlockProcessor:
                 mint_bitwork_vec = mint_info_for_ticker.get('$mint_bitwork_vec') 
                 mint_bitworkc_inc = mint_info_for_ticker.get('$mint_bitworkc_inc') 
                 mint_bitworkr_inc = mint_info_for_ticker.get('$mint_bitworkr_inc') 
+               
                 # If there was a commit bitwork required, then assess the stage of the minimum we expect to allow the mint
                 if mint_bitworkc_inc:
-                    expected_minimum_bitworkc = calculate_expected_bitwork(mint_bitwork_vec, decentralized_mints, max_mints, mint_bitworkc_inc)
+                    mint_bitworkc_start = mint_info_for_ticker.get('$mint_bitworkc_start')      
+                    expected_minimum_bitworkc = calculate_expected_bitwork(mint_bitwork_vec, decentralized_mints, max_mints, mint_bitworkc_inc, mint_bitworkc_start)
                     if not is_mint_pow_valid(atomicals_operations_found_at_inputs['commit_txid'], expected_minimum_bitworkc):
                         self.logger.warning(f'create_or_delete_decentralized_mint_output: mint_bitworkc_inc not is_mint_pow_valid {hash_to_hex_str(tx_hash)}, expected_minimum_bitworkc={expected_minimum_bitworkc}, atomicals_operations_found_at_inputs={atomicals_operations_found_at_inputs}...')
                         return None  
                  # If there was a reveal bitwork required, then assess the stage of the minimum we expect to allow the mint
                 if mint_bitworkr_inc:
-                    expected_minimum_bitworkr = calculate_expected_bitwork(mint_bitwork_vec, decentralized_mints, max_mints, mint_bitworkr_inc)
+                    mint_bitworkr_start = mint_info_for_ticker.get('$mint_bitworkr_start')  
+                    expected_minimum_bitworkr = calculate_expected_bitwork(mint_bitwork_vec, decentralized_mints, max_mints, mint_bitworkr_inc, mint_bitworkr_start)
                     if not is_mint_pow_valid(atomicals_operations_found_at_inputs['reveal_location_txid'], expected_minimum_bitworkr):
                         self.logger.warning(f'create_or_delete_decentralized_mint_output: mint_bitworkr_inc not is_mint_pow_valid {hash_to_hex_str(tx_hash)}, expected_minimum_bitworkr={expected_minimum_bitworkr}, atomicals_operations_found_at_inputs={atomicals_operations_found_at_inputs}...')
                         return None         
@@ -2830,7 +2860,7 @@ class BlockProcessor:
             # Get the max mints allowed for the dft ticker (if set)
             mint_info_for_ticker = self.get_atomicals_id_mint_info(atomical_id_of_dft_ticker, False)
             max_mints = mint_info_for_ticker['$max_mints']
-            dft_mode = mint_info_for_ticker['$mint_mode']
+            dft_mode = mint_info_for_ticker.get('$mint_mode')
             if dft_mode == 'infinite':
                 continue
             # Count the number of existing b'gi' entries and ensure it is strictly less than max_mints
@@ -2839,11 +2869,9 @@ class BlockProcessor:
                 raise IndexError(f'validate_no_dft_inflation - inflation_bug_found: atomical_id_of_dft_ticker={location_id_bytes_to_compact(atomical_id_of_dft_ticker)} decentralized_mints={decentralized_mints} max_mints={max_mints}')
     
     def create_or_delete_subname_payment_output_if_valid(self, tx_hash, tx, tx_num, height, operations_found_at_inputs, atomicals_spent_at_inputs, db_prefix, subname_data_cache, get_expected_subname_payment_info, Delete=False):
-
         atomical_id_for_payment, payment_marker_idx, entity_type = AtomicalsTransferBlueprintBuilder.get_atomical_id_for_payment_marker_if_found(tx)
         if not atomical_id_for_payment:
             return None 
-        
         # Make sure the payment type for the right type subrealm or dmitem is correct
         if entity_type == 'subrealm' and db_prefix != b'spay':
             return None 

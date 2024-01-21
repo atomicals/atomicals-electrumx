@@ -743,6 +743,8 @@ def get_mint_info_op_factory(coin, tx, tx_hash, op_found_struct, atomicals_spent
             bv = mint_info['args'].get('bv')
             bci = mint_info['args'].get('bci')
             bri = mint_info['args'].get('bri')
+            bcs = mint_info['args'].get('bcs', 64)
+            brs = mint_info['args'].get('brs', 64)
             if (not bci and not bri) or not bv:
                 return None, None 
             
@@ -766,9 +768,19 @@ def get_mint_info_op_factory(coin, tx, tx_hash, op_found_struct, atomicals_spent
                 logger.warning(f'DFT init has invalid bri {hash_to_hex_str(tx_hash)}, {bri}. Skipping...')
                 return None, None
             
+            if bcs and (not isinstance(bcs, int) or bcs < 64 or bcs > 256):
+                logger.warning(f'DFT init has invalid brs {hash_to_hex_str(tx_hash)}, {bcs}. Skipping...')
+                return None, None
+            
+            if brs and (not isinstance(brs, int) or brs < 64 or brs > 256):
+                logger.warning(f'DFT init has invalid brs {hash_to_hex_str(tx_hash)}, {brs}. Skipping...')
+                return None, None
+            
             mint_info['$mint_mode'] = 'infinite'
             mint_info['$mint_bitworkc_inc'] = bci
             mint_info['$mint_bitworkr_inc'] = bri
+            mint_info['$mint_bitworkc_start'] = bcs
+            mint_info['$mint_bitworkr_start'] = brs
             mint_info['$mint_bitwork_vec'] = bv
         
         else: 
@@ -1623,8 +1635,7 @@ def get_subname_request_candidate_status(current_height, atomical_info, status, 
         'pending_candidate_atomical_id': candidate_id_compact
     }
 
-def calculate_expected_bitwork(bitwork_vec, actual_mints, max_mints, target_increment):
-    starting_target = 64 # Always start at least 64
+def calculate_expected_bitwork(bitwork_vec, actual_mints, max_mints, target_increment, starting_target):
     target_steps = int(math.floor(actual_mints / max_mints))
     current_target = starting_target + (target_steps * target_increment)
     return derive_bitwork_prefix_from_target(bitwork_vec, current_target)
