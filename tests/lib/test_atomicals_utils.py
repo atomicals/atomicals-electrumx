@@ -434,8 +434,8 @@ def test_calculate_expected_bitwork_base():
     with pytest.raises(Exception):
         calculate_expected_bitwork('', 0, 1, 1, 63)
 
-    assert(calculate_expected_bitwork('', 0, 1, 1, 4) == '0000')
-    assert(calculate_expected_bitwork('a', 0, 1, 1) == 'a000')
+    assert(calculate_expected_bitwork('', 0, 1, 1, 64) == '0000')
+    assert(calculate_expected_bitwork('a', 0, 1, 1, 64) == 'a000')
     assert(calculate_expected_bitwork('a', 1, 1, 1) == 'a000.1')
     assert(calculate_expected_bitwork('a', 2, 1, 1) == 'a000.2')
     assert(calculate_expected_bitwork('a', 2, 1, 2) == 'a000.4')
