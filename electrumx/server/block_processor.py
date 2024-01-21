@@ -1741,7 +1741,7 @@ class BlockProcessor:
         # Get the effective name entries from the database
         all_entries = []
         subrealm_name_enc = subrealm_name.encode()
-        cached_subrealm_name_candidates = self.subrealm_data_cache.get(db_prefix + parent_realm_id + subrealm_name_enc + pack_le_uint32(len(subrealm_name_enc)))
+        cached_subrealm_name_candidates = self.subrealm_data_cache.get(db_prefix + parent_realm_id + subrealm_name_enc + pack_le_uint16(len(subrealm_name_enc)))
         if cached_subrealm_name_candidates and len(cached_subrealm_name_candidates) > 0:
             for tx_num, value in cached_subrealm_name_candidates.items():
                 all_entries.append({
@@ -1749,7 +1749,7 @@ class BlockProcessor:
                     'tx_num': tx_num,
                     'cache': True
                 })
-        db_entries = self.db.get_name_entries_template(db_prefix, parent_realm_id + subrealm_name_enc + pack_le_uint32(len(subrealm_name_enc)))
+        db_entries = self.db.get_name_entries_template(db_prefix, parent_realm_id + subrealm_name_enc + pack_le_uint16(len(subrealm_name_enc)))
         all_entries.extend(db_entries)
         all_entries.sort(key=lambda x: x['tx_num'])
         if len(all_entries) == 0:
