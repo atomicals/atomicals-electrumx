@@ -433,6 +433,9 @@ def test_is_bitwork_subset_fail():
 def test_calculate_expected_bitwork_base():
     with pytest.raises(Exception):
         calculate_expected_bitwork('', 0, 1, 1, 63)
+    
+    with pytest.raises(Exception):
+        calculate_expected_bitwork('', 0, 1, 0, 64)
 
     assert(calculate_expected_bitwork('', 0, 1, 1, 64) == '0000')
     assert(calculate_expected_bitwork('a', 0, 1, 1, 64) == 'a000')
@@ -453,7 +456,6 @@ def test_calculate_expected_bitwork_base():
     assert(calculate_expected_bitwork('abcdefe', 32001, 1000, 2, 64) == 'abcdefe0')
     assert(calculate_expected_bitwork('abcdefe', 33000, 1000, 2, 64) == 'abcdefe0.2')
     assert(calculate_expected_bitwork('abcdefe', 33000, 1000, 3, 64) == 'abcdefe000.3')
-    
     assert(calculate_expected_bitwork('abcdefe', 33000, 1000, 1, 127) == 'abcdefe000')
     assert(calculate_expected_bitwork('abcdefe', 33000, 1000, 3, 127) == 'abcdefe0000000.2')
      
