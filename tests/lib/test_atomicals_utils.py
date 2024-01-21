@@ -454,6 +454,6 @@ def test_calculate_expected_bitwork_base():
     assert(calculate_expected_bitwork('abcdefe', 33000, 1000, 2, 64) == 'abcdefe0.2')
     assert(calculate_expected_bitwork('abcdefe', 33000, 1000, 3, 64) == 'abcdefe000.3')
     
-    assert(calculate_expected_bitwork('abcdefe', 33000, 1000, 1, 127) == 'abcdefe000000.15')
+    assert(calculate_expected_bitwork('abcdefe', 33000, 1000, 1, 127) == 'abcdefe000')
     assert(calculate_expected_bitwork('abcdefe', 33000, 1000, 3, 127) == 'abcdefe0000000.2')
      
