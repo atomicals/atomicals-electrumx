@@ -111,7 +111,7 @@ class HttpHandler(object):
         self.sv_seen = False
         self.MAX_CHUNK_SIZE = 2016
         self.hashX_subs = {}
-        self.op_list = {"mint-dft": 0, "transfer": 1, "burn": 2, "invalid": 3, "dmint": 4, "dft": 5}
+        self.op_list = {"mint-dft": 1, "dmint": 2, "dft": 3, "transfer": 4, "burn": 5, "invalid": 6, "split": 7}
 
     async def format_params(self, request):
         if request.method == "GET":
@@ -1916,7 +1916,7 @@ class HttpHandler(object):
             raw_tx = await self.daemon_request('getrawtransaction', txid, False)
             raw_tx = bytes.fromhex(raw_tx)
         tx, _tx_hash = self.coin.DESERIALIZER(raw_tx, 0).read_tx_and_hash()
-        assert tx_hash == _tx_hash
+        assert(tx_hash == _tx_hash)
 
         operation_found_at_inputs = parse_protocols_operations_from_witness_array(tx, tx_hash, True)
         atomicals_spent_at_inputs = self.session_mgr.bp.build_atomicals_spent_at_inputs_for_validation_only(tx)
@@ -2156,10 +2156,9 @@ class HttpHandler(object):
         atomical_id = compact_to_location_id_bytes(compact_atomical_id)
         hashX = double_sha256(atomical_id)
         history_op_data = await self.session_mgr.get_history_op_data(hashX)
-
+        
         if op_type:
             op = self.op_list.get(op_type)
-            op = 0
             history_op_data = list(filter(lambda x: x["op"] == op, history_op_data))
         count = 0
         for history in history_op_data[offset:]:

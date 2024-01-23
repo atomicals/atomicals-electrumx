@@ -284,6 +284,7 @@ class SessionManager:
                     app.router.add_get('/proxy/blockchain.atomicals.transaction', handler.atomicals_transaction)
                     app.router.add_get('/proxy/blockchain.atomicals.transaction_by_height', handler.transaction_by_height)
                     app.router.add_get('/proxy/blockchain.atomicals.transaction_by_atomical_id', handler.transaction_by_atomical_id)
+                    app.router.add_get('/proxy/blockchain.atomicals.transaction_by_scripthash', handler.transaction_by_scripthash)
                     # POST
                     app.router.add_post('/proxy', handler.proxy)
                     app.router.add_post('/proxy/blockchain.block.header', handler.block_header)
@@ -994,27 +995,27 @@ class SessionManager:
         return result, cost
     
     async def get_history_op_data(self, hashX):
+        # get lastest 50000 op data
         count = 50000
         chunks = util.chunks
         # self.session_mgr._history_lookups += 1
-        try:
-            return self._history_op_cache[hashX]
-            # self.session_mgr._history_hits += 1
-        except KeyError:
-            history_op_data = []
-            TXNUM_LEN = 5
-            txnum_padding = bytes(8-TXNUM_LEN)
-            for _key, hist in self.db.history.db.iterator(prefix=hashX):
-                for tx_numb in chunks(hist, TXNUM_LEN):
-                    tx_num, = util.unpack_le_uint64(tx_numb + txnum_padding)
-                    count -= 1
-                    tx_hash, tx_height = self.db.fs_tx_hash(tx_num)
-                    tx_op = self.db.get_op_by_tx_num(tx_num)
-                    if tx_op:
-                        history_op_data.append({"tx_num": tx_num, "tx_hash": tx_hash, "height": tx_height, "op": tx_op})
-                if count == 0:
-                    break
-            
+
+        history_op_data = self._history_op_cache.get(hashX, [])
+        if history_op_data:
+            return history_op_data
+        TXNUM_LEN = 5
+        txnum_padding = bytes(8-TXNUM_LEN)
+        for _key, hist in self.db.history.db.iterator(prefix=hashX):
+            for tx_numb in chunks(hist, TXNUM_LEN):
+                tx_num, = util.unpack_le_uint64(tx_numb + txnum_padding)
+                count -= 1
+                tx_hash, tx_height = self.db.fs_tx_hash(tx_num)
+                tx_op = self.db.get_op_by_tx_num(tx_num) 
+                # self.logger.info(f"{hash_to_hex_str(tx_hash)} {tx_op}")
+                if tx_op:
+                    history_op_data.append({"tx_num": tx_num, "tx_hash": tx_hash, "height": tx_height, "op": tx_op})
+            if count == 0:
+                break
         # cache sort by tx_num
         history_op_data.sort(key=lambda x: x['tx_num'], reverse=True)
         self._history_op_cache[hashX] = history_op_data

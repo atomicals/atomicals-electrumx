@@ -940,13 +940,11 @@ class BlockProcessor:
     
     # Function to cache and eventually flush the op
     def put_op_data(self, tx_num, tx_hash, op):
-        print(f"op: {op}, txid: {hash_to_hex_str(tx_hash)}")
-        op_list = {"mint-dft": 0, "transfer": 1, "burn": 2, "invalid": 3, "dmint": 4, "dft": 5}
+        op_list = {"mint-dft": 1, "dmint": 2, "dft": 3, "transfer": 4, "burn": 5, "invalid": 6, "split": 7}
         op_num = op_list.get(op)
-        print(f"op_num: {op_num}")
         if op_num:
             op_prefix_key = b'op' + pack_le_uint64(tx_num)
-            self.logger.info(f'set the cache {op} op transaction detail for {hash_to_hex_str(tx_hash)}')
+            self.logger.debug(f'set the cache {op} op transaction detail for {hash_to_hex_str(tx_hash)}')
             self.op_data_cache[op_prefix_key] = pack_le_uint32(op_num)
 
     # Function to put the container, realm, and ticker names to the db.
@@ -1360,7 +1358,7 @@ class BlockProcessor:
             self.logger.info(f'create_or_delete_atomical: commit_txid not found for reveal_tx {hash_to_hex_str(commit_txid)}. Skipping...')
             return None
         if commit_tx_height < self.coin.ATOMICALS_ACTIVATION_HEIGHT:
-            self.put_op_data(tx_num, tx_hash, "invalid")
+            self.put_op_data(tx_num, tx_hash, 'invalid')
             self.logger.warning(f'create_or_delete_atomical: commit_tx_height={commit_tx_height} is less than ATOMICALS_ACTIVATION_HEIGHT. Skipping...')
             return None
 
@@ -1371,7 +1369,7 @@ class BlockProcessor:
         # If the client requested any proof of work, then for the mint to be valid, the proof of work (in the commit or reveal, or both) must be valid
         is_pow_requested, pow_result = has_requested_proof_of_work(operations_found_at_inputs)
         if is_pow_requested and not pow_result: 
-            self.put_op_data(tx_num, tx_hash, "invalid")
+            self.put_op_data(tx_num, tx_hash, 'invalid')
             self.logger.warning(f'create_or_delete_atomical: proof of work was requested, but the proof of work was invalid. Not minting Atomical at {hash_to_hex_str(tx_hash)}. Skipping...')
             return None 
 
@@ -1386,7 +1384,7 @@ class BlockProcessor:
         
         # Too late to reveal in general
         if not is_within_acceptable_blocks_for_general_reveal(mint_info['commit_height'], mint_info['reveal_location_height']):
-            self.put_op_data(tx_num, tx_hash, "invalid")
+            self.put_op_data(tx_num, tx_hash, 'invalid')
             self.logger.warning(f'create_or_delete_atomical: not is_within_acceptable_blocks_for_general_reveal. Not minting Atomical at {hash_to_hex_str(tx_hash)}. Skipping...')
             return None
 
@@ -1405,12 +1403,12 @@ class BlockProcessor:
           
         # Too late to reveal, fail to mint then
         if is_name_type and not is_within_acceptable_blocks_for_name_reveal(mint_info['commit_height'], mint_info['reveal_location_height']):
-            self.put_op_data(tx_num, tx_hash, "invalid")
+            self.put_op_data(tx_num, tx_hash, 'invalid')
             self.logger.warning(f'reveal_not_within_acceptable_blocks_for_name_reveal: txid={hash_to_hex_str(tx_hash)}. Skipping...')
             return None
 
         if is_name_type and height >= self.coin.ATOMICALS_ACTIVATION_HEIGHT_COMMITZ and mint_info['commit_index'] != 0:
-            self.put_op_data(tx_num, tx_hash, "invalid")
+            self.put_op_data(tx_num, tx_hash, 'invalid')
             self.logger.warning(f'attempt_to_mint_from_non_zero_output: txid={hash_to_hex_str(tx_hash)}. Skipping...')
             return None
                  
@@ -1422,7 +1420,7 @@ class BlockProcessor:
                 parent_atomical_id = compact_to_location_id_bytes(parent_atomical_id_compact)
                 parent_atomical_mint_info = self.get_atomicals_id_mint_info(parent_atomical_id, False)
                 if not parent_atomical_mint_info:
-                    self.put_op_data(tx_num, tx_hash, "invalid")
+                    self.put_op_data(tx_num, tx_hash, 'invalid')
                     self.logger.warning(f'invalid_parent_realm: txid={hash_to_hex_str(tx_hash)}. Skipping...') 
                     return None
 
@@ -1433,7 +1431,7 @@ class BlockProcessor:
                 parent_atomical_id = compact_to_location_id_bytes(parent_atomical_id_compact)
                 parent_atomical_mint_info = self.get_atomicals_id_mint_info(parent_atomical_id, False)
                 if not parent_atomical_mint_info:
-                    self.put_op_data(tx_num, tx_hash, "invalid")
+                    self.put_op_data(tx_num, tx_hash, 'invalid')
                     self.logger.warning(f'invalid_parent_container: txid={hash_to_hex_str(tx_hash)}. Skipping...') 
                     return None
 
@@ -1452,11 +1450,12 @@ class BlockProcessor:
                     return None
             if not Delete:
                 if not self.validate_and_create_nft_mint_utxo(mint_info, txout, height, tx_hash):
-                    self.put_op_data(tx_num, tx_hash, "invalid")
+                    self.put_op_data(tx_num, tx_hash, 'invalid')
                     self.logger.info(f'create_or_delete_atomical: validate_and_create_nft_mint_utxo returned FALSE in Transaction {hash_to_hex_str(tx_hash)}. Skipping...') 
                     return None
                 else:
-                    self.put_op_data(tx_num, tx_hash, "dmint")
+                    self.logger.debug(f'dmint: {hash_to_hex_str(tx_hash)}')
+                    self.put_op_data(tx_num, tx_hash, 'dmint')
 
         elif valid_create_op_type == 'FT':
             # Add $max_supply informative property
@@ -1469,14 +1468,16 @@ class BlockProcessor:
                 return None
             if not Delete:
                 if not self.validate_and_create_ft_mint_utxo(mint_info, tx_hash):
-                    self.put_op_data(tx_num, tx_hash, "invalid")
+                    self.put_op_data(tx_num, tx_hash, 'invalid')
                     self.logger.info(f'create_or_delete_atomical: validate_and_create_ft_mint_utxo returned FALSE in Transaction {hash_to_hex_str(tx_hash)}. Skipping...') 
                     return None
                 else:
                     if mint_info['subtype'] == 'decentralized':
-                        self.put_op_data(tx_num, tx_hash, "mint-dft")
+                        self.logger.debug(f'mint-dft: {hash_to_hex_str(tx_hash)}')
+                        self.put_op_data(tx_num, tx_hash, 'mint-dft')
                     if mint_info.get('$request_ticker'):
-                        self.put_op_data(tx_num, tx_hash, "dft")
+                        self.logger.debug(f'dft: {hash_to_hex_str(tx_hash)}')
+                        self.put_op_data(tx_num, tx_hash, 'dft')
         else: 
             raise IndexError(f'Fatal index error Create Invalid')
         
@@ -2605,21 +2606,7 @@ class BlockProcessor:
         txout_index = 0
         for txout in tx.outputs:
             # Find all the existing transferred atomicals and DO NOT spend the Atomicals utxos (live_run == False)
-
             atomicals_transferred_list = spend_atomicals_utxo(txid, txout_index, False)
-            if len(atomicals_transferred_list):
-                atomicals_receive_at_outputs[txout_index] = atomicals_transferred_list
-            txout_index += 1
-        return atomicals_receive_at_outputs
-    
-    # Builds a map of the atomicals spent at a tx
-    # It uses the spend_atomicals_utxo method but with live_run == False
-    def build_atomicals_receive_at_ouutput_for_validation_only(self, tx, tx_id):
-        spend_atomicals_utxo = self.spend_atomicals_utxo
-        atomicals_receive_at_outputs = {}
-        txout_index = 0
-        for txout in tx.outputs:
-            atomicals_transferred_list = spend_atomicals_utxo(tx_id, txout_index, False)
             if len(atomicals_transferred_list):
                 atomicals_receive_at_outputs[txout_index] = atomicals_transferred_list
             txout_index += 1
@@ -2773,9 +2760,6 @@ class BlockProcessor:
                     created_atomical_id = self.create_or_delete_atomical(atomicals_operations_found_at_inputs, atomicals_spent_at_inputs, header, height, tx_num, atomical_num, tx, tx_hash, False)
                     if created_atomical_id:
                         already_found_valid_operation = True
-                        self.logger.debug(f"mint nft {hash_to_hex_str(tx_hash)} id: {location_id_bytes_to_compact(created_atomical_id)}")
-                        self.put_op_data(tx_num, tx_hash, "dmint")
-
                         has_at_least_one_valid_atomicals_operation = True
                         atomical_num += 1
                         # Double hash the created_atomical_id to add it to the history to leverage the existing history db for all operations involving the atomical
