@@ -2854,6 +2854,7 @@ class BlockProcessor:
        
 
         if height >= 819201: # 819209
+            pass
             #self.logger.info(f'txids={txids}')
             #raise IndexError('819201')
        
