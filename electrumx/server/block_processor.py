@@ -1814,7 +1814,7 @@ class BlockProcessor:
         # Get the effective name entries from the database
         all_entries = []
         dmitem_name_enc = dmitem_name.encode()
-        cached_dmitem_name_candidates = self.dmitem_data_cache.get(db_prefix + parent_container_id + dmitem_name_enc + pack_le_uint32(len(dmitem_name_enc)))
+        cached_dmitem_name_candidates = self.dmitem_data_cache.get(db_prefix + parent_container_id + dmitem_name_enc + pack_le_uint16(len(dmitem_name_enc)))
         if cached_dmitem_name_candidates and len(cached_dmitem_name_candidates) > 0:
             for tx_num, value in cached_dmitem_name_candidates.items():
                 all_entries.append({
@@ -1823,7 +1823,7 @@ class BlockProcessor:
                     'cache': True
                 })
         self.logger.debug(f'get_effective_dmitem_db_prefix={db_prefix} parent_container_id={parent_container_id} dmitem_name={dmitem_name} dmitem_name_enc={dmitem_name_enc}')
-        db_entries = self.db.get_name_entries_template(db_prefix, parent_container_id + dmitem_name_enc + pack_le_uint32(len(dmitem_name_enc)))
+        db_entries = self.db.get_name_entries_template(db_prefix, parent_container_id + dmitem_name_enc + pack_le_uint16(len(dmitem_name_enc)))
         all_entries.extend(db_entries)
         all_entries.sort(key=lambda x: x['tx_num'])
         if len(all_entries) == 0:
