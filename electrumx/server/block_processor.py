@@ -2854,8 +2854,8 @@ class BlockProcessor:
        
 
         if height >= 819201: # 819209
-            self.logger.info(f'txids={txids}')
-            raise IndexError('819201')
+            #self.logger.info(f'txids={txids}')
+            #raise IndexError('819201')
        
         return undo_info, atomicals_undo_info
     
