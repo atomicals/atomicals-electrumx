@@ -285,6 +285,7 @@ class SessionManager:
                     app.router.add_get('/proxy/blockchain.atomicals.transaction_by_height', handler.transaction_by_height)
                     app.router.add_get('/proxy/blockchain.atomicals.transaction_by_atomical_id', handler.transaction_by_atomical_id)
                     app.router.add_get('/proxy/blockchain.atomicals.transaction_by_scripthash', handler.transaction_by_scripthash)
+                    app.router.add_get('/proxy/blockchain.atomicals.transaction_global', handler.transaction_global)
                     # POST
                     app.router.add_post('/proxy', handler.proxy)
                     app.router.add_post('/proxy/blockchain.block.header', handler.block_header)
@@ -343,6 +344,7 @@ class SessionManager:
                     app.router.add_post('/proxy/blockchain.atomicals.transaction_by_height', handler.transaction_by_height)
                     app.router.add_post('/proxy/blockchain.atomicals.transaction_by_atomical_id', handler.transaction_by_atomical_id)
                     app.router.add_post('/proxy/blockchain.atomicals.transaction_by_scripthash', handler.transaction_by_scripthash)
+                    app.router.add_post('/proxy/blockchain.atomicals.transaction_global', handler.transaction_global)
                     # common proxy
                     app.router.add_get('/proxy/{method}', handler.handle_get_method)
                     app.router.add_post('/proxy/{method}', handler.handle_post_method)

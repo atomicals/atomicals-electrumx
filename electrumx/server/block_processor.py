@@ -940,12 +940,17 @@ class BlockProcessor:
     
     # Function to cache and eventually flush the op
     def put_op_data(self, tx_num, tx_hash, op):
-        op_list = {"mint-dft": 1, "dmint": 2, "dft": 3, "transfer": 4, "burn": 5, "invalid": 6, "split": 7}
+        op_list = {
+            "mint-dft": 1, "mint-ft": 2, "mint-nft": 3, "transfer": 4, 
+            "dft": 5, "dat": 6, "split": 7, "splat": 8,
+            "seal": 9, "dmt": 10, "evt": 11, "mod": 12, "invalid": 20}
         op_num = op_list.get(op)
         if op_num:
             op_prefix_key = b'op' + pack_le_uint64(tx_num)
-            self.logger.debug(f'set the cache {op} op transaction detail for {hash_to_hex_str(tx_hash)}')
-            self.op_data_cache[op_prefix_key] = pack_le_uint32(op_num)
+            self.logger.info(f'add the {op} op transaction detail for {hash_to_hex_str(tx_hash)}')
+            ops = self.op_data_cache.get(op_prefix_key, [])
+            ops.append(pack_le_uint32(op_num))
+            self.op_data_cache[op_prefix_key] = ops
 
     # Function to put the container, realm, and ticker names to the db.
     # This does not handle subrealms, because subrealms have a payment component and are handled slightly differently in another method
@@ -3127,6 +3132,7 @@ class BlockProcessor:
             
             # There could be mod, evt, seal and a host of other things like nft and ft mints
             operations_found_at_inputs = parse_protocols_operations_from_witness_array(tx, tx_hash, self.is_density_activated(self.height))
+            self.logger.info(f"{operations_found_at_inputs}, txid = {hash_to_hex_str(tx_hash)}")
             for idx, txout in enumerate(tx.outputs):
                 # Spend the TX outputs.  Be careful with unspendable
                 # outputs - we didn't save those in the first place.

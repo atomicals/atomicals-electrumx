@@ -650,7 +650,7 @@ class DB:
         # General op adds
         batch_put = batch.put
         for key, v in flush_data.op_adds.items():
-            batch_put(key, v)
+            batch_put(key, b",".join(list(set(v))))
         flush_data.op_adds.clear()
 
         # New undo information
@@ -1229,8 +1229,11 @@ class DB:
             tx_hash, tx_height = self.fs_tx_hash(tx_num)
             # self.logger.error(f'get_op {hash_to_hex_str(tx_hash)} tx_num not found')
             return None
-        op, = util.unpack_le_uint32(op_data)
-        return op
+        op_res = []
+        for data in op_data.split(b","):
+            op, = util.unpack_le_uint32(data)
+            op_res.append(op)
+        return op_res
 
     def get_tx_num_height_from_tx_hash(self, tx_hash):
         tx_hash_key = b'tx' + tx_hash
