@@ -648,10 +648,10 @@ class DB:
         flush_data.state_adds.clear()
 
         # General op adds
-        batch_put = batch.put
-        for key, v in flush_data.op_adds.items():
-            batch_put(key, b",".join(list(set(v))))
-        flush_data.op_adds.clear()
+        # batch_put = batch.put
+        # for key, v in flush_data.op_adds.items():
+        #     batch_put(key, b",".join(list(set(v))))
+        # flush_data.op_adds.clear()
 
         # New undo information
         self.flush_undo_infos(batch_put, flush_data.undo_infos)

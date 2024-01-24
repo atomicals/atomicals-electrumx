@@ -1936,60 +1936,63 @@ class HttpHandler(object):
         #     print(f"{operation_found_at_inputs.get('op', None)}, txid: {txid}")
         #     print(operation_found_at_inputs)
 
-        res = {"op": [], "txid": txid, "height": height, "atomicals": {}, "is_burned": is_burned, "burned_fts": burned_fts}
-
+        res = {"op": "", "txid": txid, "height": height, "atomicals": {}, "is_burned": is_burned, "burned_fts": burned_fts}
+        if operation_found_at_inputs:
+            res["payload"] = operation_found_at_inputs.get("payload", {})
         if blueprint_builder.is_mint and operation_found_at_inputs["op"] == "dmt":
             expected_output_index = 0
             txout = tx.outputs[expected_output_index]
-            ticker_name = operation_found_at_inputs.get("payload", {}).get("args", {}).get("mint_ticker", "")
-            _, candidate_atomical_id, _ = self.session_mgr.bp.get_effective_ticker(ticker_name, self.session_mgr.bp.height)
-            compact_atomical_id = location_id_bytes_to_compact(candidate_atomical_id)
             expected_output_index = 0
             location = tx_hash + util.pack_le_uint32(expected_output_index)
             # if save into the db, it means mint success
             has_atomicals = self.db.get_atomicals_by_location_long_form(location)
             if len(has_atomicals):
-                res["op"].append("mint-dft")
+                res["op"] = "mint-dft"
             else:
-                res["op"].append("invalid")
-            outputs_address = [{
-                "address": get_address_from_output_script(txout.pk_script),
-                "pos": expected_output_index,
-                "value": txout.value
-            }]
-            res["atomicals"][compact_atomical_id] = {
-                "mint_info": operation_found_at_inputs["payload"],
-                "total": txout.value,
-                "inputs": [],
-                "outputs": outputs_address,
-            }
+                res["op"] = "invalid"
+            ticker_name = operation_found_at_inputs.get("payload", {}).get("args", {}).get("mint_ticker", "")
+            status, candidate_atomical_id, _ = self.session_mgr.bp.get_effective_ticker(ticker_name, self.session_mgr.bp.height)
+            if status:
+                compact_atomical_id = location_id_bytes_to_compact(candidate_atomical_id)
+                outputs_address = [{
+                    "address": get_address_from_output_script(txout.pk_script),
+                    "pos": expected_output_index,
+                    "value": txout.value
+                }]
+                res["atomicals"][compact_atomical_id] = {
+                    "mint_info": operation_found_at_inputs.get("payload"),
+                    "total": txout.value,
+                    "inputs": [],
+                    "outputs": outputs_address,
+                }
         elif operation_found_at_inputs and operation_found_at_inputs["op"] == "ft":
             expected_output_index = 0
             txout = tx.outputs[expected_output_index]
-            ticker_name = operation_found_at_inputs.get("payload", {}).get("args", {}).get("request_ticker", "")
-            _, candidate_atomical_id, _ = self.session_mgr.bp.get_effective_ticker(ticker_name, self.session_mgr.bp.height)
-            compact_atomical_id = location_id_bytes_to_compact(candidate_atomical_id)
-            expected_output_index = 0
             location = tx_hash + util.pack_le_uint32(expected_output_index)
             has_atomicals = self.db.get_atomicals_by_location_long_form(location)
             if len(has_atomicals):
-                res["op"].append("mint-ft")
+                res["op"] = "mint-ft"
             else:
-                res["op"].append("invalid")
-            outputs_address = [{
-                "address": get_address_from_output_script(txout.pk_script),
-                "pos": expected_output_index,
-                "value": txout.value
-            }]
-            res["atomicals"][compact_atomical_id] = {
-                "mint_info": operation_found_at_inputs["payload"]["args"],
-                "total": txout.value,
-                "inputs": [],
-                "outputs": outputs_address
-            }
+                res["op"] = "invalid"
+            ticker_name = operation_found_at_inputs.get("payload", {}).get("args", {}).get("request_ticker", "")
+            status, candidate_atomical_id, _ = self.session_mgr.bp.get_effective_ticker(ticker_name, self.session_mgr.bp.height)
+            if status:
+                compact_atomical_id = location_id_bytes_to_compact(candidate_atomical_id)
+                expected_output_index = 0
+                outputs_address = [{
+                    "address": get_address_from_output_script(txout.pk_script),
+                    "pos": expected_output_index,
+                    "value": txout.value
+                }]
+                res["atomicals"][compact_atomical_id] = {
+                    "mint_info": operation_found_at_inputs.get("payload"),
+                    "total": txout.value,
+                    "inputs": [],
+                    "outputs": outputs_address
+                }
         elif operation_found_at_inputs and operation_found_at_inputs["op"] == "nft":
             if atomicals_receive_at_outputs:
-                res["op"].append("mint-nft")
+                res["op"] = "mint-nft"
                 expected_output_index = 0
                 txout = tx.outputs[expected_output_index]
                 atomical_id = atomicals_receive_at_outputs[expected_output_index][0]["atomical_id"]
@@ -2000,14 +2003,14 @@ class HttpHandler(object):
                     "value": txout.value
                 }]
                 res["atomicals"][compact_atomical_id] = {
-                    "mint_info": operation_found_at_inputs["payload"]["args"],
+                    "mint_info": operation_found_at_inputs.get("payload"),
                     "total": txout.value,
                     "inputs": [],
                     "outputs": outputs_address
                 }
             elif not atomicals_receive_at_outputs:
                 # invalid
-                res["op"].append("invalid")
+                res["op"] = "invalid"
                 compact_atomical_id = txid + "i0"
                 expected_output_index = 0
                 txout = tx.outputs[expected_output_index]
@@ -2023,7 +2026,7 @@ class HttpHandler(object):
                     "outputs": outputs_address
                 }
         elif operation_found_at_inputs and operation_found_at_inputs["op"] == "dft":
-            res["op"].append("dft")
+            res["op"] = "dft"
             expected_output_index = 0
             txout = tx.outputs[expected_output_index]
             ticker_name = operation_found_at_inputs.get("payload", {}).get("args", {}).get("request_ticker", "")
@@ -2042,28 +2045,22 @@ class HttpHandler(object):
                     "inputs": [],
                     "outputs": outputs_address
                 }
-
-        if operation_found_at_inputs and operation_found_at_inputs["op"] == "sl":
-            res["op"].append("seal")
-            res["payload"] = operation_found_at_inputs.get("payload", {})
-        if operation_found_at_inputs and operation_found_at_inputs["op"] == "x":
-            res["op"].append("extract")
-            res["payload"] = operation_found_at_inputs.get("payload", {})
-        if operation_found_at_inputs and operation_found_at_inputs["op"] == "y":
-            res["op"].append("split")
-            res["payload"] = operation_found_at_inputs.get("payload", {})
-        if operation_found_at_inputs and operation_found_at_inputs["op"] == "evt":
-            res["op"].append("evt")
-            res["payload"] = operation_found_at_inputs.get("payload", {})
-        if operation_found_at_inputs and operation_found_at_inputs["op"] == "mod":
-            res["op"].append("mod")
-            res["payload"] = operation_found_at_inputs.get("payload", {})
-        if operation_found_at_inputs and operation_found_at_inputs["op"] == "dat":
-            res["op"].append("dat")
-            res["payload"] = operation_found_at_inputs.get("payload", {})
- 
+        elif operation_found_at_inputs and operation_found_at_inputs["op"] == "sl":
+            res["op"] = "seal"
+        elif operation_found_at_inputs and operation_found_at_inputs["op"] == "x":
+            res["op"] = "extract"
+        elif operation_found_at_inputs and operation_found_at_inputs["op"] == "y":
+            res["op"] = "split"
+        elif operation_found_at_inputs and operation_found_at_inputs["op"] == "evt":
+            res["op"] = "evt"
+        elif operation_found_at_inputs and operation_found_at_inputs["op"] == "mod":
+            res["op"] = "mod"
+        elif operation_found_at_inputs and operation_found_at_inputs["op"] == "dat":
+            res["op"] = "dat"
+        # no operation_found_at_inputs, it will be transfer.
         if blueprint_builder.ft_atomicals and atomicals_spent_at_inputs:
-            res["op"].append("transfer")
+            if not operation_found_at_inputs:
+                res["op"] = "transfer"
             for atomical_id, input_ft in blueprint_builder.ft_atomicals.items():
                 compact_atomical_id = location_id_bytes_to_compact(atomical_id)
                 inputs_address = []
@@ -2097,7 +2094,8 @@ class HttpHandler(object):
                 }
                 res["atomicals"][compact_atomical_id] = atomical_data
         elif blueprint_builder.nft_atomicals and atomicals_spent_at_inputs:
-            res["op"].append("transfer")
+            if not operation_found_at_inputs:
+                res["op"] = "transfer"
             for atomical_id, input_nft in blueprint_builder.nft_atomicals.items():
                 compact_atomical_id = location_id_bytes_to_compact(atomical_id)
                 inputs_address = []
@@ -2131,7 +2129,7 @@ class HttpHandler(object):
                 }
                 res["atomicals"][compact_atomical_id] = atomical_data
 
-        if res.get("op", []):
+        if res.get("op"):
             self.session_mgr._tx_detail_cache[tx_hash] = res
         return res
 
@@ -2148,30 +2146,19 @@ class HttpHandler(object):
         for tx in txs:
             # get operation by db method
             tx_num, _ = self.db.get_tx_num_height_from_tx_hash(hex_str_to_hash(tx))
-            tx_op = self.db.get_op_by_tx_num(tx_num)
-            if op_type:
-                op_num = self.op_list.get(op_type)
-                if op_num and tx_op == op_num:
-                    txs_list.append({
-                        "tx_num": tx_num, 
-                        "tx_hash": tx,
-                        "height": height
-                    })
-            elif tx_op:
-                # if no op_type, add all tx into the list
-                txs_list.append({
-                    "tx_num": tx_num, 
-                    "tx_hash": tx,
-                    "height": height
-                })
+            txs_list.append({
+                "tx_num": tx_num, 
+                "tx_hash": tx,
+                "height": height
+            })
 
         txs_list.sort(key=lambda x: x['tx_num'], reverse=True)
-        for tx in txs_list[offset:offset+limit]:
+        for tx in txs_list:
             data = await self.get_transaction_detail(tx["tx_hash"], height)
-            res.append(data)
-
-        total = len(txs_list)
-        return res, total
+            if (op_type and op_type == data["op"]) or (not op_type and data["op"]):
+                res.append(data)
+        total = len(res)
+        return res[offset:offset+limit], total
     
     # get the whole transaction by block height
     # return transaction detail
@@ -2201,21 +2188,22 @@ class HttpHandler(object):
             compact_atomical_id = location_id_bytes_to_compact(self.db.get_atomical_id_by_atomical_number(compact_atomical_id_or_atomical_number))
         atomical_id = compact_to_location_id_bytes(compact_atomical_id)
         hashX = double_sha256(atomical_id)
-        history_op_data = await self.session_mgr.get_history_op_data(hashX)
-        
-        if op_type:
-            op = self.op_list.get(op_type)
-            history_op_data = list(filter(lambda x: x["op"] == op, history_op_data))
-        count = 0
-        for history in history_op_data[offset:]:
-            data = await self.get_transaction_detail(hash_to_hex_str(history["tx_hash"]), history["height"])
-            if data:
+        history_data = await self.confirmed_and_unconfirmed_history(hashX)
+        history_list = []
+        for history in list(history_data):
+            tx_num, _ = self.db.get_tx_num_height_from_tx_hash(hex_str_to_hash(history["tx_hash"]))
+            history['tx_num'] = tx_num
+            history_list.append(history)
+
+        history_list.sort(key=lambda x: x['tx_num'], reverse=True)
+
+        for history in history_list:
+            data = await self.get_transaction_detail(history["tx_hash"], history["height"])
+            if (op_type and op_type == data["op"]) or (not op_type and data["op"]):
                 res.append(data)
-                count += 1
-            if count >= limit:
-                break
-        total = len(history_op_data)
-        return {"result": res, "total": total, "limit": limit, "offset": offset}
+                
+        total = len(res)
+        return {"result": res[offset:offset+limit], "total": total, "limit": limit, "offset": offset}
     
     # get transaction by scripthash
     async def transaction_by_scripthash(self, request):
@@ -2232,22 +2220,16 @@ class HttpHandler(object):
         history_list = []
         for history in list(history_data):
             tx_num, _ = self.db.get_tx_num_height_from_tx_hash(hex_str_to_hash(history["tx_hash"]))
-            tx_op = self.db.get_op_by_tx_num(tx_num)
             history['tx_num'] = tx_num
-            if op_type:
-                op_num = self.op_list.get(op_type)
-                if op_num and tx_op == op_num:
-                    history_list.append(history)
-            elif tx_op:
-                history_list.append(history)
+            history_list.append(history)
 
         history_list.sort(key=lambda x: x['tx_num'], reverse=True)
         for history in history_list[offset:limit+offset]:
             data = await self.get_transaction_detail(history["tx_hash"], history["height"])
-            if data:
+            if (op_type and op_type == data["op"]) or (not op_type and data["op"]):
                 res.append(data)
-        total = len(history_list)
-        return {"result": res, "total": total, "limit": limit, "offset": offset}
+        total = len(res)
+        return {"result": res[offset:limit+offset], "total": total, "limit": limit, "offset": offset}
     
     # searh for global
     async def transaction_global(self, request):
@@ -2260,37 +2242,23 @@ class HttpHandler(object):
         res = []
         count = 0
         history_list = []
-        # Key: b'h' + compressed_tx_hash + tx_idx + tx_num
         for current_height in range(height, self.coin.ATOMICALS_ACTIVATION_HEIGHT, -1):
             txs = self.db.get_atomicals_block_txs(current_height)
             for tx in txs:
-                # get operation by db method
                 tx_num, _ = self.db.get_tx_num_height_from_tx_hash(hex_str_to_hash(tx))
-                tx_op = self.db.get_op_by_tx_num(tx_num)
-                if op_type:
-                    op_num = self.op_list.get(op_type)
-                    if op_num and tx_op == op_num:
-                        history_list.append({
-                            "tx_num": tx_num, 
-                            "tx_hash": tx,
-                            "height": height
-                        })
-                elif tx_op:
-                    # if no op_type, add all tx into the list
-                    history_list.append({
-                        "tx_num": tx_num, 
-                        "tx_hash": tx,
-                        "height": height
-                    })
-
+                history_list.append({
+                    "tx_num": tx_num, 
+                    "tx_hash": tx,
+                    "height": current_height
+                })
+                count += 1
             history_list.sort(key=lambda x: x['tx_num'], reverse=True)
             if count >= offset + limit:
                 break
         
-        for history in history_list[offset:limit+offset]:
-            data = await self.get_transaction_detail(history["tx_hash"], history["height"], flush=True)
-            if data:
+        for history in history_list:
+            data = await self.get_transaction_detail(history["tx_hash"], history["height"])
+            if (op_type and op_type == data["op"]) or (not op_type and data["op"]):
                 res.append(data)
-                count += 1
-        total = 10000
-        return {"result": res, "total": total, "limit": limit, "offset": offset}
+        total = len(res)
+        return {"result": res[offset:offset+limit], "total": total, "limit": limit, "offset": offset}
