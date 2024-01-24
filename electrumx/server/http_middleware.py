@@ -62,11 +62,16 @@ def error_resp(status_code: int, exception: Exception) -> web.Response:
 def success_resp(data) -> web.Response:
     result = {"success": True, "response": serialize_data(data)}
     return web.json_response(data=result)
-
+ 
 def request_middleware(self) -> web_middlewares:
     async def factory(app: web.Application, handler):
         async def middleware_handler(request):
             self.logger.info('Request {} comming'.format(request))
+            if not os.environ.get("ENABLE_RATE_LIMIT", True):
+                response = await handler(request)
+                if isinstance(response, web.Response):
+                    return response
+                return success_resp(response)
             if await request.app['rate_limiter'].check_limit():
                 # return await handler(request)
                 response = await handler(request)
