@@ -329,6 +329,7 @@ class SessionManager:
                     app.router.add_post('/proxy/blockchain.atomicals.get_by_container_item_validate', handler.atomicals_get_by_container_item_validation)
                     app.router.add_post('/proxy/blockchain.atomicals.get_container_items', handler.atomicals_get_container_items)
                     app.router.add_post('/proxy/blockchain.atomicals.get_ft_info', handler.atomicals_get_ft_info)
+                    app.router.add_post('/proxy/blockchain.atomicals.get_dft_mints', handler.atomicals_get_dft_mints)
                     app.router.add_post('/proxy/blockchain.atomicals.find_tickers', handler.atomicals_search_tickers)
                     app.router.add_post('/proxy/blockchain.atomicals.find_realms', handler.atomicals_search_realms)
                     app.router.add_post('/proxy/blockchain.atomicals.find_subrealms', handler.atomicals_search_subrealms)
