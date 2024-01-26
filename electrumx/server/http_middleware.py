@@ -1,6 +1,7 @@
 # -*- coding: utf-8 -*-
 
 import asyncio
+import base64
 import json
 import os
 import traceback
@@ -67,7 +68,7 @@ def request_middleware(self) -> web_middlewares:
     async def factory(app: web.Application, handler):
         async def middleware_handler(request):
             self.logger.info('Request {} comming'.format(request))
-            if not self.enable_rate_limit:
+            if not self.env.enable_rate_limit:
                 response = await handler(request)
                 if isinstance(response, web.Response):
                     return response
