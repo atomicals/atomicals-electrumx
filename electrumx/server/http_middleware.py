@@ -67,7 +67,7 @@ def request_middleware(self) -> web_middlewares:
     async def factory(app: web.Application, handler):
         async def middleware_handler(request):
             self.logger.info('Request {} comming'.format(request))
-            if not os.environ.get("ENABLE_RATE_LIMIT", "True").lower() == 'true':
+            if not self.enable_rate_limit:
                 response = await handler(request)
                 if isinstance(response, web.Response):
                     return response
