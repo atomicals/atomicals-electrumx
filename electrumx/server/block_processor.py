@@ -1348,7 +1348,7 @@ class BlockProcessor:
 
         # All mint types always look at only input 0 to determine if the operation was found
         # This is done to preclude complex scenarios of valid/invalid different mint types across inputs 
-        valid_create_op_type, mint_info = get_mint_info_op_factory(self.coin, tx, tx_hash, operations_found_at_inputs, atomicals_spent_at_inputs, height, self.logger)
+        valid_create_op_type, mint_info = get_mint_info_op_factory(self.coin, tx, tx_hash, operations_found_at_inputs, atomicals_spent_at_inputs, height, header, self.logger)
         if not valid_create_op_type or (valid_create_op_type != 'NFT' and valid_create_op_type != 'FT'):
             return None
 
@@ -2679,7 +2679,6 @@ class BlockProcessor:
         atomicals_undo_info = []
         tx_num = self.tx_count
         atomical_num = self.atomical_count
-        script_hashX = self.coin.hashX_from_script
         put_utxo = self.utxo_cache.__setitem__
         put_general_data = self.general_data_cache.__setitem__
         spend_utxo = self.spend_utxo

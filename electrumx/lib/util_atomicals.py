@@ -413,7 +413,7 @@ def get_if_parent_spent_in_same_tx(parent_atomical_id_compact, expected_minimum_
         return False
 
 # Get the mint information structure if it's a valid mint event type
-def get_mint_info_op_factory(coin, tx, tx_hash, op_found_struct, atomicals_spent_at_inputs, height, logger):
+def get_mint_info_op_factory(coin, tx, tx_hash, op_found_struct, atomicals_spent_at_inputs, height, header, logger):
     script_hashX = coin.hashX_from_script
     if not op_found_struct:
         return None, None
@@ -424,10 +424,8 @@ def get_mint_info_op_factory(coin, tx, tx_hash, op_found_struct, atomicals_spent
         txout = tx.outputs[expected_output_index]
         scripthash = double_sha256(txout.pk_script)
         hashX = script_hashX(txout.pk_script)
-        output_idx_le = pack_le_uint32(expected_output_index) 
         atomical_id = commit_txid + pack_le_uint32(commit_index)
         location = reveal_location_txid + pack_le_uint32(reveal_location_index)
-        value_sats = pack_le_uint64(txout.value)
         # Create the general mint information
         encoder = krock32.Encoder(checksum=False)
         commit_txid_reversed = bytearray(commit_txid)
@@ -788,6 +786,25 @@ def get_mint_info_op_factory(coin, tx, tx_hash, op_found_struct, atomicals_spent
             if max_mints > 100000:
                 logger.warning(f'DFT init has invalid max_mints must be <= 100000 with infinite mining {hash_to_hex_str(tx_hash)}, {max_mints}. Skipping...')
                 return None, None
+            
+            # If the mint height is not 0 then user must include the last 4 hex digits of the mint_height block hash
+            if mint_info['$mint_height'] != 0:
+                mh = mint_info['args'].get('mh')
+                if not isinstance(mh, str):
+                    logger.warning(f'DFT init has invalid empty mh {hash_to_hex_str(tx_hash)}. Skipping...')
+                    return None, None
+                if not is_hex_string(mh):
+                    logger.warning(f'DFT init has invalid non hex mh {hash_to_hex_str(tx_hash)}. Skipping...')
+                    return None, None
+                if len(mh) != 4:
+                    logger.warning(f'DFT init has invalid mh length {hash_to_hex_str(tx_hash)} Expected 4, got: {len(mh)}. Skipping...')
+                    return None, None
+                if header:
+                    header_hash = coin.header_hash(header)
+                    last4 = hash_to_hex_str(header_hash)[-4:]
+                    if mh != last4:
+                        logger.warning(f'DFT init has invalid mh does not match last 4 hex of header hash {hash_to_hex_str(tx_hash)} last4={last4}, got: mh={mh}. Skipping...')
+                        return None, None
         else: 
             mint_info['$mint_mode'] = 'fixed'
 
