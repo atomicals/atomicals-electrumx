@@ -2160,8 +2160,8 @@ class BlockProcessor:
             if subtype == 'decentralized':
                 # The mint mode can be fixed with a known max_supply
                 # Or the mode mint can be perpetual with an unbounded max_supply
-                atomical['$mint_mode'] = init_mint_info['$mint_mode']
-                if init_mint_info['$mint_mode'] == 'infinite': 
+                atomical['$mint_mode'] = init_mint_info.get('$mint_mode') or 'fixed'
+                if init_mint_info.get('$mint_mode') == 'infinite': 
                     atomical['$max_supply'] = -1
                     atomical['$mint_bitwork_vec'] = init_mint_info['$mint_bitwork_vec']
                     atomical['$mint_bitworkc_inc'] = init_mint_info.get('$mint_bitworkc_inc')
