@@ -21,6 +21,7 @@ from electrumx.lib.script import SCRIPTHASH_LEN, is_unspendable_legacy, is_unspe
 from electrumx.lib.util import (
     chunks, class_logger, pack_le_uint32, unpack_le_uint32, pack_le_uint64, unpack_le_uint64, pack_be_uint64, unpack_be_uint64, OldTaskGroup, pack_byte, pack_le_uint16, unpack_le_uint16_from
 )
+import math
 from electrumx.lib.tx import Tx
 from electrumx.server.db import FlushData, COMP_TXID_LEN, DB
 from electrumx.server.history import TXNUM_LEN
@@ -39,6 +40,7 @@ from electrumx.lib.util_atomicals import (
     pad_bytes_n, 
     has_requested_proof_of_work, 
     is_valid_container_string_name, 
+    calculate_expected_bitwork,
     expand_spend_utxo_data,
     encode_tx_hash_hex,
     SUBREALM_MINT_PATH,
@@ -64,7 +66,8 @@ from electrumx.lib.util_atomicals import (
     validate_dmitem_mint_args_with_container_dmint,
     is_seal_operation,
     is_event_operation,
-    encode_atomical_ids_hex
+    encode_atomical_ids_hex,
+    is_mint_pow_valid
 )
 
 from electrumx.lib.atomicals_blueprint_builder import AtomicalsTransferBlueprintBuilder
@@ -87,8 +90,6 @@ TX_HASH_LEN = 32
 ATOMICAL_ID_LEN = 36
 LOCATION_ID_LEN = 36
 TX_OUTPUT_IDX_LEN = 4
-SANITY_CHECK_ATOMICAL = 'd3805673d1080bd6f527b3153dd5f8f7584731dec04b332e6285761b5cdbf171i0'
-SANITY_CHECK_ATOMICAL_MAX_SUPPLY = 2000
 
 class Prefetcher:
     '''Prefetches blocks (in the forward direction only).'''
@@ -530,7 +531,7 @@ class BlockProcessor:
         if blueprint_builder.get_are_fts_burned() or not blueprint_builder.cleanly_assigned:
             encoded_atomicals_spent_at_inputs = encode_atomical_ids_hex(atomicals_spent_at_inputs)
             encoded_ft_output_blueprint = encode_atomical_ids_hex(ft_output_blueprint)
-            raise AtomicalsValidationError(f'detected invalid ft token inputs and outputs for tx_hash={hash_to_hex_str(tx_hash)}, operations_found_at_inputs={operations_found_at_inputs}, atomicals_spent_at_inputs={encoded_atomicals_spent_at_inputs}, ft_output_blueprint={encoded_ft_output_blueprint}')
+            raise AtomicalsValidationError(f'detected invalid ft token inputs and outputs for tx_hash={hash_to_hex_str(tx_hash)}, operations_found_at_inputs={operations_found_at_inputs}, atomicals_spent_at_inputs={encoded_atomicals_spent_at_inputs}, ft_output_blueprint.outputs={encoded_ft_output_blueprint.outputs} ft_output_blueprint.fts_burned={encoded_ft_output_blueprint.fts_burned}')
     
     # Query general data including the cache
     def get_general_data_with_cache(self, key):
@@ -817,6 +818,23 @@ class BlockProcessor:
         }
         self.atomicals_utxo_cache[location_id] = cache
 
+    def get_distmints_by_atomical_id(self, atomical_id, limit, offset):
+        def lookup_gi_entries(atomical_id):
+            # Query all the gi key in the db for the atomical
+            prefix = b'gi' + atomical_id
+            location_ids = []
+            limit_counter = 0
+            offset_counter = 0
+            for atomical_gi_db_key, atomical_gi_db_value in self.db.utxo_db.iterator(prefix=prefix):
+                if offset_counter >= offset:
+                    location_ids.append(atomical_gi_db_value.hex())
+                    limit_counter += 1
+                    if limit_counter >= limit: 
+                        break
+                offset_counter += 1
+            return location_ids 
+        return lookup_gi_entries(atomical_id)
+
     # Get the total number of distributed mints for an atomical id and check the cache and db
     # This can be a heavy operation with many 10's of thousands in the db
     def get_distmints_count_by_atomical_id(self, height, atomical_id, use_block_db_cache):
@@ -843,7 +861,7 @@ class BlockProcessor:
                 # We got the db count as of the latest block
                 db_count = lookup_db_count(atomical_id)
                 self.atomicals_dft_mint_count_cache[atomical_id] = db_count
-                self.logger.info(f'height={height}, dft_atomical_id={location_id_bytes_to_compact(atomical_id)}, db_count={db_count}, cache_count={cache_count}')
+                self.logger.debug(f'height={height}, dft_atomical_id={location_id_bytes_to_compact(atomical_id)}, db_count={db_count}, cache_count={cache_count}')
         else:
             # No block db cache was used, grab it from the db now
             db_count = lookup_db_count(atomical_id)
@@ -1437,7 +1455,11 @@ class BlockProcessor:
         elif valid_create_op_type == 'FT':
             # Add $max_supply informative property
             if mint_info['subtype'] == 'decentralized':
-                mint_info['$max_supply'] = mint_info['$mint_amount'] * mint_info['$max_mints'] 
+                # For perpetual mints the max supply is unbounded
+                if mint_info.get('$mint_mode') == 'infinite':
+                    mint_info['$max_supply'] = -1
+                else:
+                    mint_info['$max_supply'] = mint_info['$mint_amount'] * mint_info['$max_mints'] 
             else: 
                 mint_info['$max_supply'] = txout.value
             if not self.create_or_delete_ticker_entry_if_requested(mint_info, height, Delete):
@@ -1959,11 +1981,53 @@ class BlockProcessor:
             atomical_result['dft_info'] = {
                 'mint_count': 0
             }
-            atomical_dft_mint_info_key = b'gi' + atomical_id
-            mint_count = 0
-            for location_key, location_result_value in self.db.utxo_db.iterator(prefix=atomical_dft_mint_info_key):
-                mint_count += 1
+            mint_count = self.get_distmints_count_by_atomical_id(self.height, atomical_id, True)
             atomical_result['dft_info']['mint_count'] = mint_count
+            if atomical_result.get('$mint_mode') == 'infinite': 
+                self.logger.debug(f'atomical_result={atomical_result}')
+                mint_bitwork_vec = atomical_result.get('$mint_bitwork_vec')     
+                mint_bitworkc_inc = atomical_result.get('$mint_bitworkc_inc')      
+                mint_bitworkr_inc = atomical_result.get('$mint_bitworkr_inc') 
+                max_mints = atomical_result.get('$max_mints')     
+                if mint_bitworkc_inc:
+                    mint_bitworkc_start = atomical_result['$mint_bitworkc_start']
+                    remaining = max_mints - (mint_count % max_mints)
+                    upcoming_bitworks = [
+                        {
+                            'label': '_current',
+                            'mints': mint_count
+                        },
+                        {
+                            'label': '_next',
+                            'mints':  mint_count + remaining,
+                        },
+                        {
+                            'label': '_next_next',
+                            'mints': mint_count + remaining + max_mints
+                        }
+                    ]
+                    for elem in upcoming_bitworks:
+                        atomical_result['dft_info']['mint_bitworkc' + elem['label']] = calculate_expected_bitwork(mint_bitwork_vec, elem['mints'], max_mints, mint_bitworkc_inc, mint_bitworkc_start)
+                if mint_bitworkr_inc:
+                    mint_bitworkr_start = atomical_result['$mint_bitworkr_start']
+                    remaining = max_mints - (mint_count % max_mints)
+                    upcoming_bitworks = [
+                        {
+                            'label': '_current',
+                            'mints': mint_count
+                        },
+                        {
+                            'label': '_next',
+                            'mints':  mint_count + remaining,
+                        },
+                        {
+                            'label': '_next_next',
+                            'mints': mint_count + remaining + max_mints
+                        }
+                    ]
+                    for elem in upcoming_bitworks:
+                        atomical_result['dft_info']['mint_bitworkr' + elem['label']] = calculate_expected_bitwork(mint_bitwork_vec, elem['mints'], max_mints, mint_bitworkr_inc, mint_bitworkr_start)
+
             atomical_result['location_summary'] = {}
             self.populate_location_info_summary(atomical_id, atomical_result['location_summary'])
             self.atomicals_rpc_general_cache[b'dft_info' + atomical_id] = atomical_result
@@ -1976,7 +2040,6 @@ class BlockProcessor:
         active_supply = 0
         atomical_active_location_key_prefix = b'a' + atomical_id
         for atomical_active_location_key, atomical_active_location_value in self.db.utxo_db.iterator(prefix=atomical_active_location_key_prefix):
-            location = atomical_active_location_key[1 + ATOMICAL_ID_LEN : 1 + ATOMICAL_ID_LEN + ATOMICAL_ID_LEN]
             location_value, = unpack_le_uint64(atomical_active_location_value[HASHX_LEN + SCRIPTHASH_LEN : HASHX_LEN + SCRIPTHASH_LEN + 8])
             active_supply += location_value
             scripthash = atomical_active_location_value[HASHX_LEN : HASHX_LEN + SCRIPTHASH_LEN]  
@@ -2095,9 +2158,23 @@ class BlockProcessor:
             subtype = init_mint_info.get('subtype')
             atomical['subtype'] = subtype
             if subtype == 'decentralized':
-                atomical['$max_supply'] = init_mint_info['$max_supply']
+                # The mint mode can be fixed with a known max_supply
+                # Or the mode mint can be perpetual with an unbounded max_supply
+                atomical['$mint_mode'] = init_mint_info['$mint_mode']
+                if init_mint_info['$mint_mode'] == 'infinite': 
+                    atomical['$max_supply'] = -1
+                    atomical['$mint_bitwork_vec'] = init_mint_info['$mint_bitwork_vec']
+                    atomical['$mint_bitworkc_inc'] = init_mint_info.get('$mint_bitworkc_inc')
+                    atomical['$mint_bitworkc_start'] = init_mint_info.get('$mint_bitworkc_start')
+                    atomical['$mint_bitworkr_inc'] = init_mint_info.get('$mint_bitworkr_inc')
+                    atomical['$mint_bitworkr_start'] = init_mint_info.get('$mint_bitworkr_start')
+                else:
+                    atomical['$max_supply'] = init_mint_info['$max_supply']
+
                 atomical['$mint_height'] = init_mint_info['$mint_height']
                 atomical['$mint_amount'] = init_mint_info['$mint_amount']
+                # The semantics of max_mints is total number of mints when mint_mode=fixed and it is the 
+                # max mints per epoch step increment with perpetual mint_mode
                 atomical['$max_mints'] = init_mint_info['$max_mints']
                 # The decentralized FT also has a proof of work option such that it requires some proof of work
                 # To be minted by users. The deployer can determine if the proof of work must appear in the 
@@ -2436,6 +2513,8 @@ class BlockProcessor:
             self.logger.info(f'create_or_delete_decentralized_mint_outputs: Detected invalid mint attempt in {hash_to_hex_str(tx_hash)} for ticker {ticker} which is not a decentralized mint type. Ignoring...')
             return None 
 
+        # For perpetual mints mint_mode=perpetual otherwise it is fixed (None or 'fixed')
+        mint_mode = mint_info_for_ticker.get('$mint_mode')
         max_mints = mint_info_for_ticker['$max_mints']
         mint_amount = mint_info_for_ticker['$mint_amount']
         mint_height = mint_info_for_ticker['$mint_height']
@@ -2468,43 +2547,52 @@ class BlockProcessor:
         if mint_amount == txout.value:
             # Count the number of existing b'gi' entries and ensure it is strictly less than max_mints
             decentralized_mints = self.get_distmints_count_by_atomical_id(height, dmt_mint_atomical_id, True)
-            if decentralized_mints > max_mints:
-                raise IndexError(f'create_or_delete_decentralized_mint_outputs :Fatal IndexError decentralized_mints > max_mints for {location_id_bytes_to_compact(dmt_mint_atomical_id)}. Too many mints detected in db')
-            if decentralized_mints < max_mints:
-                self.logger.debug(f'create_or_delete_decentralized_mint_outputs: found mint request in {hash_to_hex_str(tx_hash)} for {ticker}. Checking for any POW in distributed mint record...')
-                # If this was a POW mint, then validate that the POW is valid
+            # Assess whether we allow the mint based on 'fixed' or 'infinite' mint modes
+            # The perpetual mint mode will derive the minimum expected bitworkr/c needed given the quantity of already minted units
+            allow_mint = False 
+            if mint_mode == 'infinite':
+                # In the 'infinite' mint mode an unbounded number of tokens can be minted according to the ever increasing bitworkc/r
+                mint_bitwork_vec = mint_info_for_ticker.get('$mint_bitwork_vec') 
+                mint_bitworkc_inc = mint_info_for_ticker.get('$mint_bitworkc_inc') 
+                mint_bitworkr_inc = mint_info_for_ticker.get('$mint_bitworkr_inc') 
+               
+                # If there was a commit bitwork required, then assess the stage of the minimum we expect to allow the mint
+                if mint_bitworkc_inc:
+                    mint_bitworkc_start = mint_info_for_ticker.get('$mint_bitworkc_start')      
+                    expected_minimum_bitworkc = calculate_expected_bitwork(mint_bitwork_vec, decentralized_mints, max_mints, mint_bitworkc_inc, mint_bitworkc_start)
+                    if not is_mint_pow_valid(atomicals_operations_found_at_inputs['commit_txid'], expected_minimum_bitworkc):
+                        self.logger.warning(f'create_or_delete_decentralized_mint_output: mint_bitworkc_inc not is_mint_pow_valid {hash_to_hex_str(tx_hash)}, expected_minimum_bitworkc={expected_minimum_bitworkc}, atomicals_operations_found_at_inputs={atomicals_operations_found_at_inputs}...')
+                        return None  
+                 # If there was a reveal bitwork required, then assess the stage of the minimum we expect to allow the mint
+                if mint_bitworkr_inc:
+                    mint_bitworkr_start = mint_info_for_ticker.get('$mint_bitworkr_start')  
+                    expected_minimum_bitworkr = calculate_expected_bitwork(mint_bitwork_vec, decentralized_mints, max_mints, mint_bitworkr_inc, mint_bitworkr_start)
+                    if not is_mint_pow_valid(atomicals_operations_found_at_inputs['reveal_location_txid'], expected_minimum_bitworkr):
+                        self.logger.warning(f'create_or_delete_decentralized_mint_output: mint_bitworkr_inc not is_mint_pow_valid {hash_to_hex_str(tx_hash)}, expected_minimum_bitworkr={expected_minimum_bitworkr}, atomicals_operations_found_at_inputs={atomicals_operations_found_at_inputs}...')
+                        return None         
+                allow_mint = True
+            else: 
+                # It is the 'fixed' mint mode and the bitworkc/r is static
                 mint_pow_commit = mint_info_for_ticker.get('$mint_bitworkc') 
                 mint_pow_reveal = mint_info_for_ticker.get('$mint_bitworkr') 
-                if mint_pow_commit:
-                    # It required commit proof of work
-                    commit_txid = atomicals_operations_found_at_inputs['commit_txid']
-                    valid_commit_str, bitwork_commit_parts = is_valid_bitwork_string(mint_pow_commit)
-                    if not valid_commit_str:
-                        self.logger.warning(f'create_or_delete_decentralized_mint_output: not valid_commit_str {hash_to_hex_str(tx_hash)}...')
-                        return None
-                    mint_bitwork_prefix = bitwork_commit_parts['prefix']
-                    mint_bitwork_ext = bitwork_commit_parts['ext']
-                    if is_proof_of_work_prefix_match(commit_txid, mint_bitwork_prefix, mint_bitwork_ext):
-                        self.logger.debug(f'create_or_delete_decentralized_mint_outputs: has VALID mint_bitworkc {valid_commit_str} for {hash_to_hex_str(commit_txid)} for {ticker}. Continuing to mint...')
-                    else:
-                        self.logger.warning(f'create_or_delete_decentralized_mint_outputs: has INVALID mint_bitworkc {valid_commit_str} because the pow is invalid for {hash_to_hex_str(commit_txid)} for {ticker}. Skipping invalid mint attempt...')
-                        return None
-                
-                if mint_pow_reveal:
-                    # It required reveal proof of work
-                    reveal_txid = atomicals_operations_found_at_inputs['reveal_location_txid']
-                    valid_reveal_str, bitwork_reveal_parts = is_valid_bitwork_string(mint_pow_reveal)
-                    if not valid_reveal_str:
-                        self.logger.debug(f'create_or_delete_decentralized_mint_output: not valid_reveal_str {hash_to_hex_str(tx_hash)}...')
-                        return None
-                    mint_bitwork_prefix = bitwork_reveal_parts['prefix']
-                    mint_bitwork_ext = bitwork_reveal_parts['ext']
-                    if is_proof_of_work_prefix_match(reveal_txid, mint_bitwork_prefix, mint_bitwork_ext):
-                        self.logger.debug(f'create_or_delete_decentralized_mint_outputs: has VALID mint_bitworkr {valid_reveal_str} for {hash_to_hex_str(reveal_txid)} for {ticker}. Continuing to mint...')
-                    else:
-                        self.logger.warning(f'create_or_delete_decentralized_mint_outputs: has INVALID mint_bitworkr {valid_reveal_str} because the pow is invalid for {hash_to_hex_str(reveal_txid)} for {ticker}. Skipping invalid mint attempt...')
-                        return None
+                # In the fixed mode there is a max number of mints allowed and then no more
+                if decentralized_mints > max_mints:
+                    raise IndexError(f'create_or_delete_decentralized_mint_outputs: Fatal IndexError decentralized_mints > max_mints for {location_id_bytes_to_compact(dmt_mint_atomical_id)}. Too many mints detected in db')
+            
+                if decentralized_mints < max_mints:
+                    self.logger.debug(f'create_or_delete_decentralized_mint_outputs: found mint request in {hash_to_hex_str(tx_hash)} for {ticker}. Checking for any POW in distributed mint record...')
+                    # If this was a POW mint, then validate that the POW is valid
+                    if mint_pow_commit:
+                        if not is_mint_pow_valid(atomicals_operations_found_at_inputs['commit_txid'], mint_pow_commit):
+                            self.logger.warning(f'create_or_delete_decentralized_mint_output: not is_mint_pow_valid {hash_to_hex_str(tx_hash)}, mint_pow_commit={mint_pow_commit}, atomicals_operations_found_at_inputs={atomicals_operations_found_at_inputs}...')
+                            return None     
+                    if mint_pow_reveal:
+                        if not is_mint_pow_valid(atomicals_operations_found_at_inputs['reveal_location_txid'], mint_pow_reveal):
+                            self.logger.warning(f'create_or_delete_decentralized_mint_output: not is_mint_pow_valid {hash_to_hex_str(tx_hash)}, mint_pow_reveal={mint_pow_reveal}, atomicals_operations_found_at_inputs={atomicals_operations_found_at_inputs}...')
+                            return None 
+                    allow_mint = True
 
+            if allow_mint:    
                 the_key = b'po' + location
                 if Delete:
                     atomicals_found_list = self.spend_atomicals_utxo(tx_hash, expected_output_index, True)
@@ -2538,6 +2626,8 @@ class BlockProcessor:
         return False 
     
     def is_density_activated(self, height): 
+        if height >= self.coin.ATOMICALS_ACTIVATION_HEIGHT_DENSITY:
+            return True 
         return False 
     
     # Builds a map of the atomicals spent at a tx
@@ -2631,7 +2721,7 @@ class BlockProcessor:
                         atomicals_spent_at_inputs[txin_index] = atomicals_transferred_list
                         for atomical_spent in atomicals_transferred_list:
                             atomical_id = atomical_spent['atomical_id']
-                            self.logger.debug(f'atomicals_transferred_list - tx_hash={hash_to_hex_str(tx_hash)}, txin_index={txin_index}, txin_hash={hash_to_hex_str(txin.prev_hash)}, txin_previdx={txin.prev_idx}, atomical_id_spent={atomical_id.hex()}')
+                            self.logger.debug(f'atomicals_transferred_list - tx_hash={hash_to_hex_str(tx_hash)}, txin_index={txin_index}, txin_hash={hash_to_hex_str(txin.prev_hash)}, txin_previdx={txin.prev_idx}, atomical_id_spent={location_id_bytes_to_compact(atomical_id)}')
                     # Get the undo format for the spent atomicals
                     reformatted_for_undo_entries = []
                     for atomicals_entry in atomicals_transferred_list:
@@ -2736,7 +2826,7 @@ class BlockProcessor:
 
                 if has_at_least_one_valid_atomicals_operation:
                     put_general_data(b'th' + pack_le_uint32(height) + pack_le_uint64(tx_num) + tx_hash, tx_hash)
-                    
+
             append_hashXs(hashXs)
             update_touched(hashXs)
             tx_num += 1
@@ -2758,7 +2848,7 @@ class BlockProcessor:
             current_height_atomicals_block_hash = self.coin.header_hash(b''.join(concatenation_of_tx_hashes_with_valid_atomical_operation))
             put_general_data(b'tt' + pack_le_uint32(height), current_height_atomicals_block_hash)
             self.logger.info(f'height={height}, atomicals_block_hash={hash_to_hex_str(current_height_atomicals_block_hash)}')   
-
+       
         return undo_info, atomicals_undo_info
     
     # Sanity safety check method to call at end of block processing to ensure no dft token inflation
@@ -2767,17 +2857,18 @@ class BlockProcessor:
             # Get the max mints allowed for the dft ticker (if set)
             mint_info_for_ticker = self.get_atomicals_id_mint_info(atomical_id_of_dft_ticker, False)
             max_mints = mint_info_for_ticker['$max_mints']
+            dft_mode = mint_info_for_ticker.get('$mint_mode')
+            if dft_mode == 'infinite':
+                continue
             # Count the number of existing b'gi' entries and ensure it is strictly less than max_mints
             decentralized_mints = self.get_distmints_count_by_atomical_id(height, atomical_id_of_dft_ticker, False)
             if decentralized_mints > max_mints:
                 raise IndexError(f'validate_no_dft_inflation - inflation_bug_found: atomical_id_of_dft_ticker={location_id_bytes_to_compact(atomical_id_of_dft_ticker)} decentralized_mints={decentralized_mints} max_mints={max_mints}')
     
     def create_or_delete_subname_payment_output_if_valid(self, tx_hash, tx, tx_num, height, operations_found_at_inputs, atomicals_spent_at_inputs, db_prefix, subname_data_cache, get_expected_subname_payment_info, Delete=False):
-
         atomical_id_for_payment, payment_marker_idx, entity_type = AtomicalsTransferBlueprintBuilder.get_atomical_id_for_payment_marker_if_found(tx)
         if not atomical_id_for_payment:
             return None 
-        
         # Make sure the payment type for the right type subrealm or dmitem is correct
         if entity_type == 'subrealm' and db_prefix != b'spay':
             return None 
@@ -2982,6 +3073,7 @@ class BlockProcessor:
         self.atomicals_id_cache.clear()
         self.atomicals_rpc_format_cache.clear()
         self.atomicals_rpc_general_cache.clear()
+        self.atomicals_dft_mint_count_cache.clear()
 
         # Delete the Atomicals hash for the current height as we are rolling back
         self.delete_general_data(b'tt' + pack_le_uint32(self.height))
@@ -3006,9 +3098,9 @@ class BlockProcessor:
         m = len(atomicals_undo_info)
         atomicals_undo_entry_len = ATOMICAL_ID_LEN + ATOMICAL_ID_LEN + HASHX_LEN + SCRIPTHASH_LEN + 8 + 2 + TXNUM_LEN
         atomicals_count = m / atomicals_undo_entry_len
-        has_undo_info_for_atomicals = False
-        if m > 0:
-            has_undo_info_for_atomicals = True
+        # has_undo_info_for_atomicals = False
+        # if m > 0:
+        #    has_undo_info_for_atomicals = True
         c = m
         atomicals_undo_info_map = {} # Build a map of atomicals location to atomicals located there
         counted_atomicals_count = 0
@@ -3047,11 +3139,8 @@ class BlockProcessor:
         put_utxo = self.utxo_cache.__setitem__
         spend_utxo = self.spend_utxo
         
-        put_general_data = self.general_data_cache.__setitem__
-  
         touched = self.touched
         undo_entry_len = HASHX_LEN + TXNUM_LEN + 8
-        to_le_uint64 = pack_le_uint64
         tx_num = self.tx_count
         atomical_num = self.atomical_count
         atomicals_minted = 0
@@ -3069,7 +3158,6 @@ class BlockProcessor:
                 # Get the hashX
                 cache_value = spend_utxo(tx_hash, idx)
                 hashX = cache_value[:HASHX_LEN]
-                txout_value = cache_value[-8:] 
                 touched.add(hashX)
                 # Rollback the atomicals that were created at the output
                 hashXs_spent, spent_atomicals = self.rollback_spend_atomicals(tx_hash, tx, idx, tx_num, self.height, operations_found_at_inputs)
