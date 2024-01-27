@@ -1705,11 +1705,9 @@ class DB:
                 start_count += 1
                 continue 
             tx_numb = db_key[-8:]
-            atomical_id = db_value
             tx_num, = unpack_le_uint64(tx_numb)
             name_len, = unpack_le_uint16_from(db_key[-10:-8])
             db_prefix_len = len(db_prefix)
-            self.logger.info(f'db_key, {db_key} {db_prefix_len} {name_len}')
             entries.append({
                 'name': db_key[db_prefix_len : db_prefix_len + name_len].decode('latin-1'), # Extract the name portion
                 'atomical_id': db_value,

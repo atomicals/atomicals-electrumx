@@ -37,6 +37,7 @@ import sys
 import base64
 import krock32
 import pickle
+import math
 from electrumx.lib.hash import sha256, double_sha256
 from cbor2 import dumps, loads, CBORDecodeError
 from collections.abc import Mapping
@@ -90,8 +91,8 @@ DFT_MINT_AMOUNT_MAX = 100000000
 DFT_MINT_MAX_MIN_COUNT = 1
 # The maximum number (legacy) of DFT max_mints. Set at 500,000 mints mainly for efficieny reasons in legacy.
 DFT_MINT_MAX_MAX_COUNT_LEGACY = 500000
-# The maximum number of DFT max_mints (after legacy 'DENSITY' update). Set at 21,000,000 max mints.
-# DFT_MINT_MAX_MAX_COUNT_DENSITY = 21000000
+# The maximum number of DFT max_mints (after legacy 'DENSITY' update). Set at 10,000,000 max mints.
+DFT_MINT_MAX_MAX_COUNT_DENSITY = 10000000
 
 # This would never change, but we put it as a constant for clarity
 DFT_MINT_HEIGHT_MIN = 0
@@ -257,7 +258,7 @@ def is_validate_pow_prefix_string(pow_prefix, pow_prefix_ext):
     m = re.compile(r'^[a-f0-9]{1,64}$')
     if pow_prefix:
         if pow_prefix_ext:
-            if isinstance(pow_prefix_ext, int) and pow_prefix_ext >= 0 or pow_prefix_ext <= 15 and m.match(pow_prefix):
+            if isinstance(pow_prefix_ext, int) and pow_prefix_ext >= 0 and pow_prefix_ext <= 15 and m.match(pow_prefix):
                 return True
             else:
                 return False
@@ -691,14 +692,15 @@ def get_mint_info_op_factory(coin, tx, tx_hash, op_found_struct, atomicals_spent
             logger.warning(f'DFT init has invalid max_mints {hash_to_hex_str(tx_hash)}, {max_mints}. Skipping...')
             return None, None
         
-        if max_mints > DFT_MINT_MAX_MAX_COUNT_LEGACY:
-            logger.warning(f'DFT init has invalid max_mints legacy {hash_to_hex_str(tx_hash)}, {max_mints}. Skipping...')
-            return None, None
-        
-        # elif height >= coin.ATOMICALS_ACTIVATION_HEIGHT_DENSITY:
-        #     if max_mints > DFT_MINT_MAX_MAX_COUNT_DENSITY:
-        #         logger.warning(f'DFT init has invalid max_mints {hash_to_hex_str(tx_hash)}, {max_mints}. Skipping...')
-        #         return None, None
+        if height < coin.ATOMICALS_ACTIVATION_HEIGHT_DENSITY:
+            if max_mints > DFT_MINT_MAX_MAX_COUNT_LEGACY:
+                logger.warning(f'DFT init has invalid max_mints legacy {hash_to_hex_str(tx_hash)}, {max_mints}. Skipping...')
+                return None, None
+            
+        elif height >= coin.ATOMICALS_ACTIVATION_HEIGHT_DENSITY:
+            if max_mints > DFT_MINT_MAX_MAX_COUNT_DENSITY:
+                logger.warning(f'DFT init has invalid max_mints {hash_to_hex_str(tx_hash)}, {max_mints}. Skipping...')
+                return None, None
         
         mint_info['$mint_height'] = mint_height
         mint_info['$mint_amount'] = mint_amount
@@ -714,6 +716,7 @@ def get_mint_info_op_factory(coin, tx, tx_hash, op_found_struct, atomicals_spent
             else: 
                 logger.warning(f'DFT mint has invalid mint_bitworkc. Skipping...')
                 return None, None
+        
         # If set it requires the mint reveal tx to have POW matching the mint_reveal_powprefix to claim a mint
         mint_pow_reveal = mint_info['args'].get('mint_bitworkr')
         if mint_pow_reveal:
@@ -729,7 +732,65 @@ def get_mint_info_op_factory(coin, tx, tx_hash, op_found_struct, atomicals_spent
         if is_immutable:
             logger.warning(f'DFT cannot be is_immutable is invalid {tx_hash}, {ticker}. Skipping...')
             return None, None
+
+        dft_mode = mint_info['args'].get('md')
+        if dft_mode != 1 and dft_mode != None: 
+            logger.warning(f'DFT init has invalid md {hash_to_hex_str(tx_hash)}, {dft_mode}. Skipping...')
+            return None, None 
+        
+        # Perpetual mint mode available on activation
+        if height >= coin.ATOMICALS_ACTIVATION_HEIGHT_DENSITY and dft_mode == 1:
+            bv = mint_info['args'].get('bv')
+            bci = mint_info['args'].get('bci')
+            bri = mint_info['args'].get('bri')
+            bcs = mint_info['args'].get('bcs', 64)
+            brs = mint_info['args'].get('brs', 64)
+            if (not bci and not bri) or not bv:
+                return None, None 
             
+            if not is_hex_string(bv) or len(bv) < 4:
+                logger.warning(f'DFT init has invalid bv must be at least length 4 hex {hash_to_hex_str(tx_hash)}, {bv}. Skipping...')
+                return None, None 
+            
+            if mint_info.get('$mint_bitworkr'):
+                logger.warning(f'DFT init has invalid because mint_bitworkr cannot be set when perpetual mode {hash_to_hex_str(tx_hash)}. Skipping...')
+                return None, None 
+            
+            if mint_info.get('$mint_bitworkc'):
+                logger.warning(f'DFT init has invalid because mint_bitworkc cannot be set when perpetual mode {hash_to_hex_str(tx_hash)}. Skipping...')
+                return None, None 
+            
+            if bci and (not isinstance(bci, int) or bci < 1 or bci > 64):
+                logger.warning(f'DFT init has invalid bci {hash_to_hex_str(tx_hash)}, {bci}. Skipping...')
+                return None, None
+            
+            if bri and (not isinstance(bri, int) or bri < 1 or bri > 64):
+                logger.warning(f'DFT init has invalid bri {hash_to_hex_str(tx_hash)}, {bri}. Skipping...')
+                return None, None
+            
+            if bcs and (not isinstance(bcs, int) or bcs < 64 or bcs > 256):
+                logger.warning(f'DFT init has invalid bcs {hash_to_hex_str(tx_hash)}, {bcs}. Skipping...')
+                return None, None
+            
+            if brs and (not isinstance(brs, int) or brs < 64 or brs > 256):
+                logger.warning(f'DFT init has invalid brs {hash_to_hex_str(tx_hash)}, {brs}. Skipping...')
+                return None, None
+            
+            mint_info['$mint_mode'] = 'infinite'
+            mint_info['$mint_bitworkc_inc'] = bci
+            mint_info['$mint_bitworkr_inc'] = bri
+            mint_info['$mint_bitworkc_start'] = bcs
+            mint_info['$mint_bitworkr_start'] = brs
+            mint_info['$mint_bitwork_vec'] = bv
+
+            # When in infinite minting mode limit the max mints per phase
+            max_mints = mint_info['$max_mints']
+            if max_mints > 100000:
+                logger.warning(f'DFT init has invalid max_mints must be <= 100000 with infinite mining {hash_to_hex_str(tx_hash)}, {max_mints}. Skipping...')
+                return None, None
+        else: 
+            mint_info['$mint_mode'] = 'fixed'
+
     if not mint_info or not mint_info.get('type'):
         return None, None
     
@@ -1581,6 +1642,63 @@ def get_subname_request_candidate_status(current_height, atomical_info, status, 
         'status': status,
         'pending_candidate_atomical_id': candidate_id_compact
     }
+
+def calculate_expected_bitwork(bitwork_vec, actual_mints, max_mints, target_increment, starting_target):
+    if starting_target < 64 or starting_target > 256:
+        raise Exception(f'Invalid starting target {starting_target}')
+    if max_mints < 1 or max_mints > 100000:
+        raise Exception(f'Invalid max_mints {starting_target}')
+    if target_increment < 1 or target_increment > 64:
+        raise Exception(f'Invalid target_increment {target_increment}')
+    target_steps = int(math.floor(actual_mints / max_mints))
+    current_target = starting_target + (target_steps * target_increment)
+    return derive_bitwork_prefix_from_target(bitwork_vec, current_target)
+
+# Derive a bitwork string based on purely using an increment difficulty factor
+def derive_bitwork_prefix_from_target(base_bitwork_prefix, target):
+    if target < 16:
+        raise Exception(f'increments must be at least 16. Provided: {target}')
+    base_bitwork_padded = base_bitwork_prefix.ljust(32, '0')
+    multiples = target / 16
+    full_amount = int(math.floor(multiples))
+    modulo = target % 16
+
+    bitwork_prefix = base_bitwork_padded[:full_amount]
+    if modulo > 0:
+        return bitwork_prefix + '.' + str(modulo)
+    return bitwork_prefix
+
+def decode_bitwork_target_from_prefix(bitwork_string):
+    fullstr, parts = is_valid_bitwork_string(bitwork_string)
+    if not fullstr:
+        raise Exception(f'Invalid bitwork string {bitwork_string}')
+    return len(parts['prefix']) * 16 + int(parts['ext'] or 0)
+
+def is_bitwork_subset(first_bitwork, second_bitwork):
+    first_fullstr, first_parts = is_valid_bitwork_string(first_bitwork)
+    if not first_fullstr:
+        raise Exception(f'Invalid bitwork string {first_bitwork}')
+    second_fullstr, second_parts = is_valid_bitwork_string(second_bitwork)
+    if not second_fullstr:
+        raise Exception(f'Invalid bitwork string {second_bitwork}')
+    
+    if second_parts['prefix'].startswith(first_parts['prefix']):
+        print(f'second_parts={second_parts} first_parts={first_parts}')
+        if len(second_parts['prefix']) > len(first_parts['prefix']):
+            return True
+        if len(second_parts['prefix']) == len(first_parts['prefix']) and ((second_parts['ext'] or 0) >= (first_parts['ext'] or 0)):
+            return True
+    return False
+
+def is_mint_pow_valid(txid, mint_pow_commit):
+    valid_commit_str, bitwork_commit_parts = is_valid_bitwork_string(mint_pow_commit)
+    if not valid_commit_str:
+        return False
+    mint_bitwork_prefix = bitwork_commit_parts['prefix']
+    mint_bitwork_ext = bitwork_commit_parts['ext']
+    if is_proof_of_work_prefix_match(txid, mint_bitwork_prefix, mint_bitwork_ext):
+        return True 
+    return False
 
 def expand_spend_utxo_data(data):
     value, = unpack_le_uint64(data[HASHX_LEN + SCRIPTHASH_LEN : HASHX_LEN + SCRIPTHASH_LEN + 8])

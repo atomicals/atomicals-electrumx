@@ -276,6 +276,7 @@ class SessionManager:
                     app.router.add_get('/proxy/blockchain.atomicals.get_by_container_item_validate', handler.atomicals_get_by_container_item_validation)
                     app.router.add_get('/proxy/blockchain.atomicals.get_container_items', handler.atomicals_get_container_items)
                     app.router.add_get('/proxy/blockchain.atomicals.get_ft_info', handler.atomicals_get_ft_info)
+                    app.router.add_get('/proxy/blockchain.atomicals.get_dft_mints', handler.atomicals_get_dft_mints)
                     app.router.add_get('/proxy/blockchain.atomicals.find_tickers', handler.atomicals_search_tickers)
                     app.router.add_get('/proxy/blockchain.atomicals.find_realms', handler.atomicals_search_realms)
                     app.router.add_get('/proxy/blockchain.atomicals.find_subrealms', handler.atomicals_search_subrealms)
@@ -335,6 +336,7 @@ class SessionManager:
                     app.router.add_post('/proxy/blockchain.atomicals.get_by_container_item_validate', handler.atomicals_get_by_container_item_validation)
                     app.router.add_post('/proxy/blockchain.atomicals.get_container_items', handler.atomicals_get_container_items)
                     app.router.add_post('/proxy/blockchain.atomicals.get_ft_info', handler.atomicals_get_ft_info)
+                    app.router.add_post('/proxy/blockchain.atomicals.get_dft_mints', handler.atomicals_get_dft_mints)
                     app.router.add_post('/proxy/blockchain.atomicals.find_tickers', handler.atomicals_search_tickers)
                     app.router.add_post('/proxy/blockchain.atomicals.find_realms', handler.atomicals_search_realms)
                     app.router.add_post('/proxy/blockchain.atomicals.find_subrealms', handler.atomicals_search_subrealms)
@@ -1391,7 +1393,7 @@ class ElectrumX(SessionBase):
         if atomical_in_mempool == None: 
             raise RPCError(BAD_REQUEST, f'"{compact_atomical_id}" is not found')
         return atomical_in_mempool
-
+    
     async def atomical_id_get_ft_info(self, compact_atomical_id):
         atomical_id = compact_to_location_id_bytes(compact_atomical_id)
         atomical = await self.session_mgr.bp.get_base_mint_info_rpc_format_by_atomical_id(atomical_id)
@@ -1549,6 +1551,11 @@ class ElectrumX(SessionBase):
         self.db.dump()
         return {'result': True} 
 
+    async def atomicals_get_dft_mints(self, compact_atomical_id, limit=100, offset=0):
+        atomical_id = compact_to_location_id_bytes(compact_atomical_id)
+        entries = self.session_mgr.bp.get_distmints_by_atomical_id(atomical_id, limit, offset)
+        return {'global': await self.get_summary_info(), 'result': entries} 
+    
     async def atomicals_get_ft_info(self, compact_atomical_id_or_atomical_number):
         compact_atomical_id = self.atomical_resolve_id(compact_atomical_id_or_atomical_number)
         return {'global': await self.get_summary_info(), 'result': await self.atomical_id_get_ft_info(compact_atomical_id)} 
@@ -2749,6 +2756,7 @@ class ElectrumX(SessionBase):
             'blockchain.atomicals.get_by_container_item_validate': self.atomicals_get_by_container_item_validation,
             'blockchain.atomicals.get_container_items': self.atomicals_get_container_items,
             'blockchain.atomicals.get_ft_info': self.atomicals_get_ft_info,
+            'blockchain.atomicals.get_dft_mints': self.atomicals_get_dft_mints,
             'blockchain.atomicals.find_tickers': self.atomicals_search_tickers,
             'blockchain.atomicals.find_realms': self.atomicals_search_realms,
             'blockchain.atomicals.find_subrealms': self.atomicals_search_subrealms,

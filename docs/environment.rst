@@ -406,6 +406,11 @@ raise them.
   a :func:`server.ping` request once roughly 450 seconds have passed since the previous
   request, in order to avoid disconnection.
 
+.. envvar::  ENABLE_RATE_LIMIT
+
+  Set this environment variable to anything non-empty to allow the use of RateLimiter when
+  processing http requests.
+
 
 Peer Discovery
 ==============
