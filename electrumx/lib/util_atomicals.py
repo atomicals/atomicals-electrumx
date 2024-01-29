@@ -91,8 +91,8 @@ DFT_MINT_AMOUNT_MAX = 100000000
 DFT_MINT_MAX_MIN_COUNT = 1
 # The maximum number (legacy) of DFT max_mints. Set at 500,000 mints mainly for efficieny reasons in legacy.
 DFT_MINT_MAX_MAX_COUNT_LEGACY = 500000
-# The maximum number of DFT max_mints (after legacy 'DENSITY' update). Set at 10,000,000 max mints.
-DFT_MINT_MAX_MAX_COUNT_DENSITY = 10000000
+# The maximum number of DFT max_mints (after legacy 'DENSITY' update). Set at 21,000,000 max mints.
+DFT_MINT_MAX_MAX_COUNT_DENSITY = 21000000
 
 # This would never change, but we put it as a constant for clarity
 DFT_MINT_HEIGHT_MIN = 0
@@ -785,18 +785,25 @@ def get_mint_info_op_factory(coin, tx, tx_hash, op_found_struct, atomicals_spent
                 logger.warning(f'DFT init has invalid brs {hash_to_hex_str(tx_hash)}, {brs}. Skipping...')
                 return None, None
             
-            mint_info['$mint_mode'] = 'infinite'
+            mint_info['$mint_mode'] = 'perpetual'
             mint_info['$mint_bitworkc_inc'] = bci
             mint_info['$mint_bitworkr_inc'] = bri
             mint_info['$mint_bitworkc_start'] = bcs
             mint_info['$mint_bitworkr_start'] = brs
             mint_info['$mint_bitwork_vec'] = bv
 
-            # When in infinite minting mode limit the max mints per phase
+            # When in perpetual minting mode limit the max mints per phase
             max_mints = mint_info['$max_mints']
             if max_mints > 100000:
-                logger.warning(f'DFT init has invalid max_mints must be <= 100000 with infinite mining {hash_to_hex_str(tx_hash)}, {max_mints}. Skipping...')
+                logger.warning(f'DFT init has invalid max_mints must be <= 100000 with perpetual mining {hash_to_hex_str(tx_hash)}, {max_mints}. Skipping...')
                 return None, None
+            
+            max_mints_global = mint_info['args'].get('maxg')
+            if max_mints_global != None: 
+                if not isinstance(max_mints_global, int) or max_mints_global < DFT_MINT_MAX_MIN_COUNT or max_mints_global > DFT_MINT_MAX_MAX_COUNT_DENSITY:
+                    logger.warning(f'DFT init has invalid maxg {hash_to_hex_str(tx_hash)}, {max_mints_global}. Skipping...')
+                    return None, None
+                mint_info['$max_mints_global'] = max_mints_global
         else: 
             mint_info['$mint_mode'] = 'fixed'
 
