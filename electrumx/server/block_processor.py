@@ -1456,8 +1456,11 @@ class BlockProcessor:
             # Add $max_supply informative property
             if mint_info['subtype'] == 'decentralized':
                 # For perpetual mints the max supply is unbounded
-                if mint_info.get('$mint_mode') == 'infinite':
-                    mint_info['$max_supply'] = -1
+                if mint_info.get('$mint_mode') == 'perpetual':
+                    if mint_info.get('$max_mints_global'):
+                        mint_info['$max_supply'] = mint_info['$mint_amount'] * mint_info.get('$max_mints_global')
+                    else:
+                        mint_info['$max_supply'] = -1
                 else:
                     mint_info['$max_supply'] = mint_info['$mint_amount'] * mint_info['$max_mints'] 
             else: 
@@ -1983,7 +1986,7 @@ class BlockProcessor:
             }
             mint_count = self.get_distmints_count_by_atomical_id(self.height, atomical_id, True)
             atomical_result['dft_info']['mint_count'] = mint_count
-            if atomical_result.get('$mint_mode') == 'infinite': 
+            if atomical_result.get('$mint_mode') == 'perpetual': 
                 self.logger.debug(f'atomical_result={atomical_result}')
                 mint_bitwork_vec = atomical_result.get('$mint_bitwork_vec')     
                 mint_bitworkc_inc = atomical_result.get('$mint_bitworkc_inc')      
@@ -2161,13 +2164,14 @@ class BlockProcessor:
                 # The mint mode can be fixed with a known max_supply
                 # Or the mode mint can be perpetual with an unbounded max_supply
                 atomical['$mint_mode'] = init_mint_info.get('$mint_mode') or 'fixed'
-                if init_mint_info.get('$mint_mode') == 'infinite': 
-                    atomical['$max_supply'] = -1
+                if init_mint_info.get('$mint_mode') == 'perpetual': 
+                    atomical['$max_supply'] = init_mint_info['$max_supply']
                     atomical['$mint_bitwork_vec'] = init_mint_info['$mint_bitwork_vec']
                     atomical['$mint_bitworkc_inc'] = init_mint_info.get('$mint_bitworkc_inc')
                     atomical['$mint_bitworkc_start'] = init_mint_info.get('$mint_bitworkc_start')
                     atomical['$mint_bitworkr_inc'] = init_mint_info.get('$mint_bitworkr_inc')
                     atomical['$mint_bitworkr_start'] = init_mint_info.get('$mint_bitworkr_start')
+                    atomical['$max_mints_global'] = init_mint_info.get('$max_mints_global')
                 else:
                     atomical['$max_supply'] = init_mint_info['$max_supply']
 
@@ -2547,11 +2551,21 @@ class BlockProcessor:
         if mint_amount == txout.value:
             # Count the number of existing b'gi' entries and ensure it is strictly less than max_mints
             decentralized_mints = self.get_distmints_count_by_atomical_id(height, dmt_mint_atomical_id, True)
-            # Assess whether we allow the mint based on 'fixed' or 'infinite' mint modes
+            # Assess whether we allow the mint based on 'fixed' or 'perpetual' mint modes
             # The perpetual mint mode will derive the minimum expected bitworkr/c needed given the quantity of already minted units
             allow_mint = False 
-            if mint_mode == 'infinite':
-                # In the 'infinite' mint mode an unbounded number of tokens can be minted according to the ever increasing bitworkc/r
+            if mint_mode == 'perpetual':
+                # If the perpetual token as a global max, then validate
+                max_mints_global = mint_info_for_ticker.get('$max_mints_global') 
+                if max_mints_global:
+                    if decentralized_mints > max_mints_global:
+                        raise IndexError(f'create_or_delete_decentralized_mint_outputs: Fatal IndexError decentralized_mints > max_mints_global for {location_id_bytes_to_compact(dmt_mint_atomical_id)}. Too many mints detected in db')
+                    if decentralized_mints == max_mints_global:
+                        self.logger.debug(f'create_or_delete_decentralized_mint_outputs found invalid mint infinit operation because it is minted out completely due to global max mints. {hash_to_hex_str(tx_hash)}. Ignoring...')
+                        return None
+    
+                self.logger.debug(f'create_or_delete_decentralized_mint_outputs: found perpetual mint request in {hash_to_hex_str(tx_hash)} for {ticker}. Checking for any POW in distributed mint record...')
+                # In the 'perpetual' mint mode an unbounded number of tokens can be minted according to the ever increasing bitworkc/r
                 mint_bitwork_vec = mint_info_for_ticker.get('$mint_bitwork_vec') 
                 mint_bitworkc_inc = mint_info_for_ticker.get('$mint_bitworkc_inc') 
                 mint_bitworkr_inc = mint_info_for_ticker.get('$mint_bitworkr_inc') 
@@ -2569,7 +2583,8 @@ class BlockProcessor:
                     expected_minimum_bitworkr = calculate_expected_bitwork(mint_bitwork_vec, decentralized_mints, max_mints, mint_bitworkr_inc, mint_bitworkr_start)
                     if not is_mint_pow_valid(atomicals_operations_found_at_inputs['reveal_location_txid'], expected_minimum_bitworkr):
                         self.logger.warning(f'create_or_delete_decentralized_mint_output: mint_bitworkr_inc not is_mint_pow_valid {hash_to_hex_str(tx_hash)}, expected_minimum_bitworkr={expected_minimum_bitworkr}, atomicals_operations_found_at_inputs={atomicals_operations_found_at_inputs}...')
-                        return None         
+                        return None   
+
                 allow_mint = True
             else: 
                 # It is the 'fixed' mint mode and the bitworkc/r is static
@@ -2858,8 +2873,11 @@ class BlockProcessor:
             mint_info_for_ticker = self.get_atomicals_id_mint_info(atomical_id_of_dft_ticker, False)
             max_mints = mint_info_for_ticker['$max_mints']
             dft_mode = mint_info_for_ticker.get('$mint_mode')
-            if dft_mode == 'infinite':
-                continue
+            # If it's mining mode, then use the max_mints_global if it's set
+            if dft_mode == 'perpetual':
+                if not mint_info_for_ticker.get('$max_mints_global'):
+                    continue
+                max_mints = mint_info_for_ticker.get('$max_mints_global')
             # Count the number of existing b'gi' entries and ensure it is strictly less than max_mints
             decentralized_mints = self.get_distmints_count_by_atomical_id(height, atomical_id_of_dft_ticker, False)
             if decentralized_mints > max_mints:
