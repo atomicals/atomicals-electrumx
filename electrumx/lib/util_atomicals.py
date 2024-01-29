@@ -148,6 +148,15 @@ def is_hex_string(value):
         pass
     return False
 
+# Check whether the value is hex string
+def is_hex_string_regex(value):
+    if not isinstance(value, str):
+        return False 
+    m = re.compile(r'^[a-z0-9]+$')
+    if m.match(value):
+        return True
+    return False 
+
 # Check whether the value is a 36 byte hex string
 def is_atomical_id_long_form_string(value):
     if not value:
@@ -734,21 +743,21 @@ def get_mint_info_op_factory(coin, tx, tx_hash, op_found_struct, atomicals_spent
             return None, None
 
         dft_mode = mint_info['args'].get('md')
-        if dft_mode != 1 and dft_mode != None: 
+        if dft_mode != 1 and dft_mode != 0 and dft_mode != None: 
             logger.warning(f'DFT init has invalid md {hash_to_hex_str(tx_hash)}, {dft_mode}. Skipping...')
             return None, None 
         
         # Perpetual mint mode available on activation
         if height >= coin.ATOMICALS_ACTIVATION_HEIGHT_DENSITY and dft_mode == 1:
             bv = mint_info['args'].get('bv')
-            bci = mint_info['args'].get('bci')
-            bri = mint_info['args'].get('bri')
+            bci = mint_info['args'].get('bci', 1)
+            bri = mint_info['args'].get('bri', 1)
             bcs = mint_info['args'].get('bcs', 64)
             brs = mint_info['args'].get('brs', 64)
             if (not bci and not bri) or not bv:
                 return None, None 
             
-            if not is_hex_string(bv) or len(bv) < 4:
+            if not is_hex_string_regex(bv) or len(bv) < 4:
                 logger.warning(f'DFT init has invalid bv must be at least length 4 hex {hash_to_hex_str(tx_hash)}, {bv}. Skipping...')
                 return None, None 
             
@@ -760,11 +769,11 @@ def get_mint_info_op_factory(coin, tx, tx_hash, op_found_struct, atomicals_spent
                 logger.warning(f'DFT init has invalid because mint_bitworkc cannot be set when perpetual mode {hash_to_hex_str(tx_hash)}. Skipping...')
                 return None, None 
             
-            if bci and (not isinstance(bci, int) or bci < 1 or bci > 64):
+            if not isinstance(bci, int) or bci < 1 or bci > 64:
                 logger.warning(f'DFT init has invalid bci {hash_to_hex_str(tx_hash)}, {bci}. Skipping...')
                 return None, None
             
-            if bri and (not isinstance(bri, int) or bri < 1 or bri > 64):
+            if not isinstance(bri, int) or bri < 1 or bri > 64:
                 logger.warning(f'DFT init has invalid bri {hash_to_hex_str(tx_hash)}, {bri}. Skipping...')
                 return None, None
             
