@@ -741,8 +741,8 @@ def get_mint_info_op_factory(coin, tx, tx_hash, op_found_struct, atomicals_spent
         # Perpetual mint mode available on activation
         if height >= coin.ATOMICALS_ACTIVATION_HEIGHT_DENSITY and dft_mode == 1:
             bv = mint_info['args'].get('bv')
-            bci = mint_info['args'].get('bci')
-            bri = mint_info['args'].get('bri')
+            bci = mint_info['args'].get('bci', 1)
+            bri = mint_info['args'].get('bri', 1)
             bcs = mint_info['args'].get('bcs', 64)
             brs = mint_info['args'].get('brs', 64)
             if (not bci and not bri) or not bv:
@@ -760,11 +760,11 @@ def get_mint_info_op_factory(coin, tx, tx_hash, op_found_struct, atomicals_spent
                 logger.warning(f'DFT init has invalid because mint_bitworkc cannot be set when perpetual mode {hash_to_hex_str(tx_hash)}. Skipping...')
                 return None, None 
             
-            if bci and (not isinstance(bci, int) or bci < 1 or bci > 64):
+            if not isinstance(bci, int) or bci < 1 or bci > 64:
                 logger.warning(f'DFT init has invalid bci {hash_to_hex_str(tx_hash)}, {bci}. Skipping...')
                 return None, None
             
-            if bri and (not isinstance(bri, int) or bri < 1 or bri > 64):
+            if not isinstance(bri, int) or bri < 1 or bri > 64:
                 logger.warning(f'DFT init has invalid bri {hash_to_hex_str(tx_hash)}, {bri}. Skipping...')
                 return None, None
             
