@@ -2104,13 +2104,13 @@ class ElectrumX(SessionBase):
                 atomical_id_compact = location_id_bytes_to_compact(atomical_id)
                 atomicals_id_map[atomical_id_compact] = atomical_basic_info
                 atomicals_basic_infos.append(atomical_id_compact)
-                if len(atomicals) > 0:
-                    returned_utxos.append({'txid': hash_to_hex_str(utxo.tx_hash),
-                    'index': utxo.tx_pos,
-                    'vout': utxo.tx_pos,
-                    'height': utxo.height, 
-                    'value': utxo.value,
-                    'atomicals': atomicals_basic_infos})
+            if len(atomicals) > 0:
+                returned_utxos.append({'txid': hash_to_hex_str(utxo.tx_hash),
+                'index': utxo.tx_pos,
+                'vout': utxo.tx_pos,
+                'height': utxo.height,
+                'value': utxo.value,
+                'atomicals': atomicals_basic_infos})
         # Aggregate balances
         return_struct = {
             'balances': {}
@@ -2120,7 +2120,7 @@ class ElectrumX(SessionBase):
                 atomical_id_basic_info = atomicals_id_map[atomical_id_entry_compact]
                 atomical_id_compact = atomical_id_basic_info['atomical_id']
                 assert(atomical_id_compact == atomical_id_entry_compact)
-                if atomical_id_basic_info.get('$ticker'):
+                if atomical_id_basic_info.get('type') == 'FT':
                     if return_struct['balances'].get(atomical_id_compact) == None:
                         return_struct['balances'][atomical_id_compact] = {}
                         return_struct['balances'][atomical_id_compact]['id'] = atomical_id_compact
@@ -2152,13 +2152,13 @@ class ElectrumX(SessionBase):
                 atomical_id_compact = location_id_bytes_to_compact(atomical_id)
                 atomicals_id_map[atomical_id_compact] = atomical_basic_info
                 atomicals_basic_infos.append(atomical_id_compact)
-                if len(atomicals) > 0:
-                    returned_utxos.append({'txid': hash_to_hex_str(utxo.tx_hash),
-                    'index': utxo.tx_pos,
-                    'vout': utxo.tx_pos,
-                    'height': utxo.height, 
-                    'value': utxo.value,
-                    'atomicals': atomicals_basic_infos})
+            if len(atomicals) > 0:
+                returned_utxos.append({'txid': hash_to_hex_str(utxo.tx_hash),
+                'index': utxo.tx_pos,
+                'vout': utxo.tx_pos,
+                'height': utxo.height,
+                'value': utxo.value,
+                'atomicals': atomicals_basic_infos})
         # Aggregate balances
         return_struct = {
             'balances': {}
