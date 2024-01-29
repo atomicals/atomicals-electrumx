@@ -768,11 +768,11 @@ def get_mint_info_op_factory(coin, tx, tx_hash, op_found_struct, atomicals_spent
                 logger.warning(f'DFT init has invalid bri {hash_to_hex_str(tx_hash)}, {bri}. Skipping...')
                 return None, None
             
-            if bcs and (not isinstance(bcs, int) or bcs < 64 or bcs > 256):
+            if not isinstance(bcs, int) or bcs < 64 or bcs > 256:
                 logger.warning(f'DFT init has invalid bcs {hash_to_hex_str(tx_hash)}, {bcs}. Skipping...')
                 return None, None
             
-            if brs and (not isinstance(brs, int) or brs < 64 or brs > 256):
+            if not isinstance(brs, int) or brs < 64 or brs > 256:
                 logger.warning(f'DFT init has invalid brs {hash_to_hex_str(tx_hash)}, {brs}. Skipping...')
                 return None, None
             
