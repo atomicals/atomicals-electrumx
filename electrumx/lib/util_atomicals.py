@@ -148,6 +148,15 @@ def is_hex_string(value):
         pass
     return False
 
+# Check whether the value is hex string
+def is_hex_string_regex(value):
+    if not isinstance(value, str):
+        return False 
+    m = re.compile(r'^[a-z0-9]+$')
+    if m.match(value):
+        return True
+    return False 
+
 # Check whether the value is a 36 byte hex string
 def is_atomical_id_long_form_string(value):
     if not value:
@@ -734,7 +743,7 @@ def get_mint_info_op_factory(coin, tx, tx_hash, op_found_struct, atomicals_spent
             return None, None
 
         dft_mode = mint_info['args'].get('md')
-        if dft_mode != 1 and dft_mode != None: 
+        if dft_mode != 1 and dft_mode != 0 and dft_mode != None: 
             logger.warning(f'DFT init has invalid md {hash_to_hex_str(tx_hash)}, {dft_mode}. Skipping...')
             return None, None 
         
@@ -748,7 +757,7 @@ def get_mint_info_op_factory(coin, tx, tx_hash, op_found_struct, atomicals_spent
             if (not bci and not bri) or not bv:
                 return None, None 
             
-            if not is_hex_string(bv) or len(bv) < 4:
+            if not is_hex_string_regex(bv) or len(bv) < 4:
                 logger.warning(f'DFT init has invalid bv must be at least length 4 hex {hash_to_hex_str(tx_hash)}, {bv}. Skipping...')
                 return None, None 
             
