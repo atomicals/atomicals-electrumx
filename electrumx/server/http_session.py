@@ -569,13 +569,13 @@ class HttpHandler(object):
                 atomical_id_compact = location_id_bytes_to_compact(atomical_id)
                 atomicals_id_map[atomical_id_compact] = atomical_basic_info
                 atomicals_basic_infos.append(atomical_id_compact)
-                if len(atomicals) > 0:
-                    returned_utxos.append({'txid': hash_to_hex_str(utxo.tx_hash),
-                    'index': utxo.tx_pos,
-                    'vout': utxo.tx_pos,
-                    'height': utxo.height, 
-                    'value': utxo.value,
-                    'atomicals': atomicals_basic_infos})
+            if len(atomicals) > 0:
+                returned_utxos.append({'txid': hash_to_hex_str(utxo.tx_hash),
+                'index': utxo.tx_pos,
+                'vout': utxo.tx_pos,
+                'height': utxo.height,
+                'value': utxo.value,
+                'atomicals': atomicals_basic_infos})
         # Aggregate balances
         return_struct = {
             'balances': {}
@@ -585,7 +585,7 @@ class HttpHandler(object):
                 atomical_id_basic_info = atomicals_id_map[atomical_id_entry_compact]
                 atomical_id_compact = atomical_id_basic_info['atomical_id']
                 assert(atomical_id_compact == atomical_id_entry_compact)
-                if atomical_id_basic_info.get('$ticker'):
+                if atomical_id_basic_info.get('type') == 'FT':
                     if return_struct['balances'].get(atomical_id_compact) == None:
                         return_struct['balances'][atomical_id_compact] = {}
                         return_struct['balances'][atomical_id_compact]['id'] = atomical_id_compact
@@ -616,13 +616,13 @@ class HttpHandler(object):
                 atomical_id_compact = location_id_bytes_to_compact(atomical_id)
                 atomicals_id_map[atomical_id_compact] = atomical_basic_info
                 atomicals_basic_infos.append(atomical_id_compact)
-                if len(atomicals) > 0:
-                    returned_utxos.append({'txid': hash_to_hex_str(utxo.tx_hash),
-                    'index': utxo.tx_pos,
-                    'vout': utxo.tx_pos,
-                    'height': utxo.height, 
-                    'value': utxo.value,
-                    'atomicals': atomicals_basic_infos})
+            if len(atomicals) > 0:
+                returned_utxos.append({'txid': hash_to_hex_str(utxo.tx_hash),
+                'index': utxo.tx_pos,
+                'vout': utxo.tx_pos,
+                'height': utxo.height,
+                'value': utxo.value,
+                'atomicals': atomicals_basic_infos})
         # Aggregate balances
         return_struct = {
             'balances': {}
@@ -1838,7 +1838,6 @@ class HttpHandler(object):
     async def atomicals_get_ft_info(self, request):
         params = await self.format_params(request)
         compact_atomical_id_or_atomical_number = params.get(0, "")
-
         compact_atomical_id = self.atomical_resolve_id(compact_atomical_id_or_atomical_number)
         return {'global': await self.get_summary_info(), 'result': await self.atomical_id_get_ft_info(compact_atomical_id)}
     
@@ -1852,6 +1851,14 @@ class HttpHandler(object):
             compact_atomical_id_list.append(compact_atomical_id)
             result.append(self.atomical_id_get_ft_info(compact_atomical_id))
         return {'global': await self.get_summary_info(), 'result': await asyncio.gather(*result)}
+      
+    async def atomicals_get_dft_mints(self, request):
+        params = await self.format_params(request)
+        compact_atomical_id_or_atomical_number = params.get(0, "")
+        atomical_id = compact_to_location_id_bytes(compact_atomical_id_or_atomical_number)
+        Limit = params.get(1, 100)
+        Offset = params.get(2, 0)
+        return {'global': await self.get_summary_info(), 'result': self.session_mgr.bp.get_distmints_by_atomical_id(atomical_id, Limit, Offset)} 
     
     # verified
     async def atomicals_search_tickers(self, request):
