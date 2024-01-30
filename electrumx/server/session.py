@@ -54,7 +54,7 @@ from electrumx.lib.hash import (HASHX_LEN, Base58Error, hash_to_hex_str,
 from electrumx.lib.merkle import MerkleCache
 from electrumx.lib.text import sessions_lines
 from electrumx.server.daemon import DaemonError
-from electrumx.server.http_middleware import rate_limiter, error_middleware, request_middleware
+from electrumx.server.http_middleware import rate_limiter, cors_middleware, error_middleware, request_middleware
 from electrumx.server.http_session import HttpHandler
 from electrumx.server.peers import PeerManager
 from electrumx.lib.script import SCRIPTHASH_LEN
@@ -220,8 +220,9 @@ class SessionManager:
                 host = None if service.host == 'all_interfaces' else str(service.host)
                 try:
                     app = web.Application(middlewares=[
+                        cors_middleware(self),
                         error_middleware(self),
-                        request_middleware(self)
+                        request_middleware(self),
                     ])
                     handler = HttpHandler(self, self.db, self.mempool, self.peer_mgr, kind)
                     # GET
