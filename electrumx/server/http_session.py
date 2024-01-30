@@ -1842,6 +1842,17 @@ class HttpHandler(object):
         compact_atomical_id = self.atomical_resolve_id(compact_atomical_id_or_atomical_number)
         return {'global': await self.get_summary_info(), 'result': await self.atomical_id_get_ft_info(compact_atomical_id)}
     
+    async def atomicals_get_ft_info_batch(self, request):
+        params = await self.format_params(request)
+        compact_atomical_id_or_atomical_number_list = list(params.values())
+        compact_atomical_id_list = []
+        result = []
+        for compact_atomical_id_or_atomical_number in compact_atomical_id_or_atomical_number_list:
+            compact_atomical_id = self.atomical_resolve_id(compact_atomical_id_or_atomical_number)
+            compact_atomical_id_list.append(compact_atomical_id)
+            result.append(self.atomical_id_get_ft_info(compact_atomical_id))
+        return {'global': await self.get_summary_info(), 'result': await asyncio.gather(*result)}
+    
     # verified
     async def atomicals_search_tickers(self, request):
         params = await self.format_params(request)
