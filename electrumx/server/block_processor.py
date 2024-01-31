@@ -2490,6 +2490,9 @@ class BlockProcessor:
         self.populate_dmitem_subtype_specific_fields(atomical)
         return atomical 
 
+    def is_dft_bitwork_rollover_activated(self, height):
+        return height >= self.coin.ATOMICALS_ACTIVATION_HEIGHT_DFT_BITWORK_ROLLOVER
+    
     # Create a distributed mint output as long as the rules are satisfied
     def create_or_delete_decentralized_mint_output(self, atomicals_operations_found_at_inputs, tx_num, tx_hash, tx, height, ticker_cache, Delete):
         if not atomicals_operations_found_at_inputs:
@@ -2574,7 +2577,7 @@ class BlockProcessor:
                 # If there was a commit bitwork required, then assess the stage of the minimum we expect to allow the mint
                 if mint_bitworkc_inc:
                     mint_bitworkc_start = mint_info_for_ticker.get('$mint_bitworkc_start')   
-                    if height >= self.coin.ATOMICALS_ACTIVATION_HEIGHT_BITWORKEXT:
+                    if self.is_dft_bitwork_rollover_activated(height):
                         success, bitwork_str = is_txid_valid_for_bitwork(atomicals_operations_found_at_inputs['commit_txid'], mint_bitwork_vec, decentralized_mints, max_mints, mint_bitworkc_inc, mint_bitworkc_start, True)
                         if not success:
                             self.logger.warning(f'create_or_delete_decentralized_mint_output: mint_bitworkc_inc not is_mint_pow_valid {hash_to_hex_str(tx_hash)}, atomicals_operations_found_at_inputs={atomicals_operations_found_at_inputs}...')
