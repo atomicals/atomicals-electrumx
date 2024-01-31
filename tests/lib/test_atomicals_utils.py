@@ -10,7 +10,8 @@ from electrumx.lib.util_atomicals import (
     derive_bitwork_prefix_from_target,
     decode_bitwork_target_from_prefix,
     is_bitwork_subset,
-    calculate_expected_bitwork
+    calculate_expected_bitwork,
+    is_txid_valid_for_bitwork
 )
 
 coin = Bitcoin
@@ -459,3 +460,116 @@ def test_calculate_expected_bitwork_base():
     assert(calculate_expected_bitwork('abcdefe', 33000, 1000, 1, 127) == 'abcdefe000')
     assert(calculate_expected_bitwork('abcdefe', 33000, 1000, 3, 127) == 'abcdefe0000000.2')
      
+def test_calculate_expected_bitwork_rollover():
+    
+    assert(calculate_expected_bitwork('888888888888', 49995, 3333, 1, 64) == '8888.15')
+    success, bitwork_str = is_txid_valid_for_bitwork(hex_str_to_hash('8888888888888888888888888888888888888888888888888888888888888888'), '888888888888', 49995, 3333, 1, 64, False)
+    assert(not success)
+    assert(not bitwork_str)
+
+    success, bitwork_str = is_txid_valid_for_bitwork(hex_str_to_hash('8888888888888888888888888888888888888888888888888888888888888888'), '888888888888', 49995, 3333, 1, 64, True)
+    assert(success)
+    assert(bitwork_str == '88888')
+
+    assert(calculate_expected_bitwork('888888888888', 53189, 3333, 1, 64) == '8888.15')
+    success, bitwork_str = is_txid_valid_for_bitwork(hex_str_to_hash('8888888888888888888888888888888888888888888888888888888888888888'), '888888888888', 53189, 3333, 1, 64, True)
+    assert(success)
+    assert(bitwork_str == '88888')
+
+    assert(calculate_expected_bitwork('888888888888', 53328, 3333, 1, 64) == '88888')
+    success, bitwork_str = is_txid_valid_for_bitwork(hex_str_to_hash('8888888888888888888888888888888888888888888888888888888888888888'), '888888888888', 53328, 3333, 1, 64, False)
+    assert(success)
+    assert(bitwork_str == '88888')
+
+    success, bitwork_str = is_txid_valid_for_bitwork(hex_str_to_hash('8888888888888888888888888888888888888888888888888888888888888888'), '888888888888', 53328, 3333, 1, 64, True)
+    assert(success)
+    assert(bitwork_str == '88888')
+
+    assert(calculate_expected_bitwork('888888888888', 53329, 3333, 1, 64) == '88888')
+    success, bitwork_str = is_txid_valid_for_bitwork(hex_str_to_hash('8888888888888888888888888888888888888888888888888888888888888888'), '888888888888', 53329, 3333, 1, 64, False)
+    assert(success)
+    assert(bitwork_str == '88888')
+
+    success, bitwork_str = is_txid_valid_for_bitwork(hex_str_to_hash('8888888888888888888888888888888888888888888888888888888888888888'), '888888888888', 53329, 3333, 1, 64, True)
+    assert(success)
+    assert(bitwork_str == '88888')
+
+    assert(calculate_expected_bitwork('888888888888', 53328 + 3333, 3333, 1, 64) == '88888.1')
+    success, bitwork_str = is_txid_valid_for_bitwork(hex_str_to_hash('8888888888888888888888888888888888888888888888888888888888888888'), '888888888888', 53328 + 3333, 3333, 1, 64, False)
+    assert(success)
+    assert(bitwork_str == '88888.1')
+
+    success, bitwork_str = is_txid_valid_for_bitwork(hex_str_to_hash('8888888888888888888888888888888888888888888888888888888888888888'), '888888888888', 53328 + 3333, 3333, 1, 64, True)
+    assert(success)
+    assert(bitwork_str == '88888.1')
+
+    assert(calculate_expected_bitwork('888888888888', 53328 + (3333 * 16) - 1, 3333, 1, 64) == '88888.15')
+    success, bitwork_str = is_txid_valid_for_bitwork(hex_str_to_hash('8888888888888888888888888888888888888888888888888888888888888888'), '888888888888', 53328 + (3333 * 16) - 1, 3333, 1, 64, False)
+    assert(not success)
+    assert(not bitwork_str)
+
+    success, bitwork_str = is_txid_valid_for_bitwork(hex_str_to_hash('88888f8888888888888888888888888888888888888888888888888888888888'), '888888888888', 53328 + (3333 * 16) - 1, 3333, 1, 64, False)
+    assert(success)
+    assert(bitwork_str == '88888.15')
+
+    success, bitwork_str = is_txid_valid_for_bitwork(hex_str_to_hash('88888f8888888888888888888888888888888888888888888888888888888888'), '888888888888', 53328 + (3333 * 16) - 1, 3333, 1, 64, True)
+    assert(success)
+    assert(bitwork_str == '88888.15')
+
+    success, bitwork_str = is_txid_valid_for_bitwork(hex_str_to_hash('8888888888888888888888888888888888888888888888888888888888888888'), '888888888888', 53328 + (3333 * 16) - 1, 3333, 1, 64, False)
+    assert(not success)
+    assert(not bitwork_str)
+
+    success, bitwork_str = is_txid_valid_for_bitwork(hex_str_to_hash('8888888888888888888888888888888888888888888888888888888888888888'), '888888888888', 53328 + (3333 * 16) - 1, 3333, 1, 64, True)
+    assert(success)
+    assert(bitwork_str == '888888')
+
+
+    assert(calculate_expected_bitwork('888888888888', 999, 1000, 64, 64) == '8888')
+    success, bitwork_str = is_txid_valid_for_bitwork(hex_str_to_hash('8888888888888888888888888888888888888888888888888888888888888888'), '888888888888', 999, 1000, 64, 64, False)
+    assert(success)
+    assert(bitwork_str == '8888')
+
+    success, bitwork_str = is_txid_valid_for_bitwork(hex_str_to_hash('888f888888888888888888888888888888888888888888888888888888888888'), '888888888888', 999, 1000, 64, 64, False)
+    assert(not success)
+
+    success, bitwork_str = is_txid_valid_for_bitwork(hex_str_to_hash('888f888888888888888888888888888888888888888888888888888888888888'), '888888888888', 999, 1000, 64, 64, True)
+    assert(not success)
+
+    success, bitwork_str = is_txid_valid_for_bitwork(hex_str_to_hash('8888888f88888888888888888888888888888888888888888888888888888888'), '888888888888', 999, 1000, 64, 64, True)
+    assert(success)
+    assert(bitwork_str == '8888')
+
+    assert(calculate_expected_bitwork('888888888888', 1000, 1000, 64, 64) == '88888888')
+    success, bitwork_str = is_txid_valid_for_bitwork(hex_str_to_hash('8888888888888888888888888888888888888888888888888888888888888888'), '888888888888', 1000, 1000, 64, 64, False)
+    assert(success)
+    assert(bitwork_str == '88888888')
+
+    success, bitwork_str = is_txid_valid_for_bitwork(hex_str_to_hash('88888888f8888888888888888888888888888888888888888888888888888888'), '888888888888', 1000, 1000, 64, 64, False)
+    assert(success)
+    assert(bitwork_str == '88888888')
+
+    success, bitwork_str = is_txid_valid_for_bitwork(hex_str_to_hash('88888888f8888888888888888888888888888888888888888888888888888888'), '888888888888', 1000, 1000, 64, 64, True)
+    assert(success)
+    assert(bitwork_str == '88888888')
+
+    success, bitwork_str = is_txid_valid_for_bitwork(hex_str_to_hash('8888888f88888888888888888888888888888888888888888888888888888888'), '888888888888', 1000, 1000, 64, 64, True)
+    assert(not success)
+
+    assert(calculate_expected_bitwork('888888888888', 1000, 1000, 49, 64) == '8888888.1')
+    success, bitwork_str = is_txid_valid_for_bitwork(hex_str_to_hash('8888888888888888888888888888888888888888888888888888888888888888'), '888888888888', 1000, 1000, 49, 64, False)
+    assert(success)
+    assert(bitwork_str == '8888888.1')
+
+    success, bitwork_str = is_txid_valid_for_bitwork(hex_str_to_hash('88888888f8888888888888888888888888888888888888888888888888888888'), '888888888888', 1000, 1000, 49, 64, False)
+    assert(success)
+    assert(bitwork_str == '8888888.1')
+
+    success, bitwork_str = is_txid_valid_for_bitwork(hex_str_to_hash('88888888f8888888888888888888888888888888888888888888888888888888'), '888888888888', 1000, 1000, 49, 64, True)
+    assert(success)
+    assert(bitwork_str == '8888888.1')
+
+    success, bitwork_str = is_txid_valid_for_bitwork(hex_str_to_hash('8888888088888888888888888888888888888888888888888888888888888888'), '888888888888', 1000, 1000, 49, 64, True)
+    assert(not success)
+ 
+ 
