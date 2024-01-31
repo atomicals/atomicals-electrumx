@@ -881,7 +881,6 @@ def format_name_type_candidates_to_rpc_for_subname(raw_entries, atomical_id_to_c
     for base_candidate in reformatted:
         dataset = atomical_id_to_candidate_info_map[compact_to_location_id_bytes(base_candidate['atomical_id'])]
         base_atomical_id = base_candidate['atomical_id']
-        print(f'data atomical_id_to_candidate_info_map atomicalId= {base_atomical_id}')
         base_candidate['payment'] = dataset.get('payment')
         base_candidate['payment_type'] = dataset.get('payment_type')
         base_candidate['payment_subtype'] = dataset.get('payment_subtype')
@@ -1663,6 +1662,21 @@ def get_subname_request_candidate_status(current_height, atomical_info, status, 
         'status': status,
         'pending_candidate_atomical_id': candidate_id_compact
     }
+
+# Whether txid is valid for the current and next bitwork
+def is_txid_valid_for_bitwork(txid, bitwork_vec, actual_mints, max_mints, target_increment, starting_target, allow_next):
+    expected_minimum_bitwork = calculate_expected_bitwork(bitwork_vec, actual_mints, max_mints, target_increment, starting_target)
+    if is_mint_pow_valid(txid, expected_minimum_bitwork):
+        return True, expected_minimum_bitwork
+    
+    # If we allow the next bitwork also to be accepted
+    if allow_next:
+        remaining = max_mints - (actual_mints % max_mints)
+        expected_next_bitwork = calculate_expected_bitwork(bitwork_vec, actual_mints + remaining, max_mints, target_increment, starting_target)
+        if is_mint_pow_valid(txid, expected_next_bitwork):
+            return True, expected_next_bitwork
+
+    return False, None 
 
 def calculate_expected_bitwork(bitwork_vec, actual_mints, max_mints, target_increment, starting_target):
     if starting_target < 64 or starting_target > 256:
