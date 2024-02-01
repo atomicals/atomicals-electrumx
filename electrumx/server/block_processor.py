@@ -2592,12 +2592,12 @@ class BlockProcessor:
                 if mint_bitworkr_inc:
                     mint_bitworkr_start = mint_info_for_ticker.get('$mint_bitworkr_start')
                     if height >= self.coin.ATOMICALS_ACTIVATION_HEIGHT_BITWORKEXT:
-                        if not is_txid_valid_for_perpetual_bitwork(atomicals_operations_found_at_inputs['commit_txid'], mint_bitwork_vec, decentralized_mints, max_mints, mint_bitworkr_inc, mint_bitworkr_start, True):
-                            self.logger.warning(f'create_or_delete_decentralized_mint_output: mint_bitworkc_inc not is_mint_pow_valid {hash_to_hex_str(tx_hash)}, atomicals_operations_found_at_inputs={atomicals_operations_found_at_inputs}...')
+                        if not is_txid_valid_for_perpetual_bitwork(atomicals_operations_found_at_inputs['reveal_location_txid'], mint_bitwork_vec, decentralized_mints, max_mints, mint_bitworkr_inc, mint_bitworkr_start, True):
+                            self.logger.warning(f'create_or_delete_decentralized_mint_output: mint_bitworkr_inc not is_mint_pow_valid {hash_to_hex_str(tx_hash)}, atomicals_operations_found_at_inputs={atomicals_operations_found_at_inputs}...')
                             return None
                     else: 
                         if not is_txid_valid_for_perpetual_bitwork(atomicals_operations_found_at_inputs['reveal_location_txid'], mint_bitwork_vec, decentralized_mints, max_mints, mint_bitworkr_inc, mint_bitworkr_start, False):
-                            self.logger.warning(f'create_or_delete_decentralized_mint_output: mint_bitworkc_inc not is_mint_pow_valid {hash_to_hex_str(tx_hash)}, atomicals_operations_found_at_inputs={atomicals_operations_found_at_inputs}...')
+                            self.logger.warning(f'create_or_delete_decentralized_mint_output: mint_bitworkr_inc not is_mint_pow_valid {hash_to_hex_str(tx_hash)}, atomicals_operations_found_at_inputs={atomicals_operations_found_at_inputs}...')
                             return None
                           
                 allow_mint = True
