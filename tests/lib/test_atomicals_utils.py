@@ -573,3 +573,33 @@ def test_calculate_expected_bitwork_rollover():
     assert(not success)
  
  
+def test_calculate_expected_bitwork_rollover2():
+
+    assert(calculate_expected_bitwork('888888888888', 3, 1, 5, 64) == '8888.15')
+    success, bitwork_str = is_txid_valid_for_bitwork(hex_str_to_hash('8888888888888888888888888888888888888888888888888888888888888888'), '888888888888', 3, 1, 5, 64, False)
+    assert(not success)
+ 
+    success, bitwork_str = is_txid_valid_for_bitwork(hex_str_to_hash('8888888888888888888888888888888888888888888888888888888888888888'), '888888888888', 3, 1, 5, 64, True)
+    assert(success)
+    assert(bitwork_str == '88888.4')
+   
+    success, bitwork_str = is_txid_valid_for_bitwork(hex_str_to_hash('8888f88888888888888888888888888888888888888888888888888888888888'), '888888888888', 3, 1, 5, 64, True)
+    assert(success)
+    assert(bitwork_str == '8888.15')
+
+    success, bitwork_str = is_txid_valid_for_bitwork(hex_str_to_hash('8888848888888888888888888888888888888888888888888888888888888888'), '888888888888', 3, 1, 5, 64, False)
+    assert(not success)
+
+    success, bitwork_str = is_txid_valid_for_bitwork(hex_str_to_hash('8888848888888888888888888888888888888888888888888888888888888888'), '888888888888', 3, 1, 5, 64, True)
+    assert(success)
+    assert(bitwork_str == '88888.4')
+
+    success, bitwork_str = is_txid_valid_for_bitwork(hex_str_to_hash('8888858888888888888888888888888888888888888888888888888888888888'), '888888888888', 3, 1, 5, 64, True)
+    assert(success)
+    assert(bitwork_str == '88888.4')
+
+    success, bitwork_str = is_txid_valid_for_bitwork(hex_str_to_hash('8888388888888888888888888888888888888888888888888888888888888888'), '888888888888', 3, 1, 5, 64, True)
+    assert(not success)
+
+    success, bitwork_str = is_txid_valid_for_bitwork(hex_str_to_hash('8888838888888888888888888888888888888888888888888888888888888888'), '888888888888', 3, 1, 5, 64, True)
+    assert(not success)
