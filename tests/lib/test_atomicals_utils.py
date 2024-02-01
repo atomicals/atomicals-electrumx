@@ -649,5 +649,8 @@ def test_calculate_expected_bitwork_rollover4():
     success, bitwork_str = is_txid_valid_for_bitwork(hex_str_to_hash('3333700000000000000000000000000000000000000000000000000000000000'), '33333', 3, 1, 2, 64, False)
     assert(success)
     assert(bitwork_str == '3333.6')
+
+    success, bitwork_str = is_txid_valid_for_bitwork(hex_str_to_hash('3333300000000000000000000000000000000000000000000000000000000000'), '33333', 3, 1, 2, 64, False)
+    assert(not success)
  
     
