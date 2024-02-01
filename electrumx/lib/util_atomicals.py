@@ -1664,8 +1664,8 @@ def get_subname_request_candidate_status(current_height, atomical_info, status, 
     }
 
 def get_next_bitwork_full_str(bitwork_vec, current_prefix_len):
-
-    return '' 
+    base_bitwork_padded = bitwork_vec.ljust(32, '0') 
+    return base_bitwork_padded[:current_prefix_len + 1]
 
 # Whether txid is valid for the current and next bitwork
 def is_txid_valid_for_bitwork(txid, bitwork_vec, actual_mints, max_mints, target_increment, starting_target, allow_higher):
