@@ -1670,24 +1670,11 @@ def is_txid_valid_for_bitwork(txid, bitwork_vec, actual_mints, max_mints, target
         return True, expected_minimum_bitwork
     # If we allow the next bitwork also to be accepted
     if allow_higher:
-        # Get the bitwork prefix and ext decoded
-        full_str, parts = is_valid_bitwork_string(expected_minimum_bitwork)
-        prefix = parts['prefix'] # The prefix we will measure and then compare against the bitwork vector
-        ext = parts['ext'] # do nothing with it
-        prefix_len = len(prefix)
-        expected_bitwork_next_char = prefix
-        if len(bitwork_vec) > prefix_len:
-            expected_bitwork_next_char = bitwork_vec[:prefix_len]
-        else:
-            expected_bitwork_next_char = bitwork_vec + '0'
-        
-        if is_mint_pow_valid(txid, expected_bitwork_next_char):
-            return True, expected_bitwork_next_char
-    
-        # remaining = max_mints - (actual_mints % max_mints)
-        # next_iteration = actual_mints + remaining
-        #expected_next_bitwork = calculate_expected_bitwork(bitwork_vec, next_iteration, max_mints, target_increment, starting_target)
-        
+        remaining = max_mints - (actual_mints % max_mints)
+        next_iteration = actual_mints + remaining
+        expected_next_bitwork = calculate_expected_bitwork(bitwork_vec, next_iteration, max_mints, target_increment, starting_target)
+        if is_mint_pow_valid(txid, expected_next_bitwork):
+            return True, expected_next_bitwork
     return False, None 
 
 def calculate_expected_bitwork(bitwork_vec, actual_mints, max_mints, target_increment, starting_target):
