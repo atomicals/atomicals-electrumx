@@ -1665,9 +1665,7 @@ def get_subname_request_candidate_status(current_height, atomical_info, status, 
 
 def get_next_bitwork_full_str(bitwork_vec, current_prefix_len):
     base_bitwork_padded = bitwork_vec.ljust(32, '0') 
-    b = base_bitwork_padded[:current_prefix_len]
     p = base_bitwork_padded[:current_prefix_len + 1]
-    print(f'next_full_bitwork_prefix b={b} p={p} ')
     return p
 
 # Whether txid is valid for the current and next bitwork

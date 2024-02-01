@@ -659,6 +659,332 @@ def test_calculate_expected_bitwork_rollover4():
     assert(bitwork_str == '33333')
 
  
+def test_calculate_expected_bitwork_rollover5():
+
+    testvec = [
+        {
+            'txid': '3333000000000000000000000000000000000000000000000000000000000000',
+            'bitworkvec': '333333',
+            'mints': 0,
+            'max_mints': 1,
+            'inc': 1,
+            'start': 64,
+            'allow_higher': True,
+            'expect': True,
+            'bitwork_match': '3333'
+        },
+        {
+            'txid': '3333000000000000000000000000000000000000000000000000000000000000',
+            'bitworkvec': '333333',
+            'mints': 1,
+            'max_mints': 1,
+            'inc': 1,
+            'start': 64,
+            'allow_higher': True,
+            'expect': False,
+            'bitwork_match': None
+        },
+        {
+            'txid': '3333100000000000000000000000000000000000000000000000000000000000',
+            'bitworkvec': '333333',
+            'mints': 1,
+            'max_mints': 1,
+            'inc': 1,
+            'start': 64,
+            'allow_higher': True,
+            'expect': True,
+            'bitwork_match': '3333.1'
+        },
+        {
+            'txid': '3333100000000000000000000000000000000000000000000000000000000000',
+            'bitworkvec': '333333',
+            'mints': 2,
+            'max_mints': 1,
+            'inc': 1,
+            'start': 64,
+            'allow_higher': True,
+            'expect': False,
+            'bitwork_match': None
+        },
+        {
+            'txid': '3333200000000000000000000000000000000000000000000000000000000000',
+            'bitworkvec': '333333',
+            'mints': 2,
+            'max_mints': 1,
+            'inc': 1,
+            'start': 64,
+            'allow_higher': True,
+            'expect': True,
+            'bitwork_match': '3333.2'
+        },
+        {
+            'txid': '3333300000000000000000000000000000000000000000000000000000000000',
+            'bitworkvec': '333333',
+            'mints': 2,
+            'max_mints': 1,
+            'inc': 1,
+            'start': 64,
+            'allow_higher': True,
+            'expect': True,
+            'bitwork_match': '3333.2'
+        },
+        {
+            'txid': '3333300000000000000000000000000000000000000000000000000000000000',
+            'bitworkvec': '333333',
+            'mints': 2,
+            'max_mints': 1,
+            'inc': 1,
+            'start': 64,
+            'allow_higher': False,
+            'expect': True,
+            'bitwork_match': '3333.2'
+        },
+        {
+            'txid': '3333300000000000000000000000000000000000000000000000000000000000',
+            'bitworkvec': '333333',
+            'mints': 3,
+            'max_mints': 1,
+            'inc': 1,
+            'start': 64,
+            'allow_higher': False,
+            'expect': True,
+            'bitwork_match': '3333.3'
+        },
+        {
+            'txid': '3333300000000000000000000000000000000000000000000000000000000000',
+            'bitworkvec': '333333',
+            'mints': 4,
+            'max_mints': 1,
+            'inc': 1,
+            'start': 64,
+            'allow_higher': False,
+            'expect': False,
+            'bitwork_match': None
+        },
+        {
+            'txid': '3333300000000000000000000000000000000000000000000000000000000000',
+            'bitworkvec': '333333',
+            'mints': 4,
+            'max_mints': 1,
+            'inc': 1,
+            'start': 64,
+            'allow_higher': True,
+            'expect': True,
+            'bitwork_match': '33333'
+        },
+        {
+            'txid': '3333300000000000000000000000000000000000000000000000000000000000',
+            'bitworkvec': '333333',
+            'mints': 5,
+            'max_mints': 1,
+            'inc': 1,
+            'start': 64,
+            'allow_higher': True,
+            'expect': True,
+            'bitwork_match': '33333'
+        },
+        {
+            'txid': '3333300000000000000000000000000000000000000000000000000000000000',
+            'bitworkvec': '333333',
+            'mints': 6,
+            'max_mints': 1,
+            'inc': 1,
+            'start': 64,
+            'allow_higher': True,
+            'expect': True,
+            'bitwork_match': '33333'
+        },
+        {
+            'txid': '3333300000000000000000000000000000000000000000000000000000000000',
+            'bitworkvec': '333333',
+            'mints': 7,
+            'max_mints': 1,
+            'inc': 1,
+            'start': 64,
+            'allow_higher': True,
+            'expect': True,
+            'bitwork_match': '33333'
+        },
+        {
+            'txid': '3333300000000000000000000000000000000000000000000000000000000000',
+            'bitworkvec': '333333',
+            'mints': 8,
+            'max_mints': 1,
+            'inc': 1,
+            'start': 64,
+            'allow_higher': True,
+            'expect': True,
+            'bitwork_match': '33333'
+        },
+        {
+            'txid': '3333300000000000000000000000000000000000000000000000000000000000',
+            'bitworkvec': '333333',
+            'mints': 9,
+            'max_mints': 1,
+            'inc': 1,
+            'start': 64,
+            'allow_higher': True,
+            'expect': True,
+            'bitwork_match': '33333'
+        },
+        {
+            'txid': '3333300000000000000000000000000000000000000000000000000000000000',
+            'bitworkvec': '333333',
+            'mints': 10,
+            'max_mints': 1,
+            'inc': 1,
+            'start': 64,
+            'allow_higher': True,
+            'expect': True,
+            'bitwork_match': '33333'
+        },
+        {
+            'txid': '3333300000000000000000000000000000000000000000000000000000000000',
+            'bitworkvec': '333333',
+            'mints': 11,
+            'max_mints': 1,
+            'inc': 1,
+            'start': 64,
+            'allow_higher': True,
+            'expect': True,
+            'bitwork_match': '33333'
+        },
+        {
+            'txid': '3333300000000000000000000000000000000000000000000000000000000000',
+            'bitworkvec': '333333',
+            'mints': 12,
+            'max_mints': 1,
+            'inc': 1,
+            'start': 64,
+            'allow_higher': True,
+            'expect': True,
+            'bitwork_match': '33333'
+        },
+        {
+            'txid': '3333300000000000000000000000000000000000000000000000000000000000',
+            'bitworkvec': '333333',
+            'mints': 13,
+            'max_mints': 1,
+            'inc': 1,
+            'start': 64,
+            'allow_higher': True,
+            'expect': True,
+            'bitwork_match': '33333'
+        },
+        {
+            'txid': '3333300000000000000000000000000000000000000000000000000000000000',
+            'bitworkvec': '333333',
+            'mints': 14,
+            'max_mints': 1,
+            'inc': 1,
+            'start': 64,
+            'allow_higher': True,
+            'expect': True,
+            'bitwork_match': '33333'
+        },
+        {
+            'txid': '3333300000000000000000000000000000000000000000000000000000000000',
+            'bitworkvec': '333333',
+            'mints': 15,
+            'max_mints': 1,
+            'inc': 1,
+            'start': 64,
+            'allow_higher': True,
+            'expect': True,
+            'bitwork_match': '33333'
+        },
+        {
+            'txid': '3333300000000000000000000000000000000000000000000000000000000000',
+            'bitworkvec': '333333',
+            'mints': 16,
+            'max_mints': 1,
+            'inc': 1,
+            'start': 64,
+            'allow_higher': True,
+            'expect': True,
+            'bitwork_match': '33333'
+        },
+        {
+            'txid': '3333300000000000000000000000000000000000000000000000000000000000',
+            'bitworkvec': '333333',
+            'mints': 17,
+            'max_mints': 1,
+            'inc': 1,
+            'start': 64,
+            'allow_higher': True,
+            'expect': False,
+            'bitwork_match': None
+        },
+        {
+            'txid': '3333310000000000000000000000000000000000000000000000000000000000',
+            'bitworkvec': '333333',
+            'mints': 17,
+            'max_mints': 1,
+            'inc': 1,
+            'start': 64,
+            'allow_higher': True,
+            'expect': True,
+            'bitwork_match': '33333.1'
+        },
+        {
+            'txid': '3333340000000000000000000000000000000000000000000000000000000000',
+            'bitworkvec': '333333',
+            'mints': 20,
+            'max_mints': 1,
+            'inc': 1,
+            'start': 64,
+            'allow_higher': False,
+            'expect': True,
+            'bitwork_match': '33333.4'
+        },
+        {
+            'txid': '3333330000000000000000000000000000000000000000000000000000000000',
+            'bitworkvec': '333333',
+            'mints': 20,
+            'max_mints': 1,
+            'inc': 1,
+            'start': 64,
+            'allow_higher': False,
+            'expect': False,
+            'bitwork_match': None
+        },
+        {
+            'txid': '3333330000000000000000000000000000000000000000000000000000000000',
+            'bitworkvec': '333333',
+            'mints': 20,
+            'max_mints': 1,
+            'inc': 1,
+            'start': 64,
+            'allow_higher': True,
+            'expect': True,
+            'bitwork_match': '333333'
+        },
+        {
+            'txid': '3333320000000000000000000000000000000000000000000000000000000000',
+            'bitworkvec': '333333',
+            'mints': 20,
+            'max_mints': 1,
+            'inc': 1,
+            'start': 64,
+            'allow_higher': True,
+            'expect': False,
+            'bitwork_match': None
+        }
+    ]
+
+    for x in testvec:
+        success, bitwork_str = is_txid_valid_for_perpetual_bitwork(hex_str_to_hash(x['txid']), x['bitworkvec'], x['mints'], x['max_mints'], x['inc'], x['start'], x['allow_higher'])
+        if success != x['expect']:
+            print(f'failure: success={success} x={x}')
+        
+        assert(success == x['expect'])
+        
+        if x['expect']:
+            if bitwork_str != x['bitwork_match']:
+                print(f'failure: success={success} x={x}')
+            assert(bitwork_str == x['bitwork_match'])
+        
+
 def test_get_next_bitwork_full_str():
 
     assert(get_next_bitwork_full_str('', 0) == '0')
