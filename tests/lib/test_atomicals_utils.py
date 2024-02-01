@@ -755,8 +755,14 @@ def test_calculate_expected_bitwork_rollover5():
 
     for x in testvec:
         success, bitwork_str = is_txid_valid_for_perpetual_bitwork(hex_str_to_hash(x['txid']), x['bitworkvec'], x['mints'], x['max_mints'], x['inc'], x['start'], x['allow_higher'])
+        if success != x['expect']:
+            print(f'failure: success={success} x={x}')
+        
         assert(success == x['expect'])
+        
         if x['expect']:
+            if bitwork_str != x['bitwork_match']:
+                print(f'failure: success={success} x={x}')
             assert(bitwork_str == x['bitwork_match'])
         
 
