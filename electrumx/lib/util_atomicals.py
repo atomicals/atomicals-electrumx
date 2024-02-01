@@ -1676,7 +1676,7 @@ def is_txid_valid_for_bitwork(txid, bitwork_vec, actual_mints, max_mints, target
         ext = parts['ext'] # do nothing with it
         prefix_len = len(prefix)
         expected_bitwork_next_char = prefix
-        if len(bitwork_vec) >= prefix_len:
+        if len(bitwork_vec) > prefix_len:
             expected_bitwork_next_char = bitwork_vec[:prefix_len]
         else:
             expected_bitwork_next_char = bitwork_vec + '0'
