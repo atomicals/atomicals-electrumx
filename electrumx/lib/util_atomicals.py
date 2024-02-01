@@ -1677,7 +1677,7 @@ def is_txid_valid_for_bitwork(txid, bitwork_vec, actual_mints, max_mints, target
         bitwork_str, parts = is_valid_bitwork_string(expected_minimum_bitwork)
         prefix = parts['prefix']
         #expected_next_bitwork = calculate_expected_bitwork(bitwork_vec, next_iteration, max_mints, target_increment, starting_target)
-        next_full_bitwork_prefix = get_next_bitwork_full_str(bitwork_vec, prefix)
+        next_full_bitwork_prefix = get_next_bitwork_full_str(bitwork_vec, len(prefix))
         if is_mint_pow_valid(txid, next_full_bitwork_prefix):
             return True, next_full_bitwork_prefix
     return False, None 
