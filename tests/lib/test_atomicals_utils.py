@@ -665,8 +665,8 @@ def test_get_next_bitwork_full_str():
     assert(get_next_bitwork_full_str('', 1) == '00')
     assert(get_next_bitwork_full_str('', 2) == '000')
 
-    assert(get_next_bitwork_full_str('8', 0) == '80')
-    assert(get_next_bitwork_full_str('8', 1) == '800')
+    assert(get_next_bitwork_full_str('8', 0) == '8')
+    assert(get_next_bitwork_full_str('8', 1) == '80')
     
     assert(get_next_bitwork_full_str('88', 0) == '8')
     assert(get_next_bitwork_full_str('88', 1) == '88')
