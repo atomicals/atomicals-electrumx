@@ -1674,10 +1674,10 @@ def is_txid_valid_for_bitwork(txid, bitwork_vec, actual_mints, max_mints, target
         return True, expected_minimum_bitwork
     # If we allow the next bitwork also to be accepted
     if allow_higher:
-        remaining = max_mints - (actual_mints % max_mints)
-        next_iteration = actual_mints + remaining
-        expected_next_bitwork = calculate_expected_bitwork(bitwork_vec, next_iteration, max_mints, target_increment, starting_target)
-        if is_mint_pow_valid(txid, expected_next_bitwork):
+        bitwork_str, parts = is_valid_bitwork_string(expected_minimum_bitwork)
+        prefix = parts['prefix']
+        #expected_next_bitwork = calculate_expected_bitwork(bitwork_vec, next_iteration, max_mints, target_increment, starting_target)
+        if is_mint_pow_valid(txid, get_next_bitwork_full_str(bitwork_vec, prefix)):
             return True, expected_next_bitwork
     return False, None 
 
