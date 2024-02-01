@@ -34,6 +34,7 @@ from electrumx.lib.script2addr import get_address_from_output_script
 import electrumx.lib.util as util
 from electrumx.lib.util import OldTaskGroup, unpack_le_uint64
 from electrumx.lib.util_atomicals import (
+    DFT_MINT_MAX_MAX_COUNT_DENSITY,
     format_name_type_candidates_to_rpc, 
     SUBREALM_MINT_PATH, 
     MINT_SUBNAME_RULES_BECOME_EFFECTIVE_IN_BLOCKS,
@@ -2068,7 +2069,13 @@ class ElectrumX(SessionBase):
         atomical = await self.atomical_id_get(compact_atomical_id)
         atomical = await self.db.populate_extended_atomical_holder_info(atomical_id, atomical)
         if atomical["type"] == "FT":
-            max_supply = atomical.get('$max_supply', 0)
+            if atomical["$mint_mode"] == "fixed":
+                max_supply = atomical.get('$max_supply', 0)
+            else:
+                max_supply = atomical.get('$max_supply', -1)
+                if max_supply < 0:
+                    mint_amount = atomical.get("mint_info", {}).get("args", {}).get("mint_amount")
+                    max_supply = DFT_MINT_MAX_MAX_COUNT_DENSITY * mint_amount
             for holder in atomical.get("holders", [])[offset:offset+limit]:
                 percent = holder['holding'] / max_supply
                 formatted_results.append({

@@ -2510,7 +2510,7 @@ class BlockProcessor:
                 return None 
             mint_info_for_ticker = self.get_atomicals_id_mint_info(potential_dmt_atomical_id, True)
             if not mint_info_for_ticker:
-                raise IndexError(f'create_or_delete_decentralized_mint_outputs: mint_info_for_ticker not found for expected atomical={atomical_id}')
+                raise IndexError(f'create_or_delete_decentralized_mint_outputs: mint_info_for_ticker not found for expected atomical={potential_dmt_atomical_id}')
             ticker_cache[ticker] = mint_info_for_ticker
 
         if mint_info_for_ticker['subtype'] != 'decentralized':

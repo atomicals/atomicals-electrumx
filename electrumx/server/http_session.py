@@ -14,7 +14,7 @@ import electrumx
 from electrumx.lib.hash import HASHX_LEN, double_sha256, hash_to_hex_str, hex_str_to_hash, sha256
 import electrumx.lib.util as util
 from electrumx.lib.script2addr import get_address_from_output_script
-from electrumx.lib.util_atomicals import SUBREALM_MINT_PATH, AtomicalsValidationError, auto_encode_bytes_elements, calculate_latest_state_from_mod_history, compact_to_location_id_bytes, format_name_type_candidates_to_rpc, format_name_type_candidates_to_rpc_for_subname, is_compact_atomical_id, location_id_bytes_to_compact, validate_merkle_proof_dmint, validate_rules_data
+from electrumx.lib.util_atomicals import DFT_MINT_MAX_MAX_COUNT_DENSITY, DMINT_PATH, MINT_SUBNAME_RULES_BECOME_EFFECTIVE_IN_BLOCKS, SUBREALM_MINT_PATH, AtomicalsValidationError, auto_encode_bytes_elements, calculate_latest_state_from_mod_history, compact_to_location_id_bytes, format_name_type_candidates_to_rpc, format_name_type_candidates_to_rpc_for_subname, is_compact_atomical_id, location_id_bytes_to_compact, validate_merkle_proof_dmint, validate_rules_data
 from electrumx.server.daemon import DaemonError
 
 
@@ -1898,7 +1898,13 @@ class HttpHandler(object):
         atomical = await self.atomical_id_get(compact_atomical_id)
         atomical = await self.db.populate_extended_atomical_holder_info(atomical_id, atomical)
         if atomical["type"] == "FT":
-            max_supply = atomical.get('$max_supply', 0)
+            if atomical["$mint_mode"] == "fixed":
+                max_supply = atomical.get('$max_supply', 0)
+            else:
+                max_supply = atomical.get('$max_supply', -1)
+                if max_supply < 0:
+                    mint_amount = atomical.get("mint_info", {}).get("args", {}).get("mint_amount")
+                    max_supply = DFT_MINT_MAX_MAX_COUNT_DENSITY * mint_amount 
             for holder in atomical.get("holders", [])[offset:offset+limit]:
                 percent = holder['holding'] / max_supply
                 formatted_results.append({
