@@ -621,11 +621,11 @@ def test_calculate_expected_bitwork_rollover3():
     success, bitwork_str = is_txid_valid_for_bitwork(hex_str_to_hash('0a2f848888888888888888888888888888888888888888888888888888888888'), '0a2f', 3, 1, 5, 64, False)
     assert(not success)
 
-    success, bitwork_str = is_txid_valid_for_bitwork(hex_str_to_hash('0a2f848888888888888888888888888888888888888888888888888888888888'), '0a2f', 3, 1, 5, 64, True)
+    success, bitwork_str = is_txid_valid_for_bitwork(hex_str_to_hash('0a2f048888888888888888888888888888888888888888888888888888888888'), '0a2f', 3, 1, 5, 64, True)
     assert(success)
     assert(bitwork_str == '0a2f0.4')
 
-    success, bitwork_str = is_txid_valid_for_bitwork(hex_str_to_hash('0a2f858888888888888888888888888888888888888888888888888888888888'), '0a2f', 3, 1, 5, 64, True)
+    success, bitwork_str = is_txid_valid_for_bitwork(hex_str_to_hash('0a2f058888888888888888888888888888888888888888888888888888888888'), '0a2f', 3, 1, 5, 64, True)
     assert(success)
     assert(bitwork_str == '0a2f0.4')
 
