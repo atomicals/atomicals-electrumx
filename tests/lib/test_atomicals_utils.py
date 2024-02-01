@@ -1014,5 +1014,3 @@ def test_get_next_bitwork_full_str():
     assert(get_next_bitwork_full_str('88888', 3) == '8888')
     assert(get_next_bitwork_full_str('88888', 4) == '88888')
 
-
-    

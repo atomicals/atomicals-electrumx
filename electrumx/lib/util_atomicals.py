@@ -1665,8 +1665,9 @@ def get_subname_request_candidate_status(current_height, atomical_info, status, 
 
 def get_next_bitwork_full_str(bitwork_vec, current_prefix_len):
     base_bitwork_padded = bitwork_vec.ljust(32, '0') 
-    p = base_bitwork_padded[:current_prefix_len + 1]
-    return p
+    if current_prefix_len >= 31:
+        return base_bitwork_padded
+    return base_bitwork_padded[:current_prefix_len + 1]
 
 # Whether txid is valid for the current and next bitwork
 def is_txid_valid_for_perpetual_bitwork(txid, bitwork_vec, actual_mints, max_mints, target_increment, starting_target, allow_higher):
@@ -1677,7 +1678,6 @@ def is_txid_valid_for_perpetual_bitwork(txid, bitwork_vec, actual_mints, max_min
     if allow_higher:
         bitwork_str, parts = is_valid_bitwork_string(expected_minimum_bitwork)
         prefix = parts['prefix']
-        #expected_next_bitwork = calculate_expected_bitwork(bitwork_vec, next_iteration, max_mints, target_increment, starting_target)
         next_full_bitwork_prefix = get_next_bitwork_full_str(bitwork_vec, len(prefix))
         if is_mint_pow_valid(txid, next_full_bitwork_prefix):
             return True, next_full_bitwork_prefix
@@ -1701,7 +1701,9 @@ def derive_bitwork_prefix_from_target(base_bitwork_prefix, target):
     multiples = target / 16
     full_amount = int(math.floor(multiples))
     modulo = target % 16
-    bitwork_prefix = base_bitwork_padded[:full_amount]
+    bitwork_prefix = base_bitwork_padded
+    if full_amount < 32:
+        bitwork_prefix = base_bitwork_padded[:full_amount]
     if modulo > 0:
         return bitwork_prefix + '.' + str(modulo)
     return bitwork_prefix
