@@ -1663,6 +1663,10 @@ def get_subname_request_candidate_status(current_height, atomical_info, status, 
         'pending_candidate_atomical_id': candidate_id_compact
     }
 
+def get_next_bitwork_full_str(bitwork_vec, current_prefix_len):
+
+    return '' 
+
 # Whether txid is valid for the current and next bitwork
 def is_txid_valid_for_bitwork(txid, bitwork_vec, actual_mints, max_mints, target_increment, starting_target, allow_higher):
     expected_minimum_bitwork = calculate_expected_bitwork(bitwork_vec, actual_mints, max_mints, target_increment, starting_target)

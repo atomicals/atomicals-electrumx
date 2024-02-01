@@ -11,7 +11,8 @@ from electrumx.lib.util_atomicals import (
     decode_bitwork_target_from_prefix,
     is_bitwork_subset,
     calculate_expected_bitwork,
-    is_txid_valid_for_bitwork
+    is_txid_valid_for_bitwork,
+    get_next_bitwork_full_str
 )
 
 coin = Bitcoin
@@ -658,4 +659,34 @@ def test_calculate_expected_bitwork_rollover4():
     assert(bitwork_str == '33333')
 
  
+def test_get_next_bitwork_full_str():
+
+    assert(get_next_bitwork_full_str('', 0) == '0')
+    assert(get_next_bitwork_full_str('', 1) == '00')
+    assert(get_next_bitwork_full_str('', 2) == '000')
+
+    assert(get_next_bitwork_full_str('8', 0) == '80')
+    assert(get_next_bitwork_full_str('8', 1) == '800')
+    
+    assert(get_next_bitwork_full_str('88', 0) == '8')
+    assert(get_next_bitwork_full_str('88', 1) == '88')
+    assert(get_next_bitwork_full_str('88', 2) == '880')
+
+    assert(get_next_bitwork_full_str('888', 0) == '8')
+    assert(get_next_bitwork_full_str('888', 1) == '88')
+    assert(get_next_bitwork_full_str('888', 2) == '888')
+    assert(get_next_bitwork_full_str('888', 3) == '8880')
+
+    assert(get_next_bitwork_full_str('8888', 0) == '8')
+    assert(get_next_bitwork_full_str('8888', 1) == '88')
+    assert(get_next_bitwork_full_str('8888', 2) == '888')
+    assert(get_next_bitwork_full_str('8888', 3) == '8888')
+
+    assert(get_next_bitwork_full_str('88888', 0) == '8')
+    assert(get_next_bitwork_full_str('88888', 1) == '88')
+    assert(get_next_bitwork_full_str('88888', 2) == '888')
+    assert(get_next_bitwork_full_str('88888', 3) == '8888')
+    assert(get_next_bitwork_full_str('88888', 4) == '88888')
+
+
     
