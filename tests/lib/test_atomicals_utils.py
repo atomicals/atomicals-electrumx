@@ -957,7 +957,7 @@ def test_calculate_expected_bitwork_rollover5():
             'start': 64,
             'allow_higher': True,
             'expect': True,
-            'bitwork_match': '33333.4'
+            'bitwork_match': '333333'
         },
         {
             'txid': '3333320000000000000000000000000000000000000000000000000000000000',
