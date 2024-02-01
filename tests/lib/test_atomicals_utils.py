@@ -793,6 +793,61 @@ def test_calculate_expected_bitwork_rollover5():
             'allow_higher': True,
             'expect': True,
             'bitwork_match': '33333'
+        },
+        {
+            'txid': '3333300000000000000000000000000000000000000000000000000000000000',
+            'bitworkvec': '333333',
+            'mints': 7,
+            'max_mints': 1,
+            'inc': 1,
+            'start': 64,
+            'allow_higher': True,
+            'expect': True,
+            'bitwork_match': '33333'
+        },
+        {
+            'txid': '3333300000000000000000000000000000000000000000000000000000000000',
+            'bitworkvec': '333333',
+            'mints': 8,
+            'max_mints': 1,
+            'inc': 1,
+            'start': 64,
+            'allow_higher': True,
+            'expect': True,
+            'bitwork_match': '33333'
+        },
+        {
+            'txid': '3333300000000000000000000000000000000000000000000000000000000000',
+            'bitworkvec': '333333',
+            'mints': 9,
+            'max_mints': 1,
+            'inc': 1,
+            'start': 64,
+            'allow_higher': True,
+            'expect': True,
+            'bitwork_match': '33333'
+        },
+        {
+            'txid': '3333300000000000000000000000000000000000000000000000000000000000',
+            'bitworkvec': '333333',
+            'mints': 10,
+            'max_mints': 1,
+            'inc': 1,
+            'start': 64,
+            'allow_higher': True,
+            'expect': True,
+            'bitwork_match': '33333'
+        },
+        {
+            'txid': '3333300000000000000000000000000000000000000000000000000000000000',
+            'bitworkvec': '333333',
+            'mints': 11,
+            'max_mints': 1,
+            'inc': 1,
+            'start': 64,
+            'allow_higher': True,
+            'expect': True,
+            'bitwork_match': '33333'
         }
     ]
 
