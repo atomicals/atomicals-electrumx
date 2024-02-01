@@ -748,7 +748,7 @@ def test_calculate_expected_bitwork_rollover5():
             'start': 64,
             'allow_higher': False,
             'expect': True,
-            'bitwork_match': '3333.2'
+            'bitwork_match': '3333.3'
         }
     ]
 
