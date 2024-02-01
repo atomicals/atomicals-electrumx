@@ -571,8 +571,7 @@ def test_calculate_expected_bitwork_rollover():
 
     success, bitwork_str = is_txid_valid_for_bitwork(hex_str_to_hash('8888888088888888888888888888888888888888888888888888888888888888'), '888888888888', 1000, 1000, 49, 64, True)
     assert(not success)
- 
- 
+
 def test_calculate_expected_bitwork_rollover2():
 
     assert(calculate_expected_bitwork('888888888888', 3, 1, 5, 64) == '8888.15')
@@ -613,25 +612,26 @@ def test_calculate_expected_bitwork_rollover3():
  
     success, bitwork_str = is_txid_valid_for_bitwork(hex_str_to_hash('0a2f888888888888888888888888888888888888888888888888888888888888'), '0a2f', 3, 1, 5, 64, True)
     assert(success)
-    assert(bitwork_str == '88888.4')
+    assert(bitwork_str == '0a2f0.4')
    
     success, bitwork_str = is_txid_valid_for_bitwork(hex_str_to_hash('0a2ff88888888888888888888888888888888888888888888888888888888888'), '0a2f', 3, 1, 5, 64, True)
     assert(success)
-    assert(bitwork_str == '8888.15')
+    assert(bitwork_str == '0a2f.15')
 
     success, bitwork_str = is_txid_valid_for_bitwork(hex_str_to_hash('0a2f848888888888888888888888888888888888888888888888888888888888'), '0a2f', 3, 1, 5, 64, False)
     assert(not success)
 
     success, bitwork_str = is_txid_valid_for_bitwork(hex_str_to_hash('0a2f848888888888888888888888888888888888888888888888888888888888'), '0a2f', 3, 1, 5, 64, True)
     assert(success)
-    assert(bitwork_str == '88888.4')
+    assert(bitwork_str == '0a2f0.4')
 
     success, bitwork_str = is_txid_valid_for_bitwork(hex_str_to_hash('0a2f858888888888888888888888888888888888888888888888888888888888'), '0a2f', 3, 1, 5, 64, True)
     assert(success)
-    assert(bitwork_str == '88888.4')
+    assert(bitwork_str == '0a2f0.4')
 
     success, bitwork_str = is_txid_valid_for_bitwork(hex_str_to_hash('0a2f388888888888888888888888888888888888888888888888888888888888'), '0a2f', 3, 1, 5, 64, True)
     assert(not success)
 
     success, bitwork_str = is_txid_valid_for_bitwork(hex_str_to_hash('0a2f838888888888888888888888888888888888888888888888888888888888'), '0a2f', 3, 1, 5, 64, True)
     assert(not success)
+
