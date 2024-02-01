@@ -68,7 +68,7 @@ from electrumx.lib.util_atomicals import (
     is_event_operation,
     encode_atomical_ids_hex,
     is_mint_pow_valid,
-    is_txid_valid_for_bitwork
+    is_txid_valid_for_perpetual_bitwork
 )
 
 from electrumx.lib.atomicals_blueprint_builder import AtomicalsTransferBlueprintBuilder
@@ -2578,12 +2578,12 @@ class BlockProcessor:
                 if mint_bitworkc_inc:
                     mint_bitworkc_start = mint_info_for_ticker.get('$mint_bitworkc_start')   
                     if self.is_dft_bitwork_rollover_activated(height):
-                        success, bitwork_str = is_txid_valid_for_bitwork(atomicals_operations_found_at_inputs['commit_txid'], mint_bitwork_vec, decentralized_mints, max_mints, mint_bitworkc_inc, mint_bitworkc_start, True)
+                        success, bitwork_str = is_txid_valid_for_perpetual_bitwork(atomicals_operations_found_at_inputs['commit_txid'], mint_bitwork_vec, decentralized_mints, max_mints, mint_bitworkc_inc, mint_bitworkc_start, True)
                         if not success:
                             self.logger.warning(f'create_or_delete_decentralized_mint_output: mint_bitworkc_inc not is_mint_pow_valid {hash_to_hex_str(tx_hash)}, atomicals_operations_found_at_inputs={atomicals_operations_found_at_inputs}...')
                             return None
                     else: 
-                        success, bitwork_str = is_txid_valid_for_bitwork(atomicals_operations_found_at_inputs['commit_txid'], mint_bitwork_vec, decentralized_mints, max_mints, mint_bitworkc_inc, mint_bitworkc_start, False)
+                        success, bitwork_str = is_txid_valid_for_perpetual_bitwork(atomicals_operations_found_at_inputs['commit_txid'], mint_bitwork_vec, decentralized_mints, max_mints, mint_bitworkc_inc, mint_bitworkc_start, False)
                         if not success:
                             self.logger.warning(f'create_or_delete_decentralized_mint_output: mint_bitworkc_inc not is_mint_pow_valid {hash_to_hex_str(tx_hash)}, atomicals_operations_found_at_inputs={atomicals_operations_found_at_inputs}...')
                             return None
@@ -2592,11 +2592,11 @@ class BlockProcessor:
                 if mint_bitworkr_inc:
                     mint_bitworkr_start = mint_info_for_ticker.get('$mint_bitworkr_start')
                     if height >= self.coin.ATOMICALS_ACTIVATION_HEIGHT_BITWORKEXT:
-                        if not is_txid_valid_for_bitwork(atomicals_operations_found_at_inputs['commit_txid'], mint_bitwork_vec, decentralized_mints, max_mints, mint_bitworkr_inc, mint_bitworkr_start, True):
+                        if not is_txid_valid_for_perpetual_bitwork(atomicals_operations_found_at_inputs['commit_txid'], mint_bitwork_vec, decentralized_mints, max_mints, mint_bitworkr_inc, mint_bitworkr_start, True):
                             self.logger.warning(f'create_or_delete_decentralized_mint_output: mint_bitworkc_inc not is_mint_pow_valid {hash_to_hex_str(tx_hash)}, atomicals_operations_found_at_inputs={atomicals_operations_found_at_inputs}...')
                             return None
                     else: 
-                        if not is_txid_valid_for_bitwork(atomicals_operations_found_at_inputs['reveal_location_txid'], mint_bitwork_vec, decentralized_mints, max_mints, mint_bitworkr_inc, mint_bitworkr_start, False):
+                        if not is_txid_valid_for_perpetual_bitwork(atomicals_operations_found_at_inputs['reveal_location_txid'], mint_bitwork_vec, decentralized_mints, max_mints, mint_bitworkr_inc, mint_bitworkr_start, False):
                             self.logger.warning(f'create_or_delete_decentralized_mint_output: mint_bitworkc_inc not is_mint_pow_valid {hash_to_hex_str(tx_hash)}, atomicals_operations_found_at_inputs={atomicals_operations_found_at_inputs}...')
                             return None
                           
