@@ -659,6 +659,42 @@ def test_calculate_expected_bitwork_rollover4():
     assert(bitwork_str == '33333')
 
  
+def test_calculate_expected_bitwork_rollover5():
+
+    success, bitwork_str = is_txid_valid_for_perpetual_bitwork(hex_str_to_hash('3333000000000000000000000000000000000000000000000000000000000000'), '333333', 0, 1, 1, 64, True)
+    assert(success)
+    assert(bitwork_str == '3333')
+
+    success, bitwork_str = is_txid_valid_for_perpetual_bitwork(hex_str_to_hash('3333000000000000000000000000000000000000000000000000000000000000'), '333333', 1, 1, 1, 64, True)
+    assert(not success)
+
+    success, bitwork_str = is_txid_valid_for_perpetual_bitwork(hex_str_to_hash('3333000000000000000000000000000000000000000000000000000000000000'), '333333', 1, 1, 1, 64, True)
+    assert(success)
+    assert(bitwork_str == '3333.1')
+
+      
+    testvec = [
+        {
+            'txid': '3333000000000000000000000000000000000000000000000000000000000000',
+            'bitworkvec': '333333',
+            'mints': 0,
+            'max_mints': 1,
+            'inc': 1,
+            'start': 64,
+            'allow_higher': True,
+            'expect': True,
+            'bitwork_match': '3333'
+        }
+    ]
+
+    for x in testvec:
+        success, bitwork_str = is_txid_valid_for_perpetual_bitwork(hex_str_to_hash(x['txid']), x['bitworkvec'], x['mints'], x['max_mints'], x['inc'], x['start'], x['allow_higher'])
+        assert(x['expect'])
+
+        if x['expect']:
+            assert(bitwork_str == x['bitwork_match'])
+        
+
 def test_get_next_bitwork_full_str():
 
     assert(get_next_bitwork_full_str('', 0) == '0')
