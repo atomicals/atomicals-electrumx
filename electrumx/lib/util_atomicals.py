@@ -881,7 +881,6 @@ def format_name_type_candidates_to_rpc_for_subname(raw_entries, atomical_id_to_c
     for base_candidate in reformatted:
         dataset = atomical_id_to_candidate_info_map[compact_to_location_id_bytes(base_candidate['atomical_id'])]
         base_atomical_id = base_candidate['atomical_id']
-        print(f'data atomical_id_to_candidate_info_map atomicalId= {base_atomical_id}')
         base_candidate['payment'] = dataset.get('payment')
         base_candidate['payment_type'] = dataset.get('payment_type')
         base_candidate['payment_subtype'] = dataset.get('payment_subtype')
@@ -1664,6 +1663,26 @@ def get_subname_request_candidate_status(current_height, atomical_info, status, 
         'pending_candidate_atomical_id': candidate_id_compact
     }
 
+def get_next_bitwork_full_str(bitwork_vec, current_prefix_len):
+    base_bitwork_padded = bitwork_vec.ljust(32, '0') 
+    if current_prefix_len >= 31:
+        return base_bitwork_padded
+    return base_bitwork_padded[:current_prefix_len + 1]
+
+# Whether txid is valid for the current and next bitwork
+def is_txid_valid_for_perpetual_bitwork(txid, bitwork_vec, actual_mints, max_mints, target_increment, starting_target, allow_higher):
+    expected_minimum_bitwork = calculate_expected_bitwork(bitwork_vec, actual_mints, max_mints, target_increment, starting_target)
+    if is_mint_pow_valid(txid, expected_minimum_bitwork):
+        return True, expected_minimum_bitwork
+    # If we allow the next bitwork also to be accepted
+    if allow_higher:
+        bitwork_str, parts = is_valid_bitwork_string(expected_minimum_bitwork)
+        prefix = parts['prefix']
+        next_full_bitwork_prefix = get_next_bitwork_full_str(bitwork_vec, len(prefix))
+        if is_mint_pow_valid(txid, next_full_bitwork_prefix):
+            return True, next_full_bitwork_prefix
+    return False, None 
+
 def calculate_expected_bitwork(bitwork_vec, actual_mints, max_mints, target_increment, starting_target):
     if starting_target < 64 or starting_target > 256:
         raise Exception(f'Invalid starting target {starting_target}')
@@ -1675,7 +1694,6 @@ def calculate_expected_bitwork(bitwork_vec, actual_mints, max_mints, target_incr
     current_target = starting_target + (target_steps * target_increment)
     return derive_bitwork_prefix_from_target(bitwork_vec, current_target)
 
-# Derive a bitwork string based on purely using an increment difficulty factor
 def derive_bitwork_prefix_from_target(base_bitwork_prefix, target):
     if target < 16:
         raise Exception(f'increments must be at least 16. Provided: {target}')
@@ -1683,8 +1701,9 @@ def derive_bitwork_prefix_from_target(base_bitwork_prefix, target):
     multiples = target / 16
     full_amount = int(math.floor(multiples))
     modulo = target % 16
-
-    bitwork_prefix = base_bitwork_padded[:full_amount]
+    bitwork_prefix = base_bitwork_padded
+    if full_amount < 32:
+        bitwork_prefix = base_bitwork_padded[:full_amount]
     if modulo > 0:
         return bitwork_prefix + '.' + str(modulo)
     return bitwork_prefix

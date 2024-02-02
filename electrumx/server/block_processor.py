@@ -67,7 +67,8 @@ from electrumx.lib.util_atomicals import (
     is_seal_operation,
     is_event_operation,
     encode_atomical_ids_hex,
-    is_mint_pow_valid
+    is_mint_pow_valid,
+    is_txid_valid_for_perpetual_bitwork
 )
 
 from electrumx.lib.atomicals_blueprint_builder import AtomicalsTransferBlueprintBuilder
@@ -2489,6 +2490,9 @@ class BlockProcessor:
         self.populate_dmitem_subtype_specific_fields(atomical)
         return atomical 
 
+    def is_dft_bitwork_rollover_activated(self, height):
+        return height >= self.coin.ATOMICALS_ACTIVATION_HEIGHT_DFT_BITWORK_ROLLOVER
+    
     # Create a distributed mint output as long as the rules are satisfied
     def create_or_delete_decentralized_mint_output(self, atomicals_operations_found_at_inputs, tx_num, tx_hash, tx, height, ticker_cache, Delete):
         if not atomicals_operations_found_at_inputs:
@@ -2572,19 +2576,30 @@ class BlockProcessor:
                
                 # If there was a commit bitwork required, then assess the stage of the minimum we expect to allow the mint
                 if mint_bitworkc_inc:
-                    mint_bitworkc_start = mint_info_for_ticker.get('$mint_bitworkc_start')      
-                    expected_minimum_bitworkc = calculate_expected_bitwork(mint_bitwork_vec, decentralized_mints, max_mints, mint_bitworkc_inc, mint_bitworkc_start)
-                    if not is_mint_pow_valid(atomicals_operations_found_at_inputs['commit_txid'], expected_minimum_bitworkc):
-                        self.logger.warning(f'create_or_delete_decentralized_mint_output: mint_bitworkc_inc not is_mint_pow_valid {hash_to_hex_str(tx_hash)}, expected_minimum_bitworkc={expected_minimum_bitworkc}, atomicals_operations_found_at_inputs={atomicals_operations_found_at_inputs}...')
-                        return None  
+                    mint_bitworkc_start = mint_info_for_ticker.get('$mint_bitworkc_start')   
+                    if self.is_dft_bitwork_rollover_activated(height):
+                        success, bitwork_str = is_txid_valid_for_perpetual_bitwork(atomicals_operations_found_at_inputs['commit_txid'], mint_bitwork_vec, decentralized_mints, max_mints, mint_bitworkc_inc, mint_bitworkc_start, True)
+                        if not success:
+                            self.logger.warning(f'create_or_delete_decentralized_mint_output: mint_bitworkc_inc not is_mint_pow_valid {hash_to_hex_str(tx_hash)}, atomicals_operations_found_at_inputs={atomicals_operations_found_at_inputs}...')
+                            return None
+                    else: 
+                        success, bitwork_str = is_txid_valid_for_perpetual_bitwork(atomicals_operations_found_at_inputs['commit_txid'], mint_bitwork_vec, decentralized_mints, max_mints, mint_bitworkc_inc, mint_bitworkc_start, False)
+                        if not success:
+                            self.logger.warning(f'create_or_delete_decentralized_mint_output: mint_bitworkc_inc not is_mint_pow_valid {hash_to_hex_str(tx_hash)}, atomicals_operations_found_at_inputs={atomicals_operations_found_at_inputs}...')
+                            return None
+                
                  # If there was a reveal bitwork required, then assess the stage of the minimum we expect to allow the mint
                 if mint_bitworkr_inc:
-                    mint_bitworkr_start = mint_info_for_ticker.get('$mint_bitworkr_start')  
-                    expected_minimum_bitworkr = calculate_expected_bitwork(mint_bitwork_vec, decentralized_mints, max_mints, mint_bitworkr_inc, mint_bitworkr_start)
-                    if not is_mint_pow_valid(atomicals_operations_found_at_inputs['reveal_location_txid'], expected_minimum_bitworkr):
-                        self.logger.warning(f'create_or_delete_decentralized_mint_output: mint_bitworkr_inc not is_mint_pow_valid {hash_to_hex_str(tx_hash)}, expected_minimum_bitworkr={expected_minimum_bitworkr}, atomicals_operations_found_at_inputs={atomicals_operations_found_at_inputs}...')
-                        return None   
-
+                    mint_bitworkr_start = mint_info_for_ticker.get('$mint_bitworkr_start')
+                    if self.is_dft_bitwork_rollover_activated(height):
+                        if not is_txid_valid_for_perpetual_bitwork(atomicals_operations_found_at_inputs['reveal_location_txid'], mint_bitwork_vec, decentralized_mints, max_mints, mint_bitworkr_inc, mint_bitworkr_start, True):
+                            self.logger.warning(f'create_or_delete_decentralized_mint_output: mint_bitworkr_inc not is_mint_pow_valid {hash_to_hex_str(tx_hash)}, atomicals_operations_found_at_inputs={atomicals_operations_found_at_inputs}...')
+                            return None
+                    else: 
+                        if not is_txid_valid_for_perpetual_bitwork(atomicals_operations_found_at_inputs['reveal_location_txid'], mint_bitwork_vec, decentralized_mints, max_mints, mint_bitworkr_inc, mint_bitworkr_start, False):
+                            self.logger.warning(f'create_or_delete_decentralized_mint_output: mint_bitworkr_inc not is_mint_pow_valid {hash_to_hex_str(tx_hash)}, atomicals_operations_found_at_inputs={atomicals_operations_found_at_inputs}...')
+                            return None
+                          
                 allow_mint = True
             else: 
                 # It is the 'fixed' mint mode and the bitworkc/r is static
