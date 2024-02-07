@@ -260,6 +260,12 @@ def is_valid_dmt_op_format(tx_hash, dmt_op):
         }
     return False, {}
 
+def is_valid_script(s): 
+    if not isinstance(s, bytes):
+        return False
+    # Todo: Add validation that script bytes are valid
+    return True
+
 # Validate that a string is a valid hex 
 def is_validate_pow_prefix_string(pow_prefix, pow_prefix_ext):
     if not pow_prefix:
@@ -421,6 +427,43 @@ def get_if_parent_spent_in_same_tx(parent_atomical_id_compact, expected_minimum_
     else:
         return False
 
+# Exclude request types that could conflict
+def contains_at_most_only_one_request_type(data_or_mint_info): 
+    request_counter = 0 # Ensure that only one of the following may be requested or fail
+    realm = data_or_mint_info['args'].get('request_realm')
+    subrealm = data_or_mint_info['args'].get('request_subrealm')
+    container = data_or_mint_info['args'].get('request_container')
+    ticker = data_or_mint_info['args'].get('request_ticker')
+    prime = data_or_mint_info['args'].get('rprime')
+    dmitem = data_or_mint_info['args'].get('request_dmitem')
+    scriptname = data_or_mint_info['args'].get('rsname')
+    if realm:
+        request_counter += 1
+    if subrealm:
+        request_counter += 1
+    if container:
+        request_counter += 1
+    if ticker:
+        request_counter += 1
+    if prime:
+        request_counter += 1
+    if dmitem:
+        request_counter += 1
+    if scriptname:
+        request_counter += 1
+
+    if request_counter <= 1:
+        return True
+    return False 
+
+def requires_minimum_bitwork(mint_info): 
+    realm = mint_info['args'].get('request_realm')
+    container = mint_info['args'].get('request_container')
+    ticker = mint_info['args'].get('request_ticker')
+    if realm or container or ticker:
+        return True
+    return False
+
 # Get the mint information structure if it's a valid mint event type
 def get_mint_info_op_factory(coin, tx, tx_hash, op_found_struct, atomicals_spent_at_inputs, height, logger):
     script_hashX = coin.hashX_from_script
@@ -488,17 +531,17 @@ def get_mint_info_op_factory(coin, tx, tx_hash, op_found_struct, atomicals_spent
         mint_info['init'] = init 
         return True
     
-    op = op_found_struct['op']
     payload = op_found_struct['payload']
-    payload_bytes = op_found_struct['payload_bytes']
+    op = op_found_struct['op']  
     input_index = op_found_struct['input_index']
     commit_txid = op_found_struct['commit_txid']
     commit_index = op_found_struct['commit_index']
+    commit_location = op_found_struct['commit_location']
     reveal_location_txid = op_found_struct['reveal_location_txid']
     reveal_location_index = op_found_struct['reveal_location_index']
     # Create the base mint information structure
     mint_info = build_base_mint_info(commit_txid, commit_index, reveal_location_txid, reveal_location_index)
-    if not populate_args_meta_ctx_init(mint_info, op_found_struct['payload']):
+    if not populate_args_meta_ctx_init(mint_info, payload):
         logger.warning(f'get_mint_info_op_factory - not populate_args_meta_ctx_init {hash_to_hex_str(tx_hash)}')
         return None, None
     
@@ -519,28 +562,8 @@ def get_mint_info_op_factory(coin, tx, tx_hash, op_found_struct, atomicals_spent
             'bitworkc': pow_result['pow_commit'],
             'bitworkr': pow_result['pow_reveal']
         }
-
-    is_name_type_require_bitwork = False
-    request_counter = 0 # Ensure that only one of the following may be requested or fail
-    realm = mint_info['args'].get('request_realm')
-    subrealm = mint_info['args'].get('request_subrealm')
-    container = mint_info['args'].get('request_container')
-    ticker = mint_info['args'].get('request_ticker')
-    dmitem = mint_info['args'].get('request_dmitem')
-    if realm:
-        request_counter += 1
-        is_name_type_require_bitwork = True
-    if subrealm:
-        request_counter += 1
-    if container:
-        request_counter += 1
-        is_name_type_require_bitwork = True
-    if ticker:
-        request_counter += 1
-        is_name_type_require_bitwork = True
-    if dmitem:
-        request_counter += 1
-    if request_counter > 1:
+   
+    if not contains_at_most_only_one_request_type(mint_info):
         print(f'Ignoring mint due to multiple requested name types {tx_hash}')
         return None, None
 
@@ -582,25 +605,30 @@ def get_mint_info_op_factory(coin, tx, tx_hash, op_found_struct, atomicals_spent
     # Non-Fungible Token (NFT) Mint Operations
     #
     ############################################
-    if op_found_struct['op'] == 'nft' and op_found_struct['input_index'] == 0:
+    if op == 'nft' and input_index == 0:
         mint_info['type'] = 'NFT'
         realm = mint_info['args'].get('request_realm')
         subrealm = mint_info['args'].get('request_subrealm')
         container = mint_info['args'].get('request_container')
         dmitem = mint_info['args'].get('request_dmitem')
+        prime = mint_info['args'].get('rprm')
+        scriptname = mint_info['args'].get('rsn')
         # Strings evaulate to falsey when empty
         # Reject any NFT which contains an empty string for any of the requests
         if isinstance(realm, str) and realm == '':
-            logger.warning(f'NFT request_realm is invalid detected empty request_realm str {hash_to_hex_str(tx_hash)}. Skipping....')
+            logger.warning(f'NFT request_realm is invalid detected empty request_realm str {hash_to_hex_str(tx_hash)}. Skipping...')
             return None, None
         if isinstance(subrealm, str) and subrealm == '':
-            logger.warning(f'NFT request_subrealm is invalid detected empty request_subrealm str {hash_to_hex_str(tx_hash)}. Skipping....')
+            logger.warning(f'NFT request_subrealm is invalid detected empty request_subrealm str {hash_to_hex_str(tx_hash)}. Skipping...')
             return None, None
         if isinstance(container, str) and container == '':
-            logger.warning(f'NFT request_container is invalid detected empty request_container str {hash_to_hex_str(tx_hash)}. Skipping....')
+            logger.warning(f'NFT request_container is invalid detected empty request_container str {hash_to_hex_str(tx_hash)}. Skipping...')
             return None, None
         if isinstance(dmitem, str) and dmitem == '':
-            logger.warning(f'NFT request_dmitem is invalid detected empty request_dmitem str {hash_to_hex_str(tx_hash)}. Skipping....')
+            logger.warning(f'NFT request_dmitem is invalid detected empty request_dmitem str {hash_to_hex_str(tx_hash)}. Skipping...')
+            return None, None
+        if isinstance(prime, str) and prime == '':
+            logger.warning(f'NFT rprm is invalid detected empty rprm str {hash_to_hex_str(tx_hash)}. Skipping...')
             return None, None
 
         if realm:
@@ -651,19 +679,42 @@ def get_mint_info_op_factory(coin, tx, tx_hash, op_found_struct, atomicals_spent
                 logger.warning(f'NFT request_container is invalid {hash_to_hex_str(tx_hash)}, {container}. Skipping...')
                 return None, None
             mint_info['$request_container'] = container
+        elif prime:
+            if not isinstance(prime, str) or not is_valid_prime_string_name(prime):
+                logger.warning(f'NFT rprm is invalid {hash_to_hex_str(tx_hash)}, {prime}. Skipping...')
+                return None, None
+            mint_info['$request_prime'] = prime
+            # Capture atomicals into the prime
+
         # containers, realms or subrealms cannot be immutable
         if is_immutable:
-            if container or realm or subrealm:
-                logger.warning(f'NFT is invalid because container or realm or subrealm cannot be immutable {hash_to_hex_str(tx_hash)}. Skipping...')
+            if container or realm or subrealm or prime or scriptname:
+                logger.warning(f'NFT is invalid because container or realm or subrealm or prime cannot be immutable {hash_to_hex_str(tx_hash)}. Skipping...')
                 return None, None
             mint_info['$immutable'] = True 
-
+    ############################################
+    #
+    # Script Type Definition
+    #
+    ############################################
+    elif op == 's' and input_index == 0:
+        mint_info['type'] = 'SCRIPT'
+        scriptname = mint_info['args'].get('rsn')
+        scriptbytes = mint_info['args'].get('s')
+        if not isinstance(scriptname, str) or not is_valid_script_string_name(scriptname):
+            logger.warning(f'SCRIPT rsn is invalid {hash_to_hex_str(tx_hash)}, {scriptname}. Skipping...')
+            return None, None
+        if not isinstance(scriptbytes, bytes):
+            logger.warning(f'SCRIPT s is invalid {hash_to_hex_str(tx_hash)}, {scriptbytes}. Skipping...')
+            return None, None
+        mint_info['$request_scriptname'] = scriptname
+        mint_info['$script'] = scriptbytes.hex()
     ############################################
     #
     # Fungible Token (FT) Mint Operations
     #
     ############################################
-    elif op_found_struct['op'] == 'ft' and op_found_struct['input_index'] == 0:
+    elif op == 'ft' and input_index == 0:
         mint_info['type'] = 'FT'
         mint_info['subtype'] = 'direct'
         ticker = mint_info['args'].get('request_ticker', None)
@@ -677,7 +728,7 @@ def get_mint_info_op_factory(coin, tx, tx_hash, op_found_struct, atomicals_spent
             logger.warning(f'FT cannot be is_immutable is invalid {hash_to_hex_str(tx_hash)}, {ticker}. Skipping...')
             return None, None
 
-    elif op_found_struct['op'] == 'dft' and op_found_struct['input_index'] == 0:
+    elif op == 'dft' and input_index == 0:
         mint_info['type'] = 'FT'
         mint_info['subtype'] = 'decentralized'
         ticker = mint_info['args'].get('request_ticker', None)
@@ -823,6 +874,7 @@ def get_mint_info_op_factory(coin, tx, tx_hash, op_found_struct, atomicals_spent
     # This is the general purpose proof of work request. Typically used for NFTs, but nothing stopping it from being used for
     # the `dft` or `ft` operation either.
     # To require proof of work to mint `dft` (decentralized fungible tokens) use the mint_pow_commit and mint_pow_reveal in the `dft` operation args
+    is_name_type_require_bitwork = requires_minimum_bitwork(mint_info)
     request_pow_commit = mint_info['args'].get('bitworkc')
     if request_pow_commit:
         valid_commit_str, bitwork_commit_parts = is_valid_bitwork_string(request_pow_commit)
@@ -854,7 +906,6 @@ def get_mint_info_op_factory(coin, tx, tx_hash, op_found_struct, atomicals_spent
 
     # Sanity check that the commit location was set correctly on the parsed input
     # We check here at the end because if we got this far then a valid nft/dft/ft mint was found
-    commit_location = op_found_struct['commit_location']
     assert(commit_location == commit_txid + pack_le_uint32(commit_index))
     return mint_info['type'], mint_info
 
@@ -905,8 +956,8 @@ def convert_db_mint_info_to_rpc_mint_info_format(header_hash, mint_info):
     mint_info['mint_info']['reveal_location_header'] = mint_info['mint_info']['reveal_location_header'].hex()
     mint_info['mint_info']['reveal_location_scripthash'] = hash_to_hex_str(mint_info['mint_info']['reveal_location_scripthash'])
     mint_info['mint_info']['reveal_location_script'] = mint_info['mint_info']['reveal_location_script'].hex()
+    mint_info['mint_info']['args'] = auto_encode_bytes_elements(mint_info['mint_info']['args'], True)
     return mint_info 
-
 
 # A valid ticker string must be at least 1 characters and max 21 with a-z0-9
 def is_valid_ticker_string(ticker):
@@ -966,6 +1017,24 @@ def is_valid_container_string_name(container_name):
     # Collection names can start with any type of character except the hyphen "-"
     m = re.compile(r'^[a-z0-9][a-z0-9\-]{0,63}$')
     if m.match(container_name):
+        return True
+    return False 
+
+# A valid prime contract string must begin with a-z and have up to 64 characters after it 
+def is_valid_prime_string_name(prime_name):
+    if not is_valid_namebase_string_name(prime_name):
+        return False
+    m = re.compile(r'^[a-z][a-z0-9]{0,63}$')
+    if m.match(prime_name):
+        return True
+    return False 
+
+# A valid script name string must begin with a-z and have up to 63 characters after it 
+def is_valid_script_string_name(script_name):
+    if not is_valid_namebase_string_name(script_name):
+        return False
+    m = re.compile(r'^[a-z][a-z0-9]{0,63}$')
+    if m.match(script_name):
         return True
     return False 
 
@@ -1068,7 +1137,9 @@ def parse_operation_from_script(script, n):
         if atom_op == "0178":
             atom_op_decoded = 'x'  # extract - move atomical to 0'th output
         elif atom_op == "0179":
-            atom_op_decoded = 'y'  # split - 
+            atom_op_decoded = 'y'  # split - split apart fts
+        elif atom_op == "0173":
+            atom_op_decoded = 's'  # script - define script type
 
         if atom_op_decoded:
             return atom_op_decoded, parse_atomicals_data_definition_operation(script, n + one_letter_op_len)
@@ -1283,25 +1354,27 @@ def encode_tx_hash_hex(state):
     return cloned_state 
 
 # Auto detect any bytes data and encoded it
-def auto_encode_bytes_elements(state):
+def auto_encode_bytes_elements(state, use_only_b = False):
     if isinstance(state, bytes):
-        return {
-            '$d': state.hex(),
+        datastruct = {
             '$b': state.hex(),
-            '$len': sys.getsizeof(state),
             '$auto': True
         }
+        if not use_only_b:
+            datastruct['$d'] = datastruct['$b']
+        return datastruct
+        
     if not isinstance(state, dict) and not isinstance(state, list):
         return state 
     
     if isinstance(state, list):
         reformatted_list = []
         for item in state:
-            reformatted_list.append(auto_encode_bytes_elements(item))
+            reformatted_list.append(auto_encode_bytes_elements(item, use_only_b))
         return reformatted_list 
 
     for key, value in state.items():
-        state[key] = auto_encode_bytes_elements(value)
+        state[key] = auto_encode_bytes_elements(value, use_only_b)
     return state 
  
 

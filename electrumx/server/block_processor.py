@@ -40,6 +40,7 @@ from electrumx.lib.util_atomicals import (
     pad_bytes_n, 
     has_requested_proof_of_work, 
     is_valid_container_string_name, 
+    is_valid_prime_string_name,
     calculate_expected_bitwork,
     expand_spend_utxo_data,
     encode_tx_hash_hex,
@@ -56,7 +57,8 @@ from electrumx.lib.util_atomicals import (
     location_id_bytes_to_compact, 
     is_valid_subrealm_string_name, 
     is_valid_realm_string_name, 
-    is_valid_ticker_string, 
+    is_valid_ticker_string,
+    is_valid_script_string_name,
     get_mint_info_op_factory,
     convert_db_mint_info_to_rpc_mint_info_format,
     calculate_latest_state_from_mod_history,
@@ -273,6 +275,8 @@ class BlockProcessor:
         self.container_data_cache = {}      # Caches the containers created
         self.distmint_data_cache = {}       # Caches the distributed mints created
         self.state_data_cache = {}          # Caches the state updates
+        self.scriptname_data_cache = {}     # Caches the scriptnames created
+        self.prime_data_cache = {}          # Caches the primes created
         self.db_deletes = []
 
         # If the lock is successfully acquired, in-memory chain state
@@ -440,7 +444,8 @@ class BlockProcessor:
                          self.atomical_count,
                          self.atomicals_undo_infos, self.atomicals_utxo_cache, self.general_data_cache, self.ticker_data_cache, 
                          self.realm_data_cache, self.subrealm_data_cache, self.subrealmpay_data_cache, self.dmitem_data_cache, 
-                         self.dmpay_data_cache, self.container_data_cache, self.distmint_data_cache, self.state_data_cache)
+                         self.dmpay_data_cache, self.container_data_cache, self.distmint_data_cache, self.state_data_cache,
+                         self.scriptname_data_cache, self.prime_data_cache)
 
     async def flush(self, flush_utxos):
         def flush():
@@ -1087,6 +1092,25 @@ class BlockProcessor:
             self.put_name_element_template(b'rlm', b'', request_realm, mint_info['commit_tx_num'], mint_info['id'], self.realm_data_cache)
         return True 
     
+    def create_or_delete_scriptname_entry_if_requested(self, mint_info, height, Delete):
+        request_scriptname = mint_info.get('$request_scriptname')
+        if not request_scriptname:
+            # No name was requested, consider the operation successful noop
+            return True 
+        if not is_valid_script_string_name(request_scriptname):
+            return False 
+        # Also check that there is no candidates already committed earlier than the current one
+        self.logger.debug(f'create_or_delete_scriptname_entry_if_requested mint_info={mint_info} request_scriptname={request_scriptname}')
+        status, atomical_id, candidates = self.get_effective_script(request_scriptname, height)
+        for candidate in candidates:
+            if candidate['tx_num'] < mint_info['commit_tx_num']:
+                return False
+        if Delete: 
+            self.delete_name_element_template(b'scn', b'', mint_info.get('$request_scriptname'), mint_info['commit_tx_num'], mint_info['id'], self.scriptname_data_cache)
+        else: 
+            self.put_name_element_template(b'scn', b'', request_scriptname, mint_info['commit_tx_num'], mint_info['id'], self.scriptname_data_cache)
+        return True 
+    
     def create_or_delete_container_entry_if_requested(self, mint_info, height, Delete=False):
         request_container = mint_info.get('$request_container')
         if not request_container:
@@ -1345,7 +1369,7 @@ class BlockProcessor:
         # All mint types always look at only input 0 to determine if the operation was found
         # This is done to preclude complex scenarios of valid/invalid different mint types across inputs 
         valid_create_op_type, mint_info = get_mint_info_op_factory(self.coin, tx, tx_hash, operations_found_at_inputs, atomicals_spent_at_inputs, height, self.logger)
-        if not valid_create_op_type or (valid_create_op_type != 'NFT' and valid_create_op_type != 'FT'):
+        if not valid_create_op_type or (valid_create_op_type != 'NFT' and valid_create_op_type != 'FT' and valid_create_op_type != 'PRIME' and valid_create_op_type != 'SCRIPT'):
             return None
 
         # The atomical would always be created at the first output
@@ -1365,7 +1389,7 @@ class BlockProcessor:
 
         # We add the following as a final sanity check to make sure invalid POW minted atomicals never get created
         # However, it should be excluded in get_mint_info_op_factory to begin with so we will never actually fail her
-        # Perhaps this validity check can be remoed in the future....
+        # Perhaps this validity check can be removed in the future....
         # Check if there was any proof of work requested for the commit or reveal
         # If the client requested any proof of work, then for the mint to be valid, the proof of work (in the commit or reveal, or both) must be valid
         is_pow_requested, pow_result = has_requested_proof_of_work(operations_found_at_inputs)
@@ -1398,6 +1422,9 @@ class BlockProcessor:
         if mint_info.get('$request_ticker'):
             is_name_type = True  
         if mint_info.get('$request_dmitem'):
+            is_name_type = True 
+        # scripts gets unique names too
+        if mint_info.get('$request_scriptname'):
             is_name_type = True  
           
         # Too late to reveal, fail to mint then
@@ -1467,6 +1494,12 @@ class BlockProcessor:
                 if not self.validate_and_create_ft_mint_utxo(mint_info, tx_hash):
                     self.logger.info(f'create_or_delete_atomical: validate_and_create_ft_mint_utxo returned FALSE in Transaction {hash_to_hex_str(tx_hash)}. Skipping...') 
                     return None
+        
+        elif valid_create_op_type == 'SCRIPT':
+            if not self.create_or_delete_scriptname_entry_if_requested(mint_info, height, Delete):
+                return None
+        elif valid_create_op_type == 'PRIME':
+            pass
         else: 
             raise IndexError(f'Fatal index error Create Invalid')
         
@@ -1744,6 +1777,10 @@ class BlockProcessor:
 
         return pow_result['pow_commit'] or pow_result['pow_reveal'] 
 
+    # Get the effective script considering cache and database
+    def get_effective_script(self, script_name, height):
+        return self.get_effective_name_template(b'scn', script_name, height, self.scriptname_data_cache)
+    
     # Get the effective realm considering cache and database
     def get_effective_realm(self, realm_name, height):
         return self.get_effective_name_template(b'rlm', realm_name, height, self.realm_data_cache)
@@ -2097,9 +2134,6 @@ class BlockProcessor:
     # Get the raw stored mint info in the db
     def get_raw_mint_info_by_atomical_id_notused(self, atomical_id):
         atomical_mint_info_key = b'mi' + atomical_id
-
-
-
         atomical_mint_info_value = self.db.utxo_db.get(atomical_mint_info_key)
         if not atomical_mint_info_value:
             return None
@@ -2172,7 +2206,13 @@ class BlockProcessor:
                 atomical['mint_info']['$immutable'] = immutable
             else:
                 atomical['mint_info']['$immutable'] = False
-
+        elif atomical['type'] == 'SCRIPT':
+            # Attach any auxiliary information that was already successfully parsed before
+            request_scriptname = init_mint_info.get('$request_scriptname')
+            if request_scriptname:
+                atomical['mint_info']['$request_scriptname'] = request_scriptname
+                atomical['mint_info']['$script'] = init_mint_info.get('$script')
+            
         elif atomical['type'] == 'FT':
             subtype = init_mint_info.get('subtype')
             atomical['subtype'] = subtype
@@ -2227,6 +2267,9 @@ class BlockProcessor:
             atomical['mint_info']['$parents'] = parents
             atomical['$parents'] = parents
 
+        # If args contain any bytes, then encode them
+        atomical['mint_info']['args'] = auto_encode_bytes_elements(atomical['mint_info']['args'], True)
+    
         # Resolve any name like details such as realms, subrealms, containers and tickers
         self.populate_extended_atomical_subtype_info(atomical)
         self.populate_sealed_status(atomical)
@@ -2454,6 +2497,24 @@ class BlockProcessor:
             return request_dmitem, True
         return request_dmitem, False
 
+    # Populate the specific script name request type information
+    def populate_script_specific_fields(self, atomical):
+        self.logger.info(f'populate_script_specific_fields atomical={atomical}')
+        # Check if the effective subrealm is for the current atomical and also resolve it's parent
+        request_scriptname = atomical['mint_info'].get('$request_scriptname')
+        if not request_scriptname: 
+            return None, None
+        height = self.height
+        status, candidate_id, raw_candidate_entries = self.get_effective_script(request_scriptname, height)
+        atomical['subtype'] = 'request_scriptname' # Will change to 'scriptname' if it is found to be valid
+        # Populate the request specific fields
+        atomical['$request_scriptname'] = atomical['mint_info'].get('$request_scriptname')
+        if status == 'verified' and candidate_id == atomical['atomical_id']:
+            atomical['subtype'] = 'scriptname'
+            atomical['$scriptname'] = atomical['mint_info'].get('$request_scriptname')
+            return request_scriptname, True
+        return request_scriptname, False
+    
     # Populate the subtype information such as realms, subrealms, containers and tickers
     # An atomical can have a naming element if it passed all the validity checks of the assignment
     # and for that reason there is the concept of "effective" name which is based on a commit/reveal delay pattern
@@ -2483,6 +2544,20 @@ class BlockProcessor:
             # False indicates it is a request for the name, but it was not the current one
             atomical['subtype'] = 'request_container'
             return atomical 
+
+        # 
+        # SCRIPT Type Fields
+        #
+        the_name_request, is_atomical_name_verified_found = self.populate_name_subtype_specific_fields(atomical, 'script', self.get_effective_script)
+        if is_atomical_name_verified_found:
+            atomical['subtype'] = 'scriptname'
+            atomical['$scriptname'] = the_name_request
+            return atomical
+        elif the_name_request:
+            # False indicates it is a request for the name, but it was not the current one
+            atomical['subtype'] = 'request_scriptname'
+            return atomical 
+        
         # 
         # TICKER NAME FIELDS
         #
@@ -2496,18 +2571,23 @@ class BlockProcessor:
         # 
         # SUBREALM type fields
         #
-        # The method populates all the fields and nothing more needs to be done at this level for subrealms
         self.populate_subrealm_subtype_specific_fields(atomical)
         # 
         # DMITEM type fields
         #
-        # The method populates all the fields and nothing more needs to be done at this level for dmitems
         self.populate_dmitem_subtype_specific_fields(atomical)
+        # 
+        # SCRIPT type fields
+        #
+        self.populate_script_specific_fields(atomical)
         return atomical 
 
     def is_dft_bitwork_rollover_activated(self, height):
         return height >= self.coin.ATOMICALS_ACTIVATION_HEIGHT_DFT_BITWORK_ROLLOVER
     
+    def is_seed_activated(self, height):
+        return height >= self.coin.ATOMICALS_ACTIVATION_HEIGHT_SEED
+
     # Create a distributed mint output as long as the rules are satisfied
     def create_or_delete_decentralized_mint_output(self, atomicals_operations_found_at_inputs, tx_num, tx_hash, tx, height, ticker_cache, Delete):
         if not atomicals_operations_found_at_inputs:
@@ -2659,7 +2739,7 @@ class BlockProcessor:
         else: 
             self.logger.warning(f'create_or_delete_decentralized_mint_outputs: found invalid mint operation in {hash_to_hex_str(tx_hash)} for {ticker} because incorrect txout.value {txout.value} when expected {mint_amount}')
             return None
-
+ 
     def is_atomicals_activated(self, height): 
         if height >= self.coin.ATOMICALS_ACTIVATION_HEIGHT:
             return True 

@@ -1561,6 +1561,33 @@ class HttpHandler(object):
         }
         return res
     
+    async def atomicals_get_by_script(self, request):
+        params = await self.format_params(request)
+        name = params.get(0, "")
+
+        height = self.session_mgr.bp.height
+        status, candidate_atomical_id, all_entries = self.session_mgr.bp.get_effective_script(name, height)
+        formatted_entries = format_name_type_candidates_to_rpc(all_entries, self.session_mgr.bp.build_atomical_id_to_candidate_map(all_entries))
+
+        if candidate_atomical_id:
+            candidate_atomical_id = location_id_bytes_to_compact(candidate_atomical_id)
+
+        found_atomical_id = None
+        if status == 'verified':
+            found_atomical_id = candidate_atomical_id
+
+        return_result = {
+            'status': status,
+            'candidate_atomical_id': candidate_atomical_id,
+            'atomical_id': found_atomical_id,
+            'candidates': formatted_entries,
+            'type': 'realm'
+        }
+        res = {
+            'result': return_result
+        }
+        return res
+    
     async def atomicals_get_by_subrealm(self, request):
         params = await self.format_params(request)
         parent_compact_atomical_id_or_atomical_number = params.get(0, "")

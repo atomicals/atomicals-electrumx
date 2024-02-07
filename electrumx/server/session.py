@@ -268,6 +268,7 @@ class SessionManager:
                     app.router.add_get('/proxy/blockchain.atomicals.get_tx_history', handler.atomicals_get_tx_history)
                     app.router.add_get('/proxy/blockchain.atomicals.get_realm_info', handler.atomicals_get_realm_info)
                     app.router.add_get('/proxy/blockchain.atomicals.get_by_realm', handler.atomicals_get_by_realm)
+                    app.router.add_get('/proxy/blockchain.atomicals.get_by_script', handler.atomicals_get_by_script)
                     app.router.add_get('/proxy/blockchain.atomicals.get_by_subrealm', handler.atomicals_get_by_subrealm)
                     app.router.add_get('/proxy/blockchain.atomicals.get_by_dmitem', handler.atomicals_get_by_dmitem)
                     app.router.add_get('/proxy/blockchain.atomicals.get_by_ticker', handler.atomicals_get_by_ticker)
@@ -323,6 +324,7 @@ class SessionManager:
                     app.router.add_post('/proxy/blockchain.atomicals.get_tx_history', handler.atomicals_get_tx_history)
                     app.router.add_post('/proxy/blockchain.atomicals.get_realm_info', handler.atomicals_get_realm_info)
                     app.router.add_post('/proxy/blockchain.atomicals.get_by_realm', handler.atomicals_get_by_realm)
+                    app.router.add_post('/proxy/blockchain.atomicals.get_by_script', handler.atomicals_get_by_script)
                     app.router.add_post('/proxy/blockchain.atomicals.get_by_subrealm', handler.atomicals_get_by_subrealm)
                     app.router.add_post('/proxy/blockchain.atomicals.get_by_dmitem', handler.atomicals_get_by_dmitem)
                     app.router.add_post('/proxy/blockchain.atomicals.get_by_ticker', handler.atomicals_get_by_ticker)
@@ -1822,6 +1824,29 @@ class ElectrumX(SessionBase):
             'result': return_result
         }
 
+    async def atomicals_get_by_script(self, name):
+        height = self.session_mgr.bp.height
+        status, candidate_atomical_id, all_entries = self.session_mgr.bp.get_effective_script(name, height)
+        formatted_entries = format_name_type_candidates_to_rpc(all_entries, self.session_mgr.bp.build_atomical_id_to_candidate_map(all_entries))
+        
+        if candidate_atomical_id:
+            candidate_atomical_id = location_id_bytes_to_compact(candidate_atomical_id)
+        
+        found_atomical_id = None
+        if status == 'verified':
+            found_atomical_id = candidate_atomical_id
+        
+        return_result = {
+            'status': status, 
+            'candidate_atomical_id': candidate_atomical_id, 
+            'atomical_id': found_atomical_id, 
+            'candidates': formatted_entries, 
+            'type': 'script'
+        }
+        return {
+            'result': return_result
+        }
+    
     async def atomicals_get_by_subrealm(self, parent_compact_atomical_id_or_atomical_number, name):
         height = self.session_mgr.bp.height
         compact_atomical_id_parent = self.atomical_resolve_id(parent_compact_atomical_id_or_atomical_number)
@@ -2215,6 +2240,10 @@ class ElectrumX(SessionBase):
                         return_struct['balances'][atomical_id_compact]['parent_container'] = atomical_id_basic_info.get('$parent_container')
                     if atomical_id_basic_info.get('$parent_realm'):
                         return_struct['balances'][atomical_id_compact]['parent_realm'] = atomical_id_basic_info.get('$parent_realm')
+                    if atomical_id_basic_info.get('$request_scriptname'):
+                        return_struct['balances'][atomical_id_compact]['request_scriptname'] = atomical_id_basic_info.get('$request_scriptname')
+                    if atomical_id_basic_info.get('$script'):
+                        return_struct['balances'][atomical_id_compact]['script'] = atomical_id_basic_info.get('$script')
                     if atomical_id_basic_info.get('$parent_container_name'):
                         return_struct['balances'][atomical_id_compact]['parent_container_name'] = atomical_id_basic_info.get('$parent_container_name')
                     if atomical_id_basic_info.get('$bitwork'):
@@ -2754,6 +2783,7 @@ class ElectrumX(SessionBase):
             'blockchain.atomicals.get_tx_history': self.atomicals_get_tx_history,
             'blockchain.atomicals.get_realm_info': self.atomicals_get_realm_info,
             'blockchain.atomicals.get_by_realm': self.atomicals_get_by_realm,
+            'blockchain.atomicals.get_by_script': self.atomicals_get_by_script,
             'blockchain.atomicals.get_by_subrealm': self.atomicals_get_by_subrealm,
             'blockchain.atomicals.get_by_dmitem': self.atomicals_get_by_dmitem,
             'blockchain.atomicals.get_by_ticker': self.atomicals_get_by_ticker,
