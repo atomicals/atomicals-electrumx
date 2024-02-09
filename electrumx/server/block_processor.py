@@ -759,7 +759,7 @@ class BlockProcessor:
             return matched_price_point, parent_container_id, request_dmitem, 'dmitem'
         self.logger.info(f'get_expected_dmitem_payment_info: not matched_price_point request_dmitem={request_dmitem} parent_container_id={parent_container_id} found_atomical_id_for_potential_dmitem={found_atomical_id_for_potential_dmitem}')
         return None, None, None, None
-    
+
     def get_earliest_dmitem_payment(self, atomical_id):
         dmpay_key_atomical_id = b'dmpay' + atomical_id
         # Check if it's located in the cache first
@@ -768,34 +768,35 @@ class BlockProcessor:
         if dmitempay_value:
             for tx_num, pay_outpoint in dmitempay_value.items():
                 payments.append({
-                'tx_num': tx_num,
-                'payment_tx_outpoint': pay_outpoint[:36],
-                'mint_initiated': pay_outpoint[36:]
-                    })
+                    'tx_num': tx_num,
+                    'payment_tx_outpoint': pay_outpoint[:36],
+                    'mint_initiated': pay_outpoint[36:]
+                })
         db_payments = self.db.get_earliest_dmitem_payments(atomical_id)
         payments.extend(db_payments)
         payments.sort(key=lambda x: x['tx_num'])
         if len(payments) > 0:
             return payments[0]
-        return None   
+        return None
 
     def get_earliest_subrealm_payment(self, atomical_id):
         spay_key_atomical_id = b'spay' + atomical_id
+        # Check if it's located in the cache first
         subrealmpay_value = self.subrealmpay_data_cache.get(spay_key_atomical_id)
         payments = []
         if subrealmpay_value:
             for tx_num, pay_outpoint in subrealmpay_value.items():
                 payments.append({
-                'tx_num': tx_num,
-                'payment_tx_outpoint': pay_outpoint[:36],
-                'mint_initiated': pay_outpoint[36:]
-                    })
+                    'tx_num': tx_num,
+                    'payment_tx_outpoint': pay_outpoint[:36],
+                    'mint_initiated': pay_outpoint[36:]
+                })
         db_payments = self.db.get_earliest_subrealm_payments(atomical_id)
         payments.extend(db_payments)
         payments.sort(key=lambda x: x['tx_num'])
         if len(payments) > 0:
             return payments[0]
-        return None 
+        return None
 
     # Save distributed mint information for the atomical
     # Mints are only stored if they are less than the max_mints amount
@@ -1777,48 +1778,60 @@ class BlockProcessor:
                 })
         db_entries = self.db.get_name_entries_template(db_prefix, parent_realm_id + subrealm_name_enc + pack_le_uint16(len(subrealm_name_enc)))
         all_entries.extend(db_entries)
-        all_entries.sort(key=lambda x: x['tx_num'])
         if len(all_entries) == 0:
-            return None, None, [] 
-        for entry in all_entries:
+            return None, None, []
+        all_entries.sort(key=lambda x: x['tx_num'])
+        for index, entry in enumerate(all_entries):
             atomical_id = entry['value']
             mint_info = self.get_atomicals_id_mint_info(atomical_id, False)
             # Sanity check to make sure it matches
             self.logger.info(f'get_effective_subrealm subrealm_name={subrealm_name} atomical_id={location_id_bytes_to_compact(atomical_id)} parent_realm_id={location_id_bytes_to_compact(parent_realm_id)}entry={entry}')
-            assert(mint_info['commit_tx_num'] == entry['tx_num'])
+            assert mint_info['commit_tx_num'] == entry['tx_num']
             # Get any payments (correct and valid or even premature, just get them all for now)
             payment_entry = self.get_earliest_subrealm_payment(atomical_id)
-            # If the current candidate doesn't have a payment entry and the MINT_SUBNAME_COMMIT_PAYMENT_DELAY_BLOCKS has passed
-            # Then we know the candidate is expired and invalid
-            if mint_info['commit_height'] <= current_height - MINT_SUBNAME_COMMIT_PAYMENT_DELAY_BLOCKS:
+            self.logger.debug(f'get_effective_dmitem_payment_entry={payment_entry}')
+
+            commit_height = mint_info['commit_height']
+            height_difference = current_height - commit_height
+            # If the current candidate doesn't have a payment entry and the MINT_SUBNAME_COMMIT_PAYMENT_DELAY_BLOCKS
+            # has passed, then we know the candidate is expired and invalid.
+            if height_difference >= MINT_SUBNAME_COMMIT_PAYMENT_DELAY_BLOCKS:
                 if payment_entry: 
                     # Verified and settled fully
                     return 'verified', atomical_id, all_entries
                 # Skip because the payment window has elapsed and no payment was found
                 continue
-            # If we got this far it means we are in a potential payment window (potential because the applicable_rule could be invalid)
-            # ...
-            # A special case is that if the MINT_REALM_CONTAINER_TICKER_COMMIT_REVEAL_DELAY_BLOCKS elapsed, and a payment was made in the window
-            # Then we know no one else can take the subrealm, therefore we consider it verified immediately in the payment window
-            if payment_entry and mint_info['commit_height'] <= current_height - MINT_REALM_CONTAINER_TICKER_COMMIT_REVEAL_DELAY_BLOCKS:
-                return 'verified', atomical_id, all_entries
-            
-            # Even though a payment was made, we are not after the MINT_REALM_CONTAINER_TICKER_COMMIT_REVEAL_DELAY_BLOCKS to say conclusively that it is verified
-            if payment_entry: 
-                return 'pending', atomical_id, all_entries
 
-            # If we got this far then it means we are within a potential payment window, with no payment yet made
-            # But we do not want to tell the user it is 'pending_awaiting_payment' until at least MINT_REALM_CONTAINER_TICKER_COMMIT_REVEAL_DELAY_BLOCKS blocks has
-            # passed, because someone else may have committed the same name and hasn't revealed yet, therefore check which case it is
-            if mint_info['commit_height'] <= current_height - MINT_REALM_CONTAINER_TICKER_COMMIT_REVEAL_DELAY_BLOCKS:
+            # If we got this far it means we are in a potential payment window
+            # (potential because the `applicable_rule` could be invalid).
+            # A special case is that if the MINT_REALM_CONTAINER_TICKER_COMMIT_REVEAL_DELAY_BLOCKS elapsed,
+            # and payment was made in the window, then we know no one else can take the sub item, therefore we consider
+            # it verified immediately in the payment window.
+            if payment_entry:
+                if height_difference >= MINT_REALM_CONTAINER_TICKER_COMMIT_REVEAL_DELAY_BLOCKS:
+                    if index == 0:
+                        return 'verified', atomical_id, all_entries
+                    # For non-leading candidates, they must wait for their previous candidates before the final window.
+                    else:
+                        return 'competing', atomical_id, all_entries
+                else:
+                    # Even though a payment was made, we are not after the
+                    # MINT_REALM_CONTAINER_TICKER_COMMIT_REVEAL_DELAY_BLOCKS to say conclusively that it is verified.
+                    return 'pending', atomical_id, all_entries
+
+            # If we got this far then it means we are within a potential payment window, with no payment yet made.
+            # But we do not want to tell the user it is 'pending_awaiting_payment' until at least
+            # MINT_REALM_CONTAINER_TICKER_COMMIT_REVEAL_DELAY_BLOCKS blocks has passed, because someone else may have
+            # committed the same name and hasn't revealed yet, therefore check which case it is
+            if height_difference >= MINT_REALM_CONTAINER_TICKER_COMMIT_REVEAL_DELAY_BLOCKS:
                 return 'pending_awaiting_payment', atomical_id, all_entries
-            else: 
-                # Just indicate it is pending
+            else:
+                # Just indicate it is pending.
                 return 'pending', atomical_id, all_entries
 
-        # If we fell off to the end it means there are no pending candidates
+        # If we fell off to the end it means there are no pending candidates.
         return None, None, all_entries
-    
+
     async def get_effective_dmitems_paginated(self, parent_container_id, limit, offset, height):
         if limit > 100:
             limit = 100
@@ -1851,50 +1864,58 @@ class BlockProcessor:
         self.logger.debug(f'get_effective_dmitem_db_prefix={db_prefix} parent_container_id={parent_container_id} dmitem_name={dmitem_name} dmitem_name_enc={dmitem_name_enc}')
         db_entries = self.db.get_name_entries_template(db_prefix, parent_container_id + dmitem_name_enc + pack_le_uint16(len(dmitem_name_enc)))
         all_entries.extend(db_entries)
-        all_entries.sort(key=lambda x: x['tx_num'])
         if len(all_entries) == 0:
-            return None, None, [] 
-        for entry in all_entries:
+            return None, None, []
+        all_entries.sort(key=lambda x: x['tx_num'])
+        for index, entry in enumerate(all_entries):
             atomical_id = entry['value']
             mint_info = self.get_atomicals_id_mint_info(atomical_id, False)
             # Sanity check to make sure it matches
             self.logger.debug(f'get_effective_dmitem dmitem_name={dmitem_name} atomical_id={location_id_bytes_to_compact(atomical_id)} parent_container_id={location_id_bytes_to_compact(parent_container_id)} entry={entry} height={height}')
-            assert(mint_info['commit_tx_num'] == entry['tx_num'])
+            assert mint_info['commit_tx_num'] == entry['tx_num']
             # Get any payments (correct and valid or even premature, just get them all for now)
-            if dmitem_name == '235':
-                self.logger.info(f'super_analysis_235 atomical_id={location_id_bytes_to_compact(atomical_id)}')
-
             payment_entry = self.get_earliest_dmitem_payment(atomical_id)
             self.logger.debug(f'get_effective_dmitem_payment_entry={payment_entry}')
-            # If the current candidate doesn't have a payment entry and the MINT_SUBNAME_COMMIT_PAYMENT_DELAY_BLOCKS has passed
-            # Then we know the candidate is expired and invalid
-            if mint_info['commit_height'] <= current_height - MINT_SUBNAME_COMMIT_PAYMENT_DELAY_BLOCKS:
-                if payment_entry: 
+
+            commit_height = mint_info['commit_height']
+            height_difference = current_height - commit_height
+            # If the current candidate doesn't have a payment entry and the MINT_SUBNAME_COMMIT_PAYMENT_DELAY_BLOCKS
+            # has passed, then we know the candidate is expired and invalid.
+            if height_difference >= MINT_SUBNAME_COMMIT_PAYMENT_DELAY_BLOCKS:
+                if payment_entry:
                     # Verified and settled fully
                     return 'verified', atomical_id, all_entries
                 # Skip because the payment window has elapsed and no payment was found
                 continue
-            # If we got this far it means we are in a potential payment window (potential because the applicable_rule could be invalid)
-            # ...
-            # A special case is that if the MINT_REALM_CONTAINER_TICKER_COMMIT_REVEAL_DELAY_BLOCKS elapsed, and a payment was made in the window
-            # Then we know no one else can take the sub item, therefore we consider it verified immediately in the payment window
-            if payment_entry and mint_info['commit_height'] <= current_height - MINT_REALM_CONTAINER_TICKER_COMMIT_REVEAL_DELAY_BLOCKS:
-                return 'verified', atomical_id, all_entries
-            
-            # Even though a payment was made, we are not after the MINT_REALM_CONTAINER_TICKER_COMMIT_REVEAL_DELAY_BLOCKS to say conclusively that it is verified
-            if payment_entry: 
-                return 'pending', atomical_id, all_entries
 
-            # If we got this far then it means we are within a potential payment window, with no payment yet made
-            # But we do not want to tell the user it is 'pending_awaiting_payment' until at least MINT_REALM_CONTAINER_TICKER_COMMIT_REVEAL_DELAY_BLOCKS blocks has
-            # passed, because someone else may have committed the same name and hasn't revealed yet, therefore check which case it is
-            if mint_info['commit_height'] <= current_height - MINT_REALM_CONTAINER_TICKER_COMMIT_REVEAL_DELAY_BLOCKS:
+            # If we got this far it means we are in a potential payment window
+            # (potential because the `applicable_rule` could be invalid).
+            # A special case is that if the MINT_REALM_CONTAINER_TICKER_COMMIT_REVEAL_DELAY_BLOCKS elapsed,
+            # and payment was made in the window, then we know no one else can take the sub item, therefore we consider
+            # it verified immediately in the payment window.
+            if payment_entry:
+                if height_difference >= MINT_REALM_CONTAINER_TICKER_COMMIT_REVEAL_DELAY_BLOCKS:
+                    if index == 0:
+                        return 'verified', atomical_id, all_entries
+                    # For non-leading candidates, they must wait for their previous candidates before the final window.
+                    else:
+                        return 'competing', atomical_id, all_entries
+                else:
+                    # Even though a payment was made, we are not after the
+                    # MINT_REALM_CONTAINER_TICKER_COMMIT_REVEAL_DELAY_BLOCKS to say conclusively that it is verified.
+                    return 'pending', atomical_id, all_entries
+
+            # If we got this far then it means we are within a potential payment window, with no payment yet made.
+            # But we do not want to tell the user it is 'pending_awaiting_payment' until at least
+            # MINT_REALM_CONTAINER_TICKER_COMMIT_REVEAL_DELAY_BLOCKS blocks has passed, because someone else may have
+            # committed the same name and hasn't revealed yet, therefore check which case it is
+            if height_difference >= MINT_REALM_CONTAINER_TICKER_COMMIT_REVEAL_DELAY_BLOCKS:
                 return 'pending_awaiting_payment', atomical_id, all_entries
-            else: 
-                # Just indicate it is pending
+            else:
+                # Just indicate it is pending.
                 return 'pending', atomical_id, all_entries
 
-        # If we fell off to the end it means there are no pending candidates
+        # If we fell off to the end it means there are no pending candidates.
         return None, None, all_entries
 
     # Get the effective name for realms, containers, and tickers. Does NOT work for subrealms, use the get_effective_subrealm method directly
