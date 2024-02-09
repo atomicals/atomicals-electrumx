@@ -571,15 +571,6 @@ class BlockProcessor:
         self.logger.debug(f'get_atomicals_id_mint_info no_cache=True with_cache={with_cache} atomical_id={location_id_bytes_to_compact(atomical_id)}')
         return result 
 
-    # Get the mint information and LRU cache it for fast retrieval
-    # Used for quickly getting the mint information for an atomical
-    def get_atomicals_id_mint_info_extended_notused(self, atomical_id):
-        found_atomical = self.get_atomicals_id_mint_info(atomical_id, True)
-        if not found_atomical:
-            return None 
-        self.populate_extended_atomical_subtype_info(found_atomical)
-        return found_atomical 
-
     # Get basic atomical information in a format that can be attached to utxos in an RPC call
     # Must be called for known existing atomicals or will throw an exception
     def get_atomicals_id_mint_info_basic_struct(self, atomical_id):
