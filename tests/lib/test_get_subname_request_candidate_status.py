@@ -90,10 +90,12 @@ def test_get_subname_request_candidate_status_verified_other():
                 "atomical_id": subject_atomical_id_compact,
                 "txid": "11820718393b73ca9f862681f3093a045c5358e6ebe26bbdedc8eca791443722",
                 "commit_height": 890000,
-                "reveal_location_height": 890000
+                "reveal_location_height": 890000,
+                'payment_type': 'mint_initiated',
+                'applicable_rule': None
             }
-        ],
-        'payment_type': 'mint_initiated'
+        ]
+        
         # 'applicable_rule': {
         #     "o": {
         #       "0123456789": {
