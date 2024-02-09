@@ -92,9 +92,18 @@ def test_get_subname_request_candidate_status_verified_other():
                 "commit_height": 890000,
                 "reveal_location_height": 890000
             }
-        ]
+        ],
+        'payment_type': 'mint_initiated'
+        # 'applicable_rule': {
+        #     "o": {
+        #       "0123456789": {
+        #         "v": 600
+        #       }
+        #     },
+        #     "p": "8$"
+        # }
     }  
-    result = get_subname_request_candidate_status(890000, atomical_info, 'verified', subject_atomical_id2, 'realm')
+    result = get_subname_request_candidate_status(890000, atomical_info, 'verified', subject_atomical_id2, 'subrealm')
     assert({
         'status': 'verified',
         'verified_atomical_id': subject_atomical_id_compact,
