@@ -51,7 +51,7 @@ def test_get_subname_request_candidate_status():
     }  
     result = get_subname_request_candidate_status(890000, atomical_info, 'verified', subject_atomical_id, 'realm')
     assert({
-        'status': 'pending_candidate',
-        'pending_candidate_atomical_id': subject_atomical_id_compact2,
-        'note': 'The current Atomical is the leading candidate for the realm. Wait the 3 blocks after commit to achieve confirmation'
+        'status': 'verified_atomical_id',
+        'verified_atomical_id': subject_atomical_id_compact,
+        'note': 'Successfully verified and claimed realm for current Atomical'
     } == result)
