@@ -2378,7 +2378,7 @@ class BlockProcessor:
         height = self.height
         status, candidate_id, raw_candidate_entries = get_effective_name_func(request_name, height)
         atomical['$' + type_str + '_candidates'] = format_name_type_candidates_to_rpc(raw_candidate_entries, self.build_atomical_id_to_candidate_map(raw_candidate_entries))
-        atomical['$request_' + type_str + '_status'] = get_name_request_candidate_status(self.height, atomical, status, candidate_id, type_str)  
+        atomical['$request_' + type_str + '_status'] = get_name_request_candidate_status(atomical, status, candidate_id, type_str)  
         # Populate the request specific fields
         atomical['$request_' + type_str] = atomical['mint_info'].get('$request_' + type_str)
         return request_name, status == 'verified' and atomical['atomical_id'] == candidate_id

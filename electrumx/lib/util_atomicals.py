@@ -1520,7 +1520,7 @@ def is_event_operation(operations_found_at_inputs):
 # expired_revealed_late - Atomical was revealed beyond the permissible delay, therefore it is not eligible to claim the name
 # verified - Atomical has been verified to have successfully claimed the name (realm, container, or ticker). 
 # claimed_by_other - Failed to claim for current Atomical because it was claimed first by another Atomical
-def get_name_request_candidate_status(current_height, atomical_info, status, candidate_id, name_type):  
+def get_name_request_candidate_status(atomical_info, status, candidate_id, name_type):  
     MAX_BLOCKS_STR = str(MINT_REALM_CONTAINER_TICKER_COMMIT_REVEAL_DELAY_BLOCKS)
     # Check if the candidates are different or for the current atomical requested
     mint_info = atomical_info['mint_info']
@@ -1548,7 +1548,7 @@ def get_name_request_candidate_status(current_height, atomical_info, status, can
                 'note': f'Failed to claim {name_type} for current Atomical because it was claimed first by another Atomical'
             }
     
-    if name_type != 'subrealm' and status == 'pending':
+    if (name_type != 'subrealm' and name_type != 'dmitem') and status == 'pending':
         if atomical_info['atomical_id'] == candidate_id:
             return {
                 'status': 'pending_candidate',
@@ -1570,7 +1570,7 @@ def get_name_request_candidate_status(current_height, atomical_info, status, can
 def get_subname_request_candidate_status(current_height, atomical_info, status, candidate_id, entity_type):  
     MAX_BLOCKS_STR = str(MINT_REALM_CONTAINER_TICKER_COMMIT_REVEAL_DELAY_BLOCKS)
 
-    base_status = get_name_request_candidate_status(current_height, atomical_info, status, candidate_id, entity_type)
+    base_status = get_name_request_candidate_status(atomical_info, status, candidate_id, entity_type)
     # Return the base status if it is common also to entity_type
     if base_status['status'] == 'expired_revealed_late' or base_status['status'] == 'verified':
         return base_status

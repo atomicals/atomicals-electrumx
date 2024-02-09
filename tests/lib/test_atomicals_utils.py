@@ -1,22 +1,21 @@
 import pytest
 
-from electrumx.lib.atomicals_blueprint_builder import AtomicalsTransferBlueprintBuilder, get_nominal_token_value
 from electrumx.lib.coins import Bitcoin
-from electrumx.lib.hash import HASHX_LEN, hex_str_to_hash, hash_to_hex_str
-from electrumx.lib.tx import Tx, TxInput, TxOutput
-
+from electrumx.lib.hash import hex_str_to_hash
 from electrumx.lib.util_atomicals import (
-    location_id_bytes_to_compact,
     derive_bitwork_prefix_from_target,
     decode_bitwork_target_from_prefix,
     is_bitwork_subset,
     calculate_expected_bitwork,
     is_txid_valid_for_perpetual_bitwork,
-    get_next_bitwork_full_str
+    get_next_bitwork_full_str,
+    MINT_REALM_CONTAINER_TICKER_COMMIT_REVEAL_DELAY_BLOCKS
 )
 
 coin = Bitcoin
- 
+
+MAX_BLOCKS_STR = str(MINT_REALM_CONTAINER_TICKER_COMMIT_REVEAL_DELAY_BLOCKS)
+
 class MockLogger:
     def debug(self, msg):
         return 
@@ -1013,4 +1012,4 @@ def test_get_next_bitwork_full_str():
     assert(get_next_bitwork_full_str('88888', 2) == '888')
     assert(get_next_bitwork_full_str('88888', 3) == '8888')
     assert(get_next_bitwork_full_str('88888', 4) == '88888')
-
+ 
