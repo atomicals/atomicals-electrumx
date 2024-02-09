@@ -1657,7 +1657,6 @@ def get_subname_request_candidate_status(current_height, atomical_info, status, 
                 'pending_candidate_atomical_id': candidate_id_compact,
                 'note': 'Another Atomical is the leading candidate and they have until block height ' + str(current_candidate_atomical['payment_due_no_later_than_height']) + ' to claim successfully.'
             }
-        
     return {
         'status': status,
         'pending_candidate_atomical_id': candidate_id_compact

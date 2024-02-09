@@ -358,7 +358,7 @@ def test_get_subname_request_candidate_status_pending_awaiting_confirmations_pay
         'note': 'A payment was received, but the minimum delay of 3 blocks has not yet elapsed to declare a winner'
     } == result)
 
-    result = get_subname_request_candidate_status(890009, atomical_info, 'pending', subject_atomical_id, 'subrealm')
+    result = get_subname_request_candidate_status(890009, atomical_info, 'pending_awaiting_payment', subject_atomical_id, 'subrealm')
     assert({
         'status': 'pending_awaiting_confirmations_payment_received_prematurely',
         'pending_candidate_atomical_id': subject_atomical_id_compact,
