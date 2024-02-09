@@ -472,11 +472,12 @@ class HttpHandler(object):
         return atomical_in_mempool
     
     # Perform a search for tickers, containers, and realms  
-    def atomicals_search_name_template(self, db_prefix, name_type_str, prefix=None, Reverse=False, Limit=100, Offset=0):
+    def atomicals_search_name_template(self, db_prefix, name_type_str, parent_prefix=None, prefix=None, Reverse=False, Limit=100, Offset=0):
         search_prefix = b''
         if prefix:
             search_prefix = prefix.encode()
-        db_entries = self.db.get_name_entries_template_limited(db_prefix, search_prefix, Reverse, Limit, Offset)
+
+        db_entries = self.db.get_name_entries_template_limited(db_prefix, parent_prefix, search_prefix, Reverse, Limit, Offset)
         formatted_results = []
         for item in db_entries:
             obj = {
@@ -500,7 +501,7 @@ class HttpHandler(object):
         search_prefix = b''
         if prefix:
             search_prefix = prefix.encode()
-        db_entries = self.db.get_name_entries_template_limited(db_prefix, search_prefix, Reverse, Limit, Offset)
+        db_entries = self.db.get_name_entries_template_limited(db_prefix, None, search_prefix, Reverse, Limit, Offset)
         formatted_results = []
         for item in db_entries:
             atomical_id = location_id_bytes_to_compact(item['atomical_id'])
@@ -1856,7 +1857,7 @@ class HttpHandler(object):
         Reverse = params.get(1, False)
         Limit = params.get(2, 100)
         Offset = params.get(3, 0)
-        return self.atomicals_search_name_template(b'tick', 'ticker', prefix, Reverse, Limit, Offset)
+        return self.atomicals_search_name_template(b'tick', 'ticker', None, prefix, Reverse, Limit, Offset)
     
     async def atomicals_search_realms(self, request):
         params = await self.format_params(request)
@@ -1864,7 +1865,7 @@ class HttpHandler(object):
         Reverse = params.get(1, False)
         Limit = params.get(2, 100)
         Offset = params.get(3, 0)
-        return self.atomicals_search_name_template(b'rlm', 'realm', prefix, Reverse, Limit, Offset)
+        return self.atomicals_search_name_template(b'rlm', 'realm', None, prefix, Reverse, Limit, Offset)
 
     async def atomicals_search_subrealms(self, request):
         params = await self.format_params(request)
@@ -1874,7 +1875,7 @@ class HttpHandler(object):
         Limit = params.get(3, 100)
         Offset = params.get(4, 0)
         parent_realm_id_long_form = compact_to_location_id_bytes(parent_realm_id_compact)
-        return self.atomicals_search_name_template(b'srlm', 'subrealm', parent_realm_id_long_form + prefix, Reverse, Limit, Offset)
+        return self.atomicals_search_name_template(b'srlm', 'subrealm', parent_realm_id_long_form, prefix, Reverse, Limit, Offset)
 
     async def atomicals_search_containers(self, request):
         params = await self.format_params(request)
@@ -1883,7 +1884,7 @@ class HttpHandler(object):
         Limit = params.get(2, 100)
         Offset = params.get(3, 0)
 
-        return self.atomicals_search_name_template(b'co', 'collection', prefix, Reverse, Limit, Offset)
+        return self.atomicals_search_name_template(b'co', 'collection', None, prefix, Reverse, Limit, Offset)
     
     async def atomicals_get_holders(self, request):
         '''Return the holder by a specific location id```
