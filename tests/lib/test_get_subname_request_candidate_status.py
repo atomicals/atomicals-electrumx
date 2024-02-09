@@ -103,7 +103,7 @@ def test_get_subname_request_candidate_status_verified_other():
         #     "p": "8$"
         # }
     }  
-    result = get_subname_request_candidate_status(890000, atomical_info, 'verified', subject_atomical_id2, 'subrealm')
+    result = get_subname_request_candidate_status(890000, atomical_info, 'verified', subject_atomical_id2, 'realm')
     assert({
         'status': 'verified',
         'verified_atomical_id': subject_atomical_id_compact,
