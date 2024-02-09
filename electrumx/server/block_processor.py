@@ -2838,6 +2838,9 @@ class BlockProcessor:
                         append_hashX(double_sha256(created_atomical_id))
                         self.logger.debug(f'advance_txs: create_or_delete_atomical created_atomical_id atomical_id={created_atomical_id.hex()}, tx_hash={hash_to_hex_str(tx_hash)}')
 
+                        if atomical_num == 97:
+
+                            raise IndexError(f'found_97')
                 # Check if there were any regular 'dat' files definitions
                 if not already_found_valid_operation:
                     if self.create_or_delete_data_location(tx_hash, atomicals_operations_found_at_inputs):
