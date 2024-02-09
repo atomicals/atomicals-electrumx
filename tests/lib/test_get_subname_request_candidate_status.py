@@ -87,7 +87,7 @@ def test_get_subname_request_candidate_status_verified_other():
         '$realm_candidates': [
             {
                 "tx_num": 995821345,
-                "atomical_id": subject_atomical_id_compact2,
+                "atomical_id": subject_atomical_id_compact,
                 "txid": "11820718393b73ca9f862681f3093a045c5358e6ebe26bbdedc8eca791443722",
                 "commit_height": 890000,
                 "reveal_location_height": 890000
@@ -97,6 +97,6 @@ def test_get_subname_request_candidate_status_verified_other():
     result = get_subname_request_candidate_status(890000, atomical_info, 'verified', subject_atomical_id2, 'realm')
     assert({
         'status': 'verified',
-        'verified_atomical_id': subject_atomical_id_compact2,
+        'verified_atomical_id': subject_atomical_id_compact,
         'note': 'Successfully verified and claimed realm for current Atomical'
     } == result)
