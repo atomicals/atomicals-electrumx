@@ -89,8 +89,8 @@ def test_get_subname_request_candidate_status_verified_other():
                 "tx_num": 995821345,
                 "atomical_id": subject_atomical_id_compact,
                 "txid": "11820718393b73ca9f862681f3093a045c5358e6ebe26bbdedc8eca791443722",
-                "commit_height": 890000,
-                "reveal_location_height": 890000,
+                "commit_height": 890005,
+                "reveal_location_height": 890005,
                 'payment_type': 'mint_initiated',
                 'applicable_rule': None
             }
