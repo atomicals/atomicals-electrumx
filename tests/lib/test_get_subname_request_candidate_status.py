@@ -85,7 +85,13 @@ def test_get_subname_request_candidate_status_verified_other():
             'reveal_location_height': 890000
         },
         '$realm_candidates': [
-            
+            {
+                "tx_num": 995821345,
+                "atomical_id": "12320718393b83ca9f543e81f3093a045ca350e6ebe26bbd3458eca791243711i0",
+                "txid": "11820718393b73ca9f862681f3093a045c5358e6ebe26bbdedc8eca791443722",
+                "commit_height": 890000,
+                "reveal_location_height": 890000
+            }
         ]
     }  
     result = get_subname_request_candidate_status(890000, atomical_info, 'verified', subject_atomical_id2, 'realm')
