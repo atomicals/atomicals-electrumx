@@ -273,8 +273,15 @@ def test_get_subname_request_candidate_status_expired_payment_not_received():
                 "txid": "41820718393b73ca9f862681f3093a045c5358e6ebe26bbdedc8eca791443711",
                 "commit_height": 890005,
                 "reveal_location_height": 890005,
-                'payment_type': 'mint_initiated',
-                'applicable_rule': None
+                'payment_type': 'applicable_rule',
+                'applicable_rule': {
+                    "o": {
+                        "0123456789": {
+                            "v": 600
+                        }
+                    },
+                    "p": "8$"
+                }
             }
         ]
         # 'applicable_rule': {
@@ -286,7 +293,7 @@ def test_get_subname_request_candidate_status_expired_payment_not_received():
         #     "p": "8$"
         # }
     }  
-    result = get_subname_request_candidate_status(890006, atomical_info, 'pending', subject_atomical_id2, 'realm')
+    result = get_subname_request_candidate_status(890006, atomical_info, 'pending', subject_atomical_id2, 'subrealm')
     assert({
         'status': 'expired_payment_not_received',
         'pending_candidate_atomical_id': subject_atomical_id_compact2,
