@@ -367,8 +367,8 @@ def test_get_subname_request_candidate_status_pending_awaiting_confirmations_pay
 
     result = get_subname_request_candidate_status(890009, atomical_info, 'verified', subject_atomical_id, 'subrealm')
     assert({
-        'status': 'pending_awaiting_confirmations_payment_received_prematurely',
-        'pending_candidate_atomical_id': subject_atomical_id_compact,
-        'note': 'A payment was received, but the minimum delay of 3 blocks has not yet elapsed to declare a winner'
+        'status': 'verified',
+        'verified_atomical_id': subject_atomical_id_compact,
+        'note': 'Successfully verified and claimed subrealm for current Atomical'
     } == result)
 
