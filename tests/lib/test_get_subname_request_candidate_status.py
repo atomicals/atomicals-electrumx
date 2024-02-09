@@ -372,3 +372,10 @@ def test_get_subname_request_candidate_status_pending_awaiting_confirmations_pay
         'note': 'Successfully verified and claimed subrealm for current Atomical'
     } == result)
 
+    result = get_subname_request_candidate_status(890120, atomical_info, 'pending', subject_atomical_id, 'subrealm')
+    assert({
+        'status': 'expired_payment_not_received',
+        'verified_atomical_id': subject_atomical_id_compact,
+        'note': 'Successfully verified and claimed subrealm for current Atomical'
+    } == result)
+
