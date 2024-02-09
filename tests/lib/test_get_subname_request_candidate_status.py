@@ -5,7 +5,8 @@ from electrumx.lib.coins import Bitcoin
 from electrumx.lib.util_atomicals import (
     location_id_bytes_to_compact,
     get_subname_request_candidate_status,
-    MINT_REALM_CONTAINER_TICKER_COMMIT_REVEAL_DELAY_BLOCKS
+    MINT_REALM_CONTAINER_TICKER_COMMIT_REVEAL_DELAY_BLOCKS,
+    MINT_SUBNAME_COMMIT_PAYMENT_DELAY_BLOCKS
 )
 
 coin = Bitcoin
@@ -274,6 +275,7 @@ def test_get_subname_request_candidate_status_expired_payment_not_received():
                 "commit_height": 890005,
                 "reveal_location_height": 890005,
                 'payment_type': 'applicable_rule',
+                'payment_due_no_later_than_height': 890005 + MINT_SUBNAME_COMMIT_PAYMENT_DELAY_BLOCKS,
                 'applicable_rule': {
                     "o": {
                         "0123456789": {
