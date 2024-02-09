@@ -223,7 +223,7 @@ def test_get_subname_request_candidate_status_verified_xxx():
         #     "p": "8$"
         # }
     }  
-    result = get_subname_request_candidate_status(890006, atomical_info, 'pending', subject_atomical_id2, 'realm')
+    result = get_subname_request_candidate_status(890006, atomical_info, 'pending', subject_atomical_id, 'realm')
     assert({
         'status': 'pending_awaiting_confirmations',
         'pending_candidate_atomical_id': subject_atomical_id_compact2,
