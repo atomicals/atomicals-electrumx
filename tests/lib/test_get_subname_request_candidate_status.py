@@ -291,7 +291,7 @@ def test_get_subname_request_candidate_status_pending_awaiting_confirmations_for
     assert({
         'status': 'pending_awaiting_confirmations_for_payment_window',
         'pending_candidate_atomical_id': subject_atomical_id_compact2,
-        'note': 'Await 3 blocks has elapsed to verify'
+        'note': "Await until the 'make_payment_from_height' block height for the payment window to be open with status 'pending_awaiting_payment'"
     } == result)
 
 def test_get_subname_request_candidate_status_pending_awaiting_confirmations_payment_received_prematurely():
