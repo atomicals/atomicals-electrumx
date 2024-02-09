@@ -1529,21 +1529,24 @@ def get_name_request_candidate_status(atomical_info, status, candidate_id, name_
             'status': 'expired_revealed_late',
             'note': 'The maximum number of blocks between commit and reveal is ' + MAX_BLOCKS_STR + ' blocks'
         }
-    
+    candidate_id_compact = None
+    if candidate_id:
+        candidate_id_compact = location_id_bytes_to_compact(candidate_id)
+
     # There is already a verified candidate, find out if it's the current atomical or another one
     if status == 'verified':
         # The verified candidate is ourselves
         if atomical_info['atomical_id'] == candidate_id:
             return {
                 'status': 'verified',
-                'verified_atomical_id': location_id_bytes_to_compact(candidate_id) ,
+                'verified_atomical_id': candidate_id_compact,
                 'note': f'Successfully verified and claimed {name_type} for current Atomical'
             }
         else:
             # The verified candidate is another one
             return {
                 'status': 'claimed_by_other',
-                'claimed_by_atomical_id': location_id_bytes_to_compact(candidate_id) ,
+                'claimed_by_atomical_id': candidate_id_compact,
                 'note': f'Failed to claim {name_type} for current Atomical because it was claimed first by another Atomical'
             }
     # If there is a pending candidate and it's not a subrealm or dmitem, then it must be a 'top level' name type
@@ -1552,19 +1555,19 @@ def get_name_request_candidate_status(atomical_info, status, candidate_id, name_
         if atomical_info['atomical_id'] == candidate_id:
             return {
                 'status': 'pending_candidate',
-                'pending_candidate_atomical_id': location_id_bytes_to_compact(candidate_id) ,
+                'pending_candidate_atomical_id': candidate_id_compact,
                 'note': f'The current Atomical is the leading candidate for the {name_type}. Wait the {MAX_BLOCKS_STR} blocks after commit to achieve confirmation'
             }
         else:
             return {
                 'status': 'pending_claimed_by_other',
-                'pending_claimed_by_atomical_id': location_id_bytes_to_compact(candidate_id) ,
+                'pending_claimed_by_atomical_id': candidate_id_compact,
                 'note': f'Failed to claim {name_type} for current Atomical because it was claimed first by another Atomical'
             }
     # The status is different or this is a subrealm or dmitem
     return {
         'status': status,
-        'pending_candidate_atomical_id': location_id_bytes_to_compact(candidate_id) 
+        'pending_candidate_atomical_id': candidate_id_compact 
     }
 
 def get_subname_request_candidate_status(current_height, atomical_info, status, candidate_id, entity_type):  
