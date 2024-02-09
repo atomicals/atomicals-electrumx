@@ -351,9 +351,9 @@ def test_get_subname_request_candidate_status_pending_awaiting_confirmations_pay
             }
         ]
     }  
-    result = get_subname_request_candidate_status(890006, atomical_info, 'pending', subject_atomical_id2, 'subrealm')
+    result = get_subname_request_candidate_status(890006, atomical_info, 'pending', subject_atomical_id, 'subrealm')
     assert({
         'status': 'pending_awaiting_confirmations_for_payment_window',
-        'pending_candidate_atomical_id': subject_atomical_id_compact2,
+        'pending_candidate_atomical_id': subject_atomical_id_compact,
         'note': 'Await 3 blocks has elapsed to verify'
     } == result)
