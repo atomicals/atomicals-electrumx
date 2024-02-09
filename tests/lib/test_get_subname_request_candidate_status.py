@@ -388,10 +388,10 @@ def test_get_subname_request_candidate_status_expired_payment_not_received():
     #
     # pending_candidate
     # claimed_by_other
-    # pending_awaiting_confirmations
-    # expired_payment_not_received
-    # pending_awaiting_confirmations_payment_received_prematurely
-    # pending_awaiting_confirmations_for_payment_window
+    # pending_awaiting_confirmations x
+    # expired_payment_not_received x
+    # pending_awaiting_confirmations_payment_received_prematurely x
+    # pending_awaiting_confirmations_for_payment_window x
     # invalid_request_fault ???? Is this even a valid state possible? It is seen in practice, but indicates an error?
     # None
     atomical_info = {
