@@ -257,7 +257,7 @@ def test_get_subname_request_candidate_status_expired_payment_not_received():
             'commit_height': 890000,
             'reveal_location_height': 890000
         },
-        '$realm_candidates': [
+        '$subrealm_candidates': [
             {
                 "tx_num": 995821344,
                 "atomical_id": subject_atomical_id_compact2,
