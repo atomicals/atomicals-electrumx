@@ -1589,9 +1589,11 @@ def get_subname_request_candidate_status(current_height, atomical_info, status, 
         break 
 
     if not current_candidate_atomical:
-        return {
-            'status': 'invalid_request_fault'
-        }
+        print(f'atomical_info={atomical_info} status={status} candidate_id={candidate_id}')
+        raise ValueError(f'invalid_request_fault_should_not_happen- current atomical is not even a candidate')
+        # return {
+        #     'status': 'invalid_request_fault'
+        # }
 
     # Catch the scenario where it was not parent initiated, but there also was no valid applicable rule
     if current_candidate_atomical['payment_type'] == 'applicable_rule' and current_candidate_atomical.get('applicable_rule') == None: 
