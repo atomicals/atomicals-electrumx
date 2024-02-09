@@ -83,7 +83,10 @@ def test_get_subname_request_candidate_status_verified_other():
         'mint_info': {
             'commit_height': 890000,
             'reveal_location_height': 890000
-        }
+        },
+        '$realm_candidates': [
+            
+        ]
     }  
     result = get_subname_request_candidate_status(890000, atomical_info, 'verified', subject_atomical_id2, 'realm')
     assert({
