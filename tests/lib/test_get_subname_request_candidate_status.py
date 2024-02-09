@@ -417,7 +417,7 @@ def test_get_subname_request_candidate_status_expired_payment_not_received():
                 "commit_height": 890005,
                 "reveal_location_height": 890005,
                 'payment_type': 'applicable_rule',
-                "payment": "77720718393b73ca9f862681f3093a045c5358e6ebe26bbdedc8eca79144371i3",
+                "payment": None,
                 'payment_due_no_later_than_height': 890005 + MINT_SUBNAME_COMMIT_PAYMENT_DELAY_BLOCKS,
                 'applicable_rule': {
                     "o": {
