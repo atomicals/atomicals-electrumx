@@ -1561,7 +1561,7 @@ class HttpHandler(object):
         }
         return res
     
-    async def atomicals_get_by_script(self, request):
+    async def atomicals_get_by_contract(self, request):
         params = await self.format_params(request)
         name = params.get(0, "")
 
@@ -1581,7 +1581,7 @@ class HttpHandler(object):
             'candidate_atomical_id': candidate_atomical_id,
             'atomical_id': found_atomical_id,
             'candidates': formatted_entries,
-            'type': 'realm'
+            'type': 'contract'
         }
         res = {
             'result': return_result

@@ -268,7 +268,7 @@ class SessionManager:
                     app.router.add_get('/proxy/blockchain.atomicals.get_tx_history', handler.atomicals_get_tx_history)
                     app.router.add_get('/proxy/blockchain.atomicals.get_realm_info', handler.atomicals_get_realm_info)
                     app.router.add_get('/proxy/blockchain.atomicals.get_by_realm', handler.atomicals_get_by_realm)
-                    app.router.add_get('/proxy/blockchain.atomicals.get_by_script', handler.atomicals_get_by_script)
+                    app.router.add_get('/proxy/blockchain.atomicals.get_by_contract', handler.atomicals_get_by_contract)
                     app.router.add_get('/proxy/blockchain.atomicals.get_by_subrealm', handler.atomicals_get_by_subrealm)
                     app.router.add_get('/proxy/blockchain.atomicals.get_by_dmitem', handler.atomicals_get_by_dmitem)
                     app.router.add_get('/proxy/blockchain.atomicals.get_by_ticker', handler.atomicals_get_by_ticker)
@@ -324,7 +324,7 @@ class SessionManager:
                     app.router.add_post('/proxy/blockchain.atomicals.get_tx_history', handler.atomicals_get_tx_history)
                     app.router.add_post('/proxy/blockchain.atomicals.get_realm_info', handler.atomicals_get_realm_info)
                     app.router.add_post('/proxy/blockchain.atomicals.get_by_realm', handler.atomicals_get_by_realm)
-                    app.router.add_post('/proxy/blockchain.atomicals.get_by_script', handler.atomicals_get_by_script)
+                    app.router.add_post('/proxy/blockchain.atomicals.get_by_contract', handler.atomicals_get_by_contract)
                     app.router.add_post('/proxy/blockchain.atomicals.get_by_subrealm', handler.atomicals_get_by_subrealm)
                     app.router.add_post('/proxy/blockchain.atomicals.get_by_dmitem', handler.atomicals_get_by_dmitem)
                     app.router.add_post('/proxy/blockchain.atomicals.get_by_ticker', handler.atomicals_get_by_ticker)
@@ -2779,7 +2779,7 @@ class ElectrumX(SessionBase):
             'blockchain.atomicals.get_tx_history': self.atomicals_get_tx_history,
             'blockchain.atomicals.get_realm_info': self.atomicals_get_realm_info,
             'blockchain.atomicals.get_by_realm': self.atomicals_get_by_realm,
-            'blockchain.atomicals.get_by_script': self.atomicals_get_by_script,
+            'blockchain.atomicals.get_by_contract': self.atomicals_get_by_contract,
             'blockchain.atomicals.get_by_subrealm': self.atomicals_get_by_subrealm,
             'blockchain.atomicals.get_by_dmitem': self.atomicals_get_by_dmitem,
             'blockchain.atomicals.get_by_ticker': self.atomicals_get_by_ticker,
