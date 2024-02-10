@@ -1824,9 +1824,9 @@ class ElectrumX(SessionBase):
             'result': return_result
         }
 
-    async def atomicals_get_by_script(self, name):
+    async def atomicals_get_by_contract(self, name):
         height = self.session_mgr.bp.height
-        status, candidate_atomical_id, all_entries = self.session_mgr.bp.get_effective_script(name, height)
+        status, candidate_atomical_id, all_entries = self.session_mgr.bp.get_effective_contract(name, height)
         formatted_entries = format_name_type_candidates_to_rpc(all_entries, self.session_mgr.bp.build_atomical_id_to_candidate_map(all_entries))
         
         if candidate_atomical_id:
@@ -1841,7 +1841,7 @@ class ElectrumX(SessionBase):
             'candidate_atomical_id': candidate_atomical_id, 
             'atomical_id': found_atomical_id, 
             'candidates': formatted_entries, 
-            'type': 'script'
+            'type': 'contract'
         }
         return {
             'result': return_result
@@ -2076,8 +2076,6 @@ class ElectrumX(SessionBase):
         '''
         atomical_basic_infos = []
         atomicals_found_at_location = self.db.get_atomicals_by_location_extended_info_long_form(compact_to_location_id_bytes(compact_location_id))
-        # atomicals_found_at_location['atomicals']
-        # atomicals_found_at_location['atomicals'].sort(key=lambda x: x['atomical_number'])
         for atomical_id in atomicals_found_at_location['atomicals']:
             atomical_basic_info = self.session_mgr.bp.get_atomicals_id_mint_info_basic_struct(atomical_id)
             atomical_basic_infos.append(atomical_basic_info)

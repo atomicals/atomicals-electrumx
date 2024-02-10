@@ -2201,18 +2201,16 @@ class BlockProcessor:
                 # The pid is known to be set
                 atomical['mint_info']['$parent_container'] = init_mint_info['$parent_container']
             
+            request_contract = init_mint_info.get('$request_contract')
+            if request_contract:
+                atomical['mint_info']['$request_contract'] = request_contract
+ 
             immutable = init_mint_info.get('$immutable')
             if immutable:
                 atomical['mint_info']['$immutable'] = immutable
             else:
                 atomical['mint_info']['$immutable'] = False
-        elif atomical['type'] == 'SCRIPT':
-            # Attach any auxiliary information that was already successfully parsed before
-            request_contract = init_mint_info.get('$request_contract')
-            if request_contract:
-                atomical['mint_info']['$request_contract'] = request_contract
-                atomical['mint_info']['$script'] = init_mint_info.get('$script')
-            
+ 
         elif atomical['type'] == 'FT':
             subtype = init_mint_info.get('subtype')
             atomical['subtype'] = subtype
@@ -2545,7 +2543,7 @@ class BlockProcessor:
             return atomical 
 
         # 
-        # SCRIPT Type Fields
+        # CONTRACT Type Fields
         #
         the_name_request, is_atomical_name_verified_found = self.populate_name_subtype_specific_fields(atomical, 'contract', self.get_effective_contract)
         if is_atomical_name_verified_found:
