@@ -1538,8 +1538,11 @@ class ElectrumX(SessionBase):
         return {'global': await self.get_summary_info(), 'result': await self.atomical_id_get(compact_atomical_id)} 
 
     async def atomicals_dump(self):
-        self.db.dump()
-        return {'result': True} 
+        if True:
+            self.db.dump()
+            return {'result': True} 
+        else: 
+            return {'result': False} 
 
     async def atomicals_get_dft_mints(self, compact_atomical_id, limit=100, offset=0):
         atomical_id = compact_to_location_id_bytes(compact_atomical_id)
@@ -2008,33 +2011,40 @@ class ElectrumX(SessionBase):
         return {'result': return_struct}
 
     # Perform a search for tickers, containers, and realms  
-    def atomicals_search_name_template(self, db_prefix, name_type_str, prefix=None, Reverse=False, Limit=100, Offset=0):
-        search_prefix = b''
-        if prefix:
-            search_prefix = prefix.encode()
-        db_entries = self.db.get_name_entries_template_limited(db_prefix, search_prefix, Reverse, Limit, Offset)
+    def atomicals_search_name_template(self, db_prefix, parent_prefix=None, prefix=None, Reverse=False, Limit=1000, Offset=0):
+        db_entries = self.db.get_name_entries_template_limited(db_prefix, parent_prefix, prefix, Reverse, Limit, Offset)
         formatted_results = []
         for item in db_entries:
             obj = {
                 'atomical_id': location_id_bytes_to_compact(item['atomical_id']),
                 'tx_num': item['tx_num']
             }
-            obj[name_type_str] = item['name']
+            obj['name_hex'] = item['name_hex']
+            obj['name'] = item['name']
+            obj['name_len'] = item['name_len']
             formatted_results.append(obj)
         return {'result': formatted_results}
 
     async def atomicals_search_tickers(self, prefix=None, Reverse=False, Limit=100, Offset=0):
-        return self.atomicals_search_name_template(b'tick', 'ticker', prefix, Reverse, Limit, Offset)
+        if isinstance(prefix, str):
+            prefix = prefix.encode()
+        return self.atomicals_search_name_template(b'tick', None, prefix, Reverse, Limit, Offset)
 
     async def atomicals_search_realms(self, prefix=None, Reverse=False, Limit=100, Offset=0):
-        return self.atomicals_search_name_template(b'rlm', 'realm', prefix, Reverse, Limit, Offset)
+        if isinstance(prefix, str):
+            prefix = prefix.encode()
+        return self.atomicals_search_name_template(b'rlm', None, prefix, Reverse, Limit, Offset)
 
     async def atomicals_search_subrealms(self, parent_realm_id_compact, prefix=None, Reverse=False, Limit=100, Offset=0):
         parent_realm_id_long_form = compact_to_location_id_bytes(parent_realm_id_compact)
-        return self.atomicals_search_name_template(b'srlm', 'subrealm', parent_realm_id_long_form + prefix, Reverse, Limit, Offset)
+        if isinstance(prefix, str):
+            prefix = prefix.encode()
+        return self.atomicals_search_name_template(b'srlm', parent_realm_id_long_form, prefix, Reverse, Limit, Offset)
     
     async def atomicals_search_containers(self, prefix=None, Reverse=False, Limit=100, Offset=0):
-        return self.atomicals_search_name_template(b'co', 'collection', prefix, Reverse, Limit, Offset)
+        if isinstance(prefix, str):
+            prefix = prefix.encode()
+        return self.atomicals_search_name_template(b'co',  None, prefix, Reverse, Limit, Offset)
  
     async def atomicals_at_location(self, compact_location_id):
         '''Return the Atomicals at a specific location id```
