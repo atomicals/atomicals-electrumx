@@ -2505,7 +2505,7 @@ class BlockProcessor:
             return None, None
         height = self.height
         status, candidate_id, raw_candidate_entries = self.get_effective_contract(request_contract, height)
-        atomical['subtype'] = 'request_contract' # Will change to 'scriptname' if it is found to be valid
+        atomical['subtype'] = 'request_contract' # Will change to 'contract' if it is found to be valid
         # Populate the request specific fields
         atomical['$request_contract'] = atomical['mint_info'].get('$request_contract')
         if status == 'verified' and candidate_id == atomical['atomical_id']:
@@ -2547,10 +2547,10 @@ class BlockProcessor:
         # 
         # SCRIPT Type Fields
         #
-        the_name_request, is_atomical_name_verified_found = self.populate_name_subtype_specific_fields(atomical, 'script', self.get_effective_contract)
+        the_name_request, is_atomical_name_verified_found = self.populate_name_subtype_specific_fields(atomical, 'contract', self.get_effective_contract)
         if is_atomical_name_verified_found:
-            atomical['subtype'] = 'scriptname'
-            atomical['$scriptname'] = the_name_request
+            atomical['subtype'] = 'contract'
+            atomical['$contract'] = the_name_request
             return atomical
         elif the_name_request:
             # False indicates it is a request for the name, but it was not the current one

@@ -434,9 +434,8 @@ def contains_at_most_only_one_request_type(data_or_mint_info):
     subrealm = data_or_mint_info['args'].get('request_subrealm')
     container = data_or_mint_info['args'].get('request_container')
     ticker = data_or_mint_info['args'].get('request_ticker')
-    prime = data_or_mint_info['args'].get('rprime')
     dmitem = data_or_mint_info['args'].get('request_dmitem')
-    scriptname = data_or_mint_info['args'].get('rsname')
+    contract = data_or_mint_info['args'].get('rcrt')
     if realm:
         request_counter += 1
     if subrealm:
@@ -445,13 +444,10 @@ def contains_at_most_only_one_request_type(data_or_mint_info):
         request_counter += 1
     if ticker:
         request_counter += 1
-    if prime:
+    if contract:
         request_counter += 1
     if dmitem:
         request_counter += 1
-    if scriptname:
-        request_counter += 1
-
     if request_counter <= 1:
         return True
     return False 
@@ -686,8 +682,8 @@ def get_mint_info_op_factory(coin, tx, tx_hash, op_found_struct, atomicals_spent
 
         # containers, realms or subrealms cannot be immutable
         if is_immutable:
-            if container or realm or subrealm or prime or scriptname:
-                logger.warning(f'NFT is invalid because container or realm or subrealm or prime cannot be immutable {hash_to_hex_str(tx_hash)}. Skipping...')
+            if container or realm or subrealm or contract:
+                logger.warning(f'NFT is invalid because container or realm or subrealm or contract cannot be immutable {hash_to_hex_str(tx_hash)}. Skipping...')
                 return None, None
             mint_info['$immutable'] = True 
     ############################################
