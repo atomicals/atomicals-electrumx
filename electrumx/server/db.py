@@ -406,8 +406,7 @@ class DB:
         assert not flush_data.container_adds
         assert not flush_data.distmint_adds
         assert not flush_data.state_adds
-        assert not flush_data.contractname_adds
-        assert not flush_data.prime_adds
+        assert not flush_data.contract_adds
         assert not flush_data.deletes
         assert not flush_data.undo_infos
         assert not flush_data.atomicals_undo_infos
