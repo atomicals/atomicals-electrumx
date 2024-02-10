@@ -98,10 +98,8 @@ class FlushData:
     # state_adds is for evt, mod state updates
     # It maps atomical_id to the data of the state update      
     state_adds = attr.ib()           # type: Dict[bytes, Dict[bytes, bytes]
-    # scriptname_adds is for SCRIPT type names
-    scriptname_adds = attr.ib()           # type: Dict[bytes, Dict[bytes, bytes]
-    # prime_adds is for PRIME type names
-    prime_adds = attr.ib()           # type: Dict[bytes, Dict[bytes, bytes]
+    # contract_adds is for contract type names
+    contract_adds = attr.ib()           # type: Dict[bytes, Dict[bytes, bytes]
     
 COMP_TXID_LEN = 4
 
@@ -595,19 +593,12 @@ class DB:
                 batch_put(key + pack_le_uint64(tx_num), pay_outpoint)
         flush_data.dmpay_adds.clear()
 
-        # scriptname data adds
+        # contract data adds
         batch_put = batch.put
-        for key, v in flush_data.scriptname_adds.items():
+        for key, v in flush_data.contract_adds.items():
             for tx_num, pay_outpoint in v.items():
                 batch_put(key + pack_le_uint64(tx_num), pay_outpoint)
-        flush_data.scriptname_adds.clear()
-
-        # prime data adds
-        batch_put = batch.put
-        for key, v in flush_data.prime_adds.items():
-            for tx_num, pay_outpoint in v.items():
-                batch_put(key + pack_le_uint64(tx_num), pay_outpoint)
-        flush_data.prime_adds.clear()
+        flush_data.contract_adds.clear()
 
         # New UTXOs
         batch_put = batch.put

@@ -58,7 +58,7 @@ from electrumx.lib.util_atomicals import (
     is_valid_subrealm_string_name, 
     is_valid_realm_string_name, 
     is_valid_ticker_string,
-    is_valid_script_string_name,
+    is_valid_contract_string_name,
     get_mint_info_op_factory,
     convert_db_mint_info_to_rpc_mint_info_format,
     calculate_latest_state_from_mod_history,
@@ -275,8 +275,7 @@ class BlockProcessor:
         self.container_data_cache = {}      # Caches the containers created
         self.distmint_data_cache = {}       # Caches the distributed mints created
         self.state_data_cache = {}          # Caches the state updates
-        self.scriptname_data_cache = {}     # Caches the scriptnames created
-        self.prime_data_cache = {}          # Caches the primes created
+        self.contract_data_cache = {}       # Caches the contracts created
         self.db_deletes = []
 
         # If the lock is successfully acquired, in-memory chain state
@@ -445,7 +444,7 @@ class BlockProcessor:
                          self.atomicals_undo_infos, self.atomicals_utxo_cache, self.general_data_cache, self.ticker_data_cache, 
                          self.realm_data_cache, self.subrealm_data_cache, self.subrealmpay_data_cache, self.dmitem_data_cache, 
                          self.dmpay_data_cache, self.container_data_cache, self.distmint_data_cache, self.state_data_cache,
-                         self.scriptname_data_cache, self.prime_data_cache)
+                         self.contract_data_cache)
 
     async def flush(self, flush_utxos):
         def flush():
@@ -1092,23 +1091,23 @@ class BlockProcessor:
             self.put_name_element_template(b'rlm', b'', request_realm, mint_info['commit_tx_num'], mint_info['id'], self.realm_data_cache)
         return True 
     
-    def create_or_delete_scriptname_entry_if_requested(self, mint_info, height, Delete):
-        request_scriptname = mint_info.get('$request_scriptname')
-        if not request_scriptname:
+    def create_or_delete_contract_entry_if_requested(self, mint_info, height, Delete):
+        request_contract = mint_info.get('$request_contract')
+        if not request_contract:
             # No name was requested, consider the operation successful noop
             return True 
-        if not is_valid_script_string_name(request_scriptname):
+        if not is_valid_contract_string_name(request_contract):
             return False 
         # Also check that there is no candidates already committed earlier than the current one
-        self.logger.debug(f'create_or_delete_scriptname_entry_if_requested mint_info={mint_info} request_scriptname={request_scriptname}')
-        status, atomical_id, candidates = self.get_effective_script(request_scriptname, height)
+        self.logger.debug(f'create_or_delete_contract_entry_if_requested mint_info={mint_info} request_contract={request_contract}')
+        status, atomical_id, candidates = self.get_effective_contract(request_contract, height)
         for candidate in candidates:
             if candidate['tx_num'] < mint_info['commit_tx_num']:
                 return False
         if Delete: 
-            self.delete_name_element_template(b'scn', b'', mint_info.get('$request_scriptname'), mint_info['commit_tx_num'], mint_info['id'], self.scriptname_data_cache)
+            self.delete_name_element_template(b'crt', b'', mint_info.get('$request_contract'), mint_info['commit_tx_num'], mint_info['id'], self.contract_data_cache)
         else: 
-            self.put_name_element_template(b'scn', b'', request_scriptname, mint_info['commit_tx_num'], mint_info['id'], self.scriptname_data_cache)
+            self.put_name_element_template(b'crt', b'', request_contract, mint_info['commit_tx_num'], mint_info['id'], self.contract_data_cache)
         return True 
     
     def create_or_delete_container_entry_if_requested(self, mint_info, height, Delete=False):
@@ -1369,7 +1368,7 @@ class BlockProcessor:
         # All mint types always look at only input 0 to determine if the operation was found
         # This is done to preclude complex scenarios of valid/invalid different mint types across inputs 
         valid_create_op_type, mint_info = get_mint_info_op_factory(self.coin, tx, tx_hash, operations_found_at_inputs, atomicals_spent_at_inputs, height, self.logger)
-        if not valid_create_op_type or (valid_create_op_type != 'NFT' and valid_create_op_type != 'FT' and valid_create_op_type != 'PRIME' and valid_create_op_type != 'SCRIPT'):
+        if not valid_create_op_type or (valid_create_op_type != 'NFT' and valid_create_op_type != 'FT'):
             return None
 
         # The atomical would always be created at the first output
@@ -1424,7 +1423,7 @@ class BlockProcessor:
         if mint_info.get('$request_dmitem'):
             is_name_type = True 
         # scripts gets unique names too
-        if mint_info.get('$request_scriptname'):
+        if mint_info.get('$request_contract'):
             is_name_type = True  
           
         # Too late to reveal, fail to mint then
@@ -1470,11 +1469,17 @@ class BlockProcessor:
             if height >= self.coin.ATOMICALS_ACTIVATION_HEIGHT_DMINT:
                 if not self.create_or_delete_dmitem_entry_if_requested(mint_info, operations_found_at_inputs['payload'], height, Delete):
                     return None
+            
+            if not self.create_or_delete_contract_entry_if_requested(mint_info, height, Delete):
+                return None
+            
             if not Delete:
                 if not self.validate_and_create_nft_mint_utxo(mint_info, txout, height, tx_hash):
                     self.logger.info(f'create_or_delete_atomical: validate_and_create_nft_mint_utxo returned FALSE in Transaction {hash_to_hex_str(tx_hash)}. Skipping...') 
                     return None
+            
 
+            
         elif valid_create_op_type == 'FT':
             # Add $max_supply informative property
             if mint_info['subtype'] == 'decentralized':
@@ -1494,12 +1499,7 @@ class BlockProcessor:
                 if not self.validate_and_create_ft_mint_utxo(mint_info, tx_hash):
                     self.logger.info(f'create_or_delete_atomical: validate_and_create_ft_mint_utxo returned FALSE in Transaction {hash_to_hex_str(tx_hash)}. Skipping...') 
                     return None
-        
-        elif valid_create_op_type == 'SCRIPT':
-            if not self.create_or_delete_scriptname_entry_if_requested(mint_info, height, Delete):
-                return None
-        elif valid_create_op_type == 'PRIME':
-            pass
+    
         else: 
             raise IndexError(f'Fatal index error Create Invalid')
         
@@ -1777,9 +1777,9 @@ class BlockProcessor:
 
         return pow_result['pow_commit'] or pow_result['pow_reveal'] 
 
-    # Get the effective script considering cache and database
-    def get_effective_script(self, script_name, height):
-        return self.get_effective_name_template(b'scn', script_name, height, self.scriptname_data_cache)
+    # Get the effective contract considering cache and database
+    def get_effective_contract(self, contract_name, height):
+        return self.get_effective_name_template(b'crt', contract_name, height, self.contract_data_cache)
     
     # Get the effective realm considering cache and database
     def get_effective_realm(self, realm_name, height):
@@ -2208,9 +2208,9 @@ class BlockProcessor:
                 atomical['mint_info']['$immutable'] = False
         elif atomical['type'] == 'SCRIPT':
             # Attach any auxiliary information that was already successfully parsed before
-            request_scriptname = init_mint_info.get('$request_scriptname')
-            if request_scriptname:
-                atomical['mint_info']['$request_scriptname'] = request_scriptname
+            request_contract = init_mint_info.get('$request_contract')
+            if request_contract:
+                atomical['mint_info']['$request_contract'] = request_contract
                 atomical['mint_info']['$script'] = init_mint_info.get('$script')
             
         elif atomical['type'] == 'FT':
@@ -2498,22 +2498,21 @@ class BlockProcessor:
         return request_dmitem, False
 
     # Populate the specific script name request type information
-    def populate_script_specific_fields(self, atomical):
-        self.logger.info(f'populate_script_specific_fields atomical={atomical}')
-        # Check if the effective subrealm is for the current atomical and also resolve it's parent
-        request_scriptname = atomical['mint_info'].get('$request_scriptname')
-        if not request_scriptname: 
+    def populate_contract_specific_fields(self, atomical):
+        # Check if the effective contract is for the current atomical and also resolve it's parent
+        request_contract = atomical['mint_info'].get('$request_contract')
+        if not request_contract: 
             return None, None
         height = self.height
-        status, candidate_id, raw_candidate_entries = self.get_effective_script(request_scriptname, height)
-        atomical['subtype'] = 'request_scriptname' # Will change to 'scriptname' if it is found to be valid
+        status, candidate_id, raw_candidate_entries = self.get_effective_contract(request_contract, height)
+        atomical['subtype'] = 'request_contract' # Will change to 'scriptname' if it is found to be valid
         # Populate the request specific fields
-        atomical['$request_scriptname'] = atomical['mint_info'].get('$request_scriptname')
+        atomical['$request_contract'] = atomical['mint_info'].get('$request_contract')
         if status == 'verified' and candidate_id == atomical['atomical_id']:
-            atomical['subtype'] = 'scriptname'
-            atomical['$scriptname'] = atomical['mint_info'].get('$request_scriptname')
-            return request_scriptname, True
-        return request_scriptname, False
+            atomical['subtype'] = 'contract'
+            atomical['$contract'] = atomical['mint_info'].get('$request_contract')
+            return request_contract, True
+        return request_contract, False
     
     # Populate the subtype information such as realms, subrealms, containers and tickers
     # An atomical can have a naming element if it passed all the validity checks of the assignment
@@ -2548,14 +2547,14 @@ class BlockProcessor:
         # 
         # SCRIPT Type Fields
         #
-        the_name_request, is_atomical_name_verified_found = self.populate_name_subtype_specific_fields(atomical, 'script', self.get_effective_script)
+        the_name_request, is_atomical_name_verified_found = self.populate_name_subtype_specific_fields(atomical, 'script', self.get_effective_contract)
         if is_atomical_name_verified_found:
             atomical['subtype'] = 'scriptname'
             atomical['$scriptname'] = the_name_request
             return atomical
         elif the_name_request:
             # False indicates it is a request for the name, but it was not the current one
-            atomical['subtype'] = 'request_scriptname'
+            atomical['subtype'] = 'request_contract'
             return atomical 
         
         # 
@@ -2579,7 +2578,7 @@ class BlockProcessor:
         # 
         # SCRIPT type fields
         #
-        self.populate_script_specific_fields(atomical)
+        self.populate_contract_specific_fields(atomical)
         return atomical 
 
     def is_dft_bitwork_rollover_activated(self, height):

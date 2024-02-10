@@ -2240,10 +2240,8 @@ class ElectrumX(SessionBase):
                         return_struct['balances'][atomical_id_compact]['parent_container'] = atomical_id_basic_info.get('$parent_container')
                     if atomical_id_basic_info.get('$parent_realm'):
                         return_struct['balances'][atomical_id_compact]['parent_realm'] = atomical_id_basic_info.get('$parent_realm')
-                    if atomical_id_basic_info.get('$request_scriptname'):
-                        return_struct['balances'][atomical_id_compact]['request_scriptname'] = atomical_id_basic_info.get('$request_scriptname')
-                    if atomical_id_basic_info.get('$script'):
-                        return_struct['balances'][atomical_id_compact]['script'] = atomical_id_basic_info.get('$script')
+                    if atomical_id_basic_info.get('$request_contract'):
+                        return_struct['balances'][atomical_id_compact]['request_contract'] = atomical_id_basic_info.get('$request_contract')
                     if atomical_id_basic_info.get('$parent_container_name'):
                         return_struct['balances'][atomical_id_compact]['parent_container_name'] = atomical_id_basic_info.get('$parent_container_name')
                     if atomical_id_basic_info.get('$bitwork'):

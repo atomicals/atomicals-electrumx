@@ -611,8 +611,7 @@ def get_mint_info_op_factory(coin, tx, tx_hash, op_found_struct, atomicals_spent
         subrealm = mint_info['args'].get('request_subrealm')
         container = mint_info['args'].get('request_container')
         dmitem = mint_info['args'].get('request_dmitem')
-        prime = mint_info['args'].get('rprm')
-        scriptname = mint_info['args'].get('rsn')
+        contract = mint_info['args'].get('rcrt')
         # Strings evaulate to falsey when empty
         # Reject any NFT which contains an empty string for any of the requests
         if isinstance(realm, str) and realm == '':
@@ -627,8 +626,8 @@ def get_mint_info_op_factory(coin, tx, tx_hash, op_found_struct, atomicals_spent
         if isinstance(dmitem, str) and dmitem == '':
             logger.warning(f'NFT request_dmitem is invalid detected empty request_dmitem str {hash_to_hex_str(tx_hash)}. Skipping...')
             return None, None
-        if isinstance(prime, str) and prime == '':
-            logger.warning(f'NFT rprm is invalid detected empty rprm str {hash_to_hex_str(tx_hash)}. Skipping...')
+        if isinstance(contract, str) and contract == '':
+            logger.warning(f'NFT contract is invalid detected empty rcrt str {hash_to_hex_str(tx_hash)}. Skipping...')
             return None, None
 
         if realm:
@@ -679,12 +678,11 @@ def get_mint_info_op_factory(coin, tx, tx_hash, op_found_struct, atomicals_spent
                 logger.warning(f'NFT request_container is invalid {hash_to_hex_str(tx_hash)}, {container}. Skipping...')
                 return None, None
             mint_info['$request_container'] = container
-        elif prime:
-            if not isinstance(prime, str) or not is_valid_prime_string_name(prime):
-                logger.warning(f'NFT rprm is invalid {hash_to_hex_str(tx_hash)}, {prime}. Skipping...')
+        elif contract:
+            if not isinstance(contract, str) or not is_valid_contract_string_name(contract):
+                logger.warning(f'NFT rcrt is invalid {hash_to_hex_str(tx_hash)}, {contract}. Skipping...')
                 return None, None
-            mint_info['$request_prime'] = prime
-            # Capture atomicals into the prime
+            mint_info['$request_contract'] = contract
 
         # containers, realms or subrealms cannot be immutable
         if is_immutable:
@@ -692,23 +690,6 @@ def get_mint_info_op_factory(coin, tx, tx_hash, op_found_struct, atomicals_spent
                 logger.warning(f'NFT is invalid because container or realm or subrealm or prime cannot be immutable {hash_to_hex_str(tx_hash)}. Skipping...')
                 return None, None
             mint_info['$immutable'] = True 
-    ############################################
-    #
-    # Script Type Definition
-    #
-    ############################################
-    elif op == 's' and input_index == 0:
-        mint_info['type'] = 'SCRIPT'
-        scriptname = mint_info['args'].get('rsn')
-        scriptbytes = mint_info['args'].get('s')
-        if not isinstance(scriptname, str) or not is_valid_script_string_name(scriptname):
-            logger.warning(f'SCRIPT rsn is invalid {hash_to_hex_str(tx_hash)}, {scriptname}. Skipping...')
-            return None, None
-        if not isinstance(scriptbytes, bytes):
-            logger.warning(f'SCRIPT s is invalid {hash_to_hex_str(tx_hash)}, {scriptbytes}. Skipping...')
-            return None, None
-        mint_info['$request_scriptname'] = scriptname
-        mint_info['$script'] = scriptbytes.hex()
     ############################################
     #
     # Fungible Token (FT) Mint Operations
@@ -1029,8 +1010,8 @@ def is_valid_prime_string_name(prime_name):
         return True
     return False 
 
-# A valid script name string must begin with a-z and have up to 63 characters after it 
-def is_valid_script_string_name(script_name):
+# A valid contract name string must begin with a-z and have up to 63 characters after it 
+def is_valid_contract_string_name(script_name):
     if not is_valid_namebase_string_name(script_name):
         return False
     m = re.compile(r'^[a-z][a-z0-9]{0,63}$')
