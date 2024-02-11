@@ -1,5 +1,6 @@
 import bitcointx 
- 
+from electrumx.lib.util import is_atomical_id_long_form_bytes
+
 class AVMFactory:
   '''Instantiate the wrapper and factory objects for handling AVM related requests'''
   def __init__(self, logger, atomicals_spent_at_inputs, operations_found_at_inputs):
@@ -23,6 +24,8 @@ class AVMFactory:
     for id_key, request_data in ids.items():
       if not id_key or not isinstance(id_key, bytes):
         return False 
+      if not is_atomical_id_long_form_bytes(id_key):
+        return False
       # Get the method
       m = request_data.get('m')
       if not isinstance(m, str):
@@ -35,8 +38,7 @@ class AVMFactory:
       found_one_call = True
     return found_one_call 
  
-  def process(self):
-
+  def process_callable(self):
     return False 
   
   def get_modified_atomicals_spent_at_inputs(self):

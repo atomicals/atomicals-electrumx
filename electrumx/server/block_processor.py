@@ -2902,7 +2902,7 @@ class BlockProcessor:
                 # Create the AVM factory to capture any payable 
                 avm_factory_instance = AVMFactory(self.logger, atomicals_spent_at_inputs, atomicals_operations_found_at_inputs)
                 if avm_factory_instance.found_callable():
-                    if avm_factory_instance.process():
+                    if avm_factory_instance.process_callable():
                         atomicals_spent_at_inputs = avm_factory_instance.get_modified_atomicals_spent_at_inputs()
 
                 # Color the outputs of any transferred NFT/FT atomicals according to the rules
