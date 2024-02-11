@@ -14,6 +14,8 @@ from typing import Sequence, Tuple, List, Callable, Optional, TYPE_CHECKING, Typ
 
 from aiorpcx import run_in_thread, CancelledError
 
+from electrumx.lib.avm_factory import AVMFactory 
+
 import electrumx
 from electrumx.server.daemon import DaemonError, Daemon
 from electrumx.lib.hash import hash_to_hex_str, HASHX_LEN, double_sha256
@@ -1707,6 +1709,18 @@ class BlockProcessor:
             put_general_data(the_key, operations_found_at_inputs['payload_bytes'])
         return True
 
+    # Create or delete method calls
+    def create_or_delete_method_call(self, tx_hash, operations_found_at_inputs, Delete=False):
+        if not operations_found_at_inputs or operations_found_at_inputs['op'] != 'c':
+            return False
+        the_key = b'c' + tx_hash + pack_le_uint32(0)
+        if Delete:
+            self.delete_general_data(the_key)
+        else: 
+            put_general_data = self.general_data_cache.__setitem__
+            put_general_data(the_key, operations_found_at_inputs['payload_bytes'])
+        return True
+    
     # create or delete the proof of work records
     def create_or_delete_pow_records(self, tx_hash, tx_num, height, operations_found_at_inputs, Delete=False):
         if not operations_found_at_inputs:
@@ -2712,6 +2726,8 @@ class BlockProcessor:
                         if not is_mint_pow_valid(atomicals_operations_found_at_inputs['reveal_location_txid'], mint_pow_reveal):
                             self.logger.warning(f'create_or_delete_decentralized_mint_output: not is_mint_pow_valid {hash_to_hex_str(tx_hash)}, mint_pow_reveal={mint_pow_reveal}, atomicals_operations_found_at_inputs={atomicals_operations_found_at_inputs}...')
                             return None 
+                    
+                    avm_factory = AVMFactory()
                     allow_mint = True
 
             if allow_mint:    
@@ -2883,6 +2899,10 @@ class BlockProcessor:
                     reveal_location_index = atomicals_operations_found_at_inputs['reveal_location_index']
                     self.logger.debug(f'advance_txs: atomicals_operations_found_at_inputs operation_found={operation_found}, operation_input_index={operation_input_index}, size_payload={size_payload}, tx_hash={hash_to_hex_str(tx_hash)}, commit_txid={hash_to_hex_str(commit_txid)}, commit_index={commit_index}, reveal_location_txid={hash_to_hex_str(reveal_location_txid)}, reveal_location_index={reveal_location_index}')
                 
+                # Create the AVM factory to capture any payable 
+                avm_factory_instance = AVMFactory(self.logger, atomicals_spent_at_inputs)
+                atomicals_spent_at_inputs = avm_factory_instance.get_modified_atomicals_spent_at_inputs()
+
                 # Color the outputs of any transferred NFT/FT atomicals according to the rules
                 blueprint_builder = self.color_atomicals_outputs(atomicals_operations_found_at_inputs, atomicals_spent_at_inputs, tx, tx_hash, tx_num, height)
                 for atomical_id in blueprint_builder.get_atomical_ids_spent():
@@ -2923,6 +2943,12 @@ class BlockProcessor:
                     if self.create_or_delete_data_location(tx_hash, atomicals_operations_found_at_inputs):
                         has_at_least_one_valid_atomicals_operation = True
                         already_found_valid_operation = True 
+
+                # Check if there were direct method calls 'c'
+                if not already_found_valid_operation:
+                    if self.create_or_delete_method_call(tx_hash, atomicals_operations_found_at_inputs):
+                        has_at_least_one_valid_atomicals_operation = True
+                        already_found_valid_operation = True
 
                 # Note: We do not skip checking for payment tx's even if already_found_valid_operation = True because there could be valid mints
                 # in one and the same tx as making a payment. It's not advisable to do so, but it's a valid possibility

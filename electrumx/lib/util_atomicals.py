@@ -1115,6 +1115,8 @@ def parse_operation_from_script(script, n):
             atom_op_decoded = 'x'  # extract - move atomical to 0'th output
         elif atom_op == "0179":
             atom_op_decoded = 'y'  # split - split apart fts
+        elif atom_op == "0163":
+            atom_op_decoded = 'c'  # call - call method directly
 
         if atom_op_decoded:
             return atom_op_decoded, parse_atomicals_data_definition_operation(script, n + one_letter_op_len)
