@@ -54,7 +54,7 @@ def test_found_callable_variations():
 
     no_method = {}
     no_method[subject_atomical_id] = {
-        'm': 'deposit'
+        'not': 'deposit'
     }
     structure['payload']['args']['call']['ids'] = no_method
     avm_factory = AVMFactory(MockLogger(), {}, structure)
