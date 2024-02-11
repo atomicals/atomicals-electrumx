@@ -27,14 +27,13 @@ def test_empty_spends():
     result = avm_factory.get_modified_atomicals_spent_at_inputs()
     assert(result == {})
    
-  
-def test_multiple_spends_payable_invalid1():
+def test_found_callable_variations():
     subject_atomical_id = b"A\x03\x8f'\xe7\x85`l\xa0\xcc\x1e\xfd\x8e:\xa9\x12\xa1\\r\xd0o5\x9a\xeb\x05$=\xab+p\xa8V\x00\x00\x00\x01"
     call_data = {}
     call_data[subject_atomical_id] = {
         'm': 'deposit'
     }
-    avm_factory = AVMFactory(MockLogger(), {}, {
+    structure = {
         'op': 'nft',
         'payload': {
             'args': {
@@ -43,9 +42,12 @@ def test_multiple_spends_payable_invalid1():
                 }
             }
         }
-    })
+    }
+    avm_factory = AVMFactory(MockLogger(), {}, structure)
     assert(avm_factory.found_callable())
- 
+    del structure['payload']['args']['call']
+    avm_factory = AVMFactory(MockLogger(), {}, structure)
+    assert(not avm_factory.found_callable())
      
 def test_multiple_spends_non_payable_fail():
     # Check that when sending to non payable that the operation is considered invalid and atomicals are not captured
