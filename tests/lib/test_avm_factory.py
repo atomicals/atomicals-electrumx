@@ -45,6 +45,15 @@ def test_found_callable_variations():
     }
     avm_factory = AVMFactory(MockLogger(), {}, structure)
     assert(avm_factory.found_callable())
+    
+    structure['payload']['args']['call']['ids'] = {}
+    avm_factory = AVMFactory(MockLogger(), {}, structure)
+    assert(not avm_factory.found_callable())
+    
+    del structure['payload']['args']['call']['ids']
+    avm_factory = AVMFactory(MockLogger(), {}, structure)
+    assert(not avm_factory.found_callable())
+
     del structure['payload']['args']['call']
     avm_factory = AVMFactory(MockLogger(), {}, structure)
     assert(not avm_factory.found_callable())
