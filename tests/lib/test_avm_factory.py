@@ -42,7 +42,7 @@ def test_multiple_spends_payable_invalid1():
             }
         }
     })
-    assert avm_factory.found_callable()
+    assert(avm_factory.found_callable())
  
      
 def test_multiple_spends_non_payable_fail():
