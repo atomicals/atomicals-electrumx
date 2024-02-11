@@ -61,8 +61,10 @@ def test_multiple_spends_payable_invalid1():
             'x': 1
         }
     })
+    assert avm_factory.process()
+    
     result = avm_factory.get_modified_atomicals_spent_at_inputs()
-    assert(result == {s})
+    assert(result == {})
 
 def test_multiple_spends_payable_success():
 
