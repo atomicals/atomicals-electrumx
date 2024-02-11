@@ -38,7 +38,9 @@ def test_multiple_spends_payable_invalid1():
         'op': 'nft',
         'payload': {
             'args': {
-                'call': call_data
+                'call': {
+                    'ids': call_data
+                }
             }
         }
     })
