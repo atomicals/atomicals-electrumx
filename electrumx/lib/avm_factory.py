@@ -28,7 +28,7 @@ class AVMFactory:
         return False
       # Get the method
       m = request_data.get('m')
-      if not isinstance(m, str):
+      if not isinstance(m, str) or len(m) == 0:
         return False
       # Get the params
       # params can be set as long as it's a dictionary
