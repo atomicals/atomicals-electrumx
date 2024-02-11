@@ -7,5 +7,5 @@ class AVMFactory:
     self.logger = logger
     self.atomicals_spent_at_inputs = atomicals_spent_at_inputs
 
-  def get_atomicals_spent_at_inputs(self):
+  def get_modified_atomicals_spent_at_inputs(self):
     return self.atomicals_spent_at_inputs
