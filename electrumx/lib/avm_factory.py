@@ -1,5 +1,5 @@
 import bitcointx 
-from electrumx.lib.util import is_atomical_id_long_form_bytes
+from electrumx.lib.util_atomicals import is_atomical_id_long_form_bytes
 
 class AVMFactory:
   '''Instantiate the wrapper and factory objects for handling AVM related requests'''
