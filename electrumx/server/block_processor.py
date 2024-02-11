@@ -2900,7 +2900,7 @@ class BlockProcessor:
                     self.logger.debug(f'advance_txs: atomicals_operations_found_at_inputs operation_found={operation_found}, operation_input_index={operation_input_index}, size_payload={size_payload}, tx_hash={hash_to_hex_str(tx_hash)}, commit_txid={hash_to_hex_str(commit_txid)}, commit_index={commit_index}, reveal_location_txid={hash_to_hex_str(reveal_location_txid)}, reveal_location_index={reveal_location_index}')
                 
                 # Create the AVM factory to capture any payable 
-                avm_factory_instance = AVMFactory(self.logger, atomicals_spent_at_inputs)
+                avm_factory_instance = AVMFactory(self.logger, atomicals_spent_at_inputs, atomicals_operations_found_at_inputs)
                 atomicals_spent_at_inputs = avm_factory_instance.get_modified_atomicals_spent_at_inputs()
 
                 # Color the outputs of any transferred NFT/FT atomicals according to the rules
