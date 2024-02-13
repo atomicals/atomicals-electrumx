@@ -38,6 +38,7 @@ import base64
 import krock32
 import pickle
 import math
+from electrumx.lib.avm_factory import AuthorizedCallFactory
 from electrumx.lib.hash import sha256, double_sha256
 from cbor2 import dumps, loads, CBORDecodeError
 from collections.abc import Mapping
@@ -78,6 +79,7 @@ SUBNAME_MIN_PAYMENT_DUST_LIMIT = 0 # It can be possible to do free
 
 # Maximum size of the rules of a subrealm or container dmint rule set array
 MAX_SUBNAME_RULE_SIZE_LEN = 100000
+
 # Maximum number of minting rules allowed
 MAX_SUBNAME_RULE_ENTRIES = 100
 
@@ -89,13 +91,16 @@ DFT_MINT_AMOUNT_MAX = 100000000
 
 # The minimum number of DFT max_mints. Set at 1
 DFT_MINT_MAX_MIN_COUNT = 1
+
 # The maximum number (legacy) of DFT max_mints. Set at 500,000 mints mainly for efficieny reasons in legacy.
 DFT_MINT_MAX_MAX_COUNT_LEGACY = 500000
+
 # The maximum number of DFT max_mints (after legacy 'DENSITY' update). Set at 21,000,000 max mints.
 DFT_MINT_MAX_MAX_COUNT_DENSITY = 21000000
 
 # This would never change, but we put it as a constant for clarity
 DFT_MINT_HEIGHT_MIN = 0
+
 # This value would never change, it's added in case someone accidentally tries to use a unixtime
 DFT_MINT_HEIGHT_MAX = 10000000 # 10 million blocks
   
@@ -1209,7 +1214,6 @@ def is_op_return_dmitem_payment_marker_atomical_id(script):
 # Stops when it finds the first operation in the first input
 def parse_protocols_operations_from_witness_for_input(txinwitness):
     '''Detect and parse all operations across the witness input arrays from a tx'''
-    atomical_operation_type_map = {}
     for script in txinwitness:
         n = 0
         script_entry_len = len(script)
@@ -1240,12 +1244,18 @@ def parse_protocols_operations_from_witness_for_input(txinwitness):
                 break
     return None, None
 
+def get_authorized_operations(opdefn):
+   call_factory = AuthorizedCallFactory(opdefn)
+   return call_factory.get_authorized_contract_calls()
+
 # Parses and detects the witness script array and detects the Atomicals operations
 def parse_protocols_operations_from_witness_array(tx, tx_hash, allow_args_bytes):
     '''Detect and parse all operations of atomicals across the witness input arrays (inputs 0 and 1) from a tx'''
     if not hasattr(tx, 'witness'):
         return {}
     txin_idx = 0
+    found_first_operation = None 
+    found_other_operations_array = []
     for txinwitness in tx.witness:
         # All inputs are parsed but further upstream most operations will only function if placed in the 0'th input
         op_name, payload = parse_protocols_operations_from_witness_for_input(txinwitness)
@@ -1277,19 +1287,38 @@ def parse_protocols_operations_from_witness_array(tx, tx_hash, allow_args_bytes)
             associated_txin = tx.inputs[txin_idx]
             prev_tx_hash = associated_txin.prev_hash
             prev_idx = associated_txin.prev_idx
-            return {
-                'op': op_name,
-                'payload': decoded_object,
-                'payload_bytes': payload,
-                'input_index': txin_idx,
-                'commit_txid': prev_tx_hash,
-                'commit_index': prev_idx,
-                'commit_location': prev_tx_hash + pack_le_uint32(prev_idx),
-                'reveal_location_txid': tx_hash,
-                'reveal_location_index': 0 # Always assume the first output is the first location
-            }
+
+            if not found_first_operation:
+                found_first_operation = {
+                    'op': op_name,
+                    'payload': decoded_object,
+                    'payload_bytes': payload,
+                    'input_index': txin_idx,
+                    'commit_txid': prev_tx_hash,
+                    'commit_index': prev_idx,
+                    'commit_location': prev_tx_hash + pack_le_uint32(prev_idx),
+                    'reveal_location_txid': tx_hash,
+                    'reveal_location_index': 0         # Always assume the first output is the first location,   
+                }
+            else:
+                found_other_operations_array.append({
+                    'op': op_name,
+                    'payload': decoded_object,
+                    'payload_bytes': payload,
+                    'input_index': txin_idx,
+                    'commit_txid': prev_tx_hash,
+                    'commit_index': prev_idx,
+                    'commit_location': prev_tx_hash + pack_le_uint32(prev_idx)
+                })
         txin_idx = txin_idx + 1
-    return None
+    
+    # If we found a first operation, then attach any other operations found as well
+    if found_first_operation:
+        found_first_operation['other_input_ops'] = found_other_operations_array
+
+    # The initial motivation for this change to capture the other input operations is for signing avm method calls
+    # The other inputs may contain reveal scripts which sign the method calls to authorize contract avm calls.
+    return found_first_operation
 
 def encode_atomical_ids_hex(state):
     if isinstance(state, bytes):
