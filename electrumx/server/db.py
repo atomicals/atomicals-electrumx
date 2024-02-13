@@ -27,11 +27,16 @@ from electrumx.lib.util import (
     formatted_time, pack_be_uint16, pack_be_uint32, pack_le_uint64, pack_be_uint64, pack_le_uint32,
     unpack_le_uint32, unpack_be_uint32, unpack_le_uint64, unpack_be_uint64, unpack_le_uint16_from
 )
-from electrumx.lib.util_atomicals import auto_encode_bytes_elements, pad_bytes64, get_tx_hash_index_from_location_id, location_id_bytes_to_compact, calculate_latest_state_from_mod_history
+from electrumx.lib.util_atomicals import auto_encode_bytes_elements, pad_bytes64, calculate_latest_state_from_mod_history
 from electrumx.server.storage import db_class, Storage
 from electrumx.server.history import History, TXNUM_LEN
 from electrumx.lib.script import SCRIPTHASH_LEN
 from cbor2 import dumps, loads, CBORDecodeError
+
+from electrumx.lib.util_atomicals_formats import (
+    location_id_bytes_to_compact,
+    get_tx_hash_index_from_location_id
+)
 
 import pickle
 

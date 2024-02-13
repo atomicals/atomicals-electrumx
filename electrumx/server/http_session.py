@@ -14,9 +14,16 @@ import electrumx
 from electrumx.lib.hash import HASHX_LEN, double_sha256, hash_to_hex_str, hex_str_to_hash, sha256
 import electrumx.lib.util as util
 from electrumx.lib.script2addr import get_address_from_output_script
-from electrumx.lib.util_atomicals import DFT_MINT_MAX_MAX_COUNT_DENSITY, DMINT_PATH, MINT_SUBNAME_RULES_BECOME_EFFECTIVE_IN_BLOCKS, SUBREALM_MINT_PATH, AtomicalsValidationError, auto_encode_bytes_elements, calculate_latest_state_from_mod_history, compact_to_location_id_bytes, format_name_type_candidates_to_rpc, format_name_type_candidates_to_rpc_for_subname, is_compact_atomical_id, location_id_bytes_to_compact, validate_merkle_proof_dmint, validate_rules_data
+from electrumx.lib.util_atomicals import DFT_MINT_MAX_MAX_COUNT_DENSITY, DMINT_PATH, MINT_SUBNAME_RULES_BECOME_EFFECTIVE_IN_BLOCKS, SUBREALM_MINT_PATH, AtomicalsValidationError, auto_encode_bytes_elements, calculate_latest_state_from_mod_history, format_name_type_candidates_to_rpc, format_name_type_candidates_to_rpc_for_subname, validate_merkle_proof_dmint, validate_rules_data
 from electrumx.server.daemon import DaemonError
 
+from electrumx.lib.util_atomicals_formats import (
+    is_atomical_id_long_form_bytes,
+    is_compact_atomical_id,
+    compact_to_location_id_bytes,
+    location_id_bytes_to_compact,
+    get_tx_hash_index_from_location_id
+)
 
 BAD_REQUEST = 1
 DAEMON_ERROR = 2

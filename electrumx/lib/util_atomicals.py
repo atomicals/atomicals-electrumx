@@ -45,6 +45,14 @@ from collections.abc import Mapping
 from functools import reduce
 from merkletools import MerkleTools
 
+from electrumx.lib.util_atomicals_formats import (
+    is_atomical_id_long_form_bytes,
+    is_compact_atomical_id,
+    compact_to_location_id_bytes,
+    location_id_bytes_to_compact,
+    get_tx_hash_index_from_location_id
+)
+
 class AtomicalsValidationError(Exception):
     '''Raised when Atomicals Validation Error'''
         
@@ -176,34 +184,7 @@ def is_atomical_id_long_form_string(value):
     except (ValueError, TypeError):
         pass
     return False
-
-# Check whether the value is a 36 byte sequence
-def is_atomical_id_long_form_bytes(value):
-    if not isinstance(value, bytes):
-        return False 
-    try:
-        if len(value) == 36:
-            return True
-    except (ValueError, TypeError):
-        pass
-    return False
-
-# Check whether the value is a compact form location/atomical id 
-def is_compact_atomical_id(value):
-    '''Whether this is a compact atomical id or not
-    '''
-    if isinstance(value, int):
-        return False
-    if value == None or value == "":
-        return False
-    index_of_i = value.find("i")
-    if index_of_i != 64: 
-        return False
-    raw_hash = hex_str_to_hash(value[ : 64])
-    if len(raw_hash) == 32:
-        return True
-    return False
-
+ 
 # Convert the compact string form to the expanded 36 byte sequence
 def compact_to_location_id_bytes(value):
     '''Convert the 36 byte atomical_id to the compact form with the "i" at the end
@@ -226,16 +207,6 @@ def compact_to_location_id_bytes(value):
         raise TypeError(f'{value} index output number was parsed to be less than 0 or greater than 100000')
 
     return raw_hash + pack_le_uint32(num)
- 
-# Convert 36 byte sequence to compact form string
-def location_id_bytes_to_compact(location_id):
-    digit, = unpack_le_uint32_from(location_id[32:])
-    return f'{hash_to_hex_str(location_id[:32])}i{digit}'
- 
-# Get the tx hash from the location/atomical id
-def get_tx_hash_index_from_location_id(location_id): 
-    output_index, = unpack_le_uint32_from(location_id[ 32 : 36])
-    return location_id[ : 32], output_index 
 
 # Check if the operation is a valid distributed mint (dmint) type
 def is_valid_dmt_op_format(tx_hash, dmt_op):

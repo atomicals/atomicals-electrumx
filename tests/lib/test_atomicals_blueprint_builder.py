@@ -5,8 +5,12 @@ from electrumx.lib.coins import Bitcoin
 from electrumx.lib.hash import HASHX_LEN, hex_str_to_hash, hash_to_hex_str
 from electrumx.lib.tx import Tx, TxInput, TxOutput
 
-from electrumx.lib.util_atomicals import (
-    location_id_bytes_to_compact
+from electrumx.lib.util_atomicals_formats import (
+    is_atomical_id_long_form_bytes,
+    is_compact_atomical_id,
+    compact_to_location_id_bytes,
+    location_id_bytes_to_compact,
+    get_tx_hash_index_from_location_id
 )
 
 coin = Bitcoin

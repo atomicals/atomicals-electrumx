@@ -1,5 +1,12 @@
 import bitcointx 
-from electrumx.lib.util_atomicals import is_atomical_id_long_form_bytes
+ 
+from electrumx.lib.util_atomicals_formats import (
+    is_atomical_id_long_form_bytes,
+    is_compact_atomical_id,
+    compact_to_location_id_bytes,
+    location_id_bytes_to_compact,
+    get_tx_hash_index_from_location_id
+)
 
 def validate_payload_method_call_format(payload):
   if not payload or len(payload) == 0 or not payload.get('args'):

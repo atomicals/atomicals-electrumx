@@ -40,15 +40,20 @@ from electrumx.lib.util_atomicals import (
     MINT_SUBNAME_RULES_BECOME_EFFECTIVE_IN_BLOCKS,
     DMINT_PATH,
     convert_db_mint_info_to_rpc_mint_info_format, 
-    compact_to_location_id_bytes, 
-    location_id_bytes_to_compact, 
-    is_compact_atomical_id,
     format_name_type_candidates_to_rpc_for_subname,
     calculate_latest_state_from_mod_history,
     validate_rules_data,
     AtomicalsValidationError,
     auto_encode_bytes_elements, 
     validate_merkle_proof_dmint
+)
+
+from electrumx.lib.util_atomicals_formats import (
+    is_atomical_id_long_form_bytes,
+    is_compact_atomical_id,
+    compact_to_location_id_bytes,
+    location_id_bytes_to_compact,
+    get_tx_hash_index_from_location_id
 )
 from electrumx.lib.hash import (HASHX_LEN, Base58Error, hash_to_hex_str,
                                 hex_str_to_hash, sha256, double_sha256)

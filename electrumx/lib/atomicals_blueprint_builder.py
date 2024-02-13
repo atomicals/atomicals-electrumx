@@ -1,14 +1,20 @@
 from electrumx.lib.util_atomicals import (
     is_splat_operation,
     is_split_operation,
-    location_id_bytes_to_compact,
     is_op_return_subrealm_payment_marker_atomical_id,
     is_op_return_dmitem_payment_marker_atomical_id,
-    compact_to_location_id_bytes,
-    is_compact_atomical_id,
     is_integer_num,
     SUBNAME_MIN_PAYMENT_DUST_LIMIT
 )
+
+from electrumx.lib.util_atomicals_formats import (
+    is_atomical_id_long_form_bytes,
+    is_compact_atomical_id,
+    compact_to_location_id_bytes,
+    location_id_bytes_to_compact,
+    get_tx_hash_index_from_location_id
+)
+
 from electrumx.lib.hash import hash_to_hex_str, HASHX_LEN
 from electrumx.lib.util import (
   unpack_le_uint64, unpack_le_uint16_from

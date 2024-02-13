@@ -35,7 +35,6 @@ from electrumx.lib.util_atomicals import (
     get_name_request_candidate_status,
     get_subname_request_candidate_status,
     is_within_acceptable_blocks_for_name_reveal,
-    compact_to_location_id_bytes,
     is_proof_of_work_prefix_match,
     format_name_type_candidates_to_rpc_for_subname,
     format_name_type_candidates_to_rpc,
@@ -52,11 +51,9 @@ from electrumx.lib.util_atomicals import (
     MINT_REALM_CONTAINER_TICKER_COMMIT_REVEAL_DELAY_BLOCKS, 
     MINT_SUBNAME_COMMIT_PAYMENT_DELAY_BLOCKS, 
     is_valid_dmt_op_format, 
-    is_compact_atomical_id, 
     is_valid_regex,
     unpack_mint_info, 
     parse_protocols_operations_from_witness_array, 
-    location_id_bytes_to_compact, 
     is_valid_subrealm_string_name, 
     is_valid_realm_string_name, 
     is_valid_ticker_string,
@@ -73,6 +70,14 @@ from electrumx.lib.util_atomicals import (
     encode_atomical_ids_hex,
     is_mint_pow_valid,
     is_txid_valid_for_perpetual_bitwork
+)
+
+from electrumx.lib.util_atomicals_formats import (
+    is_atomical_id_long_form_bytes,
+    is_compact_atomical_id,
+    compact_to_location_id_bytes,
+    location_id_bytes_to_compact,
+    get_tx_hash_index_from_location_id
 )
 
 from electrumx.lib.atomicals_blueprint_builder import AtomicalsTransferBlueprintBuilder

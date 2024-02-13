@@ -3,9 +3,12 @@ import pytest
 from electrumx.lib.coins import Bitcoin
 
 from electrumx.lib.util_atomicals import (
-    location_id_bytes_to_compact,
     get_name_request_candidate_status,
     MINT_REALM_CONTAINER_TICKER_COMMIT_REVEAL_DELAY_BLOCKS
+)
+
+from electrumx.lib.util_atomicals_formats import (
+    location_id_bytes_to_compact
 )
 
 coin = Bitcoin
