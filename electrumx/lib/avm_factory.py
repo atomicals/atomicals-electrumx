@@ -121,12 +121,11 @@ class AuthorizedCallFactory:
 
 class AVMFactory:
   '''Instantiate the wrapper and factory objects for handling AVM related requests'''
-  def __init__(self, logger, atomicals_spent_at_inputs, operations_found_at_inputs, tx, get_contract_state):
+  def __init__(self, logger, atomicals_spent_at_inputs, operations_found_at_inputs):
     self.logger = logger
     self.atomicals_spent_at_inputs = atomicals_spent_at_inputs
     self.operations_found_at_inputs = operations_found_at_inputs
-    self.get_contract_state = get_contract_state
-    self.tx = tx 
+ 
 
   # Determines whether there is a potential callable
   def found_callable(self):
