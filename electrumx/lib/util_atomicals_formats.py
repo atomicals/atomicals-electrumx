@@ -38,7 +38,6 @@ import base64
 import krock32
 import pickle
 import math
-from electrumx.lib.avm_factory import AuthorizedCallFactory
 from electrumx.lib.hash import sha256, double_sha256
 from cbor2 import dumps, loads, CBORDecodeError
 from collections.abc import Mapping

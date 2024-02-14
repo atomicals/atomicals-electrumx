@@ -38,7 +38,6 @@ import base64
 import krock32
 import pickle
 import math
-from electrumx.lib.avm_factory import AuthorizedCallFactory
 from electrumx.lib.hash import sha256, double_sha256
 from cbor2 import dumps, loads, CBORDecodeError
 from collections.abc import Mapping
@@ -1215,9 +1214,8 @@ def parse_protocols_operations_from_witness_for_input(txinwitness):
                 break
     return None, None
 
-def get_authorized_operations(opdefn):
-   call_factory = AuthorizedCallFactory(opdefn)
-   return call_factory.get_authorized_contract_calls()
+   # call_factory = AuthorizedCallFactory(opdefn)
+   # return call_factory.get_authorized_contract_calls()
 
 # Parses and detects the witness script array and detects the Atomicals operations
 def parse_protocols_operations_from_witness_array(tx, tx_hash, allow_args_bytes):
