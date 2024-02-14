@@ -32,7 +32,7 @@ def validate_payload_method_call_format(payload):
       return False
     # Get the params
     # params can be set as long as it's an array
-    p = request_data.get('p')
+    p = request_data.get('p', [])
     if p and not isinstance(p, list):
       return False
 
