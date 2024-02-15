@@ -4,7 +4,7 @@ from electrumx.lib.atomicals_blueprint_builder import AtomicalsTransferBlueprint
 from electrumx.lib.coins import Bitcoin
 from electrumx.lib.hash import HASHX_LEN, hex_str_to_hash, hash_to_hex_str
 from electrumx.lib.tx import Tx, TxInput, TxOutput
-from electrumx.lib.avm_factory import AVMFactory
+from electrumx.lib.avm_factory import AVMFactory, AuthorizedCallFactory
 
 from electrumx.lib.util_atomicals import (
     location_id_bytes_to_compact
@@ -90,3 +90,50 @@ def test_found_callable_variations():
 def test_multiple_spends_non_payable_fail():
     # Check that when sending to non payable that the operation is considered invalid and atomicals are not captured
     assert(False)
+
+def test_get_call_method_bytes_invalid1():
+    subject_atomical_id = b"A\x03\x8f'\xe7\x85`l\xa0\xcc\x1e\xfd\x8e:\xa9\x12\xa1\\r\xd0o5\x9a\xeb\x05$=\xab+p\xa8V\x00\x00\x00\x01"
+    call_data = {}
+    call_data[subject_atomical_id] = {
+        'm': 'deposit'
+    }
+    structure = {
+        'op': 'nft',
+        'payload': {
+            'args': {
+                'call': {
+                    'ids': call_data
+                }
+            }
+        },
+        'other_input_ops': [
+
+        ]
+    }
+    op_data = {
+        'op': 'nft',
+        'payload': {
+            'args': {
+                'call': {
+                    'ids': call_data
+                }
+            }
+        },
+        'other_input_ops': [
+            {
+                'op': 's',
+                'payload': {
+                    'args': {
+                        'p': b'pubkey',
+                        'sig': b'sig'
+                    }
+                }
+            }
+        ]
+    }
+    factory = AuthorizedCallFactory(op_data)
+    authorized_sigs = {}
+    assert(factory.get_public_key_sig_map() == authorized_sigs)
+    expected_call_method_vector = b'x'
+    assert(factory.get_call_method_bytes() == expected_call_method_vector)
+        
