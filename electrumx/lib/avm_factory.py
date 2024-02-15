@@ -80,11 +80,11 @@ class AuthorizedCallFactory:
             if other_input_op.get('op') == 's':
                 payload = other_input_op.get('payload')
                 if payload:
-                    for pubkey, sig in payload.items():
-                        if is_possible_public_key(pubkey) and is_possible_sig(sig):
+                    for pubkey, sig_data in payload.items():
+                        if is_possible_public_key(pubkey) and is_possible_sig(sig_data.get('sig')):
                             pubkey_sig_map[pubkey] = {
                                 'input_index': other_input_op['input_index'], 
-                                'sig': sig
+                                'sig': sig_data.get('sig')
                             }
         return pubkey_sig_map 
     

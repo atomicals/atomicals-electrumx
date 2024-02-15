@@ -98,19 +98,6 @@ def test_get_call_method_bytes_invalid1():
         'm': 'deposit',
         'p': []
     }
-    structure = {
-        'op': 'nft',
-        'payload': {
-            'args': {
-                'call': {
-                    'ids': call_data
-                }
-            }
-        },
-        'other_input_ops': [
-
-        ]
-    }
     op_data = {
         'op': 'nft',
         'payload': {
@@ -124,10 +111,10 @@ def test_get_call_method_bytes_invalid1():
             {
                 'op': 's',
                 'payload': {
-                    'args': {
-                        'p': b'pubkey',
+                    b'pubkey': {
                         'sig': b'sig'
                     }
+                        
                 }
             }
         ]
