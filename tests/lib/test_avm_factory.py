@@ -95,7 +95,8 @@ def test_get_call_method_bytes_invalid1():
     subject_atomical_id = b"A\x03\x8f'\xe7\x85`l\xa0\xcc\x1e\xfd\x8e:\xa9\x12\xa1\\r\xd0o5\x9a\xeb\x05$=\xab+p\xa8V\x00\x00\x00\x01"
     call_data = {}
     call_data[subject_atomical_id] = {
-        'm': 'deposit'
+        'm': 'deposit',
+        'p': []
     }
     structure = {
         'op': 'nft',
