@@ -98,6 +98,11 @@ def test_get_call_method_bytes_invalid1():
         'm': 'deposit',
         'p': []
     }
+    payload_pubkey1 = {
+        b'pubkey': {
+            'sig': b'sig'
+        }            
+    }
     op_data = {
         'op': 'nft',
         'payload': {
@@ -110,12 +115,7 @@ def test_get_call_method_bytes_invalid1():
         'other_input_ops': [
             {
                 'op': 's',
-                'payload': {
-                    b'pubkey': {
-                        'sig': b'sig'
-                    }
-                        
-                }
+                'payload': payload_pubkey1
             }
         ]
     }

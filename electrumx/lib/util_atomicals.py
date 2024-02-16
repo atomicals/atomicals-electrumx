@@ -1214,9 +1214,6 @@ def parse_protocols_operations_from_witness_for_input(txinwitness):
                 break
     return None, None
 
-   # call_factory = AuthorizedCallFactory(opdefn)
-   # return call_factory.get_authorized_contract_calls()
-
 # Parses and detects the witness script array and detects the Atomicals operations
 def parse_protocols_operations_from_witness_array(tx, tx_hash, allow_args_bytes):
     '''Detect and parse all operations of atomicals across the witness input arrays (inputs 0 and 1) from a tx'''
