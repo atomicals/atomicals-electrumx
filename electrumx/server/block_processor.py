@@ -1129,6 +1129,9 @@ class BlockProcessor:
             self.put_name_element_template(b'tick', b'', request_ticker, mint_info['commit_tx_num'], mint_info['id'], self.ticker_data_cache)
         return True 
  
+    def is_subname_entry_verified_or_going_to_be_verified(self, status):
+        return status and (status == 'verified' or status == 'pending_previous_candidate_payment')
+    
     # Create the subrealm entry if requested correctly
     def create_or_delete_subrealm_entry_if_requested(self, mint_info, atomicals_spent_at_inputs, height, Delete): 
         request_subrealm = mint_info.get('$request_subrealm')
@@ -1142,8 +1145,8 @@ class BlockProcessor:
             self.logger.debug(f'create_or_delete_subrealm_entry_if_requested: has_parent_realm_id request_subrealm={request_subrealm} parent_realm_id={parent_realm_id}')
             # Also check that there is no candidates already committed earlier than the current one
             status, atomical_id, candidates = self.get_effective_subrealm(parent_realm_id, request_subrealm, height)
-            if status and status == 'verified':
-                self.logger.debug(f'create_or_delete_subrealm_entry_if_requested: verified_already_exists, parent_realm_id {parent_realm_id}, request_subrealm={request_subrealm} ')
+            if self.is_subname_entry_verified_or_going_to_be_verified(status):
+                self.logger.debug(f'create_or_delete_subrealm_entry_if_requested: is_subname_entry_verified_or_going_to_be_verified, parent_realm_id {parent_realm_id}, request_subrealm={request_subrealm} ')
                 # Do not attempt to mint subrealm if there is one verified already
                 return False
             if Delete:
@@ -1182,8 +1185,8 @@ class BlockProcessor:
             # Also check that there is no candidates already committed earlier than the current one
             status, atomical_id, candidates = self.get_effective_dmitem(parent_container_id, request_dmitem, height)
             self.logger.debug(f'get_effective_dmitem_status status={status} candidates={encode_atomical_ids_hex(candidates)}')
-            if status and status == 'verified':
-                self.logger.warning(f'create_or_delete_dmitem_entry_if_requested: verified_already_exists, parent_container_id {location_id_bytes_to_compact(parent_container_id)}, request_dmitem={request_dmitem} ')
+            if self.is_subname_entry_verified_or_going_to_be_verified(status):
+                self.logger.warning(f'create_or_delete_dmitem_entry_if_requested: is_subname_entry_verified_or_going_to_be_verified, parent_container_id {location_id_bytes_to_compact(parent_container_id)}, request_dmitem={request_dmitem} ')
                 # Do not attempt to mint if there is one verified already
                 return False
             if Delete:
@@ -1804,7 +1807,7 @@ class BlockProcessor:
                         return 'verified', atomical_id, all_entries
                     # For non-leading candidates, they must wait for their previous candidates before the final window.
                     else:
-                        return 'competing', atomical_id, all_entries
+                        return 'pending_previous_candidate_payment', atomical_id, all_entries
                 else:
                     # Even though a payment was made, we are not after the
                     # MINT_REALM_CONTAINER_TICKER_COMMIT_REVEAL_DELAY_BLOCKS to say conclusively that it is verified.
@@ -1890,7 +1893,7 @@ class BlockProcessor:
                         return 'verified', atomical_id, all_entries
                     # For non-leading candidates, they must wait for their previous candidates before the final window.
                     else:
-                        return 'competing', atomical_id, all_entries
+                        return 'pending_previous_candidate_payment', atomical_id, all_entries
                 else:
                     # Even though a payment was made, we are not after the
                     # MINT_REALM_CONTAINER_TICKER_COMMIT_REVEAL_DELAY_BLOCKS to say conclusively that it is verified.
