@@ -1570,98 +1570,115 @@ def get_name_request_candidate_status(atomical_info, status, candidate_id, name_
         'pending_candidate_atomical_id': candidate_id_compact 
     }
 
-def get_subname_request_candidate_status(current_height, atomical_info, status, candidate_id, entity_type):  
-    MAX_BLOCKS_STR = str(MINT_REALM_CONTAINER_TICKER_COMMIT_REVEAL_DELAY_BLOCKS)
+
+def get_subname_request_candidate_status(current_height, atomical_info, status, candidate_id, entity_type):
+    max_blocks_str = str(MINT_REALM_CONTAINER_TICKER_COMMIT_REVEAL_DELAY_BLOCKS)
 
     base_status = get_name_request_candidate_status(atomical_info, status, candidate_id, entity_type)
     # Return the base status if it is common also to entity_type
-    if base_status['status'] == 'expired_revealed_late' or base_status['status'] == 'verified':
+    if base_status['status'] == 'verified' or base_status['status'] == 'expired_revealed_late':
         return base_status
 
     # The following logic determines the derived status for the entity_type and atomical
     candidate_id_compact = None
     if candidate_id:
-        candidate_id_compact = location_id_bytes_to_compact(candidate_id) 
-    
-    current_candidate_atomical = None
-    # check if the current atomical required a payment and if so if it's expired
-    for candidate in atomical_info['$' + entity_type + '_candidates']:
-        if candidate['atomical_id'] != location_id_bytes_to_compact(atomical_info['atomical_id']):
-            continue 
-        current_candidate_atomical = candidate
-        break 
+        candidate_id_compact = location_id_bytes_to_compact(candidate_id)
 
+    info_id = atomical_info['atomical_id']
+    current_candidate_atomical = None
+    # check if the current atomical required a payment and if so it's expired
+    for candidate in atomical_info[f'${entity_type}_candidates']:
+        if candidate['atomical_id'] != location_id_bytes_to_compact(info_id):
+            continue
+        current_candidate_atomical = candidate
+        break
     if not current_candidate_atomical:
         return {
             'status': 'invalid_request_fault_current_atomical_not_in_candidate_list',
-            'note': 'This indicates a logic error as the current atomical should not have been classified as the sub-type'
+            'note': 'The current Atomical should not have been classified as the sub-type.'
         }
+
+    payment_type = current_candidate_atomical['payment_type']
     # Catch the scenario where it was not parent initiated, but there also was no valid applicable rule
-    if current_candidate_atomical['payment_type'] == 'applicable_rule' and current_candidate_atomical.get('applicable_rule') == None: 
+    if payment_type and current_candidate_atomical.get('applicable_rule') is None:
         return {
             'status': 'invalid_request_no_matched_applicable_rule'
         }
 
     if status == 'verified':
-        if atomical_info['atomical_id'] == candidate_id:
+        if info_id == candidate_id:
             return {
                 'status': 'verified',
                 'verified_atomical_id': candidate_id_compact,
-                'note': 'Successfully verified and claimed for current Atomical'
+                'note': 'Successfully verified and claimed for current Atomical.'
             }
         else:
             return {
                 'status': 'claimed_by_other',
                 'claimed_by_atomical_id': candidate_id_compact,
-                'note': 'Failed to claim for current Atomical because it was claimed first by another Atomical'
+                'note': 'Claimed first by another Atomical.'
             }
 
-    # The scenario where there is an applicable rule, but the payment was not received in time 
-    if current_candidate_atomical['payment_type'] == 'applicable_rule' and current_candidate_atomical.get('payment') == None and current_height > candidate['payment_due_no_later_than_height']:
+    if status == 'pending_previous_candidate_payment':
+        if info_id == candidate_id:
+            return {
+                'status': status,
+                'note': 'Previous candidates might get the item if they can made the payment.'
+            }
+        else:
+            return {
+                'status': 'pending_by_other',
+                'pending_by_atomical_id': candidate_id_compact,
+                'note': 'Previous candidates already paid for the item which can claim the item.'
+            }
+
+    payment = current_candidate_atomical.get('payment')
+    payment_due_no_later_than_height = current_candidate_atomical['payment_due_no_later_than_height']
+    # The scenario where there is an applicable rule, but the payment was not received in time
+    if payment_type == 'applicable_rule' and payment is None and current_height > payment_due_no_later_than_height:
         return {
             'status': 'expired_payment_not_received',
-            'note': 'A valid payment was not received before the \'payment_due_no_later_than_height\' limit'
+            'note': 'A valid payment was not received before the "payment_due_no_later_than_height" limit.'
         }
 
     # It is still less than the minimum required blocks for the reveal delay
-    if current_height < candidate['commit_height'] + MINT_REALM_CONTAINER_TICKER_COMMIT_REVEAL_DELAY_BLOCKS:
+    if current_height - current_candidate_atomical['commit_height'] > MINT_REALM_CONTAINER_TICKER_COMMIT_REVEAL_DELAY_BLOCKS:
         # But some users perhaps made a payment nonetheless, we should show them a suitable status
-        if current_candidate_atomical['payment_type'] == 'applicable_rule' and current_candidate_atomical.get('payment'):
+        if payment_type == 'applicable_rule' and payment is not None:
             return {
                 'status': 'pending_awaiting_confirmations_payment_received_prematurely',
                 'pending_candidate_atomical_id': candidate_id_compact,
-                'note': 'A payment was received, but the minimum delay of ' + MAX_BLOCKS_STR + ' blocks has not yet elapsed to declare a winner'
+                'note': f'The minimum delay of {max_blocks_str} blocks has not yet elapsed to declare a winner.'
             }
-        elif current_candidate_atomical['payment_type'] == 'applicable_rule':
+        elif payment_type == 'applicable_rule':
             return {
                 'status': 'pending_awaiting_confirmations_for_payment_window',
                 'pending_candidate_atomical_id': candidate_id_compact,
-                'note': 'Await until the \'make_payment_from_height\' block height for the payment window to be open with status \'pending_awaiting_payment\''
+                'note': 'Await until the "make_payment_from_height" block height for the payment window to be open.'
             }
-        elif current_candidate_atomical['payment_type'] == 'mint_initiated':
+        elif payment_type == 'mint_initiated':
             return {
                 'status': 'pending_awaiting_confirmations',
                 'pending_candidate_atomical_id': candidate_id_compact,
-                'note': 'Await ' + MAX_BLOCKS_STR + ' blocks has elapsed to verify'
+                'note': f'Await {max_blocks_str} blocks has elapsed to verify.'
             }
-    else: 
-        # The amount has elapsed
-        if status == 'pending_awaiting_payment' and atomical_info['atomical_id'] == candidate_id:
-            return {
-                'status': status,
-                'pending_candidate_atomical_id': candidate_id_compact,
-                'note': 'The payment must be received by block height ' + str(current_candidate_atomical['payment_due_no_later_than_height']) + ' to claim successfully'
-            }
-        elif status == 'pending_awaiting_payment':
-            return {
-                'status': status,
-                'pending_candidate_atomical_id': candidate_id_compact,
-                'note': 'Another Atomical is the leading candidate and they have until block height ' + str(current_candidate_atomical['payment_due_no_later_than_height']) + ' to claim successfully.'
-            }
+    elif status == 'pending_awaiting_payment':  # The amount has elapsed
+        block = str(payment_due_no_later_than_height)
+        if info_id == candidate_id:
+            note = f'The payment must be received before block height {block} to claim successfully.'
+        else:
+            note = (f'Candidates ranked before you are leading for claiming before block height {block}. '
+                    f'It is recommended to pay to claim if they have not done so already.')
+        return {
+            'status': status,
+            'pending_candidate_atomical_id': candidate_id_compact,
+            'note': note
+        }
     return {
         'status': status,
         'pending_candidate_atomical_id': candidate_id_compact
     }
+
 
 def get_next_bitwork_full_str(bitwork_vec, current_prefix_len):
     base_bitwork_padded = bitwork_vec.ljust(32, '0') 

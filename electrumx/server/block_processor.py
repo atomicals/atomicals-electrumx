@@ -1783,7 +1783,7 @@ class BlockProcessor:
             assert mint_info['commit_tx_num'] == entry['tx_num']
             # Get any payments (correct and valid or even premature, just get them all for now)
             payment_entry = self.get_earliest_subrealm_payment(atomical_id)
-            self.logger.debug(f'get_effective_dmitem_payment_entry={payment_entry}')
+            self.logger.debug(f'get_effective_subrealm_payment_entry={payment_entry}')
 
             commit_height = mint_info['commit_height']
             height_difference = current_height - commit_height
