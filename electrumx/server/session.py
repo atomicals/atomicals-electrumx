@@ -55,6 +55,7 @@ from electrumx.lib.hash import (HASHX_LEN, Base58Error, hash_to_hex_str,
 from electrumx.lib.merkle import MerkleCache
 from electrumx.lib.text import sessions_lines
 from electrumx.server.daemon import DaemonError
+from electrumx.server.history import TXNUM_LEN
 from electrumx.server.http_middleware import rate_limiter, cors_middleware, error_middleware, request_middleware
 from electrumx.server.http_session import HttpHandler
 from electrumx.server.peers import PeerManager
@@ -999,6 +1000,30 @@ class SessionManager:
         if isinstance(result, Exception):
             raise result
         return result, cost
+    
+    async def get_history_op(self, hashX):
+        count = 50000
+        chunks = util.chunks
+        try:
+            return self._history_op_cache[hashX]
+        except KeyError:
+            history_data = []
+            txnum_padding = bytes(8-TXNUM_LEN)
+            for _key, hist in self.db.history.db.iterator(prefix=hashX):
+                for tx_numb in chunks(hist, TXNUM_LEN):
+                    tx_num, = util.unpack_le_uint64(tx_numb + txnum_padding)
+                    count -= 1
+                    op_prefix_key = b'op' + util.pack_le_uint64(tx_num)
+                    tx_op = self.db.utxo_db.get(op_prefix_key)
+                    if tx_op:
+                        op, = util.unpack_le_uint32(tx_op)
+                        history_data.append({"tx_num": tx_num, "op": op}) 
+                if count == 0:
+                    break
+        # cache sort by tx_num
+        history_data.sort(key=lambda x: x['tx_num'], reverse=True)
+        self._history_op_cache[hashX] = history_data
+        return history_data
 
     async def _notify_sessions(self, height, touched):
         '''Notify sessions about height changes and touched addresses.'''
@@ -1007,8 +1032,12 @@ class SessionManager:
             await self._refresh_hsub_results(height)
             # Invalidate our history cache for touched hashXs
             cache = self._history_cache
+            op_cache = self._history_op_cache
             for hashX in set(cache).intersection(touched):
                 del cache[hashX]
+            for hashX in set(op_cache).intersection(touched):
+                del op_cache[hashX]
+                await run_in_thread(self.get_history_op(hashX))
 
         for session in self.sessions:
             if self._task_group.joined:  # this can happen during shutdown

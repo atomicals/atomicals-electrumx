@@ -110,11 +110,12 @@ class HttpHandler(object):
         self.mempool_statuses = {}
         self.sv_seen = False
         self.MAX_CHUNK_SIZE = 2016
-        self.hashX_subs = {}
+        self.hashX_subs = {}        
         self.op_list = {
             "mint-dft": 1, "mint-ft": 2, "mint-nft": 3, "transfer": 4,
             "dft": 5, "dat": 6, "split": 7, "splat": 8,
-            "seal": 9, "dmt": 10, "evt": 11, "mod": 12, "invalid": 20}
+            "seal": 9, "evt": 10, "mod": 11, "invalid": 20
+        }
 
     async def format_params(self, request):
         if request.method == "GET":
@@ -2081,7 +2082,7 @@ class HttpHandler(object):
         elif operation_found_at_inputs and operation_found_at_inputs["op"] == "sl":
             res["op"] = "seal"
         elif operation_found_at_inputs and operation_found_at_inputs["op"] == "x":
-            res["op"] = "extract"
+            res["op"] = "splat"
         elif operation_found_at_inputs and operation_found_at_inputs["op"] == "y":
             res["op"] = "split"
         elif operation_found_at_inputs and operation_found_at_inputs["op"] == "evt":
@@ -2221,22 +2222,22 @@ class HttpHandler(object):
             compact_atomical_id = location_id_bytes_to_compact(self.db.get_atomical_id_by_atomical_number(compact_atomical_id_or_atomical_number))
         atomical_id = compact_to_location_id_bytes(compact_atomical_id)
         hashX = double_sha256(atomical_id)
-        history_data = await self.confirmed_and_unconfirmed_history(hashX)
-        history_list = []
-        for history in list(history_data):
-            tx_num, _ = self.db.get_tx_num_height_from_tx_hash(hex_str_to_hash(history["tx_hash"]))
-            history['tx_num'] = tx_num
-            history_list.append(history)
 
-        history_list.sort(key=lambda x: x['tx_num'], reverse=True)
-
-        for history in history_list:
-            data = await self.get_transaction_detail(history["tx_hash"], history["height"])
-            if (op_type and op_type == data["op"]) or (not op_type and data["op"]):
-                res.append(data)
-                
-        total = len(res)
-        return {"result": res[offset:offset+limit], "total": total, "limit": limit, "offset": offset}
+        history_data = await self.session_mgr.get_history_op(hashX)
+        res = []
+        count = 0
+        if op_type:
+            op = self.op_list.get(op_type, None)
+            history_data = list(filter(lambda x: x["op"] == op, history_data))
+    
+        for history in history_data[offset:limit+offset]:
+            tx_hash, tx_height = self.db.fs_tx_hash(history["tx_num"])
+            data = await self.get_transaction_detail(hash_to_hex_str(tx_hash), tx_height)
+            if data:
+                if (op_type and data["op"] == op_type) or not op_type:
+                    res.append(data)
+        total = len(history_data)
+        return {"result": res, "total": total, "limit": limit, "offset": offset}
     
     # get transaction by scripthash
     async def transaction_by_scripthash(self, request):
