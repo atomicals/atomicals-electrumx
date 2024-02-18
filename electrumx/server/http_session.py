@@ -471,7 +471,7 @@ class HttpHandler(object):
             raise RPCError(BAD_REQUEST, f'"{compact_atomical_id}" is not found')
         return atomical_in_mempool
     
-    # Perform a search for tickers, containers, and realms  
+    # Perform a search for tickers, containers, realms, subrealms 
     def atomicals_search_name_template(self, db_prefix, name_type_str, parent_prefix=None, prefix=None, Reverse=False, Limit=100, Offset=0):
         search_prefix = b''
         if prefix:
@@ -485,6 +485,7 @@ class HttpHandler(object):
                 'tx_num': item['tx_num']
             }
             obj[name_type_str] = item['name']
+            obj[name_type_str + '_hex'] = item.get('name_hex')
             formatted_results.append(obj)
         return {'result': formatted_results}
     

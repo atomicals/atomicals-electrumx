@@ -1651,7 +1651,6 @@ class DB:
         db_key_prefix = db_prefix
         if parent_prefix:
             db_key_prefix = db_prefix + parent_prefix
-        db_key_prefix_with_subject = db_key_prefix + subject_encoded
 
         entries = []
         limit_count = 0
@@ -1672,7 +1671,6 @@ class DB:
             entries.append({
                 'name': db_key[db_key_prefix_len : db_key_prefix_len + name_len].decode(), # Extract the name portion
                 'name_hex': db_key[db_key_prefix_len : db_key_prefix_len + name_len].hex(),  
-                'name_len': name_len,  
                 'atomical_id': db_value,
                 'tx_num': tx_num
             })
