@@ -68,7 +68,8 @@ from electrumx.lib.util_atomicals import (
     is_seal_operation,
     is_event_operation,
     encode_atomical_ids_hex,
-    is_mint_pow_valid
+    is_mint_pow_valid,
+    is_txid_valid_for_perpetual_bitwork
 )
 
 from electrumx.lib.atomicals_blueprint_builder import AtomicalsTransferBlueprintBuilder
@@ -573,15 +574,6 @@ class BlockProcessor:
         self.logger.debug(f'get_atomicals_id_mint_info no_cache=True with_cache={with_cache} atomical_id={location_id_bytes_to_compact(atomical_id)}')
         return result 
 
-    # Get the mint information and LRU cache it for fast retrieval
-    # Used for quickly getting the mint information for an atomical
-    def get_atomicals_id_mint_info_extended_notused(self, atomical_id):
-        found_atomical = self.get_atomicals_id_mint_info(atomical_id, True)
-        if not found_atomical:
-            return None 
-        self.populate_extended_atomical_subtype_info(found_atomical)
-        return found_atomical 
-
     # Get basic atomical information in a format that can be attached to utxos in an RPC call
     # Must be called for known existing atomicals or will throw an exception
     def get_atomicals_id_mint_info_basic_struct(self, atomical_id):
@@ -761,7 +753,7 @@ class BlockProcessor:
             return matched_price_point, parent_container_id, request_dmitem, 'dmitem'
         self.logger.info(f'get_expected_dmitem_payment_info: not matched_price_point request_dmitem={request_dmitem} parent_container_id={parent_container_id} found_atomical_id_for_potential_dmitem={found_atomical_id_for_potential_dmitem}')
         return None, None, None, None
-    
+
     def get_earliest_dmitem_payment(self, atomical_id):
         dmpay_key_atomical_id = b'dmpay' + atomical_id
         # Check if it's located in the cache first
@@ -770,34 +762,35 @@ class BlockProcessor:
         if dmitempay_value:
             for tx_num, pay_outpoint in dmitempay_value.items():
                 payments.append({
-                'tx_num': tx_num,
-                'payment_tx_outpoint': pay_outpoint[:36],
-                'mint_initiated': pay_outpoint[36:]
-                    })
+                    'tx_num': tx_num,
+                    'payment_tx_outpoint': pay_outpoint[:36],
+                    'mint_initiated': pay_outpoint[36:]
+                })
         db_payments = self.db.get_earliest_dmitem_payments(atomical_id)
         payments.extend(db_payments)
         payments.sort(key=lambda x: x['tx_num'])
         if len(payments) > 0:
             return payments[0]
-        return None   
+        return None
 
     def get_earliest_subrealm_payment(self, atomical_id):
         spay_key_atomical_id = b'spay' + atomical_id
+        # Check if it's located in the cache first
         subrealmpay_value = self.subrealmpay_data_cache.get(spay_key_atomical_id)
         payments = []
         if subrealmpay_value:
             for tx_num, pay_outpoint in subrealmpay_value.items():
                 payments.append({
-                'tx_num': tx_num,
-                'payment_tx_outpoint': pay_outpoint[:36],
-                'mint_initiated': pay_outpoint[36:]
-                    })
+                    'tx_num': tx_num,
+                    'payment_tx_outpoint': pay_outpoint[:36],
+                    'mint_initiated': pay_outpoint[36:]
+                })
         db_payments = self.db.get_earliest_subrealm_payments(atomical_id)
         payments.extend(db_payments)
         payments.sort(key=lambda x: x['tx_num'])
         if len(payments) > 0:
             return payments[0]
-        return None 
+        return None
 
     # Save distributed mint information for the atomical
     # Mints are only stored if they are less than the max_mints amount
@@ -1153,6 +1146,9 @@ class BlockProcessor:
             self.put_name_element_template(b'tick', b'', request_ticker, mint_info['commit_tx_num'], mint_info['id'], self.ticker_data_cache)
         return True 
  
+    def is_subname_entry_verified_or_going_to_be_verified(self, status):
+        return status and (status == 'verified' or status == 'pending_previous_candidate_payment')
+    
     # Create the subrealm entry if requested correctly
     def create_or_delete_subrealm_entry_if_requested(self, mint_info, atomicals_spent_at_inputs, height, Delete): 
         request_subrealm = mint_info.get('$request_subrealm')
@@ -1166,8 +1162,8 @@ class BlockProcessor:
             self.logger.debug(f'create_or_delete_subrealm_entry_if_requested: has_parent_realm_id request_subrealm={request_subrealm} parent_realm_id={parent_realm_id}')
             # Also check that there is no candidates already committed earlier than the current one
             status, atomical_id, candidates = self.get_effective_subrealm(parent_realm_id, request_subrealm, height)
-            if status and status == 'verified':
-                self.logger.debug(f'create_or_delete_subrealm_entry_if_requested: verified_already_exists, parent_realm_id {parent_realm_id}, request_subrealm={request_subrealm} ')
+            if self.is_subname_entry_verified_or_going_to_be_verified(status):
+                self.logger.debug(f'create_or_delete_subrealm_entry_if_requested: is_subname_entry_verified_or_going_to_be_verified, parent_realm_id {parent_realm_id}, request_subrealm={request_subrealm} ')
                 # Do not attempt to mint subrealm if there is one verified already
                 return False
             if Delete:
@@ -1206,8 +1202,8 @@ class BlockProcessor:
             # Also check that there is no candidates already committed earlier than the current one
             status, atomical_id, candidates = self.get_effective_dmitem(parent_container_id, request_dmitem, height)
             self.logger.debug(f'get_effective_dmitem_status status={status} candidates={encode_atomical_ids_hex(candidates)}')
-            if status and status == 'verified':
-                self.logger.warning(f'create_or_delete_dmitem_entry_if_requested: verified_already_exists, parent_container_id {location_id_bytes_to_compact(parent_container_id)}, request_dmitem={request_dmitem} ')
+            if self.is_subname_entry_verified_or_going_to_be_verified(status):
+                self.logger.warning(f'create_or_delete_dmitem_entry_if_requested: is_subname_entry_verified_or_going_to_be_verified, parent_container_id {location_id_bytes_to_compact(parent_container_id)}, request_dmitem={request_dmitem} ')
                 # Do not attempt to mint if there is one verified already
                 return False
             if Delete:
@@ -1475,8 +1471,11 @@ class BlockProcessor:
             # Add $max_supply informative property
             if mint_info['subtype'] == 'decentralized':
                 # For perpetual mints the max supply is unbounded
-                if mint_info.get('$mint_mode') == 'infinite':
-                    mint_info['$max_supply'] = -1
+                if mint_info.get('$mint_mode') == 'perpetual':
+                    if mint_info.get('$max_mints_global'):
+                        mint_info['$max_supply'] = mint_info['$mint_amount'] * mint_info.get('$max_mints_global')
+                    else:
+                        mint_info['$max_supply'] = -1
                 else:
                     mint_info['$max_supply'] = mint_info['$mint_amount'] * mint_info['$max_mints'] 
             else: 
@@ -1799,48 +1798,60 @@ class BlockProcessor:
                 })
         db_entries = self.db.get_name_entries_template(db_prefix, parent_realm_id + subrealm_name_enc + pack_le_uint16(len(subrealm_name_enc)))
         all_entries.extend(db_entries)
-        all_entries.sort(key=lambda x: x['tx_num'])
         if len(all_entries) == 0:
-            return None, None, [] 
-        for entry in all_entries:
+            return None, None, []
+        all_entries.sort(key=lambda x: x['tx_num'])
+        for index, entry in enumerate(all_entries):
             atomical_id = entry['value']
             mint_info = self.get_atomicals_id_mint_info(atomical_id, False)
             # Sanity check to make sure it matches
             self.logger.info(f'get_effective_subrealm subrealm_name={subrealm_name} atomical_id={location_id_bytes_to_compact(atomical_id)} parent_realm_id={location_id_bytes_to_compact(parent_realm_id)}entry={entry}')
-            assert(mint_info['commit_tx_num'] == entry['tx_num'])
+            assert mint_info['commit_tx_num'] == entry['tx_num']
             # Get any payments (correct and valid or even premature, just get them all for now)
             payment_entry = self.get_earliest_subrealm_payment(atomical_id)
-            # If the current candidate doesn't have a payment entry and the MINT_SUBNAME_COMMIT_PAYMENT_DELAY_BLOCKS has passed
-            # Then we know the candidate is expired and invalid
-            if mint_info['commit_height'] <= current_height - MINT_SUBNAME_COMMIT_PAYMENT_DELAY_BLOCKS:
+            self.logger.debug(f'get_effective_subrealm_payment_entry={payment_entry}')
+
+            commit_height = mint_info['commit_height']
+            height_difference = current_height - commit_height
+            # If the current candidate doesn't have a payment entry and the MINT_SUBNAME_COMMIT_PAYMENT_DELAY_BLOCKS
+            # has passed, then we know the candidate is expired and invalid.
+            if height_difference >= MINT_SUBNAME_COMMIT_PAYMENT_DELAY_BLOCKS:
                 if payment_entry: 
                     # Verified and settled fully
                     return 'verified', atomical_id, all_entries
                 # Skip because the payment window has elapsed and no payment was found
                 continue
-            # If we got this far it means we are in a potential payment window (potential because the applicable_rule could be invalid)
-            # ...
-            # A special case is that if the MINT_REALM_CONTAINER_TICKER_COMMIT_REVEAL_DELAY_BLOCKS elapsed, and a payment was made in the window
-            # Then we know no one else can take the subrealm, therefore we consider it verified immediately in the payment window
-            if payment_entry and mint_info['commit_height'] <= current_height - MINT_REALM_CONTAINER_TICKER_COMMIT_REVEAL_DELAY_BLOCKS:
-                return 'verified', atomical_id, all_entries
-            
-            # Even though a payment was made, we are not after the MINT_REALM_CONTAINER_TICKER_COMMIT_REVEAL_DELAY_BLOCKS to say conclusively that it is verified
-            if payment_entry: 
-                return 'pending', atomical_id, all_entries
 
-            # If we got this far then it means we are within a potential payment window, with no payment yet made
-            # But we do not want to tell the user it is 'pending_awaiting_payment' until at least MINT_REALM_CONTAINER_TICKER_COMMIT_REVEAL_DELAY_BLOCKS blocks has
-            # passed, because someone else may have committed the same name and hasn't revealed yet, therefore check which case it is
-            if mint_info['commit_height'] <= current_height - MINT_REALM_CONTAINER_TICKER_COMMIT_REVEAL_DELAY_BLOCKS:
+            # If we got this far it means we are in a potential payment window
+            # (potential because the `applicable_rule` could be invalid).
+            # A special case is that if the MINT_REALM_CONTAINER_TICKER_COMMIT_REVEAL_DELAY_BLOCKS elapsed,
+            # and payment was made in the window, then we know no one else can take the sub item, therefore we consider
+            # it verified immediately in the payment window.
+            if payment_entry:
+                if height_difference >= MINT_REALM_CONTAINER_TICKER_COMMIT_REVEAL_DELAY_BLOCKS:
+                    if index == 0:
+                        return 'verified', atomical_id, all_entries
+                    # For non-leading candidates, they must wait for their previous candidates before the final window.
+                    else:
+                        return 'pending_previous_candidate_payment', atomical_id, all_entries
+                else:
+                    # Even though a payment was made, we are not after the
+                    # MINT_REALM_CONTAINER_TICKER_COMMIT_REVEAL_DELAY_BLOCKS to say conclusively that it is verified.
+                    return 'pending', atomical_id, all_entries
+
+            # If we got this far then it means we are within a potential payment window, with no payment yet made.
+            # But we do not want to tell the user it is 'pending_awaiting_payment' until at least
+            # MINT_REALM_CONTAINER_TICKER_COMMIT_REVEAL_DELAY_BLOCKS blocks has passed, because someone else may have
+            # committed the same name and hasn't revealed yet, therefore check which case it is
+            if height_difference >= MINT_REALM_CONTAINER_TICKER_COMMIT_REVEAL_DELAY_BLOCKS:
                 return 'pending_awaiting_payment', atomical_id, all_entries
-            else: 
-                # Just indicate it is pending
+            else:
+                # Just indicate it is pending.
                 return 'pending', atomical_id, all_entries
 
-        # If we fell off to the end it means there are no pending candidates
+        # If we fell off to the end it means there are no pending candidates.
         return None, None, all_entries
-    
+
     async def get_effective_dmitems_paginated(self, parent_container_id, limit, offset, height):
         if limit > 100:
             limit = 100
@@ -1873,50 +1884,58 @@ class BlockProcessor:
         self.logger.debug(f'get_effective_dmitem_db_prefix={db_prefix} parent_container_id={parent_container_id} dmitem_name={dmitem_name} dmitem_name_enc={dmitem_name_enc}')
         db_entries = self.db.get_name_entries_template(db_prefix, parent_container_id + dmitem_name_enc + pack_le_uint16(len(dmitem_name_enc)))
         all_entries.extend(db_entries)
-        all_entries.sort(key=lambda x: x['tx_num'])
         if len(all_entries) == 0:
-            return None, None, [] 
-        for entry in all_entries:
+            return None, None, []
+        all_entries.sort(key=lambda x: x['tx_num'])
+        for index, entry in enumerate(all_entries):
             atomical_id = entry['value']
             mint_info = self.get_atomicals_id_mint_info(atomical_id, False)
             # Sanity check to make sure it matches
             self.logger.debug(f'get_effective_dmitem dmitem_name={dmitem_name} atomical_id={location_id_bytes_to_compact(atomical_id)} parent_container_id={location_id_bytes_to_compact(parent_container_id)} entry={entry} height={height}')
-            assert(mint_info['commit_tx_num'] == entry['tx_num'])
+            assert mint_info['commit_tx_num'] == entry['tx_num']
             # Get any payments (correct and valid or even premature, just get them all for now)
-            if dmitem_name == '235':
-                self.logger.info(f'super_analysis_235 atomical_id={location_id_bytes_to_compact(atomical_id)}')
-
             payment_entry = self.get_earliest_dmitem_payment(atomical_id)
             self.logger.debug(f'get_effective_dmitem_payment_entry={payment_entry}')
-            # If the current candidate doesn't have a payment entry and the MINT_SUBNAME_COMMIT_PAYMENT_DELAY_BLOCKS has passed
-            # Then we know the candidate is expired and invalid
-            if mint_info['commit_height'] <= current_height - MINT_SUBNAME_COMMIT_PAYMENT_DELAY_BLOCKS:
-                if payment_entry: 
+
+            commit_height = mint_info['commit_height']
+            height_difference = current_height - commit_height
+            # If the current candidate doesn't have a payment entry and the MINT_SUBNAME_COMMIT_PAYMENT_DELAY_BLOCKS
+            # has passed, then we know the candidate is expired and invalid.
+            if height_difference >= MINT_SUBNAME_COMMIT_PAYMENT_DELAY_BLOCKS:
+                if payment_entry:
                     # Verified and settled fully
                     return 'verified', atomical_id, all_entries
                 # Skip because the payment window has elapsed and no payment was found
                 continue
-            # If we got this far it means we are in a potential payment window (potential because the applicable_rule could be invalid)
-            # ...
-            # A special case is that if the MINT_REALM_CONTAINER_TICKER_COMMIT_REVEAL_DELAY_BLOCKS elapsed, and a payment was made in the window
-            # Then we know no one else can take the sub item, therefore we consider it verified immediately in the payment window
-            if payment_entry and mint_info['commit_height'] <= current_height - MINT_REALM_CONTAINER_TICKER_COMMIT_REVEAL_DELAY_BLOCKS:
-                return 'verified', atomical_id, all_entries
-            
-            # Even though a payment was made, we are not after the MINT_REALM_CONTAINER_TICKER_COMMIT_REVEAL_DELAY_BLOCKS to say conclusively that it is verified
-            if payment_entry: 
-                return 'pending', atomical_id, all_entries
 
-            # If we got this far then it means we are within a potential payment window, with no payment yet made
-            # But we do not want to tell the user it is 'pending_awaiting_payment' until at least MINT_REALM_CONTAINER_TICKER_COMMIT_REVEAL_DELAY_BLOCKS blocks has
-            # passed, because someone else may have committed the same name and hasn't revealed yet, therefore check which case it is
-            if mint_info['commit_height'] <= current_height - MINT_REALM_CONTAINER_TICKER_COMMIT_REVEAL_DELAY_BLOCKS:
+            # If we got this far it means we are in a potential payment window
+            # (potential because the `applicable_rule` could be invalid).
+            # A special case is that if the MINT_REALM_CONTAINER_TICKER_COMMIT_REVEAL_DELAY_BLOCKS elapsed,
+            # and payment was made in the window, then we know no one else can take the sub item, therefore we consider
+            # it verified immediately in the payment window.
+            if payment_entry:
+                if height_difference >= MINT_REALM_CONTAINER_TICKER_COMMIT_REVEAL_DELAY_BLOCKS:
+                    if index == 0:
+                        return 'verified', atomical_id, all_entries
+                    # For non-leading candidates, they must wait for their previous candidates before the final window.
+                    else:
+                        return 'pending_previous_candidate_payment', atomical_id, all_entries
+                else:
+                    # Even though a payment was made, we are not after the
+                    # MINT_REALM_CONTAINER_TICKER_COMMIT_REVEAL_DELAY_BLOCKS to say conclusively that it is verified.
+                    return 'pending', atomical_id, all_entries
+
+            # If we got this far then it means we are within a potential payment window, with no payment yet made.
+            # But we do not want to tell the user it is 'pending_awaiting_payment' until at least
+            # MINT_REALM_CONTAINER_TICKER_COMMIT_REVEAL_DELAY_BLOCKS blocks has passed, because someone else may have
+            # committed the same name and hasn't revealed yet, therefore check which case it is
+            if height_difference >= MINT_REALM_CONTAINER_TICKER_COMMIT_REVEAL_DELAY_BLOCKS:
                 return 'pending_awaiting_payment', atomical_id, all_entries
-            else: 
-                # Just indicate it is pending
+            else:
+                # Just indicate it is pending.
                 return 'pending', atomical_id, all_entries
 
-        # If we fell off to the end it means there are no pending candidates
+        # If we fell off to the end it means there are no pending candidates.
         return None, None, all_entries
 
     # Get the effective name for realms, containers, and tickers. Does NOT work for subrealms, use the get_effective_subrealm method directly
@@ -2009,7 +2028,7 @@ class BlockProcessor:
             }
             mint_count = self.get_distmints_count_by_atomical_id(self.height, atomical_id, True)
             atomical_result['dft_info']['mint_count'] = mint_count
-            if atomical_result.get('$mint_mode') == 'infinite': 
+            if atomical_result.get('$mint_mode') == 'perpetual': 
                 self.logger.debug(f'atomical_result={atomical_result}')
                 mint_bitwork_vec = atomical_result.get('$mint_bitwork_vec')     
                 mint_bitworkc_inc = atomical_result.get('$mint_bitworkc_inc')      
@@ -2187,13 +2206,14 @@ class BlockProcessor:
                 # The mint mode can be fixed with a known max_supply
                 # Or the mode mint can be perpetual with an unbounded max_supply
                 atomical['$mint_mode'] = init_mint_info.get('$mint_mode') or 'fixed'
-                if init_mint_info.get('$mint_mode') == 'infinite': 
-                    atomical['$max_supply'] = -1
+                if init_mint_info.get('$mint_mode') == 'perpetual': 
+                    atomical['$max_supply'] = init_mint_info['$max_supply']
                     atomical['$mint_bitwork_vec'] = init_mint_info['$mint_bitwork_vec']
                     atomical['$mint_bitworkc_inc'] = init_mint_info.get('$mint_bitworkc_inc')
                     atomical['$mint_bitworkc_start'] = init_mint_info.get('$mint_bitworkc_start')
                     atomical['$mint_bitworkr_inc'] = init_mint_info.get('$mint_bitworkr_inc')
                     atomical['$mint_bitworkr_start'] = init_mint_info.get('$mint_bitworkr_start')
+                    atomical['$max_mints_global'] = init_mint_info.get('$max_mints_global')
                 else:
                     atomical['$max_supply'] = init_mint_info['$max_supply']
 
@@ -2378,7 +2398,7 @@ class BlockProcessor:
         height = self.height
         status, candidate_id, raw_candidate_entries = get_effective_name_func(request_name, height)
         atomical['$' + type_str + '_candidates'] = format_name_type_candidates_to_rpc(raw_candidate_entries, self.build_atomical_id_to_candidate_map(raw_candidate_entries))
-        atomical['$request_' + type_str + '_status'] = get_name_request_candidate_status(self.height, atomical, status, candidate_id, type_str)  
+        atomical['$request_' + type_str + '_status'] = get_name_request_candidate_status(atomical, status, candidate_id, type_str)  
         # Populate the request specific fields
         atomical['$request_' + type_str] = atomical['mint_info'].get('$request_' + type_str)
         return request_name, status == 'verified' and atomical['atomical_id'] == candidate_id
@@ -2511,6 +2531,9 @@ class BlockProcessor:
         self.populate_dmitem_subtype_specific_fields(atomical)
         return atomical 
 
+    def is_dft_bitwork_rollover_activated(self, height):
+        return height >= self.coin.ATOMICALS_ACTIVATION_HEIGHT_DFT_BITWORK_ROLLOVER
+    
     # Create a distributed mint output as long as the rules are satisfied
     def create_or_delete_decentralized_mint_output(self, atomicals_operations_found_at_inputs, tx_num, tx_hash, tx, height, ticker_cache, Delete):
         if not atomicals_operations_found_at_inputs:
@@ -2532,7 +2555,7 @@ class BlockProcessor:
                 return None 
             mint_info_for_ticker = self.get_atomicals_id_mint_info(potential_dmt_atomical_id, True)
             if not mint_info_for_ticker:
-                raise IndexError(f'create_or_delete_decentralized_mint_outputs: mint_info_for_ticker not found for expected atomical={atomical_id}')
+                raise IndexError(f'create_or_delete_decentralized_mint_outputs: mint_info_for_ticker not found for expected atomical={potential_dmt_atomical_id}')
             ticker_cache[ticker] = mint_info_for_ticker
 
         if mint_info_for_ticker['subtype'] != 'decentralized':
@@ -2573,29 +2596,51 @@ class BlockProcessor:
         if mint_amount == txout.value:
             # Count the number of existing b'gi' entries and ensure it is strictly less than max_mints
             decentralized_mints = self.get_distmints_count_by_atomical_id(height, dmt_mint_atomical_id, True)
-            # Assess whether we allow the mint based on 'fixed' or 'infinite' mint modes
+            # Assess whether we allow the mint based on 'fixed' or 'perpetual' mint modes
             # The perpetual mint mode will derive the minimum expected bitworkr/c needed given the quantity of already minted units
             allow_mint = False 
-            if mint_mode == 'infinite':
-                # In the 'infinite' mint mode an unbounded number of tokens can be minted according to the ever increasing bitworkc/r
+            if mint_mode == 'perpetual':
+                # If the perpetual token as a global max, then validate
+                max_mints_global = mint_info_for_ticker.get('$max_mints_global') 
+                if max_mints_global:
+                    if decentralized_mints > max_mints_global:
+                        raise IndexError(f'create_or_delete_decentralized_mint_outputs: Fatal IndexError decentralized_mints > max_mints_global for {location_id_bytes_to_compact(dmt_mint_atomical_id)}. Too many mints detected in db')
+                    if decentralized_mints == max_mints_global:
+                        self.logger.debug(f'create_or_delete_decentralized_mint_outputs found invalid mint infinit operation because it is minted out completely due to global max mints. {hash_to_hex_str(tx_hash)}. Ignoring...')
+                        return None
+    
+                self.logger.debug(f'create_or_delete_decentralized_mint_outputs: found perpetual mint request in {hash_to_hex_str(tx_hash)} for {ticker}. Checking for any POW in distributed mint record...')
+                # In the 'perpetual' mint mode an unbounded number of tokens can be minted according to the ever increasing bitworkc/r
                 mint_bitwork_vec = mint_info_for_ticker.get('$mint_bitwork_vec') 
                 mint_bitworkc_inc = mint_info_for_ticker.get('$mint_bitworkc_inc') 
                 mint_bitworkr_inc = mint_info_for_ticker.get('$mint_bitworkr_inc') 
                
                 # If there was a commit bitwork required, then assess the stage of the minimum we expect to allow the mint
                 if mint_bitworkc_inc:
-                    mint_bitworkc_start = mint_info_for_ticker.get('$mint_bitworkc_start')      
-                    expected_minimum_bitworkc = calculate_expected_bitwork(mint_bitwork_vec, decentralized_mints, max_mints, mint_bitworkc_inc, mint_bitworkc_start)
-                    if not is_mint_pow_valid(atomicals_operations_found_at_inputs['commit_txid'], expected_minimum_bitworkc):
-                        self.logger.warning(f'create_or_delete_decentralized_mint_output: mint_bitworkc_inc not is_mint_pow_valid {hash_to_hex_str(tx_hash)}, expected_minimum_bitworkc={expected_minimum_bitworkc}, atomicals_operations_found_at_inputs={atomicals_operations_found_at_inputs}...')
-                        return None  
+                    mint_bitworkc_start = mint_info_for_ticker.get('$mint_bitworkc_start')   
+                    if self.is_dft_bitwork_rollover_activated(height):
+                        success, bitwork_str = is_txid_valid_for_perpetual_bitwork(atomicals_operations_found_at_inputs['commit_txid'], mint_bitwork_vec, decentralized_mints, max_mints, mint_bitworkc_inc, mint_bitworkc_start, True)
+                        if not success:
+                            self.logger.warning(f'create_or_delete_decentralized_mint_output: mint_bitworkc_inc not is_mint_pow_valid {hash_to_hex_str(tx_hash)}, atomicals_operations_found_at_inputs={atomicals_operations_found_at_inputs}...')
+                            return None
+                    else: 
+                        success, bitwork_str = is_txid_valid_for_perpetual_bitwork(atomicals_operations_found_at_inputs['commit_txid'], mint_bitwork_vec, decentralized_mints, max_mints, mint_bitworkc_inc, mint_bitworkc_start, False)
+                        if not success:
+                            self.logger.warning(f'create_or_delete_decentralized_mint_output: mint_bitworkc_inc not is_mint_pow_valid {hash_to_hex_str(tx_hash)}, atomicals_operations_found_at_inputs={atomicals_operations_found_at_inputs}...')
+                            return None
+                
                  # If there was a reveal bitwork required, then assess the stage of the minimum we expect to allow the mint
                 if mint_bitworkr_inc:
-                    mint_bitworkr_start = mint_info_for_ticker.get('$mint_bitworkr_start')  
-                    expected_minimum_bitworkr = calculate_expected_bitwork(mint_bitwork_vec, decentralized_mints, max_mints, mint_bitworkr_inc, mint_bitworkr_start)
-                    if not is_mint_pow_valid(atomicals_operations_found_at_inputs['reveal_location_txid'], expected_minimum_bitworkr):
-                        self.logger.warning(f'create_or_delete_decentralized_mint_output: mint_bitworkr_inc not is_mint_pow_valid {hash_to_hex_str(tx_hash)}, expected_minimum_bitworkr={expected_minimum_bitworkr}, atomicals_operations_found_at_inputs={atomicals_operations_found_at_inputs}...')
-                        return None         
+                    mint_bitworkr_start = mint_info_for_ticker.get('$mint_bitworkr_start')
+                    if self.is_dft_bitwork_rollover_activated(height):
+                        if not is_txid_valid_for_perpetual_bitwork(atomicals_operations_found_at_inputs['reveal_location_txid'], mint_bitwork_vec, decentralized_mints, max_mints, mint_bitworkr_inc, mint_bitworkr_start, True):
+                            self.logger.warning(f'create_or_delete_decentralized_mint_output: mint_bitworkr_inc not is_mint_pow_valid {hash_to_hex_str(tx_hash)}, atomicals_operations_found_at_inputs={atomicals_operations_found_at_inputs}...')
+                            return None
+                    else: 
+                        if not is_txid_valid_for_perpetual_bitwork(atomicals_operations_found_at_inputs['reveal_location_txid'], mint_bitwork_vec, decentralized_mints, max_mints, mint_bitworkr_inc, mint_bitworkr_start, False):
+                            self.logger.warning(f'create_or_delete_decentralized_mint_output: mint_bitworkr_inc not is_mint_pow_valid {hash_to_hex_str(tx_hash)}, atomicals_operations_found_at_inputs={atomicals_operations_found_at_inputs}...')
+                            return None
+                          
                 allow_mint = True
             else: 
                 # It is the 'fixed' mint mode and the bitworkc/r is static
@@ -2907,8 +2952,11 @@ class BlockProcessor:
             mint_info_for_ticker = self.get_atomicals_id_mint_info(atomical_id_of_dft_ticker, False)
             max_mints = mint_info_for_ticker['$max_mints']
             dft_mode = mint_info_for_ticker.get('$mint_mode')
-            if dft_mode == 'infinite':
-                continue
+            # If it's mining mode, then use the max_mints_global if it's set
+            if dft_mode == 'perpetual':
+                if not mint_info_for_ticker.get('$max_mints_global'):
+                    continue
+                max_mints = mint_info_for_ticker.get('$max_mints_global')
             # Count the number of existing b'gi' entries and ensure it is strictly less than max_mints
             decentralized_mints = self.get_distmints_count_by_atomical_id(height, atomical_id_of_dft_ticker, False)
             if decentralized_mints > max_mints:

@@ -2,21 +2,11 @@
 
 import asyncio
 import base64
-import json
 import os
 import traceback
 from aiohttp import web, web_middlewares
 
-def serialize_data(data):
-    if isinstance(data, bytes):
-        return base64.b64encode(data).decode('utf-8')
-    elif isinstance(data, dict):
-        return {key: serialize_data(value) for key, value in data.items()}
-    elif isinstance(data, list):
-        return [serialize_data(element) for element in data]
-    else:
-        return data
-    
+
 class RateLimiter:
     def __init__(self, max_tokens, refill_interval, delay_after, delay_ms):
         self.tokens = int(max_tokens)
@@ -43,6 +33,7 @@ class RateLimiter:
             return True
         return False
 
+
 rate_limiter = RateLimiter(
     max_tokens=os.environ.get("MAX_TOKENS", 10000),
     refill_interval=os.environ.get("RATE_LIMIT_WINDOW_SECONDS", 3),
@@ -50,39 +41,18 @@ rate_limiter = RateLimiter(
     delay_ms=os.environ.get("RATE_LIMIT_DELAY_MS", 300)
 )
 
-def error_resp(status_code: int, exception: Exception) -> web.Response:
-    return web.Response(
-        status=status_code,
-        body=json.dumps({
-            "success": False,
-            'code': 1,
-            'message': str(exception)
-        }).encode('utf-8'),
-        content_type='application/json')
 
-def success_resp(data) -> web.Response:
-    result = {"success": True, "response": serialize_data(data)}
-    return web.json_response(data=result)
- 
-def request_middleware(self) -> web_middlewares:
+def cors_middleware(self) -> web_middlewares:
     async def factory(app: web.Application, handler):
         async def middleware_handler(request):
-            self.logger.info('Request {} comming'.format(request))
-            if not self.env.enable_rate_limit:
-                response = await handler(request)
-                if isinstance(response, web.Response):
-                    return response
-                return success_resp(response)
-            if await request.app['rate_limiter'].check_limit():
-                # return await handler(request)
-                response = await handler(request)
-                if isinstance(response, web.Response):
-                    return response
-                return success_resp(response)
-            await asyncio.sleep(request.app['rate_limiter'].delay_ms / 1000)
-            return web.json_response({"success": False, "error": "Rate limit exceeded"}, status=429)
+            response = await handler(request)
+            response.headers['Access-Control-Allow-Origin'] = '*'
+            response.headers['Access-Control-Allow-Headers'] = '*'
+            response.headers['Access-Control-Expose-Headers'] = '*'
+            return response
         return middleware_handler
     return factory
+
 
 def error_middleware(self) -> web_middlewares:
     async def factory(app: web.Application, handler):
@@ -100,5 +70,47 @@ def error_middleware(self) -> web_middlewares:
                 self.logger.warning('Request {} has failed with exception: {}'.format(request, repr(e)))
                 self.logger.warning(traceback.format_exc())
                 return error_resp(500, e)
+        return middleware_handler
+    return factory
+
+
+def serialize_data(data):
+    if isinstance(data, bytes):
+        return base64.b64encode(data).decode('utf-8')
+    elif isinstance(data, dict):
+        return {key: serialize_data(value) for key, value in data.items()}
+    elif isinstance(data, list):
+        return [serialize_data(element) for element in data]
+    else:
+        return data
+
+
+def error_resp(status_code: int, exception: Exception) -> web.Response:
+    result = {"success": False, "code": 1, "message": str(exception)}
+    return web.json_response(data=result, status=status_code)
+
+
+def success_resp(data) -> web.Response:
+    result = {"success": True, "response": serialize_data(data)}
+    return web.json_response(data=result)
+
+
+def request_middleware(self) -> web_middlewares:
+    async def factory(app: web.Application, handler):
+        async def middleware_handler(request):
+            self.logger.info('Request {} comming'.format(request))
+            if not self.env.enable_rate_limit:
+                response = await handler(request)
+                if isinstance(response, web.Response):
+                    return response
+                return success_resp(response)
+            if await request.app['rate_limiter'].check_limit():
+                # return await handler(request)
+                response = await handler(request)
+                if isinstance(response, web.Response):
+                    return response
+                return success_resp(response)
+            await asyncio.sleep(request.app['rate_limiter'].delay_ms / 1000)
+            return error_resp(status_code=429, exception=Exception("Rate limit exceeded"))
         return middleware_handler
     return factory

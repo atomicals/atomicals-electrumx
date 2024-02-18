@@ -1,20 +1,21 @@
 import pytest
 
-from electrumx.lib.atomicals_blueprint_builder import AtomicalsTransferBlueprintBuilder, get_nominal_token_value
 from electrumx.lib.coins import Bitcoin
-from electrumx.lib.hash import HASHX_LEN, hex_str_to_hash, hash_to_hex_str
-from electrumx.lib.tx import Tx, TxInput, TxOutput
-
+from electrumx.lib.hash import hex_str_to_hash
 from electrumx.lib.util_atomicals import (
-    location_id_bytes_to_compact,
     derive_bitwork_prefix_from_target,
     decode_bitwork_target_from_prefix,
     is_bitwork_subset,
-    calculate_expected_bitwork
+    calculate_expected_bitwork,
+    is_txid_valid_for_perpetual_bitwork,
+    get_next_bitwork_full_str,
+    MINT_REALM_CONTAINER_TICKER_COMMIT_REVEAL_DELAY_BLOCKS
 )
 
 coin = Bitcoin
- 
+
+MAX_BLOCKS_STR = str(MINT_REALM_CONTAINER_TICKER_COMMIT_REVEAL_DELAY_BLOCKS)
+
 class MockLogger:
     def debug(self, msg):
         return 
@@ -459,3 +460,556 @@ def test_calculate_expected_bitwork_base():
     assert(calculate_expected_bitwork('abcdefe', 33000, 1000, 1, 127) == 'abcdefe000')
     assert(calculate_expected_bitwork('abcdefe', 33000, 1000, 3, 127) == 'abcdefe0000000.2')
      
+def test_calculate_expected_bitwork_rollover():
+    
+    assert(calculate_expected_bitwork('888888888888', 49995, 3333, 1, 64) == '8888.15')
+    success, bitwork_str = is_txid_valid_for_perpetual_bitwork(hex_str_to_hash('8888888888888888888888888888888888888888888888888888888888888888'), '888888888888', 49995, 3333, 1, 64, False)
+    assert(not success)
+    assert(not bitwork_str)
+
+    success, bitwork_str = is_txid_valid_for_perpetual_bitwork(hex_str_to_hash('8888888888888888888888888888888888888888888888888888888888888888'), '888888888888', 49995, 3333, 1, 64, True)
+    assert(success)
+    assert(bitwork_str == '88888')
+
+    assert(calculate_expected_bitwork('888888888888', 53189, 3333, 1, 64) == '8888.15')
+    success, bitwork_str = is_txid_valid_for_perpetual_bitwork(hex_str_to_hash('8888888888888888888888888888888888888888888888888888888888888888'), '888888888888', 53189, 3333, 1, 64, True)
+    assert(success)
+    assert(bitwork_str == '88888')
+
+    assert(calculate_expected_bitwork('888888888888', 53328, 3333, 1, 64) == '88888')
+    success, bitwork_str = is_txid_valid_for_perpetual_bitwork(hex_str_to_hash('8888888888888888888888888888888888888888888888888888888888888888'), '888888888888', 53328, 3333, 1, 64, False)
+    assert(success)
+    assert(bitwork_str == '88888')
+
+    success, bitwork_str = is_txid_valid_for_perpetual_bitwork(hex_str_to_hash('8888888888888888888888888888888888888888888888888888888888888888'), '888888888888', 53328, 3333, 1, 64, True)
+    assert(success)
+    assert(bitwork_str == '88888')
+
+    assert(calculate_expected_bitwork('888888888888', 53329, 3333, 1, 64) == '88888')
+    success, bitwork_str = is_txid_valid_for_perpetual_bitwork(hex_str_to_hash('8888888888888888888888888888888888888888888888888888888888888888'), '888888888888', 53329, 3333, 1, 64, False)
+    assert(success)
+    assert(bitwork_str == '88888')
+
+    success, bitwork_str = is_txid_valid_for_perpetual_bitwork(hex_str_to_hash('8888888888888888888888888888888888888888888888888888888888888888'), '888888888888', 53329, 3333, 1, 64, True)
+    assert(success)
+    assert(bitwork_str == '88888')
+
+    assert(calculate_expected_bitwork('888888888888', 53328 + 3333, 3333, 1, 64) == '88888.1')
+    success, bitwork_str = is_txid_valid_for_perpetual_bitwork(hex_str_to_hash('8888888888888888888888888888888888888888888888888888888888888888'), '888888888888', 53328 + 3333, 3333, 1, 64, False)
+    assert(success)
+    assert(bitwork_str == '88888.1')
+
+    success, bitwork_str = is_txid_valid_for_perpetual_bitwork(hex_str_to_hash('8888888888888888888888888888888888888888888888888888888888888888'), '888888888888', 53328 + 3333, 3333, 1, 64, True)
+    assert(success)
+    assert(bitwork_str == '88888.1')
+
+    assert(calculate_expected_bitwork('888888888888', 53328 + (3333 * 16) - 1, 3333, 1, 64) == '88888.15')
+    success, bitwork_str = is_txid_valid_for_perpetual_bitwork(hex_str_to_hash('8888888888888888888888888888888888888888888888888888888888888888'), '888888888888', 53328 + (3333 * 16) - 1, 3333, 1, 64, False)
+    assert(not success)
+    assert(not bitwork_str)
+
+    success, bitwork_str = is_txid_valid_for_perpetual_bitwork(hex_str_to_hash('88888f8888888888888888888888888888888888888888888888888888888888'), '888888888888', 53328 + (3333 * 16) - 1, 3333, 1, 64, False)
+    assert(success)
+    assert(bitwork_str == '88888.15')
+
+    success, bitwork_str = is_txid_valid_for_perpetual_bitwork(hex_str_to_hash('88888f8888888888888888888888888888888888888888888888888888888888'), '888888888888', 53328 + (3333 * 16) - 1, 3333, 1, 64, True)
+    assert(success)
+    assert(bitwork_str == '88888.15')
+
+    success, bitwork_str = is_txid_valid_for_perpetual_bitwork(hex_str_to_hash('8888888888888888888888888888888888888888888888888888888888888888'), '888888888888', 53328 + (3333 * 16) - 1, 3333, 1, 64, False)
+    assert(not success)
+    assert(not bitwork_str)
+
+    success, bitwork_str = is_txid_valid_for_perpetual_bitwork(hex_str_to_hash('8888888888888888888888888888888888888888888888888888888888888888'), '888888888888', 53328 + (3333 * 16) - 1, 3333, 1, 64, True)
+    assert(success)
+    assert(bitwork_str == '888888')
+
+
+    assert(calculate_expected_bitwork('888888888888', 999, 1000, 64, 64) == '8888')
+    success, bitwork_str = is_txid_valid_for_perpetual_bitwork(hex_str_to_hash('8888888888888888888888888888888888888888888888888888888888888888'), '888888888888', 999, 1000, 64, 64, False)
+    assert(success)
+    assert(bitwork_str == '8888')
+
+    success, bitwork_str = is_txid_valid_for_perpetual_bitwork(hex_str_to_hash('888f888888888888888888888888888888888888888888888888888888888888'), '888888888888', 999, 1000, 64, 64, False)
+    assert(not success)
+
+    success, bitwork_str = is_txid_valid_for_perpetual_bitwork(hex_str_to_hash('888f888888888888888888888888888888888888888888888888888888888888'), '888888888888', 999, 1000, 64, 64, True)
+    assert(not success)
+
+    success, bitwork_str = is_txid_valid_for_perpetual_bitwork(hex_str_to_hash('8888888f88888888888888888888888888888888888888888888888888888888'), '888888888888', 999, 1000, 64, 64, True)
+    assert(success)
+    assert(bitwork_str == '8888')
+
+    assert(calculate_expected_bitwork('888888888888', 1000, 1000, 64, 64) == '88888888')
+    success, bitwork_str = is_txid_valid_for_perpetual_bitwork(hex_str_to_hash('8888888888888888888888888888888888888888888888888888888888888888'), '888888888888', 1000, 1000, 64, 64, False)
+    assert(success)
+    assert(bitwork_str == '88888888')
+
+    success, bitwork_str = is_txid_valid_for_perpetual_bitwork(hex_str_to_hash('88888888f8888888888888888888888888888888888888888888888888888888'), '888888888888', 1000, 1000, 64, 64, False)
+    assert(success)
+    assert(bitwork_str == '88888888')
+
+    success, bitwork_str = is_txid_valid_for_perpetual_bitwork(hex_str_to_hash('88888888f8888888888888888888888888888888888888888888888888888888'), '888888888888', 1000, 1000, 64, 64, True)
+    assert(success)
+    assert(bitwork_str == '88888888')
+
+    success, bitwork_str = is_txid_valid_for_perpetual_bitwork(hex_str_to_hash('8888888f88888888888888888888888888888888888888888888888888888888'), '888888888888', 1000, 1000, 64, 64, True)
+    assert(not success)
+
+    assert(calculate_expected_bitwork('888888888888', 1000, 1000, 49, 64) == '8888888.1')
+    success, bitwork_str = is_txid_valid_for_perpetual_bitwork(hex_str_to_hash('8888888888888888888888888888888888888888888888888888888888888888'), '888888888888', 1000, 1000, 49, 64, False)
+    assert(success)
+    assert(bitwork_str == '8888888.1')
+
+    success, bitwork_str = is_txid_valid_for_perpetual_bitwork(hex_str_to_hash('88888888f8888888888888888888888888888888888888888888888888888888'), '888888888888', 1000, 1000, 49, 64, False)
+    assert(success)
+    assert(bitwork_str == '8888888.1')
+
+    success, bitwork_str = is_txid_valid_for_perpetual_bitwork(hex_str_to_hash('88888888f8888888888888888888888888888888888888888888888888888888'), '888888888888', 1000, 1000, 49, 64, True)
+    assert(success)
+    assert(bitwork_str == '8888888.1')
+
+    success, bitwork_str = is_txid_valid_for_perpetual_bitwork(hex_str_to_hash('8888888088888888888888888888888888888888888888888888888888888888'), '888888888888', 1000, 1000, 49, 64, True)
+    assert(not success)
+
+def test_calculate_expected_bitwork_rollover2():
+
+    assert(calculate_expected_bitwork('888888888888', 3, 1, 5, 64) == '8888.15')
+    success, bitwork_str = is_txid_valid_for_perpetual_bitwork(hex_str_to_hash('8888888888888888888888888888888888888888888888888888888888888888'), '888888888888', 3, 1, 5, 64, False)
+    assert(not success)
+ 
+    success, bitwork_str = is_txid_valid_for_perpetual_bitwork(hex_str_to_hash('8888888888888888888888888888888888888888888888888888888888888888'), '888888888888', 3, 1, 5, 64, True)
+    assert(success)
+    assert(bitwork_str == '88888')
+   
+    success, bitwork_str = is_txid_valid_for_perpetual_bitwork(hex_str_to_hash('8888f88888888888888888888888888888888888888888888888888888888888'), '888888888888', 3, 1, 5, 64, True)
+    assert(success)
+    assert(bitwork_str == '8888.15')
+
+    success, bitwork_str = is_txid_valid_for_perpetual_bitwork(hex_str_to_hash('8888848888888888888888888888888888888888888888888888888888888888'), '888888888888', 3, 1, 5, 64, False)
+    assert(not success)
+
+    success, bitwork_str = is_txid_valid_for_perpetual_bitwork(hex_str_to_hash('8888848888888888888888888888888888888888888888888888888888888888'), '888888888888', 3, 1, 5, 64, True)
+    assert(success)
+    assert(bitwork_str == '88888')
+
+    success, bitwork_str = is_txid_valid_for_perpetual_bitwork(hex_str_to_hash('8888858888888888888888888888888888888888888888888888888888888888'), '888888888888', 3, 1, 5, 64, True)
+    assert(success)
+    assert(bitwork_str == '88888')
+
+    success, bitwork_str = is_txid_valid_for_perpetual_bitwork(hex_str_to_hash('8888388888888888888888888888888888888888888888888888888888888888'), '888888888888', 3, 1, 5, 64, True)
+    assert(not success)
+
+    success, bitwork_str = is_txid_valid_for_perpetual_bitwork(hex_str_to_hash('8888838888888888888888888888888888888888888888888888888888888888'), '888888888888', 3, 1, 5, 64, True)
+    assert(success)
+    assert(bitwork_str == '88888')
+
+def test_calculate_expected_bitwork_rollover3():
+
+    assert(calculate_expected_bitwork('0a2f', 3, 1, 5, 64) == '0a2f.15')
+    success, bitwork_str = is_txid_valid_for_perpetual_bitwork(hex_str_to_hash('0a2f888888888888888888888888888888888888888888888888888888888888'), '0a2f', 3, 1, 5, 64, False)
+    assert(not success)
+ 
+    success, bitwork_str = is_txid_valid_for_perpetual_bitwork(hex_str_to_hash('0a2f088888888888888888888888888888888888888888888888888888888888'), '0a2f', 3, 1, 5, 64, True)
+    assert(success)
+    assert(bitwork_str == '0a2f0')
+   
+    success, bitwork_str = is_txid_valid_for_perpetual_bitwork(hex_str_to_hash('0a2ff88888888888888888888888888888888888888888888888888888888888'), '0a2f', 3, 1, 5, 64, True)
+    assert(success)
+    assert(bitwork_str == '0a2f.15')
+
+    success, bitwork_str = is_txid_valid_for_perpetual_bitwork(hex_str_to_hash('0a2f848888888888888888888888888888888888888888888888888888888888'), '0a2f', 3, 1, 5, 64, False)
+    assert(not success)
+
+    success, bitwork_str = is_txid_valid_for_perpetual_bitwork(hex_str_to_hash('0a2f048888888888888888888888888888888888888888888888888888888888'), '0a2f', 3, 1, 5, 64, True)
+    assert(success)
+    assert(bitwork_str == '0a2f0')
+
+    success, bitwork_str = is_txid_valid_for_perpetual_bitwork(hex_str_to_hash('0a2f058888888888888888888888888888888888888888888888888888888888'), '0a2f', 3, 1, 5, 64, True)
+    assert(success)
+    assert(bitwork_str == '0a2f0')
+
+    success, bitwork_str = is_txid_valid_for_perpetual_bitwork(hex_str_to_hash('0a2f388888888888888888888888888888888888888888888888888888888888'), '0a2f', 3, 1, 5, 64, True)
+    assert(not success)
+
+    success, bitwork_str = is_txid_valid_for_perpetual_bitwork(hex_str_to_hash('0a2f838888888888888888888888888888888888888888888888888888888888'), '0a2f', 3, 1, 5, 64, True)
+    assert(not success)
+
+def test_calculate_expected_bitwork_rollover4():
+
+    assert(calculate_expected_bitwork('33333', 3, 1, 2, 64) == '3333.6')
+
+    success, bitwork_str = is_txid_valid_for_perpetual_bitwork(hex_str_to_hash('3333000000000000000000000000000000000000000000000000000000000000'), '33333', 3, 1, 2, 64, False)
+    assert(not success)
+
+    success, bitwork_str = is_txid_valid_for_perpetual_bitwork(hex_str_to_hash('3333600000000000000000000000000000000000000000000000000000000000'), '33333', 3, 1, 2, 64, False)
+    assert(success)
+    assert(bitwork_str == '3333.6')
+
+    success, bitwork_str = is_txid_valid_for_perpetual_bitwork(hex_str_to_hash('3333700000000000000000000000000000000000000000000000000000000000'), '33333', 3, 1, 2, 64, False)
+    assert(success)
+    assert(bitwork_str == '3333.6')
+
+    success, bitwork_str = is_txid_valid_for_perpetual_bitwork(hex_str_to_hash('3333300000000000000000000000000000000000000000000000000000000000'), '33333', 3, 1, 2, 64, False)
+    assert(not success)
+
+    success, bitwork_str = is_txid_valid_for_perpetual_bitwork(hex_str_to_hash('3333300000000000000000000000000000000000000000000000000000000000'), '33333', 3, 1, 2, 64, True)
+    assert(success)
+    assert(bitwork_str == '33333')
+
+ 
+def test_calculate_expected_bitwork_rollover5():
+
+    testvec = [
+        {
+            'txid': '3333000000000000000000000000000000000000000000000000000000000000',
+            'bitworkvec': '333333',
+            'mints': 0,
+            'max_mints': 1,
+            'inc': 1,
+            'start': 64,
+            'allow_higher': True,
+            'expect': True,
+            'bitwork_match': '3333'
+        },
+        {
+            'txid': '3333000000000000000000000000000000000000000000000000000000000000',
+            'bitworkvec': '333333',
+            'mints': 1,
+            'max_mints': 1,
+            'inc': 1,
+            'start': 64,
+            'allow_higher': True,
+            'expect': False,
+            'bitwork_match': None
+        },
+        {
+            'txid': '3333100000000000000000000000000000000000000000000000000000000000',
+            'bitworkvec': '333333',
+            'mints': 1,
+            'max_mints': 1,
+            'inc': 1,
+            'start': 64,
+            'allow_higher': True,
+            'expect': True,
+            'bitwork_match': '3333.1'
+        },
+        {
+            'txid': '3333100000000000000000000000000000000000000000000000000000000000',
+            'bitworkvec': '333333',
+            'mints': 2,
+            'max_mints': 1,
+            'inc': 1,
+            'start': 64,
+            'allow_higher': True,
+            'expect': False,
+            'bitwork_match': None
+        },
+        {
+            'txid': '3333200000000000000000000000000000000000000000000000000000000000',
+            'bitworkvec': '333333',
+            'mints': 2,
+            'max_mints': 1,
+            'inc': 1,
+            'start': 64,
+            'allow_higher': True,
+            'expect': True,
+            'bitwork_match': '3333.2'
+        },
+        {
+            'txid': '3333300000000000000000000000000000000000000000000000000000000000',
+            'bitworkvec': '333333',
+            'mints': 2,
+            'max_mints': 1,
+            'inc': 1,
+            'start': 64,
+            'allow_higher': True,
+            'expect': True,
+            'bitwork_match': '3333.2'
+        },
+        {
+            'txid': '3333300000000000000000000000000000000000000000000000000000000000',
+            'bitworkvec': '333333',
+            'mints': 2,
+            'max_mints': 1,
+            'inc': 1,
+            'start': 64,
+            'allow_higher': False,
+            'expect': True,
+            'bitwork_match': '3333.2'
+        },
+        {
+            'txid': '3333300000000000000000000000000000000000000000000000000000000000',
+            'bitworkvec': '333333',
+            'mints': 3,
+            'max_mints': 1,
+            'inc': 1,
+            'start': 64,
+            'allow_higher': False,
+            'expect': True,
+            'bitwork_match': '3333.3'
+        },
+        {
+            'txid': '3333300000000000000000000000000000000000000000000000000000000000',
+            'bitworkvec': '333333',
+            'mints': 4,
+            'max_mints': 1,
+            'inc': 1,
+            'start': 64,
+            'allow_higher': False,
+            'expect': False,
+            'bitwork_match': None
+        },
+        {
+            'txid': '3333300000000000000000000000000000000000000000000000000000000000',
+            'bitworkvec': '333333',
+            'mints': 4,
+            'max_mints': 1,
+            'inc': 1,
+            'start': 64,
+            'allow_higher': True,
+            'expect': True,
+            'bitwork_match': '33333'
+        },
+        {
+            'txid': '3333300000000000000000000000000000000000000000000000000000000000',
+            'bitworkvec': '333333',
+            'mints': 5,
+            'max_mints': 1,
+            'inc': 1,
+            'start': 64,
+            'allow_higher': True,
+            'expect': True,
+            'bitwork_match': '33333'
+        },
+        {
+            'txid': '3333300000000000000000000000000000000000000000000000000000000000',
+            'bitworkvec': '333333',
+            'mints': 6,
+            'max_mints': 1,
+            'inc': 1,
+            'start': 64,
+            'allow_higher': True,
+            'expect': True,
+            'bitwork_match': '33333'
+        },
+        {
+            'txid': '3333300000000000000000000000000000000000000000000000000000000000',
+            'bitworkvec': '333333',
+            'mints': 7,
+            'max_mints': 1,
+            'inc': 1,
+            'start': 64,
+            'allow_higher': True,
+            'expect': True,
+            'bitwork_match': '33333'
+        },
+        {
+            'txid': '3333300000000000000000000000000000000000000000000000000000000000',
+            'bitworkvec': '333333',
+            'mints': 8,
+            'max_mints': 1,
+            'inc': 1,
+            'start': 64,
+            'allow_higher': True,
+            'expect': True,
+            'bitwork_match': '33333'
+        },
+        {
+            'txid': '3333300000000000000000000000000000000000000000000000000000000000',
+            'bitworkvec': '333333',
+            'mints': 9,
+            'max_mints': 1,
+            'inc': 1,
+            'start': 64,
+            'allow_higher': True,
+            'expect': True,
+            'bitwork_match': '33333'
+        },
+        {
+            'txid': '3333300000000000000000000000000000000000000000000000000000000000',
+            'bitworkvec': '333333',
+            'mints': 10,
+            'max_mints': 1,
+            'inc': 1,
+            'start': 64,
+            'allow_higher': True,
+            'expect': True,
+            'bitwork_match': '33333'
+        },
+        {
+            'txid': '3333300000000000000000000000000000000000000000000000000000000000',
+            'bitworkvec': '333333',
+            'mints': 11,
+            'max_mints': 1,
+            'inc': 1,
+            'start': 64,
+            'allow_higher': True,
+            'expect': True,
+            'bitwork_match': '33333'
+        },
+        {
+            'txid': '3333300000000000000000000000000000000000000000000000000000000000',
+            'bitworkvec': '333333',
+            'mints': 12,
+            'max_mints': 1,
+            'inc': 1,
+            'start': 64,
+            'allow_higher': True,
+            'expect': True,
+            'bitwork_match': '33333'
+        },
+        {
+            'txid': '3333300000000000000000000000000000000000000000000000000000000000',
+            'bitworkvec': '333333',
+            'mints': 13,
+            'max_mints': 1,
+            'inc': 1,
+            'start': 64,
+            'allow_higher': True,
+            'expect': True,
+            'bitwork_match': '33333'
+        },
+        {
+            'txid': '3333300000000000000000000000000000000000000000000000000000000000',
+            'bitworkvec': '333333',
+            'mints': 14,
+            'max_mints': 1,
+            'inc': 1,
+            'start': 64,
+            'allow_higher': True,
+            'expect': True,
+            'bitwork_match': '33333'
+        },
+        {
+            'txid': '3333300000000000000000000000000000000000000000000000000000000000',
+            'bitworkvec': '333333',
+            'mints': 15,
+            'max_mints': 1,
+            'inc': 1,
+            'start': 64,
+            'allow_higher': True,
+            'expect': True,
+            'bitwork_match': '33333'
+        },
+        {
+            'txid': '3333300000000000000000000000000000000000000000000000000000000000',
+            'bitworkvec': '333333',
+            'mints': 16,
+            'max_mints': 1,
+            'inc': 1,
+            'start': 64,
+            'allow_higher': True,
+            'expect': True,
+            'bitwork_match': '33333'
+        },
+        {
+            'txid': '3333300000000000000000000000000000000000000000000000000000000000',
+            'bitworkvec': '333333',
+            'mints': 17,
+            'max_mints': 1,
+            'inc': 1,
+            'start': 64,
+            'allow_higher': True,
+            'expect': False,
+            'bitwork_match': None
+        },
+        {
+            'txid': '3333310000000000000000000000000000000000000000000000000000000000',
+            'bitworkvec': '333333',
+            'mints': 17,
+            'max_mints': 1,
+            'inc': 1,
+            'start': 64,
+            'allow_higher': True,
+            'expect': True,
+            'bitwork_match': '33333.1'
+        },
+        {
+            'txid': '3333340000000000000000000000000000000000000000000000000000000000',
+            'bitworkvec': '333333',
+            'mints': 20,
+            'max_mints': 1,
+            'inc': 1,
+            'start': 64,
+            'allow_higher': False,
+            'expect': True,
+            'bitwork_match': '33333.4'
+        },
+        {
+            'txid': '3333330000000000000000000000000000000000000000000000000000000000',
+            'bitworkvec': '333333',
+            'mints': 20,
+            'max_mints': 1,
+            'inc': 1,
+            'start': 64,
+            'allow_higher': False,
+            'expect': False,
+            'bitwork_match': None
+        },
+        {
+            'txid': '3333330000000000000000000000000000000000000000000000000000000000',
+            'bitworkvec': '333333',
+            'mints': 20,
+            'max_mints': 1,
+            'inc': 1,
+            'start': 64,
+            'allow_higher': True,
+            'expect': True,
+            'bitwork_match': '333333'
+        },
+        {
+            'txid': '3333320000000000000000000000000000000000000000000000000000000000',
+            'bitworkvec': '333333',
+            'mints': 20,
+            'max_mints': 1,
+            'inc': 1,
+            'start': 64,
+            'allow_higher': True,
+            'expect': False,
+            'bitwork_match': None
+        }
+    ]
+
+    for x in testvec:
+        success, bitwork_str = is_txid_valid_for_perpetual_bitwork(hex_str_to_hash(x['txid']), x['bitworkvec'], x['mints'], x['max_mints'], x['inc'], x['start'], x['allow_higher'])
+        if success != x['expect']:
+            print(f'failure: success={success} x={x}')
+        
+        assert(success == x['expect'])
+        
+        if x['expect']:
+            if bitwork_str != x['bitwork_match']:
+                print(f'failure: success={success} x={x}')
+            assert(bitwork_str == x['bitwork_match'])
+        
+
+def test_get_next_bitwork_full_str():
+
+    assert(get_next_bitwork_full_str('', 0) == '0')
+    assert(get_next_bitwork_full_str('', 1) == '00')
+    assert(get_next_bitwork_full_str('', 2) == '000')
+
+    assert(get_next_bitwork_full_str('8', 0) == '8')
+    assert(get_next_bitwork_full_str('8', 1) == '80')
+    
+    assert(get_next_bitwork_full_str('88', 0) == '8')
+    assert(get_next_bitwork_full_str('88', 1) == '88')
+    assert(get_next_bitwork_full_str('88', 2) == '880')
+
+    assert(get_next_bitwork_full_str('888', 0) == '8')
+    assert(get_next_bitwork_full_str('888', 1) == '88')
+    assert(get_next_bitwork_full_str('888', 2) == '888')
+    assert(get_next_bitwork_full_str('888', 3) == '8880')
+
+    assert(get_next_bitwork_full_str('8888', 0) == '8')
+    assert(get_next_bitwork_full_str('8888', 1) == '88')
+    assert(get_next_bitwork_full_str('8888', 2) == '888')
+    assert(get_next_bitwork_full_str('8888', 3) == '8888')
+
+    assert(get_next_bitwork_full_str('88888', 0) == '8')
+    assert(get_next_bitwork_full_str('88888', 1) == '88')
+    assert(get_next_bitwork_full_str('88888', 2) == '888')
+    assert(get_next_bitwork_full_str('88888', 3) == '8888')
+    assert(get_next_bitwork_full_str('88888', 4) == '88888')
+ 

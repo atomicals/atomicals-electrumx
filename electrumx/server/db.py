@@ -1678,20 +1678,20 @@ class DB:
             entries.append(item['dmitem_name'])
         return entries
 
-    # Perform a search (usually through session rpc) to query for names. Limited to random 1000 results
-    # If a user needs to dump all the results they can write custom logic to dump it
-    def get_name_entries_template_limited(self, db_prefix, subject_encoded, Reverse=False, Limit=100, Offset=0):
-        # Do not allow searching beyond the first 1000 matches of a prefix to protect server load
+    # Perform a search (usually through session rpc) to query for names. 
+    def get_name_entries_template_limited(self, db_prefix, parent_prefix, subject_encoded, Reverse=False, Limit=100, Offset=0):
         if Limit <= 0:
             Limit = 1
-        if Limit > 100:
-            Limit = 100
+        if Limit > 1000:
+            Limit = 1000
         if Offset < 0:
             Offset = 0
-        if Offset > 900:
-            Offset = 900
 
-        db_key_prefix = db_prefix + subject_encoded
+        db_key_prefix = db_prefix
+        if parent_prefix:
+            db_key_prefix = db_prefix + parent_prefix
+        db_key_prefix_with_subject = db_key_prefix + subject_encoded
+
         entries = []
         limit_count = 0
         start_count = 0
@@ -1707,9 +1707,11 @@ class DB:
             tx_numb = db_key[-8:]
             tx_num, = unpack_le_uint64(tx_numb)
             name_len, = unpack_le_uint16_from(db_key[-10:-8])
-            db_prefix_len = len(db_prefix)
+            db_key_prefix_len = len(db_key_prefix)
             entries.append({
-                'name': db_key[db_prefix_len : db_prefix_len + name_len].decode('latin-1'), # Extract the name portion
+                'name': db_key[db_key_prefix_len : db_key_prefix_len + name_len].decode(), # Extract the name portion
+                'name_hex': db_key[db_key_prefix_len : db_key_prefix_len + name_len].hex(),  
+                'name_len': name_len,  
                 'atomical_id': db_value,
                 'tx_num': tx_num
             })

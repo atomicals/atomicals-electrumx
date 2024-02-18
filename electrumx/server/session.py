@@ -34,6 +34,7 @@ from electrumx.lib.script2addr import get_address_from_output_script
 import electrumx.lib.util as util
 from electrumx.lib.util import OldTaskGroup, unpack_le_uint64
 from electrumx.lib.util_atomicals import (
+    DFT_MINT_MAX_MAX_COUNT_DENSITY,
     format_name_type_candidates_to_rpc, 
     SUBREALM_MINT_PATH, 
     MINT_SUBNAME_RULES_BECOME_EFFECTIVE_IN_BLOCKS,
@@ -54,7 +55,7 @@ from electrumx.lib.hash import (HASHX_LEN, Base58Error, hash_to_hex_str,
 from electrumx.lib.merkle import MerkleCache
 from electrumx.lib.text import sessions_lines
 from electrumx.server.daemon import DaemonError
-from electrumx.server.http_middleware import rate_limiter, error_middleware, request_middleware
+from electrumx.server.http_middleware import rate_limiter, cors_middleware, error_middleware, request_middleware
 from electrumx.server.http_session import HttpHandler
 from electrumx.server.peers import PeerManager
 from electrumx.lib.script import SCRIPTHASH_LEN
@@ -222,8 +223,9 @@ class SessionManager:
                 host = None if service.host == 'all_interfaces' else str(service.host)
                 try:
                     app = web.Application(middlewares=[
+                        cors_middleware(self),
                         error_middleware(self),
-                        request_middleware(self)
+                        request_middleware(self),
                     ])
                     handler = HttpHandler(self, self.db, self.mempool, self.peer_mgr, kind)
                     # GET
@@ -1548,8 +1550,11 @@ class ElectrumX(SessionBase):
         return {'global': await self.get_summary_info(), 'result': await self.atomical_id_get(compact_atomical_id)} 
 
     async def atomicals_dump(self):
-        self.db.dump()
-        return {'result': True} 
+        if True:
+            self.db.dump()
+            return {'result': True} 
+        else: 
+            return {'result': False} 
 
     async def atomicals_get_dft_mints(self, compact_atomical_id, limit=100, offset=0):
         atomical_id = compact_to_location_id_bytes(compact_atomical_id)
@@ -2018,33 +2023,40 @@ class ElectrumX(SessionBase):
         return {'result': return_struct}
 
     # Perform a search for tickers, containers, and realms  
-    def atomicals_search_name_template(self, db_prefix, name_type_str, prefix=None, Reverse=False, Limit=100, Offset=0):
-        search_prefix = b''
-        if prefix:
-            search_prefix = prefix.encode()
-        db_entries = self.db.get_name_entries_template_limited(db_prefix, search_prefix, Reverse, Limit, Offset)
+    def atomicals_search_name_template(self, db_prefix, parent_prefix=None, prefix=None, Reverse=False, Limit=1000, Offset=0):
+        db_entries = self.db.get_name_entries_template_limited(db_prefix, parent_prefix, prefix, Reverse, Limit, Offset)
         formatted_results = []
         for item in db_entries:
             obj = {
                 'atomical_id': location_id_bytes_to_compact(item['atomical_id']),
                 'tx_num': item['tx_num']
             }
-            obj[name_type_str] = item['name']
+            obj['name_hex'] = item['name_hex']
+            obj['name'] = item['name']
+            obj['name_len'] = item['name_len']
             formatted_results.append(obj)
         return {'result': formatted_results}
 
     async def atomicals_search_tickers(self, prefix=None, Reverse=False, Limit=100, Offset=0):
-        return self.atomicals_search_name_template(b'tick', 'ticker', prefix, Reverse, Limit, Offset)
+        if isinstance(prefix, str):
+            prefix = prefix.encode()
+        return self.atomicals_search_name_template(b'tick', None, prefix, Reverse, Limit, Offset)
 
     async def atomicals_search_realms(self, prefix=None, Reverse=False, Limit=100, Offset=0):
-        return self.atomicals_search_name_template(b'rlm', 'realm', prefix, Reverse, Limit, Offset)
+        if isinstance(prefix, str):
+            prefix = prefix.encode()
+        return self.atomicals_search_name_template(b'rlm', None, prefix, Reverse, Limit, Offset)
 
     async def atomicals_search_subrealms(self, parent_realm_id_compact, prefix=None, Reverse=False, Limit=100, Offset=0):
         parent_realm_id_long_form = compact_to_location_id_bytes(parent_realm_id_compact)
-        return self.atomicals_search_name_template(b'srlm', 'subrealm', parent_realm_id_long_form + prefix, Reverse, Limit, Offset)
+        if isinstance(prefix, str):
+            prefix = prefix.encode()
+        return self.atomicals_search_name_template(b'srlm', parent_realm_id_long_form, prefix, Reverse, Limit, Offset)
     
     async def atomicals_search_containers(self, prefix=None, Reverse=False, Limit=100, Offset=0):
-        return self.atomicals_search_name_template(b'co', 'collection', prefix, Reverse, Limit, Offset)
+        if isinstance(prefix, str):
+            prefix = prefix.encode()
+        return self.atomicals_search_name_template(b'co',  None, prefix, Reverse, Limit, Offset)
  
     async def atomicals_at_location(self, compact_location_id):
         '''Return the Atomicals at a specific location id```
@@ -2079,7 +2091,13 @@ class ElectrumX(SessionBase):
         atomical = await self.atomical_id_get(compact_atomical_id)
         atomical = await self.db.populate_extended_atomical_holder_info(atomical_id, atomical)
         if atomical["type"] == "FT":
-            max_supply = atomical.get('$max_supply', 0)
+            if atomical["$mint_mode"] == "fixed":
+                max_supply = atomical.get('$max_supply', 0)
+            else:
+                max_supply = atomical.get('$max_supply', -1)
+                if max_supply < 0:
+                    mint_amount = atomical.get("mint_info", {}).get("args", {}).get("mint_amount")
+                    max_supply = DFT_MINT_MAX_MAX_COUNT_DENSITY * mint_amount
             for holder in atomical.get("holders", [])[offset:offset+limit]:
                 percent = holder['holding'] / max_supply
                 formatted_results.append({
@@ -2116,13 +2134,13 @@ class ElectrumX(SessionBase):
                 atomical_id_compact = location_id_bytes_to_compact(atomical_id)
                 atomicals_id_map[atomical_id_compact] = atomical_basic_info
                 atomicals_basic_infos.append(atomical_id_compact)
-                if len(atomicals) > 0:
-                    returned_utxos.append({'txid': hash_to_hex_str(utxo.tx_hash),
-                    'index': utxo.tx_pos,
-                    'vout': utxo.tx_pos,
-                    'height': utxo.height, 
-                    'value': utxo.value,
-                    'atomicals': atomicals_basic_infos})
+            if len(atomicals) > 0:
+                returned_utxos.append({'txid': hash_to_hex_str(utxo.tx_hash),
+                'index': utxo.tx_pos,
+                'vout': utxo.tx_pos,
+                'height': utxo.height,
+                'value': utxo.value,
+                'atomicals': atomicals_basic_infos})
         # Aggregate balances
         return_struct = {
             'balances': {}
@@ -2132,7 +2150,7 @@ class ElectrumX(SessionBase):
                 atomical_id_basic_info = atomicals_id_map[atomical_id_entry_compact]
                 atomical_id_compact = atomical_id_basic_info['atomical_id']
                 assert(atomical_id_compact == atomical_id_entry_compact)
-                if atomical_id_basic_info.get('$ticker'):
+                if atomical_id_basic_info.get('type') == 'FT':
                     if return_struct['balances'].get(atomical_id_compact) == None:
                         return_struct['balances'][atomical_id_compact] = {}
                         return_struct['balances'][atomical_id_compact]['id'] = atomical_id_compact
@@ -2164,13 +2182,13 @@ class ElectrumX(SessionBase):
                 atomical_id_compact = location_id_bytes_to_compact(atomical_id)
                 atomicals_id_map[atomical_id_compact] = atomical_basic_info
                 atomicals_basic_infos.append(atomical_id_compact)
-                if len(atomicals) > 0:
-                    returned_utxos.append({'txid': hash_to_hex_str(utxo.tx_hash),
-                    'index': utxo.tx_pos,
-                    'vout': utxo.tx_pos,
-                    'height': utxo.height, 
-                    'value': utxo.value,
-                    'atomicals': atomicals_basic_infos})
+            if len(atomicals) > 0:
+                returned_utxos.append({'txid': hash_to_hex_str(utxo.tx_hash),
+                'index': utxo.tx_pos,
+                'vout': utxo.tx_pos,
+                'height': utxo.height,
+                'value': utxo.value,
+                'atomicals': atomicals_basic_infos})
         # Aggregate balances
         return_struct = {
             'balances': {}
