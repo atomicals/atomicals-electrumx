@@ -1651,7 +1651,6 @@ class DB:
         db_key_prefix = db_prefix
         if parent_prefix:
             db_key_prefix = db_prefix + parent_prefix
-        db_key_prefix_with_subject = db_key_prefix + subject_encoded
 
         entries = []
         limit_count = 0
