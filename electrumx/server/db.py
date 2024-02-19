@@ -1651,6 +1651,12 @@ class DB:
         db_key_prefix = db_prefix
         if parent_prefix:
             db_key_prefix = db_prefix + parent_prefix
+        
+        # Encode the subject name search if provided
+        # Otherwise it will return everything in db index order
+        db_key_prefix_with_subject = db_key_prefix
+        if subject_encoded:
+            db_key_prefix_with_subject = db_key_prefix + subject_encoded
 
         entries = []
         limit_count = 0
@@ -1660,7 +1666,7 @@ class DB:
             reverse_bool = True 
         else:
             reverse_bool = False
-        for db_key, db_value in self.utxo_db.iterator(prefix=db_key_prefix, reverse=reverse_bool):
+        for db_key, db_value in self.utxo_db.iterator(prefix=db_key_prefix_with_subject, reverse=reverse_bool):
             if start_count < Offset: 
                 start_count += 1
                 continue 
