@@ -1598,7 +1598,7 @@ def get_subname_request_candidate_status(current_height, atomical_info, status, 
             'note': 'The current Atomical should not have been classified as the sub-type.'
         }
 
-    payment_type = current_candidate_atomical['payment_type']
+    payment_type = current_candidate_atomical.get('payment_type')
     # Catch the scenario where it was not parent initiated, but there also was no valid applicable rule
     if payment_type and current_candidate_atomical.get('applicable_rule') is None:
         return {
@@ -1633,7 +1633,7 @@ def get_subname_request_candidate_status(current_height, atomical_info, status, 
             }
 
     payment = current_candidate_atomical.get('payment')
-    payment_due_no_later_than_height = current_candidate_atomical['payment_due_no_later_than_height']
+    payment_due_no_later_than_height = current_candidate_atomical.get('payment_due_no_later_than_height')
     # The scenario where there is an applicable rule, but the payment was not received in time
     if payment_type == 'applicable_rule' and payment is None and current_height > payment_due_no_later_than_height:
         return {
