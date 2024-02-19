@@ -2043,7 +2043,7 @@ class ElectrumX(SessionBase):
     async def atomicals_search_containers(self, prefix=None, Reverse=False, Limit=100, Offset=0):
         if isinstance(prefix, str):
             prefix = prefix.encode()
-        return self.atomicals_search_name_template(b'co', 'container', None, prefix, Reverse, Limit, Offset)
+        return self.atomicals_search_name_template(b'co', 'collection', None, prefix, Reverse, Limit, Offset)
  
     async def atomicals_at_location(self, compact_location_id):
         '''Return the Atomicals at a specific location id```
