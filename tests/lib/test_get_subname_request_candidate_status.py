@@ -434,5 +434,5 @@ def test_get_subname_request_candidate_status_expired_payment_not_received():
     result = get_subname_request_candidate_status(890120, atomical_info, 'pending', subject_atomical_id, 'subrealm')
     assert({
         'status': 'expired_payment_not_received',
-        'note': "A valid payment was not received before the 'payment_due_no_later_than_height' limit"
+        'note': "A valid payment was not received before the \"payment_due_no_later_than_height\" limit."
     } == result)
