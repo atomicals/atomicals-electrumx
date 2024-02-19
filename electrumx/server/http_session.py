@@ -1990,9 +1990,11 @@ class HttpHandler(object):
                         "atomical_id": location_id_bytes_to_compact(candidate_atomical_id),
                         "location_id": location_id_bytes_to_compact(location),
                         "payload": operation_found_at_inputs.get("payload"),
-                        "address": get_address_from_output_script(txout.pk_script),
-                        "pos": expected_output_index,
-                        "value": txout.value
+                        "outputs": [{
+                            "address": get_address_from_output_script(txout.pk_script),
+                            "index": expected_output_index,
+                            "value": txout.value
+                        }]
                     }
             else:
                 res["op"] = "invalid"
@@ -2010,9 +2012,11 @@ class HttpHandler(object):
                         "atomical_id": location_id_bytes_to_compact(candidate_atomical_id),
                         "location_id": location_id_bytes_to_compact(location),
                         "payload": operation_found_at_inputs.get("payload"),
-                        "address": get_address_from_output_script(txout.pk_script),
-                        "pos": expected_output_index,
-                        "value": txout.value
+                        "outputs": [{
+                            "address": get_address_from_output_script(txout.pk_script),
+                            "index": expected_output_index,
+                            "value": txout.value
+                        }]
                     }
             else:
                 res["op"] = "invalid"
@@ -2038,9 +2042,11 @@ class HttpHandler(object):
                     "atomical_id": location_id_bytes_to_compact(atomical_id),
                     "location_id": location_id_bytes_to_compact(location),
                     "payload": operation_found_at_inputs.get("payload"),
-                    "address": get_address_from_output_script(txout.pk_script),
-                    "pos": expected_output_index,
-                    "value": txout.value
+                    "outputs": [{
+                        "address": get_address_from_output_script(txout.pk_script),
+                        "index": expected_output_index,
+                        "value": txout.value
+                    }]
                 }
             elif not atomicals_receive_at_outputs:
                 res["op"] = "invalid"
