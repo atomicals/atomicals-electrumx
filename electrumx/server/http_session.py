@@ -1972,13 +1972,12 @@ class HttpHandler(object):
         #     print(f"{operation_found_at_inputs.get('op', None)}, txid: {txid}")
         #     print(operation_found_at_inputs)
 
-        res = {"op": "", "txid": txid, "height": height, "atomicals": {}, "transfers": {"inputs": {}, "outputs": {}}, "is_burned": is_burned, "burned_fts": burned_fts}
+        res = {"op": "", "txid": txid, "height": height, "info": {}, "transfers": {"inputs": {}, "outputs": {}, "is_burned": is_burned, "burned_fts": burned_fts}}
         if operation_found_at_inputs:
-            res["payload"] = operation_found_at_inputs.get("payload", {})
+            res["info"]["payload"] = operation_found_at_inputs.get("payload", {})
         if blueprint_builder.is_mint and operation_found_at_inputs["op"] == "dmt":
             expected_output_index = 0
             txout = tx.outputs[expected_output_index]
-            expected_output_index = 0
             location = tx_hash + util.pack_le_uint32(expected_output_index)
             # if save into the db, it means mint success
             has_atomicals = self.db.get_atomicals_by_location_long_form(location)
@@ -1987,17 +1986,13 @@ class HttpHandler(object):
                 ticker_name = operation_found_at_inputs.get("payload", {}).get("args", {}).get("mint_ticker", "")
                 status, candidate_atomical_id, _ = self.session_mgr.bp.get_effective_ticker(ticker_name, self.session_mgr.bp.height)
                 if status:
-                    compact_atomical_id = location_id_bytes_to_compact(candidate_atomical_id)
-                    outputs_address = [{
+                    res["info"] = {
+                        "atomical_id": location_id_bytes_to_compact(candidate_atomical_id),
+                        "location_id": location_id_bytes_to_compact(location),
+                        "payload": operation_found_at_inputs.get("payload"),
                         "address": get_address_from_output_script(txout.pk_script),
                         "pos": expected_output_index,
                         "value": txout.value
-                    }]
-                    res["atomicals"][compact_atomical_id] = {
-                        # "mint_info": operation_found_at_inputs.get("payload"),
-                        "total": txout.value,
-                        "inputs": [],
-                        "outputs": outputs_address,
                     }
             else:
                 res["op"] = "invalid"
@@ -2011,22 +2006,20 @@ class HttpHandler(object):
                 ticker_name = operation_found_at_inputs.get("payload", {}).get("args", {}).get("request_ticker", "")
                 status, candidate_atomical_id, _ = self.session_mgr.bp.get_effective_ticker(ticker_name, self.session_mgr.bp.height)
                 if status:
-                    compact_atomical_id = location_id_bytes_to_compact(candidate_atomical_id)
-                    expected_output_index = 0
-                    outputs_address = [{
+                    res["info"] = {
+                        "atomical_id": location_id_bytes_to_compact(candidate_atomical_id),
+                        "location_id": location_id_bytes_to_compact(location),
+                        "payload": operation_found_at_inputs.get("payload"),
                         "address": get_address_from_output_script(txout.pk_script),
                         "pos": expected_output_index,
                         "value": txout.value
-                    }]
-                    res["atomicals"][compact_atomical_id] = {
-                        "total": txout.value,
-                        "inputs": [],
-                        "outputs": outputs_address
                     }
             else:
                 res["op"] = "invalid"
         elif operation_found_at_inputs and operation_found_at_inputs["op"] == "nft":
             if atomicals_receive_at_outputs:
+                expected_output_index = 0
+                location = tx_hash + util.pack_le_uint32(expected_output_index)
                 mint_info = operation_found_at_inputs.get("payload", {}).get("args", {})
                 if mint_info.get('request_realm'):
                     res["op"] = "mint-nft-realm"
@@ -2041,37 +2034,18 @@ class HttpHandler(object):
                 expected_output_index = 0
                 txout = tx.outputs[expected_output_index]
                 atomical_id = atomicals_receive_at_outputs[expected_output_index][0]["atomical_id"]
-                compact_atomical_id = location_id_bytes_to_compact(atomical_id)
-                outputs_address = [{
+                res["info"] = {
+                    "atomical_id": location_id_bytes_to_compact(atomical_id),
+                    "location_id": location_id_bytes_to_compact(location),
+                    "payload": operation_found_at_inputs.get("payload"),
                     "address": get_address_from_output_script(txout.pk_script),
                     "pos": expected_output_index,
                     "value": txout.value
-                }]
-                res["atomicals"][compact_atomical_id] = {
-                    "total": txout.value,
-                    "inputs": [],
-                    "outputs": outputs_address
                 }
             elif not atomicals_receive_at_outputs:
                 res["op"] = "invalid"
         elif operation_found_at_inputs and operation_found_at_inputs["op"] == "dft":
             res["op"] = "dft"
-            expected_output_index = 0
-            txout = tx.outputs[expected_output_index]
-            ticker_name = operation_found_at_inputs.get("payload", {}).get("args", {}).get("request_ticker", "")
-            status, candidate_atomical_id, all_entries = self.session_mgr.bp.get_effective_ticker(ticker_name, self.session_mgr.bp.height)
-            if status:
-                compact_atomical_id = location_id_bytes_to_compact(candidate_atomical_id)
-                outputs_address = [{
-                    "address": get_address_from_output_script(txout.pk_script),
-                    "pos": expected_output_index,
-                    "value": txout.value
-                }]
-                res["atomicals"][compact_atomical_id] = {
-                    "total": txout.value,
-                    "inputs": [],
-                    "outputs": outputs_address
-                }
         elif operation_found_at_inputs and operation_found_at_inputs["op"] == "sl":
             res["op"] = "seal"
         elif operation_found_at_inputs and operation_found_at_inputs["op"] == "x":

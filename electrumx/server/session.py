@@ -1037,7 +1037,8 @@ class SessionManager:
                 del cache[hashX]
             for hashX in set(op_cache).intersection(touched):
                 del op_cache[hashX]
-                await run_in_thread(self.get_history_op(hashX))
+                background_task = asyncio.create_task(self.get_history_op(hashX))
+                await background_task
 
         for session in self.sessions:
             if self._task_group.joined:  # this can happen during shutdown
