@@ -952,14 +952,16 @@ class BlockProcessor:
     # Function to cache and eventually flush the op
     def put_op_data(self, tx_num, tx_hash, op):
         op_list = {
-            "mint-dft": 1, "mint-ft": 2, "mint-nft": 3, "transfer": 4,
-            "dft": 5, "dat": 6, "split": 7, "splat": 8,
-            "seal": 9, "evt": 10, "mod": 11, "invalid": 20
+            "mint-dft": 1, "mint-ft": 2, "mint-nft": 3, "mint-nft-realm": 4,
+            "mint-nft-subrealm": 5, "mint-nft-container": 7, "mint-nft-item": 8,
+            "dft": 20, "dat": 21, "split": 22, "splat": 23,
+            "seal": 24, "evt": 25, "mod": 26,
+            "transfer": 30, "invalid": 31
         }
         op_num = op_list.get(op)
         if op_num:
             op_prefix_key = b'op' + pack_le_uint64(tx_num)
-            self.logger.info(f'add the {op} op transaction detail for {hash_to_hex_str(tx_hash)}')
+            self.logger.debug(f'add the {op} op transaction detail for {hash_to_hex_str(tx_hash)}')
             self.op_data_cache[op_prefix_key] = pack_le_uint32(op_num)
 
     # Function to put the container, realm, and ticker names to the db.
@@ -1464,8 +1466,17 @@ class BlockProcessor:
                     self.logger.info(f'create_or_delete_atomical: validate_and_create_nft_mint_utxo returned FALSE in Transaction {hash_to_hex_str(tx_hash)}. Skipping...') 
                     return None
                 else:
-                    self.logger.debug(f'dmint: {hash_to_hex_str(tx_hash)}')
-                    self.put_op_data(tx_num, tx_hash, "mint-nft")
+                    self.logger.info(f'mint: {hash_to_hex_str(tx_hash)}')
+                    if mint_info.get('$request_realm'):
+                        self.put_op_data(tx_num, tx_hash, "mint-nft-realm")
+                    elif mint_info.get('$request_subrealm'):
+                        self.put_op_data(tx_num, tx_hash, "mint-nft-subrealm")
+                    elif mint_info.get('$request_container'):
+                        self.put_op_data(tx_num, tx_hash, "mint-nft-container")
+                    elif mint_info.get('$request_dmitem'):
+                        self.put_op_data(tx_num, tx_hash, "mint-nft-dmitem")
+                    else:
+                        self.put_op_data(tx_num, tx_hash, "mint-nft")
 
         elif valid_create_op_type == 'FT':
             # Add $max_supply informative property

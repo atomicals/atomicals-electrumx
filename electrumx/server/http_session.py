@@ -112,9 +112,11 @@ class HttpHandler(object):
         self.MAX_CHUNK_SIZE = 2016
         self.hashX_subs = {}        
         self.op_list = {
-            "mint-dft": 1, "mint-ft": 2, "mint-nft": 3, "transfer": 4,
-            "dft": 5, "dat": 6, "split": 7, "splat": 8,
-            "seal": 9, "evt": 10, "mod": 11, "invalid": 20
+            "mint-dft": 1, "mint-ft": 2, "mint-nft": 3, "mint-nft-realm": 4,
+            "mint-nft-subrealm": 5, "mint-nft-container": 7, "mint-nft-item": 8,
+            "dft": 20, "dat": 21, "split": 22, "splat": 23,
+            "seal": 24, "evt": 25, "mod": 26,
+            "transfer": 30, "invalid": 31
         }
 
     async def format_params(self, request):
@@ -1970,7 +1972,7 @@ class HttpHandler(object):
         #     print(f"{operation_found_at_inputs.get('op', None)}, txid: {txid}")
         #     print(operation_found_at_inputs)
 
-        res = {"op": "", "txid": txid, "height": height, "atomicals": {}, "is_burned": is_burned, "burned_fts": burned_fts}
+        res = {"op": "", "txid": txid, "height": height, "atomicals": {}, "transfers": {"inputs": {}, "outputs": {}}, "is_burned": is_burned, "burned_fts": burned_fts}
         if operation_found_at_inputs:
             res["payload"] = operation_found_at_inputs.get("payload", {})
         if blueprint_builder.is_mint and operation_found_at_inputs["op"] == "dmt":
@@ -1982,23 +1984,23 @@ class HttpHandler(object):
             has_atomicals = self.db.get_atomicals_by_location_long_form(location)
             if len(has_atomicals):
                 res["op"] = "mint-dft"
+                ticker_name = operation_found_at_inputs.get("payload", {}).get("args", {}).get("mint_ticker", "")
+                status, candidate_atomical_id, _ = self.session_mgr.bp.get_effective_ticker(ticker_name, self.session_mgr.bp.height)
+                if status:
+                    compact_atomical_id = location_id_bytes_to_compact(candidate_atomical_id)
+                    outputs_address = [{
+                        "address": get_address_from_output_script(txout.pk_script),
+                        "pos": expected_output_index,
+                        "value": txout.value
+                    }]
+                    res["atomicals"][compact_atomical_id] = {
+                        # "mint_info": operation_found_at_inputs.get("payload"),
+                        "total": txout.value,
+                        "inputs": [],
+                        "outputs": outputs_address,
+                    }
             else:
                 res["op"] = "invalid"
-            ticker_name = operation_found_at_inputs.get("payload", {}).get("args", {}).get("mint_ticker", "")
-            status, candidate_atomical_id, _ = self.session_mgr.bp.get_effective_ticker(ticker_name, self.session_mgr.bp.height)
-            if status:
-                compact_atomical_id = location_id_bytes_to_compact(candidate_atomical_id)
-                outputs_address = [{
-                    "address": get_address_from_output_script(txout.pk_script),
-                    "pos": expected_output_index,
-                    "value": txout.value
-                }]
-                res["atomicals"][compact_atomical_id] = {
-                    "mint_info": operation_found_at_inputs.get("payload"),
-                    "total": txout.value,
-                    "inputs": [],
-                    "outputs": outputs_address,
-                }
         elif operation_found_at_inputs and operation_found_at_inputs["op"] == "ft":
             expected_output_index = 0
             txout = tx.outputs[expected_output_index]
@@ -2006,27 +2008,36 @@ class HttpHandler(object):
             has_atomicals = self.db.get_atomicals_by_location_long_form(location)
             if len(has_atomicals):
                 res["op"] = "mint-ft"
+                ticker_name = operation_found_at_inputs.get("payload", {}).get("args", {}).get("request_ticker", "")
+                status, candidate_atomical_id, _ = self.session_mgr.bp.get_effective_ticker(ticker_name, self.session_mgr.bp.height)
+                if status:
+                    compact_atomical_id = location_id_bytes_to_compact(candidate_atomical_id)
+                    expected_output_index = 0
+                    outputs_address = [{
+                        "address": get_address_from_output_script(txout.pk_script),
+                        "pos": expected_output_index,
+                        "value": txout.value
+                    }]
+                    res["atomicals"][compact_atomical_id] = {
+                        "total": txout.value,
+                        "inputs": [],
+                        "outputs": outputs_address
+                    }
             else:
                 res["op"] = "invalid"
-            ticker_name = operation_found_at_inputs.get("payload", {}).get("args", {}).get("request_ticker", "")
-            status, candidate_atomical_id, _ = self.session_mgr.bp.get_effective_ticker(ticker_name, self.session_mgr.bp.height)
-            if status:
-                compact_atomical_id = location_id_bytes_to_compact(candidate_atomical_id)
-                expected_output_index = 0
-                outputs_address = [{
-                    "address": get_address_from_output_script(txout.pk_script),
-                    "pos": expected_output_index,
-                    "value": txout.value
-                }]
-                res["atomicals"][compact_atomical_id] = {
-                    "mint_info": operation_found_at_inputs.get("payload"),
-                    "total": txout.value,
-                    "inputs": [],
-                    "outputs": outputs_address
-                }
         elif operation_found_at_inputs and operation_found_at_inputs["op"] == "nft":
             if atomicals_receive_at_outputs:
-                res["op"] = "mint-nft"
+                mint_info = operation_found_at_inputs.get("payload", {}).get("args", {})
+                if mint_info.get('request_realm'):
+                    res["op"] = "mint-nft-realm"
+                elif mint_info.get('request_subrealm'):
+                    res["op"] = "mint-nft-subrealm"
+                elif mint_info.get('request_container'):
+                    res["op"] = "mint-nft-container"
+                elif mint_info.get('request_dmitem'):
+                    res["op"] = "mint-nft-dmitem"
+                else:
+                    res["op"] = "mint-nft"
                 expected_output_index = 0
                 txout = tx.outputs[expected_output_index]
                 atomical_id = atomicals_receive_at_outputs[expected_output_index][0]["atomical_id"]
@@ -2037,28 +2048,12 @@ class HttpHandler(object):
                     "value": txout.value
                 }]
                 res["atomicals"][compact_atomical_id] = {
-                    "mint_info": operation_found_at_inputs.get("payload"),
                     "total": txout.value,
                     "inputs": [],
                     "outputs": outputs_address
                 }
             elif not atomicals_receive_at_outputs:
-                # invalid
                 res["op"] = "invalid"
-                compact_atomical_id = txid + "i0"
-                expected_output_index = 0
-                txout = tx.outputs[expected_output_index]
-                outputs_address = [{
-                    "address": get_address_from_output_script(txout.pk_script),
-                    "pos": expected_output_index,
-                    "value": txout.value
-                }]
-                res["atomicals"][compact_atomical_id] = {
-                    "mint_info": operation_found_at_inputs["payload"]["args"],
-                    "total": txout.value,
-                    "inputs": [],
-                    "outputs": outputs_address
-                }
         elif operation_found_at_inputs and operation_found_at_inputs["op"] == "dft":
             res["op"] = "dft"
             expected_output_index = 0
@@ -2066,7 +2061,6 @@ class HttpHandler(object):
             ticker_name = operation_found_at_inputs.get("payload", {}).get("args", {}).get("request_ticker", "")
             status, candidate_atomical_id, all_entries = self.session_mgr.bp.get_effective_ticker(ticker_name, self.session_mgr.bp.height)
             if status:
-                # verify need to check?
                 compact_atomical_id = location_id_bytes_to_compact(candidate_atomical_id)
                 outputs_address = [{
                     "address": get_address_from_output_script(txout.pk_script),
@@ -2074,7 +2068,6 @@ class HttpHandler(object):
                     "value": txout.value
                 }]
                 res["atomicals"][compact_atomical_id] = {
-                    "mint_info": operation_found_at_inputs["payload"]["args"],
                     "total": txout.value,
                     "inputs": [],
                     "outputs": outputs_address
@@ -2097,8 +2090,6 @@ class HttpHandler(object):
                 res["op"] = "transfer"
             for atomical_id, input_ft in blueprint_builder.ft_atomicals.items():
                 compact_atomical_id = location_id_bytes_to_compact(atomical_id)
-                inputs_address = []
-                outputs_address = []
                 for i in input_ft.input_indexes:
                     prev_txid = hash_to_hex_str(tx.inputs[i.txin_index].prev_hash)
                     prev_raw_tx = self.db.get_raw_tx_by_tx_hash(hex_str_to_hash(prev_txid))
@@ -2107,33 +2098,26 @@ class HttpHandler(object):
                         self.session_mgr.bp.general_data_cache[b'rtx' + hex_str_to_hash(prev_txid)] = raw_tx
                         prev_raw_tx = bytes.fromhex(prev_raw_tx)
                     prev_tx, _ = self.coin.DESERIALIZER(prev_raw_tx, 0).read_tx_and_hash()
-                    inputs_address.append({
+                    res["transfers"]["inputs"][i.txin_index] = {
                         "address": get_address_from_output_script(prev_tx.outputs[tx.inputs[i.txin_index].prev_idx].pk_script),
-                        "pos": 0,
+                        "atomical_id": compact_atomical_id,
+                        "type": "FT",
                         "value": prev_tx.outputs[tx.inputs[i.txin_index].prev_idx].value
-                    })
-                for k, v in blueprint_builder.ft_output_blueprint.outputs.items():
-                    value = v['atomicals'].get(atomical_id, None)
-                    if value:
-                        outputs_address.append({
-                            "address": get_address_from_output_script(tx.outputs[k].pk_script),
-                            "pos": k,
-                            "value": value.satvalue
-                        })
-                atomical_data = {
-                    "mint_info": input_ft.mint_info["args"],
-                    "total": input_ft.total_satsvalue,
-                    "inputs": inputs_address,
-                    "outputs": outputs_address
-                }
-                res["atomicals"][compact_atomical_id] = atomical_data
-        elif blueprint_builder.nft_atomicals and atomicals_spent_at_inputs:
+                    }
+            for k, v in blueprint_builder.ft_output_blueprint.outputs.items():
+                for atomical_id, output_ft in v['atomicals'].items():
+                    compact_atomical_id = location_id_bytes_to_compact(atomical_id)
+                    res["transfers"]["outputs"][k] = {
+                        "address": get_address_from_output_script(tx.outputs[k].pk_script),
+                        "atomical_id": compact_atomical_id,
+                        "type": "FT",
+                        "value": output_ft.satvalue
+                    }
+        if blueprint_builder.nft_atomicals and atomicals_spent_at_inputs:
             if not operation_found_at_inputs:
                 res["op"] = "transfer"
             for atomical_id, input_nft in blueprint_builder.nft_atomicals.items():
                 compact_atomical_id = location_id_bytes_to_compact(atomical_id)
-                inputs_address = []
-                outputs_address = []
                 for i in input_nft.input_indexes:
                     prev_txid = hash_to_hex_str(tx.inputs[i.txin_index].prev_hash)
                     prev_raw_tx = self.db.get_raw_tx_by_tx_hash(hex_str_to_hash(prev_txid))
@@ -2142,27 +2126,21 @@ class HttpHandler(object):
                         self.session_mgr.bp.general_data_cache[b'rtx' + hex_str_to_hash(prev_txid)] = raw_tx
                         prev_raw_tx = bytes.fromhex(prev_raw_tx)
                     prev_tx, _ = self.coin.DESERIALIZER(prev_raw_tx, 0).read_tx_and_hash()
-                    inputs_address.append({
+                    res["transfers"]["inputs"][i.txin_index] = {
                         "address": get_address_from_output_script(prev_tx.outputs[tx.inputs[i.txin_index].prev_idx].pk_script),
-                        "pos": i.txin_index,
+                        "atomical_id": compact_atomical_id,
+                        "type": "NFT",
                         "value": prev_tx.outputs[tx.inputs[i.txin_index].prev_idx].value
-                    })
-                for k, v in blueprint_builder.nft_output_blueprint.outputs.items():
-                    value = v['atomicals'].get(atomical_id, None)
-                    if value:
-                        outputs_address.append({
-                            "address": get_address_from_output_script(tx.outputs[k].pk_script),
-                            "pos": k,
-                            "value": value.total_satsvalue
-                        })
-                atomical_data = {
-                    "mint_info": input_nft.mint_info["args"],
-                    "total": input_nft.total_satsvalue,
-                    "inputs": inputs_address,
-                    "outputs": outputs_address
-                }
-                res["atomicals"][compact_atomical_id] = atomical_data
-
+                    }
+            for k, v in blueprint_builder.nft_output_blueprint.outputs.items():
+                for atomical_id, output_nft in v['atomicals'].items():
+                    compact_atomical_id = location_id_bytes_to_compact(atomical_id)
+                    res["transfers"]["outputs"][k] = {
+                        "address": get_address_from_output_script(tx.outputs[k].pk_script),
+                        "atomical_id": compact_atomical_id,
+                        "type": output_nft.type,
+                        "value": output_nft.total_satsvalue
+                    }
         if res.get("op"):
             self.session_mgr._tx_detail_cache[tx_hash] = res
         return res
@@ -2175,7 +2153,6 @@ class HttpHandler(object):
     async def get_transaction_detail_by_height(self, height, limit, offset, op_type):
         res = []
         txs_list = []
-
         txs = self.db.get_atomicals_block_txs(height)
         for tx in txs:
             # get operation by db method
