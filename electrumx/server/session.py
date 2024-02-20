@@ -1001,29 +1001,32 @@ class SessionManager:
             raise result
         return result, cost
     
-    async def get_history_op(self, hashX):
+    async def get_history_op(self, hashX, limit=50000, offset=0, op=None, reverse=True):
         count = 50000
-        chunks = util.chunks
         try:
-            return self._history_op_cache[hashX]
+            history_data = self._history_op_cache[hashX]
         except KeyError:
             history_data = []
             txnum_padding = bytes(8-TXNUM_LEN)
             for _key, hist in self.db.history.db.iterator(prefix=hashX):
-                for tx_numb in chunks(hist, TXNUM_LEN):
+                for tx_numb in util.chunks(hist, TXNUM_LEN):
                     tx_num, = util.unpack_le_uint64(tx_numb + txnum_padding)
                     count -= 1
                     op_prefix_key = b'op' + util.pack_le_uint64(tx_num)
                     tx_op = self.db.utxo_db.get(op_prefix_key)
                     if tx_op:
                         op, = util.unpack_le_uint32(tx_op)
-                        history_data.append({"tx_num": tx_num, "op": op}) 
+                        history_data.append({"tx_num": tx_num, "op": op})
                 if count == 0:
                     break
-        # cache sort by tx_num
-        history_data.sort(key=lambda x: x['tx_num'], reverse=True)
-        self._history_op_cache[hashX] = history_data
-        return history_data
+            # cache sort by tx_num
+            history_data.sort(key=lambda x: x['tx_num'], reverse=True)
+            self._history_op_cache[hashX] = history_data
+
+        history_data.sort(key=lambda x: x['tx_num'], reverse=reverse)
+        if op:
+            history_data = list(filter(lambda x: x["op"] == op, history_data))
+        return history_data[offset:limit+offset], len(history_data)
 
     async def _notify_sessions(self, height, touched):
         '''Notify sessions about height changes and touched addresses.'''
@@ -1037,7 +1040,7 @@ class SessionManager:
                 del cache[hashX]
             for hashX in set(op_cache).intersection(touched):
                 del op_cache[hashX]
-                background_task = asyncio.create_task(self.get_history_op(hashX))
+                background_task = asyncio.create_task(self.get_history_op(hashX, 50000, 0, None, True))
                 await background_task
 
         for session in self.sessions:
