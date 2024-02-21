@@ -187,6 +187,7 @@ class SessionManager:
         self._history_lookups = 0
         self._history_hits = 0
         self._history_op_cache = pylru.lrucache(1000)
+        self._tx_num_op_cache = pylru.lrucache(10000000)
         self._tx_hashes_cache = pylru.lrucache(1000)
         self._tx_hashes_lookups = 0
         self._tx_hashes_hits = 0
@@ -1001,29 +1002,24 @@ class SessionManager:
             raise result
         return result, cost
     
-    async def get_history_op(self, hashX, limit=50000, offset=0, op=None, reverse=True):
-        count = 50000
-        try:
-            history_data = self._history_op_cache[hashX]
-        except KeyError:
-            history_data = []
+    async def get_history_op(self, hashX, limit=10, offset=0, op=None, reverse=True):
+        history_data = self._history_op_cache.get(hashX, [])
+        if not history_data:
             txnum_padding = bytes(8-TXNUM_LEN)
-            for _key, hist in self.db.history.db.iterator(prefix=hashX):
+            for _key, hist in self.db.history.db.iterator(prefix=hashX, reverse=reverse):
                 for tx_numb in util.chunks(hist, TXNUM_LEN):
                     tx_num, = util.unpack_le_uint64(tx_numb + txnum_padding)
-                    count -= 1
-                    op_prefix_key = b'op' + util.pack_le_uint64(tx_num)
-                    tx_op = self.db.utxo_db.get(op_prefix_key)
-                    if tx_op:
-                        op, = util.unpack_le_uint32(tx_op)
-                        history_data.append({"tx_num": tx_num, "op": op})
-                if count == 0:
-                    break
-            # cache sort by tx_num
-            history_data.sort(key=lambda x: x['tx_num'], reverse=True)
+                    op = self._tx_num_op_cache.get(tx_num)
+                    if not op:
+                        op_prefix_key = b'op' + util.pack_le_uint64(tx_num)
+                        tx_op = self.db.utxo_db.get(op_prefix_key)
+                        if tx_op:
+                            op_data, = util.unpack_le_uint32(tx_op)
+                            self._tx_num_op_cache[tx_num] = op_data
+                    history_data.append({"tx_num": tx_num, "op": op_data})
             self._history_op_cache[hashX] = history_data
-
-        history_data.sort(key=lambda x: x['tx_num'], reverse=reverse)
+        if reverse:
+            history_data.sort(key=lambda x: x['tx_num'], reverse=reverse)
         if op:
             history_data = list(filter(lambda x: x["op"] == op, history_data))
         return history_data[offset:limit+offset], len(history_data)
@@ -1040,7 +1036,7 @@ class SessionManager:
                 del cache[hashX]
             for hashX in set(op_cache).intersection(touched):
                 del op_cache[hashX]
-                background_task = asyncio.create_task(self.get_history_op(hashX, 50000, 0, None, True))
+                background_task = asyncio.create_task(self.get_history_op(hashX, 10, 0, None, False))
                 await background_task
 
         for session in self.sessions:

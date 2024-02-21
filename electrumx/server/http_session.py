@@ -2182,7 +2182,6 @@ class HttpHandler(object):
             history_data, total = await self.session_mgr.get_history_op(hashX, limit, offset, op, reverse)
         else:
             history_data, total = await self.session_mgr.get_history_op(hashX, limit, offset, None, reverse)
-    
         for history in history_data:
             tx_hash, tx_height = self.db.fs_tx_hash(history["tx_num"])
             data = await self.get_transaction_detail(hash_to_hex_str(tx_hash), tx_height, history["tx_num"])
