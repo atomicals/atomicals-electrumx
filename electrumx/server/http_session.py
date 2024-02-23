@@ -111,12 +111,15 @@ class HttpHandler(object):
         self.sv_seen = False
         self.MAX_CHUNK_SIZE = 2016
         self.hashX_subs = {}        
-        self.op_list = {
+        op_list = {
             "mint-dft": 1, "mint-ft": 2, "mint-nft": 3, "mint-nft-realm": 4,
-            "mint-nft-subrealm": 5, "mint-nft-container": 7, "mint-nft-item": 8,
+            "mint-nft-subrealm": 5, "mint-nft-container": 6, "mint-nft-item": 7,
             "dft": 20, "dat": 21, "split": 22, "splat": 23,
             "seal": 24, "evt": 25, "mod": 26,
-            "transfer": 30, "invalid": 31
+            "transfer": 30, "invalid-mint": 31,
+            "payment-subrealm": 40, "payment-dmitem": 41,
+            "mint-dft-failed": 51, "mint-ft-failed": 52, "mint-nft-failed": 53, "mint-nft-realm-failed": 54,
+            "mint-nft-subrealm-failed": 55, "mint-nft-container-failed": 56, "mint-nft-item-failed": 57,
         }
 
     async def format_params(self, request):
@@ -1976,16 +1979,16 @@ class HttpHandler(object):
         if operation_found_at_inputs:
             res["info"]["payload"] = operation_found_at_inputs.get("payload", {})
         if blueprint_builder.is_mint and operation_found_at_inputs["op"] in ["dmt", "ft"]:
+            if operation_found_at_inputs["op"] == "dmt":
+                res["op"] = "mint-dft"
+            if operation_found_at_inputs["op"] == "ft":
+                res["op"] = "mint-ft"
             expected_output_index = 0
             txout = tx.outputs[expected_output_index]
             location = tx_hash + util.pack_le_uint32(expected_output_index)
             # if save into the db, it means mint success
             has_atomicals = self.db.get_atomicals_by_location_long_form(location)
             if len(has_atomicals):
-                if operation_found_at_inputs["op"] == "dmt":
-                    res["op"] = "mint-dft"
-                if operation_found_at_inputs["op"] == "ft":
-                    res["op"] = "mint-ft"
                 ticker_name = operation_found_at_inputs.get("payload", {}).get("args", {}).get("mint_ticker", "")
                 status, candidate_atomical_id, _ = self.session_mgr.bp.get_effective_ticker(ticker_name, self.session_mgr.bp.height)
                 if status:
@@ -2005,23 +2008,22 @@ class HttpHandler(object):
                         }
                     }
             else:
-                res["op"] = "invalid"
+                res["op"] = f"{res['op']}-failed"
         elif operation_found_at_inputs and operation_found_at_inputs["op"] == "nft":
+            mint_info = operation_found_at_inputs.get("payload", {}).get("args", {})
+            if mint_info.get('request_realm'):
+                res["op"] = "mint-nft-realm"
+            elif mint_info.get('request_subrealm'):
+                res["op"] = "mint-nft-subrealm"
+            elif mint_info.get('request_container'):
+                res["op"] = "mint-nft-container"
+            elif mint_info.get('request_dmitem'):
+                res["op"] = "mint-nft-dmitem"
+            else:
+                res["op"] = "mint-nft"
             if atomicals_receive_at_outputs:
                 expected_output_index = 0
                 location = tx_hash + util.pack_le_uint32(expected_output_index)
-                mint_info = operation_found_at_inputs.get("payload", {}).get("args", {})
-                if mint_info.get('request_realm'):
-                    res["op"] = "mint-nft-realm"
-                elif mint_info.get('request_subrealm'):
-                    res["op"] = "mint-nft-subrealm"
-                elif mint_info.get('request_container'):
-                    res["op"] = "mint-nft-container"
-                elif mint_info.get('request_dmitem'):
-                    res["op"] = "mint-nft-dmitem"
-                else:
-                    res["op"] = "mint-nft"
-                expected_output_index = 0
                 txout = tx.outputs[expected_output_index]
                 atomical_id = location_id_bytes_to_compact(atomicals_receive_at_outputs[expected_output_index][0]["atomical_id"])
                 res["info"] = {
@@ -2039,7 +2041,7 @@ class HttpHandler(object):
                     }
                 }
             else:
-                res["op"] = "invalid"
+                res["op"] = f"{res['op']}-failed"
         elif operation_found_at_inputs and operation_found_at_inputs["op"] == "dft":
             res["op"] = "dft"
         elif operation_found_at_inputs and operation_found_at_inputs["op"] == "sl":
@@ -2115,6 +2117,18 @@ class HttpHandler(object):
                         "index": k,
                         "value": output_nft.total_satsvalue
                     }
+
+        atomical_id_for_payment, payment_marker_idx, entity_type = AtomicalsTransferBlueprintBuilder.get_atomical_id_for_payment_marker_if_found(tx)
+        if atomical_id_for_payment:
+            res["info"]["payment"] = {
+                "atomical_id": location_id_bytes_to_compact(atomical_id_for_payment),
+                "payment_marker_idx": payment_marker_idx
+            }
+            if entity_type == 'subrealm':
+                res["op"] = "payment-subrealm"
+            if entity_type == 'dmitem':
+                res["op"] = "payment-dmitem"
+
         if res.get("op"):
             self.session_mgr._tx_detail_cache[tx_hash] = res
         return res

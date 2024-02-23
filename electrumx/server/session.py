@@ -1005,12 +1005,13 @@ class SessionManager:
     async def get_history_op(self, hashX, limit=10, offset=0, op=None, reverse=True):
         history_data = self._history_op_cache.get(hashX, [])
         if not history_data:
+            history_data = []
             txnum_padding = bytes(8-TXNUM_LEN)
             for _key, hist in self.db.history.db.iterator(prefix=hashX, reverse=reverse):
                 for tx_numb in util.chunks(hist, TXNUM_LEN):
                     tx_num, = util.unpack_le_uint64(tx_numb + txnum_padding)
-                    op = self._tx_num_op_cache.get(tx_num)
-                    if not op:
+                    op_data = self._tx_num_op_cache.get(tx_num)
+                    if not op_data:
                         op_prefix_key = b'op' + util.pack_le_uint64(tx_num)
                         tx_op = self.db.utxo_db.get(op_prefix_key)
                         if tx_op:

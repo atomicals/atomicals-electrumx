@@ -953,10 +953,13 @@ class BlockProcessor:
     def put_op_data(self, tx_num, tx_hash, op):
         op_list = {
             "mint-dft": 1, "mint-ft": 2, "mint-nft": 3, "mint-nft-realm": 4,
-            "mint-nft-subrealm": 5, "mint-nft-container": 7, "mint-nft-item": 8,
+            "mint-nft-subrealm": 5, "mint-nft-container": 6, "mint-nft-item": 7,
             "dft": 20, "dat": 21, "split": 22, "splat": 23,
             "seal": 24, "evt": 25, "mod": 26,
-            "transfer": 30, "invalid": 31
+            "transfer": 30, "invalid-mint": 31,
+            "payment-subrealm": 40, "payment-dmitem": 41,
+            "mint-dft-failed": 51, "mint-ft-failed": 52, "mint-nft-failed": 53, "mint-nft-realm-failed": 54,
+            "mint-nft-subrealm-failed": 55, "mint-nft-container-failed": 56, "mint-nft-item-failed": 57,
         }
         op_num = op_list.get(op)
         if op_num:
@@ -2927,13 +2930,19 @@ class BlockProcessor:
                 # in one and the same tx as making a payment. It's not advisable to do so, but it's a valid possibility
 
                 # Check if there were any payments for subrealms in tx
-                if self.create_or_delete_subname_payment_output_if_valid(tx_hash, tx, tx_num, height, atomicals_operations_found_at_inputs, atomicals_spent_at_inputs,  b'spay', self.subrealmpay_data_cache, self.get_expected_subrealm_payment_info, False):
-                    self.logger.debug(f'advance_txs: found valid subrealm payment create_or_delete_subname_payment_output_if_valid {hash_to_hex_str(tx_hash)}')
+                payment_tx_hash = self.create_or_delete_subname_payment_output_if_valid(tx_hash, tx, tx_num, height, atomicals_operations_found_at_inputs, atomicals_spent_at_inputs,  b'spay', self.subrealmpay_data_cache, self.get_expected_subrealm_payment_info, False)
+                if payment_tx_hash:
+                    self.logger.info(f'advance_txs: found valid subrealm payment create_or_delete_subname_payment_output_if_valid {hash_to_hex_str(tx_hash)}')
+                    append_hashX(double_sha256(payment_tx_hash))
+                    self.put_op_data(tx_num, tx_hash, "payment-subrealm")
                     has_at_least_one_valid_atomicals_operation = True
 
                 # Check if there were any payments for dmitems in tx
-                if self.create_or_delete_subname_payment_output_if_valid(tx_hash, tx, tx_num, height, atomicals_operations_found_at_inputs, atomicals_spent_at_inputs,  b'dmpay', self.dmpay_data_cache, self.get_expected_dmitem_payment_info, False):
-                    self.logger.debug(f'advance_txs: found valid dmitem payment create_or_delete_subname_payment_output_if_valid {hash_to_hex_str(tx_hash)}')
+                payment_tx_hash = self.create_or_delete_subname_payment_output_if_valid(tx_hash, tx, tx_num, height, atomicals_operations_found_at_inputs, atomicals_spent_at_inputs,  b'dmpay', self.dmpay_data_cache, self.get_expected_dmitem_payment_info, False)
+                if payment_tx_hash:
+                    self.logger.info(f'advance_txs: found valid dmitem payment create_or_delete_subname_payment_output_if_valid {hash_to_hex_str(tx_hash)}')
+                    append_hashX(double_sha256(payment_tx_hash))
+                    self.put_op_data(tx_num, tx_hash, "payment-dmitem")
                     has_at_least_one_valid_atomicals_operation = True
  
                 # Create a proof of work record if there was valid proof of work attached
