@@ -111,7 +111,7 @@ class HttpHandler(object):
         self.sv_seen = False
         self.MAX_CHUNK_SIZE = 2016
         self.hashX_subs = {}        
-        op_list = {
+        self.op_list = {
             "mint-dft": 1, "mint-ft": 2, "mint-nft": 3, "mint-nft-realm": 4,
             "mint-nft-subrealm": 5, "mint-nft-container": 6, "mint-nft-item": 7,
             "dft": 20, "dat": 21, "split": 22, "splat": 23,
