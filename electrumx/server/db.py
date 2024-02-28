@@ -25,7 +25,7 @@ from electrumx.lib.hash import hash_to_hex_str, HASHX_LEN, double_sha256
 from electrumx.lib.merkle import Merkle, MerkleCache
 from electrumx.lib.util import (
     formatted_time, pack_be_uint16, pack_be_uint32, pack_le_uint64, pack_be_uint64, pack_le_uint32,
-    unpack_le_uint32, unpack_be_uint32, unpack_le_uint64, unpack_be_uint64, unpack_le_uint16_from
+    unpack_le_uint32, unpack_be_uint32, unpack_le_uint64, unpack_be_uint64, unpack_le_uint16_from, unpack_le_uint32_from
 )
 from electrumx.lib.util_atomicals import auto_encode_bytes_elements, pad_bytes64, get_tx_hash_index_from_location_id, location_id_bytes_to_compact, calculate_latest_state_from_mod_history
 from electrumx.server.storage import db_class, Storage
@@ -1653,8 +1653,8 @@ class DB:
                 continue
             if current_counter > offset + limit:
                 break
-
-            name_len, = unpack_le_uint16_from(db_key[-10:-8])
+            # Use 4 bytes because of store name len as 4 bytes
+            name_len, = unpack_le_uint32_from(db_key[-10:-6])
             dmitem_name = db_key[len(db_prefix)]
             if entries_deduped.get(dmitem_name):
                 continue 
@@ -1711,7 +1711,8 @@ class DB:
                 continue 
             tx_numb = db_key[-8:]
             tx_num, = unpack_le_uint64(tx_numb)
-            name_len, = unpack_le_uint16_from(db_key[-10:-8])
+            # Use 4 bytes because of store name len as 4 bytes
+            name_len, = unpack_le_uint32_from(db_key[-10:-6])
             db_key_prefix_len = len(db_key_prefix)
             entries.append({
                 'name': db_key[db_key_prefix_len : db_key_prefix_len + name_len].decode(), # Extract the name portion
