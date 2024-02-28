@@ -8,3 +8,4 @@ websockets
 regex
 krock32
 merkletools
+requests==2.31.0

@@ -1,3 +1,4 @@
+requests==2.31.0
 pycodestyle
 pytest-asyncio
 pytest-cov
@@ -18,4 +19,4 @@ x16rv2_hash
 git+https://github.com/VerusCoin/verushashpy
 bell-yespower
 cpupower
-xbitweb_yespower==1.0.5
+bitweb_yespower==1.0.5

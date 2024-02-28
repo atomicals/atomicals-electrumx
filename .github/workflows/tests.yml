@@ -1,0 +1,34 @@
+name: 'Run tests'
+
+on:
+  push:
+    branches:
+      - '**'
+  pull_request:
+    branches:
+      - 'master'
+    paths-ignore:
+      - '**/*.md'
+      - '**/*.rst'
+
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Set up Python
+        uses: actions/setup-python@v4
+        with:
+          python-version: '3.10'
+          cache: 'pip'
+      - name: Install dependencies
+        run: |
+          sudo apt-get update
+          sudo apt-get install -yq libsnappy-dev zlib1g-dev libbz2-dev libgflags-dev liblz4-dev librocksdb-dev libleveldb-dev libboost-all-dev libsodium-dev
+          python -m pip install --upgrade pip setuptools wheel requests
+          pip install -r requirements.txt
+          pip install -r requirements-test.txt
+      - name: Run tests
+        run: |
+          pip install pytest
+          pytest --cov=electrumx
