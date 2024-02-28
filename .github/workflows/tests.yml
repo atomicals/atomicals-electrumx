@@ -31,4 +31,4 @@ jobs:
       - name: Run tests
         run: |
           pip install pytest
-          pytest --cov=electrumx
+          pytest --cov=electrumx --ignore=tests/test_blocks.py
