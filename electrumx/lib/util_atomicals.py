@@ -1530,7 +1530,7 @@ def get_name_request_candidate_status(atomical_info, status, candidate_id, name_
     if not is_within_acceptable_blocks_for_name_reveal(mint_info['commit_height'], mint_info['reveal_location_height']):
         return {
             'status': 'expired_revealed_late',
-            'note': 'The maximum number of blocks between commit and reveal is ' + MAX_BLOCKS_STR + ' blocks'
+            'note': f'The maximum number of blocks between commit and reveal is {MAX_BLOCKS_STR} blocks.'
         }
     candidate_id_compact = None
     if candidate_id:
@@ -1543,14 +1543,15 @@ def get_name_request_candidate_status(atomical_info, status, candidate_id, name_
             return {
                 'status': 'verified',
                 'verified_atomical_id': candidate_id_compact,
-                'note': f'Successfully verified and claimed {name_type} for current Atomical'
+                'note': f'Successfully verified and claimed {name_type} for current Atomical.'
             }
         else:
             # The verified candidate is another one
             return {
                 'status': 'claimed_by_other',
                 'claimed_by_atomical_id': candidate_id_compact,
-                'note': f'Failed to claim {name_type} for current Atomical because it was claimed first by another Atomical'
+                'note': f'Failed to claim {name_type} for current Atomical '
+                        f'because it was claimed first by another Atomical.'
             }
     # If there is a pending candidate and it's not a subrealm or dmitem, then it must be a 'top level' name type
     # What that means is we can know for sure the status and not depend on payments or anything of that sort
@@ -1559,13 +1560,15 @@ def get_name_request_candidate_status(atomical_info, status, candidate_id, name_
             return {
                 'status': 'pending_candidate',
                 'pending_candidate_atomical_id': candidate_id_compact,
-                'note': f'The current Atomical is the leading candidate for the {name_type}. Wait the {MAX_BLOCKS_STR} blocks after commit to achieve confirmation'
+                'note': f'The current Atomical is the leading candidate for the {name_type}. '
+                        f'Wait the {MAX_BLOCKS_STR} blocks after commit to achieve confirmation.'
             }
         else:
             return {
                 'status': 'pending_claimed_by_other',
                 'pending_claimed_by_atomical_id': candidate_id_compact,
-                'note': f'Failed to claim {name_type} for current Atomical because it was claimed first by another Atomical'
+                'note': f'Failed to claim {name_type} for current Atomical '
+                        f'because it was claimed first by another Atomical.'
             }
     # The status is different or this is a subrealm or dmitem
     return {
@@ -1602,8 +1605,9 @@ def get_subname_request_candidate_status(current_height, atomical_info, status, 
         }
 
     payment_type = current_candidate_atomical.get('payment_type')
+    applicable_rule = current_candidate_atomical.get('applicable_rule')
     # Catch the scenario where it was not parent initiated, but there also was no valid applicable rule
-    if payment_type and current_candidate_atomical.get('applicable_rule') is None:
+    if payment_type and payment_type is not 'mint_initiated' and applicable_rule is None:
         return {
             'status': 'invalid_request_no_matched_applicable_rule'
         }
@@ -1645,7 +1649,7 @@ def get_subname_request_candidate_status(current_height, atomical_info, status, 
         }
 
     # It is still less than the minimum required blocks for the reveal delay
-    if current_height - current_candidate_atomical['commit_height'] > MINT_REALM_CONTAINER_TICKER_COMMIT_REVEAL_DELAY_BLOCKS:
+    if current_height - current_candidate_atomical['commit_height'] < MINT_REALM_CONTAINER_TICKER_COMMIT_REVEAL_DELAY_BLOCKS:
         # But some users perhaps made a payment nonetheless, we should show them a suitable status
         if payment_type == 'applicable_rule' and payment is not None:
             return {
