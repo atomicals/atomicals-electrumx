@@ -1602,8 +1602,9 @@ def get_subname_request_candidate_status(current_height, atomical_info, status, 
         }
 
     payment_type = current_candidate_atomical.get('payment_type')
+    applicable_rule = current_candidate_atomical.get('applicable_rule')
     # Catch the scenario where it was not parent initiated, but there also was no valid applicable rule
-    if payment_type and current_candidate_atomical.get('applicable_rule') is None:
+    if payment_type and payment_type is not 'mint_initiated' and applicable_rule is None:
         return {
             'status': 'invalid_request_no_matched_applicable_rule'
         }
