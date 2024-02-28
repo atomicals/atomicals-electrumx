@@ -1646,7 +1646,7 @@ def get_subname_request_candidate_status(current_height, atomical_info, status, 
         }
 
     # It is still less than the minimum required blocks for the reveal delay
-    if current_height - current_candidate_atomical['commit_height'] > MINT_REALM_CONTAINER_TICKER_COMMIT_REVEAL_DELAY_BLOCKS:
+    if current_height - current_candidate_atomical['commit_height'] < MINT_REALM_CONTAINER_TICKER_COMMIT_REVEAL_DELAY_BLOCKS:
         # But some users perhaps made a payment nonetheless, we should show them a suitable status
         if payment_type == 'applicable_rule' and payment is not None:
             return {
