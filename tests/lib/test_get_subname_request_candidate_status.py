@@ -54,7 +54,7 @@ def test_get_subname_request_candidate_status_verified_self():
     assert({
         'status': 'verified',
         'verified_atomical_id': subject_atomical_id_compact,
-        'note': 'Successfully verified and claimed realm for current Atomical'
+        'note': 'Successfully verified and claimed realm for current Atomical.'
     } == result)
 
 def test_get_subname_request_candidate_status_verified_claimed_by_other():
@@ -228,7 +228,7 @@ def test_get_subname_request_candidate_status_pending_awaiting_confirmations():
     assert({
         'status': 'pending_awaiting_confirmations',
         'pending_candidate_atomical_id': subject_atomical_id_compact2,
-        'note': 'Await 3 blocks has elapsed to verify'
+        'note': 'Await 3 blocks has elapsed to verify.'
     } == result)
 
 def test_get_subname_request_candidate_status_pending_awaiting_confirmations_for_payment_window():
@@ -291,7 +291,7 @@ def test_get_subname_request_candidate_status_pending_awaiting_confirmations_for
     assert({
         'status': 'pending_awaiting_confirmations_for_payment_window',
         'pending_candidate_atomical_id': subject_atomical_id_compact2,
-        'note': "Await until the 'make_payment_from_height' block height for the payment window to be open with status 'pending_awaiting_payment'"
+        'note': 'Await until the "make_payment_from_height" block height for the payment window to be open.'
     } == result)
 
 def test_get_subname_request_candidate_status_pending_awaiting_confirmations_payment_received_prematurely():
@@ -355,21 +355,21 @@ def test_get_subname_request_candidate_status_pending_awaiting_confirmations_pay
     assert({
         'status': 'pending_awaiting_confirmations_payment_received_prematurely',
         'pending_candidate_atomical_id': subject_atomical_id_compact,
-        'note': 'A payment was received, but the minimum delay of 3 blocks has not yet elapsed to declare a winner'
+        'note': 'The minimum delay of 3 blocks has not yet elapsed to declare a winner.'
     } == result)
 
     result = get_subname_request_candidate_status(890006, atomical_info, 'pending_awaiting_payment', subject_atomical_id, 'subrealm')
     assert({
         'status': 'pending_awaiting_confirmations_payment_received_prematurely',
         'pending_candidate_atomical_id': subject_atomical_id_compact,
-        'note': 'A payment was received, but the minimum delay of 3 blocks has not yet elapsed to declare a winner'
+        'note': 'The minimum delay of 3 blocks has not yet elapsed to declare a winner.'
     } == result)
 
     result = get_subname_request_candidate_status(890009, atomical_info, 'verified', subject_atomical_id, 'subrealm')
     assert({
         'status': 'verified',
         'verified_atomical_id': subject_atomical_id_compact,
-        'note': 'Successfully verified and claimed subrealm for current Atomical'
+        'note': 'Successfully verified and claimed subrealm for current Atomical.'
     } == result)
  
 
@@ -434,5 +434,5 @@ def test_get_subname_request_candidate_status_expired_payment_not_received():
     result = get_subname_request_candidate_status(890120, atomical_info, 'pending', subject_atomical_id, 'subrealm')
     assert({
         'status': 'expired_payment_not_received',
-        'note': "A valid payment was not received before the 'payment_due_no_later_than_height' limit"
+        'note': 'A valid payment was not received before the "payment_due_no_later_than_height" limit.'
     } == result)
