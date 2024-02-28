@@ -98,6 +98,8 @@ class FlushData:
     # state_adds is for evt, mod state updates
     # It maps atomical_id to the data of the state update      
     state_adds = attr.ib()           # type: Dict[bytes, Dict[bytes, bytes]
+    # op_adds is for record tx operation of one tx
+    op_adds = attr.ib()   # type: Dict[bytes, Dict[bytes]
     
 COMP_TXID_LEN = 4
 
@@ -221,6 +223,14 @@ class DB:
         # Key: b'tt' + height
         # Value: atomical header
         # "maps block height to an atomical header"
+        # ---
+        # Key: b'rtx' + txid
+        # Value: raw_tx
+        # "save the raw_tx data by txid"
+        # ---
+        # Key: b'op' + txnum
+        # Value: op in txnum
+        # "save the op by txnum"
         #
         #
         #
@@ -407,6 +417,7 @@ class DB:
         assert not flush_data.deletes
         assert not flush_data.undo_infos
         assert not flush_data.atomicals_undo_infos
+        assert not flush_data.op_adds
         self.history.assert_flushed()
 
     def flush_dbs(self, flush_data, flush_utxos, estimate_txs_remaining):
@@ -635,6 +646,12 @@ class DB:
             for state_id_suffix_key, value in state_id_suffix_map.items():
                 batch_put(state_id_prefix_key + state_id_suffix_key, value)
         flush_data.state_adds.clear()
+
+        # General op adds
+        batch_put = batch.put
+        for key, v in flush_data.op_adds.items():
+            batch_put(key, v)
+        flush_data.op_adds.clear()
 
         # New undo information
         self.flush_undo_infos(batch_put, flush_data.undo_infos)
@@ -1196,6 +1213,28 @@ class DB:
             return None
         return atomical_id_value
     
+    # get raw_tx by txnum
+    def get_raw_tx_by_tx_hash(self, tx_hash):
+        tx_key = b'rtx' + tx_hash
+        raw_tx = self.utxo_db.get(tx_key)
+        if not raw_tx:
+            self.logger.error(f'get_raw_tx {hash_to_hex_str(tx_hash)} txid not found')
+            return None
+        return raw_tx
+    
+    def get_op_by_tx_num(self, tx_num):
+        op_key = b'op' + pack_le_uint64(tx_num)
+        op_data = self.utxo_db.get(op_key)
+        if not op_data:
+            tx_hash, tx_height = self.fs_tx_hash(tx_num)
+            # self.logger.error(f'get_op {hash_to_hex_str(tx_hash)} tx_num not found')
+            return None
+        op_res = []
+        for data in op_data.split(b","):
+            op, = util.unpack_le_uint32(data)
+            op_res.append(op)
+        return op_res
+
     def get_tx_num_height_from_tx_hash(self, tx_hash):
         tx_hash_key = b'tx' + tx_hash
         tx_hash_value = self.utxo_db.get(tx_hash_key)

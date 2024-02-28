@@ -257,7 +257,7 @@ def get_segwit_hrp():
     net = get_net_from_env()
     value = "bc"  # mainnet
     if net == 'testnet':
-        value = "bc"
+        value = "tb"
     elif net == 'regtest':
         value = "bcrt"
     return value

@@ -1,6 +1,7 @@
 from electrumx.lib.util_atomicals import (
     is_splat_operation,
     is_split_operation,
+    is_mint_operation,
     location_id_bytes_to_compact,
     is_op_return_subrealm_payment_marker_atomical_id,
     is_op_return_dmitem_payment_marker_atomical_id,
@@ -197,6 +198,7 @@ class AtomicalsTransferBlueprintBuilder:
     self.cleanly_assigned = ft_output_blueprint.cleanly_assigned
     self.are_fts_burned = len(ft_output_blueprint.fts_burned) > 0
     self.atomical_ids_spent = atomical_ids_spent
+    self.is_mint = is_mint_operation(self.operations_found_at_inputs)
 
   @classmethod
   def order_ft_inputs(cls, ft_atomicals, sort_by_fifo):

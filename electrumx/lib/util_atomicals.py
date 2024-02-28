@@ -1514,6 +1514,9 @@ def is_seal_operation(operations_found_at_inputs):
 def is_event_operation(operations_found_at_inputs):
     return operations_found_at_inputs and operations_found_at_inputs.get('op') == 'evt' and operations_found_at_inputs.get('input_index') == 0
 
+def is_mint_operation(operations_found_at_inputs):
+    return operations_found_at_inputs and operations_found_at_inputs.get('op') in ['dmt', 'nft', 'ft', 'dft'] and operations_found_at_inputs.get('input_index') == 0
+
 # Get the candidate name request status for tickers, containers and realms (not subrealms though)
 # Base Status Values:
 #

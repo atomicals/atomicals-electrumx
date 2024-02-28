@@ -55,6 +55,7 @@ from electrumx.lib.hash import (HASHX_LEN, Base58Error, hash_to_hex_str,
 from electrumx.lib.merkle import MerkleCache
 from electrumx.lib.text import sessions_lines
 from electrumx.server.daemon import DaemonError
+from electrumx.server.history import TXNUM_LEN
 from electrumx.server.http_middleware import rate_limiter, cors_middleware, error_middleware, request_middleware
 from electrumx.server.http_session import HttpHandler
 from electrumx.server.peers import PeerManager
@@ -185,6 +186,8 @@ class SessionManager:
         self._history_cache = pylru.lrucache(1000)
         self._history_lookups = 0
         self._history_hits = 0
+        self._history_op_cache = pylru.lrucache(1000)
+        self._tx_num_op_cache = pylru.lrucache(10000000)
         self._tx_hashes_cache = pylru.lrucache(1000)
         self._tx_hashes_lookups = 0
         self._tx_hashes_hits = 0
@@ -193,6 +196,7 @@ class SessionManager:
         self._merkle_lookups = 0
         self._merkle_hits = 0
         self.estimatefee_cache = pylru.lrucache(1000)
+        self._tx_detail_cache = pylru.lrucache(1000000)
         self.notified_height = None
         self.hsub_results = None
         self._task_group = OldTaskGroup()
@@ -282,6 +286,11 @@ class SessionManager:
                     app.router.add_get('/proxy/blockchain.atomicals.find_subrealms', handler.atomicals_search_subrealms)
                     app.router.add_get('/proxy/blockchain.atomicals.find_containers', handler.atomicals_search_containers)
                     app.router.add_get('/proxy/blockchain.atomicals.get_holders', handler.atomicals_get_holders)
+                    app.router.add_get('/proxy/blockchain.atomicals.transaction', handler.atomicals_transaction)
+                    app.router.add_get('/proxy/blockchain.atomicals.transaction_by_height', handler.transaction_by_height)
+                    app.router.add_get('/proxy/blockchain.atomicals.transaction_by_atomical_id', handler.transaction_by_atomical_id)
+                    app.router.add_get('/proxy/blockchain.atomicals.transaction_by_scripthash', handler.transaction_by_scripthash)
+                    app.router.add_get('/proxy/blockchain.atomicals.transaction_global', handler.transaction_global)
                     # POST
                     app.router.add_post('/proxy', handler.proxy)
                     app.router.add_post('/proxy/blockchain.block.header', handler.block_header)
@@ -337,6 +346,11 @@ class SessionManager:
                     app.router.add_post('/proxy/blockchain.atomicals.find_subrealms', handler.atomicals_search_subrealms)
                     app.router.add_post('/proxy/blockchain.atomicals.find_containers', handler.atomicals_search_containers)
                     app.router.add_post('/proxy/blockchain.atomicals.get_holders', handler.atomicals_get_holders)
+                    app.router.add_post('/proxy/blockchain.atomicals.transaction', handler.atomicals_transaction)
+                    app.router.add_post('/proxy/blockchain.atomicals.transaction_by_height', handler.transaction_by_height)
+                    app.router.add_post('/proxy/blockchain.atomicals.transaction_by_atomical_id', handler.transaction_by_atomical_id)
+                    app.router.add_post('/proxy/blockchain.atomicals.transaction_by_scripthash', handler.transaction_by_scripthash)
+                    app.router.add_post('/proxy/blockchain.atomicals.transaction_global', handler.transaction_global)
                     # common proxy
                     app.router.add_get('/proxy/{method}', handler.handle_get_method)
                     app.router.add_post('/proxy/{method}', handler.handle_post_method)
@@ -987,6 +1001,29 @@ class SessionManager:
         if isinstance(result, Exception):
             raise result
         return result, cost
+    
+    async def get_history_op(self, hashX, limit=10, offset=0, op=None, reverse=True):
+        history_data = self._history_op_cache.get(hashX, [])
+        if not history_data:
+            history_data = []
+            txnum_padding = bytes(8-TXNUM_LEN)
+            for _key, hist in self.db.history.db.iterator(prefix=hashX, reverse=reverse):
+                for tx_numb in util.chunks(hist, TXNUM_LEN):
+                    tx_num, = util.unpack_le_uint64(tx_numb + txnum_padding)
+                    op_data = self._tx_num_op_cache.get(tx_num)
+                    if not op_data:
+                        op_prefix_key = b'op' + util.pack_le_uint64(tx_num)
+                        tx_op = self.db.utxo_db.get(op_prefix_key)
+                        if tx_op:
+                            op_data, = util.unpack_le_uint32(tx_op)
+                            self._tx_num_op_cache[tx_num] = op_data
+                    history_data.append({"tx_num": tx_num, "op": op_data})
+            self._history_op_cache[hashX] = history_data
+        if reverse:
+            history_data.sort(key=lambda x: x['tx_num'], reverse=reverse)
+        if op:
+            history_data = list(filter(lambda x: x["op"] == op, history_data))
+        return history_data[offset:limit+offset], len(history_data)
 
     async def _notify_sessions(self, height, touched):
         '''Notify sessions about height changes and touched addresses.'''
@@ -995,8 +1032,13 @@ class SessionManager:
             await self._refresh_hsub_results(height)
             # Invalidate our history cache for touched hashXs
             cache = self._history_cache
+            op_cache = self._history_op_cache
             for hashX in set(cache).intersection(touched):
                 del cache[hashX]
+            for hashX in set(op_cache).intersection(touched):
+                del op_cache[hashX]
+                background_task = asyncio.create_task(self.get_history_op(hashX, 10, 0, None, False))
+                await background_task
 
         for session in self.sessions:
             if self._task_group.joined:  # this can happen during shutdown
