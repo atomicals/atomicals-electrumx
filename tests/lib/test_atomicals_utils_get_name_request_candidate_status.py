@@ -62,7 +62,7 @@ def test_get_name_request_candidate_status_invalid_height():
                     result = get_name_request_candidate_status(atomical_info, x, k, y)
                     assert({
                         'status': 'expired_revealed_late',
-                        'note': 'The maximum number of blocks between commit and reveal is ' + MAX_BLOCKS_STR + ' blocks'
+                        'note': f'The maximum number of blocks between commit and reveal is {MAX_BLOCKS_STR} blocks.'
                     } == result)
   
 def test_get_name_request_candidate_status_valid_pending_claimed_by_other():
@@ -82,7 +82,7 @@ def test_get_name_request_candidate_status_valid_pending_claimed_by_other():
     assert({
         'status': 'pending_claimed_by_other',
         'pending_claimed_by_atomical_id': subject_atomical_id_compact2,
-        'note': 'Failed to claim realm for current Atomical because it was claimed first by another Atomical'
+        'note': 'Failed to claim realm for current Atomical because it was claimed first by another Atomical.'
     } == result)
 
 def test_get_name_request_candidate_status_valid_pending_candidate():
@@ -102,7 +102,8 @@ def test_get_name_request_candidate_status_valid_pending_candidate():
     assert({
         'status': 'pending_candidate',
         'pending_candidate_atomical_id': subject_atomical_id_compact2,
-        'note': 'The current Atomical is the leading candidate for the realm. Wait the 3 blocks after commit to achieve confirmation'
+        'note': 'The current Atomical is the leading candidate for the realm. '
+                'Wait the 3 blocks after commit to achieve confirmation.'
     } == result)
 
 def test_get_name_request_candidate_status_valid_pending_candidate():
@@ -122,7 +123,7 @@ def test_get_name_request_candidate_status_valid_pending_candidate():
     assert({
         'status': 'claimed_by_other',
         'claimed_by_atomical_id': subject_atomical_id_compact2,
-        'note': 'Failed to claim realm for current Atomical because it was claimed first by another Atomical'
+        'note': 'Failed to claim realm for current Atomical because it was claimed first by another Atomical.'
     } == result)
 
 def test_get_name_request_candidate_status_valid_none():
@@ -161,7 +162,7 @@ def test_get_name_request_candidate_status_valid_pending_candidate():
     assert({
         'status': 'verified',
         'verified_atomical_id': subject_atomical_id_compact2,
-        'note': 'Successfully verified and claimed realm for current Atomical'
+        'note': 'Successfully verified and claimed realm for current Atomical.'
     } == result)
 
 def test_get_name_request_candidate_status_valid_pending_candidate_subrealm():
