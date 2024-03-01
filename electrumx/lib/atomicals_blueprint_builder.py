@@ -178,7 +178,7 @@ def order_ft_inputs(ft_atomicals: AtomicalInputSummary, sort_by_fifo):
  
 class AtomicalsTransferBlueprintBuilder:
   '''Atomicals transfer blueprint builder for calculating outputs to color'''
-  def __init__(self, logger, atomicals_spent_at_inputs, operations_found_at_inputs, tx_hash, tx, get_atomicals_id_mint_info, sort_fifo):
+  def __init__(self, logger, minted_nft, atomicals_spent_at_inputs, operations_found_at_inputs, tx_hash, tx, get_atomicals_id_mint_info, sort_fifo):
     self.logger = logger
     self.atomicals_spent_at_inputs = atomicals_spent_at_inputs
     self.operations_found_at_inputs = operations_found_at_inputs
@@ -189,7 +189,7 @@ class AtomicalsTransferBlueprintBuilder:
     nft_atomicals, ft_atomicals, atomical_ids_spent = AtomicalsTransferBlueprintBuilder.build_atomical_input_summaries_by_type(self.get_atomicals_id_mint_info, atomicals_spent_at_inputs)
     self.nft_atomicals = nft_atomicals
     self.ft_atomicals = ft_atomicals
-    nft_output_blueprint, ft_output_blueprint = AtomicalsTransferBlueprintBuilder.calculate_output_blueprint(self.get_atomicals_id_mint_info, self.tx, self.nft_atomicals, self.ft_atomicals, self.atomicals_spent_at_inputs, self.operations_found_at_inputs, self.sort_fifo)
+    nft_output_blueprint, ft_output_blueprint = AtomicalsTransferBlueprintBuilder.calculate_output_blueprint(minted_nft, self.get_atomicals_id_mint_info, self.tx, self.nft_atomicals, self.ft_atomicals, self.atomicals_spent_at_inputs, self.operations_found_at_inputs, self.sort_fifo)
     self.nft_output_blueprint = nft_output_blueprint
     self.ft_output_blueprint = ft_output_blueprint
     # if len(ft_atomicals) > 0 or len(nft_atomicals) > 0:
@@ -254,10 +254,14 @@ class AtomicalsTransferBlueprintBuilder:
     return input_idx_to_atomical_ids_map
 
   @classmethod
-  def calculate_nft_atomicals_regular(cls, nft_map, nft_atomicals, tx, operations_found_at_inputs, sort_fifo):
+  def calculate_nft_atomicals_regular(cls, skip_first_output, nft_map, nft_atomicals, tx, operations_found_at_inputs, sort_fifo):
     # Use a simplified mapping of NFTs using FIFO to the outputs 
     if sort_fifo:
       next_output_idx = 0
+      # Skip the first output, mainly in case another NFT was minted in the same tx and we want every other existing transferred
+      # NFT to be shifted along by one. Example is a parent realm NFT
+      if skip_first_output:
+        next_output_idx = 1
       map_output_idxs_for_atomicals = {}
       # Build a map of input ids to NFTs
       for input_idx, atomicals_ids_map in nft_map.items():
@@ -304,7 +308,7 @@ class AtomicalsTransferBlueprintBuilder:
       return AtomicalNftOutputBlueprintAssignmentSummary(output_colored_map) 
       
   @classmethod
-  def calculate_output_blueprint_nfts(cls, get_atomicals_id_mint_info, tx, nft_atomicals, atomicals_spent_at_inputs, operations_found_at_inputs, sort_fifo):
+  def calculate_output_blueprint_nfts(cls, skip_first_output, get_atomicals_id_mint_info, tx, nft_atomicals, atomicals_spent_at_inputs, operations_found_at_inputs, sort_fifo):
       if not nft_atomicals or len(nft_atomicals) == 0:
           return AtomicalNftOutputBlueprintAssignmentSummary({})
       should_splat_nft_atomicals = is_splat_operation(operations_found_at_inputs)
@@ -313,7 +317,7 @@ class AtomicalsTransferBlueprintBuilder:
       else:
         # To sort by fifo for NFTs, we also need to calculate a mapping of the nfts to inputs first
         nft_map = AtomicalsTransferBlueprintBuilder.build_nft_input_idx_to_atomical_map(get_atomicals_id_mint_info, atomicals_spent_at_inputs)
-        return AtomicalsTransferBlueprintBuilder.calculate_nft_atomicals_regular(nft_map, nft_atomicals, tx, operations_found_at_inputs, sort_fifo)  
+        return AtomicalsTransferBlueprintBuilder.calculate_nft_atomicals_regular(skip_first_output, nft_map, nft_atomicals, tx, operations_found_at_inputs, sort_fifo)  
   
   @classmethod
   def calculate_output_blueprint_fts(cls, tx, ft_atomicals, operations_found_at_inputs, sort_fifo):
@@ -393,8 +397,8 @@ class AtomicalsTransferBlueprintBuilder:
       return AtomicalFtOutputBlueprintAssignmentSummary(output_colored_map, ft_coloring_summary.fts_burned, ft_coloring_summary.cleanly_assigned, first_atomical_id) 
   
   @classmethod
-  def calculate_output_blueprint(cls, get_atomicals_id_mint_info, tx, nft_atomicals, ft_atomicals, atomicals_spent_at_inputs, operations_found_at_inputs, sort_fifo):
-      nft_blueprint = AtomicalsTransferBlueprintBuilder.calculate_output_blueprint_nfts(get_atomicals_id_mint_info, tx, nft_atomicals, atomicals_spent_at_inputs, operations_found_at_inputs, sort_fifo)
+  def calculate_output_blueprint(cls, minted_nft, get_atomicals_id_mint_info, tx, nft_atomicals, ft_atomicals, atomicals_spent_at_inputs, operations_found_at_inputs, sort_fifo):
+      nft_blueprint = AtomicalsTransferBlueprintBuilder.calculate_output_blueprint_nfts(minted_nft, get_atomicals_id_mint_info, tx, nft_atomicals, atomicals_spent_at_inputs, operations_found_at_inputs, sort_fifo)
       ft_blueprint = AtomicalsTransferBlueprintBuilder.calculate_output_blueprint_fts(tx, ft_atomicals, operations_found_at_inputs, sort_fifo)
       return nft_blueprint, ft_blueprint 
 

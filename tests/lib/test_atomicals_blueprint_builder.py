@@ -27,7 +27,7 @@ def test_empty_spends():
 
     def mock_mint_fetcher(self, atomical_id):
         return None 
-    blueprint_builder = AtomicalsTransferBlueprintBuilder(MockLogger(), {}, {}, tx_hash, tx, mock_mint_fetcher, True)
+    blueprint_builder = AtomicalsTransferBlueprintBuilder(MockLogger(), False, {}, {}, tx_hash, tx, mock_mint_fetcher, True)
     assert(blueprint_builder)
 
     nft_output_blueprint = blueprint_builder.get_nft_output_blueprint()
@@ -56,7 +56,7 @@ def test_spends_ft_burned():
             'type': 'FT'
         }
 
-    blueprint_builder = AtomicalsTransferBlueprintBuilder(MockLogger(), atomicals_spent_at_inputs, {}, tx_hash, tx, mock_mint_fetcher, True)
+    blueprint_builder = AtomicalsTransferBlueprintBuilder(MockLogger(), False, atomicals_spent_at_inputs, {}, tx_hash, tx, mock_mint_fetcher, True)
     nft_output_blueprint = blueprint_builder.get_nft_output_blueprint()
     assert(len(nft_output_blueprint.outputs) == 0)
  
@@ -96,7 +96,7 @@ def test_spends_ft_valid():
             'type': 'FT'
         }
 
-    blueprint_builder = AtomicalsTransferBlueprintBuilder(MockLogger(), atomicals_spent_at_inputs, {}, tx_hash, tx, mock_mint_fetcher, True)
+    blueprint_builder = AtomicalsTransferBlueprintBuilder(MockLogger(), False, atomicals_spent_at_inputs, {}, tx_hash, tx, mock_mint_fetcher, True)
     nft_output_blueprint = blueprint_builder.get_nft_output_blueprint()
     assert(len(nft_output_blueprint.outputs) == 0)
  
@@ -134,7 +134,7 @@ def test_spends_ft_multiple_valid_collapsed():
             'type': 'FT'
         }
 
-    blueprint_builder = AtomicalsTransferBlueprintBuilder(MockLogger(), atomicals_spent_at_inputs, {}, tx_hash, tx, mock_mint_fetcher, True)
+    blueprint_builder = AtomicalsTransferBlueprintBuilder(MockLogger(), False, atomicals_spent_at_inputs, {}, tx_hash, tx, mock_mint_fetcher, True)
 
     nft_output_blueprint = blueprint_builder.get_nft_output_blueprint()
     assert(len(nft_output_blueprint.outputs) == 0)
@@ -159,7 +159,7 @@ def test_spends_ft_single_burned_under():
             'atomical_id': atomical_id,
             'type': 'FT'
         }
-    blueprint_builder = AtomicalsTransferBlueprintBuilder(MockLogger(), atomicals_spent_at_inputs, {}, tx_hash, tx, mock_mint_fetcher, True)
+    blueprint_builder = AtomicalsTransferBlueprintBuilder(MockLogger(), False, atomicals_spent_at_inputs, {}, tx_hash, tx, mock_mint_fetcher, True)
     nft_output_blueprint = blueprint_builder.get_nft_output_blueprint()
     assert(len(nft_output_blueprint.outputs) == 0)
  
@@ -182,7 +182,7 @@ def test_spends_ft_single_burned_over():
             'atomical_id': atomical_id,
             'type': 'FT'
         }
-    blueprint_builder = AtomicalsTransferBlueprintBuilder(MockLogger(), atomicals_spent_at_inputs, {}, tx_hash, tx, mock_mint_fetcher, True)
+    blueprint_builder = AtomicalsTransferBlueprintBuilder(MockLogger(), False, atomicals_spent_at_inputs, {}, tx_hash, tx, mock_mint_fetcher, True)
     nft_output_blueprint = blueprint_builder.get_nft_output_blueprint()
     assert(len(nft_output_blueprint.outputs) == 0)
     ft_output_blueprint = blueprint_builder.get_ft_output_blueprint()
@@ -205,7 +205,7 @@ def test_spends_are_payments_satisfied_checks():
         }
     operations_at_inputs = {
     }
-    blueprint_builder = AtomicalsTransferBlueprintBuilder(MockLogger(), atomicals_spent_at_inputs, operations_at_inputs, tx_hash, tx, mock_mint_fetcher, True)
+    blueprint_builder = AtomicalsTransferBlueprintBuilder(MockLogger(), False, atomicals_spent_at_inputs, operations_at_inputs, tx_hash, tx, mock_mint_fetcher, True)
     nft_output_blueprint = blueprint_builder.get_nft_output_blueprint()
     assert(len(nft_output_blueprint.outputs) == 0)
     ft_output_blueprint = blueprint_builder.get_ft_output_blueprint()
@@ -277,7 +277,7 @@ def test_spends_fts_are_payments_satisfied_checks2():
         }
     operations_at_inputs = {
     }
-    blueprint_builder = AtomicalsTransferBlueprintBuilder(MockLogger(), atomicals_spent_at_inputs, operations_at_inputs, tx_hash, tx, mock_mint_fetcher, True)
+    blueprint_builder = AtomicalsTransferBlueprintBuilder(MockLogger(), False, atomicals_spent_at_inputs, operations_at_inputs, tx_hash, tx, mock_mint_fetcher, True)
     nft_output_blueprint = blueprint_builder.get_nft_output_blueprint()
     assert(len(nft_output_blueprint.outputs) == 0)
     ft_output_blueprint = blueprint_builder.get_ft_output_blueprint()
