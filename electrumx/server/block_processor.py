@@ -1704,7 +1704,6 @@ class BlockProcessor:
     def color_atomicals_outputs(self, minted_nft, operations_found_at_inputs, atomicals_spent_at_inputs, tx, tx_hash, tx_num, height):
         # Build the "blueprint" for how to assign all atomicals
         blueprint_builder = AtomicalsTransferBlueprintBuilder(self.logger, minted_nft, atomicals_spent_at_inputs, operations_found_at_inputs, tx_hash, tx, self.get_atomicals_id_mint_info, self.is_dmint_activated(height))
-        
         nft_output_blueprint = blueprint_builder.get_nft_output_blueprint()
         if nft_output_blueprint and len(nft_output_blueprint.outputs):
             if not operations_found_at_inputs or not operations_found_at_inputs['op']:
@@ -2917,7 +2916,7 @@ class BlockProcessor:
                 # Color the outputs of any transferred NFT/FT atomicals according to the rules
                 # This comes after the creation of any atomicals because any newly minted atomicals must be added to the atomicals_spent_at_inputs
                 # map because we want to avoid merging any NFTs into the same 0'th output
-                blueprint_builder = self.color_atomicals_outputs(atomicals_operations_found_at_inputs, atomicals_spent_at_inputs, tx, tx_hash, tx_num, height)
+                blueprint_builder = self.color_atomicals_outputs(minted_atomical_type == 'NFT', atomicals_operations_found_at_inputs, atomicals_spent_at_inputs, tx, tx_hash, tx_num, height)
                 for atomical_id in blueprint_builder.get_atomical_ids_spent():
                     has_at_least_one_valid_atomicals_operation = True
                     self.logger.debug(f'advance_txs: color_atomicals_outputs atomical_ids_transferred. atomical_id={atomical_id.hex()}, tx_hash={hash_to_hex_str(tx_hash)}')
