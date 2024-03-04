@@ -490,7 +490,7 @@ class HttpHandler(object):
         return atomical_in_mempool
     
     # Perform a search for tickers, containers, realms, subrealms 
-    def atomicals_search_name_template(self, db_prefix, name_type_str, parent_prefix=None, prefix=None, Reverse=False, Limit=100, Offset=0):
+    def atomicals_search_name_template(self, db_prefix, name_type_str, parent_prefix=None, prefix=None, Reverse=False, Limit=100, Offset=0, is_verified_only=True):
         search_prefix = b''
         if prefix:
             search_prefix = prefix.encode()
@@ -498,13 +498,26 @@ class HttpHandler(object):
         db_entries = self.db.get_name_entries_template_limited(db_prefix, parent_prefix, search_prefix, Reverse, Limit, Offset)
         formatted_results = []
         for item in db_entries:
+            if name_type_str == "ticker":
+                status, _, _ = self.session_mgr.bp.get_effective_name_template(b'tick', item['name'], self.session_mgr.bp.height, self.session_mgr.bp.ticker_data_cache)
+            elif name_type_str == "realm":
+                status, _, _ = self.session_mgr.bp.get_effective_name_template(b'rlm', item['name'], self.session_mgr.bp.height, self.session_mgr.bp.realm_data_cache)
+            elif name_type_str == "collection":
+                status, _, _ = self.session_mgr.bp.get_effective_name_template(b'co', item['name'], self.session_mgr.bp.height, self.session_mgr.bp.container_data_cache)
+            elif name_type_str == "subrealm":
+                status, _, _ = self.session_mgr.bp.get_effective_subrealm(parent_prefix, item['name'], self.session_mgr.bp.height)
+
             obj = {
                 'atomical_id': location_id_bytes_to_compact(item['atomical_id']),
                 'tx_num': item['tx_num']
             }
             obj[name_type_str] = item['name']
             obj[name_type_str + '_hex'] = item.get('name_hex')
-            formatted_results.append(obj)
+            obj['status'] = status
+            if is_verified_only and status == "verified":
+                formatted_results.append(obj)
+            elif not is_verified_only:
+                formatted_results.append(obj)
         return {'result': formatted_results}
     
     def auto_populate_container_dmint_items_fields(self, items):
@@ -1876,7 +1889,8 @@ class HttpHandler(object):
         Reverse = params.get(1, False)
         Limit = params.get(2, 100)
         Offset = params.get(3, 0)
-        return self.atomicals_search_name_template(b'tick', 'ticker', None, prefix, Reverse, Limit, Offset)
+        is_verified_only = params.get(4, True)
+        return self.atomicals_search_name_template(b'tick', 'ticker', None, prefix, Reverse, Limit, Offset, is_verified_only)
     
     async def atomicals_search_realms(self, request):
         params = await self.format_params(request)
@@ -1884,7 +1898,8 @@ class HttpHandler(object):
         Reverse = params.get(1, False)
         Limit = params.get(2, 100)
         Offset = params.get(3, 0)
-        return self.atomicals_search_name_template(b'rlm', 'realm', None, prefix, Reverse, Limit, Offset)
+        is_verified_only = params.get(4, True)
+        return self.atomicals_search_name_template(b'rlm', 'realm', None, prefix, Reverse, Limit, Offset, is_verified_only)
 
     async def atomicals_search_subrealms(self, request):
         params = await self.format_params(request)
@@ -1893,8 +1908,9 @@ class HttpHandler(object):
         Reverse = params.get(2, False)
         Limit = params.get(3, 100)
         Offset = params.get(4, 0)
+        is_verified_only = params.get(5, True)
         parent_realm_id_long_form = compact_to_location_id_bytes(parent_realm_id_compact)
-        return self.atomicals_search_name_template(b'srlm', 'subrealm', parent_realm_id_long_form, prefix, Reverse, Limit, Offset)
+        return self.atomicals_search_name_template(b'srlm', 'subrealm', parent_realm_id_long_form, prefix, Reverse, Limit, Offset, is_verified_only)
 
     async def atomicals_search_containers(self, request):
         params = await self.format_params(request)
@@ -1902,8 +1918,8 @@ class HttpHandler(object):
         Reverse = params.get(1, False)
         Limit = params.get(2, 100)
         Offset = params.get(3, 0)
-
-        return self.atomicals_search_name_template(b'co', 'collection', None, prefix, Reverse, Limit, Offset)
+        is_verified_only = params.get(4, True)
+        return self.atomicals_search_name_template(b'co', 'collection', None, prefix, Reverse, Limit, Offset, is_verified_only)
     
     async def atomicals_get_holders(self, request):
         '''Return the holder by a specific location id```
