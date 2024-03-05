@@ -1570,6 +1570,8 @@ class HttpHandler(object):
         found_atomical_id = None
         if status == 'verified':
             found_atomical_id = candidate_atomical_id
+        if status is None:
+            formatted_entries = None
 
         return_result = {
             'status': status,
@@ -1600,6 +1602,8 @@ class HttpHandler(object):
         found_atomical_id = None
         if status == 'verified':
             found_atomical_id = candidate_atomical_id
+        if status is None:
+            formatted_entries = None
 
         return_result = {
             'status': status,
@@ -1630,6 +1634,8 @@ class HttpHandler(object):
         found_atomical_id = None
         if status == 'verified':
             found_atomical_id = candidate_atomical_id
+        if status is None:
+            formatted_entries = None
 
         return_result = {
             'status': status,
@@ -1658,6 +1664,8 @@ class HttpHandler(object):
         found_atomical_id = None
         if status == 'verified':
             found_atomical_id = candidate_atomical_id
+        if status is None:
+            formatted_entries = None
 
         return_result = {
             'status': status,
@@ -1684,6 +1692,8 @@ class HttpHandler(object):
         found_atomical_id = None
         if status == 'verified':
             found_atomical_id = candidate_atomical_id
+        if status is None:
+            formatted_entries = None
 
         return_result = {
             'status': status,
@@ -1714,10 +1724,14 @@ class HttpHandler(object):
         status, candidate_atomical_id, all_entries = self.session_mgr.bp.get_effective_dmitem(found_atomical_id, item_name, height)
         found_item_atomical_id = None
         formatted_entries = format_name_type_candidates_to_rpc(all_entries, self.session_mgr.bp.build_atomical_id_to_candidate_map(all_entries))
+
         if candidate_atomical_id:
             candidate_atomical_id = location_id_bytes_to_compact(candidate_atomical_id)
         if status == 'verified':
             found_item_atomical_id = candidate_atomical_id
+        if status is None:
+            formatted_entries = None
+
         return_result = {
             'status': status, 
             'candidate_atomical_id': candidate_atomical_id, 
