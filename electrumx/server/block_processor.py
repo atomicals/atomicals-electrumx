@@ -972,7 +972,7 @@ class BlockProcessor:
     def put_name_element_template(self, db_prefix_key, optional_subject_prefix, subject, tx_num, payload_value, name_data_cache): 
         self.logger.debug(f'put_name_element_template: db_prefix_key={db_prefix_key}, optional_subject_prefix={optional_subject_prefix}, subject={subject}, tx_num={tx_num}, payload_value={payload_value.hex()}')
         subject_enc = subject.encode()
-        record_key = db_prefix_key + optional_subject_prefix + subject_enc + pack_le_uint16(len(subject_enc))
+        record_key = db_prefix_key + optional_subject_prefix + subject_enc + pack_le_uint32(len(subject_enc))
         if not name_data_cache.get(record_key):
             name_data_cache[record_key] = {}
         name_data_cache[record_key][tx_num] = payload_value
@@ -982,7 +982,7 @@ class BlockProcessor:
     def delete_name_element_template(self, db_delete_prefix, optional_subject_prefix, subject, tx_num, expected_entry_value, name_data_cache): 
         self.logger.debug(f'delete_name_element_template: db_delete_prefix={db_delete_prefix}, optional_subject_prefix={optional_subject_prefix}, subject={subject}, tx_num={tx_num}, expected_entry_value={expected_entry_value.hex()}')
         subject_enc = subject.encode() 
-        record_key = db_delete_prefix + optional_subject_prefix + subject_enc + pack_le_uint16(len(subject_enc))
+        record_key = db_delete_prefix + optional_subject_prefix + subject_enc + pack_le_uint32(len(subject_enc))
         # Check if it's located in the cache first
         name_map = name_data_cache.get(record_key)
         cached_value = None
@@ -1824,7 +1824,8 @@ class BlockProcessor:
         # Get the effective name entries from the database
         all_entries = []
         subrealm_name_enc = subrealm_name.encode()
-        cached_subrealm_name_candidates = self.subrealm_data_cache.get(db_prefix + parent_realm_id + subrealm_name_enc + pack_le_uint16(len(subrealm_name_enc)))
+        # Store name len as 4 bytes
+        cached_subrealm_name_candidates = self.subrealm_data_cache.get(db_prefix + parent_realm_id + subrealm_name_enc + pack_le_uint32(len(subrealm_name_enc)))
         if cached_subrealm_name_candidates and len(cached_subrealm_name_candidates) > 0:
             for tx_num, value in cached_subrealm_name_candidates.items():
                 all_entries.append({
@@ -1832,7 +1833,8 @@ class BlockProcessor:
                     'tx_num': tx_num,
                     'cache': True
                 })
-        db_entries = self.db.get_name_entries_template(db_prefix, parent_realm_id + subrealm_name_enc + pack_le_uint16(len(subrealm_name_enc)))
+        # Store name len as 4 bytes
+        db_entries = self.db.get_name_entries_template(db_prefix, parent_realm_id + subrealm_name_enc + pack_le_uint32(len(subrealm_name_enc)))
         all_entries.extend(db_entries)
         if len(all_entries) == 0:
             return None, None, []
@@ -1909,7 +1911,8 @@ class BlockProcessor:
         # Get the effective name entries from the database
         all_entries = []
         dmitem_name_enc = dmitem_name.encode()
-        cached_dmitem_name_candidates = self.dmitem_data_cache.get(db_prefix + parent_container_id + dmitem_name_enc + pack_le_uint16(len(dmitem_name_enc)))
+        # Store name len as 4 bytes
+        cached_dmitem_name_candidates = self.dmitem_data_cache.get(db_prefix + parent_container_id + dmitem_name_enc + pack_le_uint32(len(dmitem_name_enc)))
         if cached_dmitem_name_candidates and len(cached_dmitem_name_candidates) > 0:
             for tx_num, value in cached_dmitem_name_candidates.items():
                 all_entries.append({
@@ -1918,7 +1921,8 @@ class BlockProcessor:
                     'cache': True
                 })
         self.logger.debug(f'get_effective_dmitem_db_prefix={db_prefix} parent_container_id={parent_container_id} dmitem_name={dmitem_name} dmitem_name_enc={dmitem_name_enc}')
-        db_entries = self.db.get_name_entries_template(db_prefix, parent_container_id + dmitem_name_enc + pack_le_uint16(len(dmitem_name_enc)))
+        # Store name len as 4 bytes
+        db_entries = self.db.get_name_entries_template(db_prefix, parent_container_id + dmitem_name_enc + pack_le_uint32(len(dmitem_name_enc)))
         all_entries.extend(db_entries)
         if len(all_entries) == 0:
             return None, None, []
@@ -1982,7 +1986,8 @@ class BlockProcessor:
         # ex: Key: b'rlm' + name bytes + commit_tx_num
         # Value: atomical_id bytes
         subject_enc = subject.encode()
-        cached_name_candidates = name_data_cache.get(db_prefix + subject_enc + pack_le_uint16(len(subject_enc)))
+        # Store name len as 4 bytes
+        cached_name_candidates = name_data_cache.get(db_prefix + subject_enc + pack_le_uint32(len(subject_enc)))
         if cached_name_candidates and len(cached_name_candidates) > 0:
             for tx_num, value in cached_name_candidates.items():
                 all_entries.append({
@@ -1990,7 +1995,8 @@ class BlockProcessor:
                     'tx_num': tx_num,
                     'cache': True
                 })
-        db_entries = self.db.get_name_entries_template(db_prefix, subject_enc + pack_le_uint16(len(subject_enc)))
+        # Store name len as 4 bytes
+        db_entries = self.db.get_name_entries_template(db_prefix, subject_enc + pack_le_uint32(len(subject_enc)))
         all_entries.extend(db_entries)
         # sort by the earliest tx number because it was the first one committed
         all_entries.sort(key=lambda x: x['tx_num'])
