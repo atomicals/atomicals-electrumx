@@ -490,7 +490,7 @@ class HttpHandler(object):
         return atomical_in_mempool
     
     # Perform a search for tickers, containers, realms, subrealms 
-    def atomicals_search_name_template(self, db_prefix, name_type_str, parent_prefix=None, prefix=None, Reverse=False, Limit=100, Offset=0, is_verified_only=True):
+    def atomicals_search_name_template(self, db_prefix, name_type_str, parent_prefix=None, prefix=None, Reverse=False, Limit=100, Offset=0, is_verified_only=False):
         search_prefix = b''
         if prefix:
             search_prefix = prefix.encode()
