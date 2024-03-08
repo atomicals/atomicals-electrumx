@@ -1571,7 +1571,7 @@ class HttpHandler(object):
         if status == 'verified':
             found_atomical_id = candidate_atomical_id
         if status is None:
-            formatted_entries = None
+            formatted_entries = []
 
         return_result = {
             'status': status,
@@ -1603,7 +1603,7 @@ class HttpHandler(object):
         if status == 'verified':
             found_atomical_id = candidate_atomical_id
         if status is None:
-            formatted_entries = None
+            formatted_entries = []
 
         return_result = {
             'status': status,
@@ -1635,7 +1635,7 @@ class HttpHandler(object):
         if status == 'verified':
             found_atomical_id = candidate_atomical_id
         if status is None:
-            formatted_entries = None
+            formatted_entries = []
 
         return_result = {
             'status': status,
@@ -1665,7 +1665,7 @@ class HttpHandler(object):
         if status == 'verified':
             found_atomical_id = candidate_atomical_id
         if status is None:
-            formatted_entries = None
+            formatted_entries = []
 
         return_result = {
             'status': status,
@@ -1693,7 +1693,7 @@ class HttpHandler(object):
         if status == 'verified':
             found_atomical_id = candidate_atomical_id
         if status is None:
-            formatted_entries = None
+            formatted_entries = []
 
         return_result = {
             'status': status,
@@ -1730,7 +1730,7 @@ class HttpHandler(object):
         if status == 'verified':
             found_item_atomical_id = candidate_atomical_id
         if status is None:
-            formatted_entries = None
+            formatted_entries = []
 
         return_result = {
             'status': status, 
