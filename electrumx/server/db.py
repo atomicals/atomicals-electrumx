@@ -1654,7 +1654,7 @@ class DB:
             if current_counter > offset + limit:
                 break
             # Use 4 bytes because of store name len as 4 bytes
-            name_len, = unpack_le_uint32_from(db_key[-10:-6])
+            name_len, = unpack_le_uint32_from(db_key[-12:-8])
             dmitem_name = db_key[len(db_prefix)]
             if entries_deduped.get(dmitem_name):
                 continue 
@@ -1712,7 +1712,7 @@ class DB:
             tx_numb = db_key[-8:]
             tx_num, = unpack_le_uint64(tx_numb)
             # Use 4 bytes because of store name len as 4 bytes
-            name_len, = unpack_le_uint32_from(db_key[-10:-6])
+            name_len, = unpack_le_uint32_from(db_key[-12:-8])
             db_key_prefix_len = len(db_key_prefix)
             entries.append({
                 'name': db_key[db_key_prefix_len : db_key_prefix_len + name_len].decode(), # Extract the name portion
