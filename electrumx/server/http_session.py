@@ -2083,9 +2083,9 @@ class HttpHandler(object):
                     prev_txid = hash_to_hex_str(tx.inputs[i.txin_index].prev_hash)
                     prev_raw_tx = self.db.get_raw_tx_by_tx_hash(hex_str_to_hash(prev_txid))
                     if not prev_raw_tx:
-                        prev_raw_tx = await self.daemon_request('getrawtransaction', prev_txid, False)            
-                        self.session_mgr.bp.general_data_cache[b'rtx' + hex_str_to_hash(prev_txid)] = raw_tx
+                        prev_raw_tx = await self.daemon_request('getrawtransaction', prev_txid, False)
                         prev_raw_tx = bytes.fromhex(prev_raw_tx)
+                        self.session_mgr.bp.general_data_cache[b'rtx' + hex_str_to_hash(prev_txid)] = prev_raw_tx
                     prev_tx, _ = self.coin.DESERIALIZER(prev_raw_tx, 0).read_tx_and_hash()
                     res["transfers"]["inputs"][i.txin_index] = {
                         "address": get_address_from_output_script(prev_tx.outputs[tx.inputs[i.txin_index].prev_idx].pk_script),
@@ -2114,8 +2114,8 @@ class HttpHandler(object):
                     prev_raw_tx = self.db.get_raw_tx_by_tx_hash(hex_str_to_hash(prev_txid))
                     if not prev_raw_tx:
                         prev_raw_tx = await self.daemon_request('getrawtransaction', prev_txid, False)             
-                        self.session_mgr.bp.general_data_cache[b'rtx' + hex_str_to_hash(prev_txid)] = raw_tx
                         prev_raw_tx = bytes.fromhex(prev_raw_tx)
+                        self.session_mgr.bp.general_data_cache[b'rtx' + hex_str_to_hash(prev_txid)] = prev_raw_tx
                     prev_tx, _ = self.coin.DESERIALIZER(prev_raw_tx, 0).read_tx_and_hash()
                     res["transfers"]["inputs"][i.txin_index] = {
                         "address": get_address_from_output_script(prev_tx.outputs[tx.inputs[i.txin_index].prev_idx].pk_script),
@@ -2241,7 +2241,7 @@ class HttpHandler(object):
             history_list.append(history)
 
         history_list.sort(key=lambda x: x['tx_num'], reverse=reverse)
-        for history in history_list[offset:limit+offset]:
+        for history in history_list:
             data = await self.get_transaction_detail(history["tx_hash"], history["height"], history["tx_num"])
             if (op_type and op_type == data["op"]) or (not op_type and data["op"]):
                 res.append(data)

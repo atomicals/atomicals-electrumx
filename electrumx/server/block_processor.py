@@ -2968,6 +2968,8 @@ class BlockProcessor:
                     assert(_tx == tx)
                     assert(_tx_hash == tx_hash)
                     put_general_data(b'rtx' + tx_hash, raw_tx)
+                    del _tx
+                    del _tx_hash
                     
             append_hashXs(hashXs)
             update_touched(hashXs)
