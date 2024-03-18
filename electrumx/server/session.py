@@ -206,6 +206,16 @@ class SessionManager:
         # Event triggered when electrumx is listening for incoming requests.
         self.server_listening = Event()
         self.session_event = Event()
+        self.op_list = {
+            "mint-dft": 1, "mint-ft": 2, "mint-nft": 3, "mint-nft-realm": 4,
+            "mint-nft-subrealm": 5, "mint-nft-container": 6, "mint-nft-item": 7,
+            "dft": 20, "dat": 21, "split": 22, "splat": 23,
+            "seal": 24, "evt": 25, "mod": 26,
+            "transfer": 30, "invalid-mint": 31,
+            "payment-subrealm": 40, "payment-dmitem": 41,
+            "mint-dft-failed": 51, "mint-ft-failed": 52, "mint-nft-failed": 53, "mint-nft-realm-failed": 54,
+            "mint-nft-subrealm-failed": 55, "mint-nft-container-failed": 56, "mint-nft-item-failed": 57,
+        }
 
         # Set up the RPC request handlers
         cmds = ('add_peer daemon_url disconnect getinfo groups log peers '
@@ -2767,7 +2777,7 @@ class ElectrumX(SessionBase):
     async def get_transaction_detail(self, txid, height=None, tx_num=-1):
 
         tx_hash = hex_str_to_hash(txid)
-        res = self._tx_detail_cache.get(tx_hash)
+        res = self.session_mgr._tx_detail_cache.get(tx_hash)
         if res:
             # txid maybe the same, this key should add height add key prefix
             self.logger.debug(f"read transation detail from cache {txid}")
@@ -2784,8 +2794,8 @@ class ElectrumX(SessionBase):
         assert(tx_hash == _tx_hash)
 
         operation_found_at_inputs = parse_protocols_operations_from_witness_array(tx, tx_hash, True)
-        atomicals_spent_at_inputs = self.bp.build_atomicals_spent_at_inputs_for_validation_only(tx)
-        atomicals_receive_at_outputs = self.bp.build_atomicals_receive_at_ouutput_for_validation_only(tx, tx_hash)
+        atomicals_spent_at_inputs = self.session_mgr.bp.build_atomicals_spent_at_inputs_for_validation_only(tx)
+        atomicals_receive_at_outputs = self.session_mgr.bp.build_atomicals_receive_at_ouutput_for_validation_only(tx, tx_hash)
         blueprint_builder = AtomicalsTransferBlueprintBuilder(self.logger, atomicals_spent_at_inputs, operation_found_at_inputs, tx_hash, tx, self.session_mgr.bp.get_atomicals_id_mint_info, True)
         is_burned = blueprint_builder.are_fts_burned
         # format burned_fts
@@ -2813,7 +2823,7 @@ class ElectrumX(SessionBase):
             has_atomicals = self.db.get_atomicals_by_location_long_form(location)
             if len(has_atomicals):
                 ticker_name = operation_found_at_inputs.get("payload", {}).get("args", {}).get("mint_ticker", "")
-                status, candidate_atomical_id, _ = self.bp.get_effective_ticker(ticker_name, self.session_mgr.bp.height)
+                status, candidate_atomical_id, _ = self.session_mgr.bp.get_effective_ticker(ticker_name, self.session_mgr.bp.height)
                 if status:
                     atomical_id = location_id_bytes_to_compact(candidate_atomical_id)
                     res["info"] = {
@@ -2889,9 +2899,9 @@ class ElectrumX(SessionBase):
                     prev_txid = hash_to_hex_str(tx.inputs[i.txin_index].prev_hash)
                     prev_raw_tx = self.db.get_raw_tx_by_tx_hash(hex_str_to_hash(prev_txid))
                     if not prev_raw_tx:
-                        prev_raw_tx = await self.daemon_request('getrawtransaction', prev_txid, False)            
-                        self.bp.general_data_cache[b'rtx' + hex_str_to_hash(prev_txid)] = raw_tx
+                        prev_raw_tx = await self.daemon_request('getrawtransaction', prev_txid, False)
                         prev_raw_tx = bytes.fromhex(prev_raw_tx)
+                        self.session_mgr.bp.general_data_cache[b'rtx' + hex_str_to_hash(prev_txid)] = raw_tx
                     prev_tx, _ = self.coin.DESERIALIZER(prev_raw_tx, 0).read_tx_and_hash()
                     res["transfers"]["inputs"][i.txin_index] = {
                         "address": get_address_from_output_script(prev_tx.outputs[tx.inputs[i.txin_index].prev_idx].pk_script),
@@ -2919,9 +2929,9 @@ class ElectrumX(SessionBase):
                     prev_txid = hash_to_hex_str(tx.inputs[i.txin_index].prev_hash)
                     prev_raw_tx = self.db.get_raw_tx_by_tx_hash(hex_str_to_hash(prev_txid))
                     if not prev_raw_tx:
-                        prev_raw_tx = await self.daemon_request('getrawtransaction', prev_txid, False)             
-                        self.bp.general_data_cache[b'rtx' + hex_str_to_hash(prev_txid)] = raw_tx
+                        prev_raw_tx = await self.daemon_request('getrawtransaction', prev_txid, False)
                         prev_raw_tx = bytes.fromhex(prev_raw_tx)
+                        self.session_mgr.bp.general_data_cache[b'rtx' + hex_str_to_hash(prev_txid)] = raw_tx
                     prev_tx, _ = self.coin.DESERIALIZER(prev_raw_tx, 0).read_tx_and_hash()
                     res["transfers"]["inputs"][i.txin_index] = {
                         "address": get_address_from_output_script(prev_tx.outputs[tx.inputs[i.txin_index].prev_idx].pk_script),
@@ -2953,7 +2963,7 @@ class ElectrumX(SessionBase):
                 res["op"] = "payment-dmitem"
 
         if res.get("op"):
-            self._tx_detail_cache[tx_hash] = res
+            self.session_mgr._tx_detail_cache[tx_hash] = res
         return res
 
     async def atomicals_transaction(self, txid):
@@ -2999,10 +3009,10 @@ class ElectrumX(SessionBase):
 
         res = []
         if op_type:
-            op = self.op_list.get(op_type, None)
-            history_data, total = await self.get_history_op(hashX, limit, offset, op, reverse)
+            op = self.session_mgr.op_list.get(op_type, None)
+            history_data, total = await self.session_mgr.get_history_op(hashX, limit, offset, op, reverse)
         else:
-            history_data, total = await self.get_history_op(hashX, limit, offset, None, reverse)
+            history_data, total = await self.session_mgr.get_history_op(hashX, limit, offset, None, reverse)
         for history in history_data:
             tx_hash, tx_height = self.db.fs_tx_hash(history["tx_num"])
             data = await self.get_transaction_detail(hash_to_hex_str(tx_hash), tx_height, history["tx_num"])
@@ -3016,10 +3026,10 @@ class ElectrumX(SessionBase):
         res = []
         hashX = scripthash_to_hashX(scripthash)
         if op_type:
-            op = self.op_list.get(op_type, None)
-            history_data, total = await self.get_history_op(hashX, limit, offset, op, reverse)
+            op = self.session_mgr.op_list.get(op_type, None)
+            history_data, total = await self.session_mgr.get_history_op(hashX, limit, offset, op, reverse)
         else:
-            history_data, total = await self.get_history_op(hashX, limit, offset, None, reverse)
+            history_data, total = await self.session_mgr.get_history_op(hashX, limit, offset, None, reverse)
         for history in history_data:
             tx_hash, tx_height = self.db.fs_tx_hash(history["tx_num"])
             data = await self.get_transaction_detail(hash_to_hex_str(tx_hash), tx_height, history["tx_num"])
@@ -3089,7 +3099,8 @@ class ElectrumX(SessionBase):
             'blockchain.atomicals.get_holders': self.atomicals_get_holders,
             'blockchain.atomicals.transaction': self.atomicals_transaction,
             'blockchain.atomicals.transaction_by_height': self.transaction_by_height,
-            'blockchain.atomicals.transaction_by_atomical_id': self.transaction_by_scripthash,
+            'blockchain.atomicals.transaction_by_atomical_id': self.transaction_by_atomical_id,
+            'blockchain.atomicals.transaction_by_scripthash': self.transaction_by_scripthash,
         }
         if ptuple >= (1, 4, 2):
             handlers['blockchain.scripthash.unsubscribe'] = self.scripthash_unsubscribe
