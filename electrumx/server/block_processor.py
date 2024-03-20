@@ -953,13 +953,13 @@ class BlockProcessor:
     def put_op_data(self, tx_num, tx_hash, op):
         op_list = {
             "mint-dft": 1, "mint-ft": 2, "mint-nft": 3, "mint-nft-realm": 4,
-            "mint-nft-subrealm": 5, "mint-nft-container": 6, "mint-nft-item": 7,
+            "mint-nft-subrealm": 5, "mint-nft-container": 6, "mint-nft-dmitem": 7,
             "dft": 20, "dat": 21, "split": 22, "splat": 23,
             "seal": 24, "evt": 25, "mod": 26,
             "transfer": 30, "invalid-mint": 31,
             "payment-subrealm": 40, "payment-dmitem": 41,
             "mint-dft-failed": 51, "mint-ft-failed": 52, "mint-nft-failed": 53, "mint-nft-realm-failed": 54,
-            "mint-nft-subrealm-failed": 55, "mint-nft-container-failed": 56, "mint-nft-item-failed": 57,
+            "mint-nft-subrealm-failed": 55, "mint-nft-container-failed": 56, "mint-nft-dmitem-failed": 57,
         }
         op_num = op_list.get(op)
         if op_num:
