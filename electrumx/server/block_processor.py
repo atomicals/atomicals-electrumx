@@ -1876,6 +1876,7 @@ class BlockProcessor:
         if len(all_entries) == 0:
             return None, None, []
         all_entries.sort(key=lambda x: x['tx_num'])
+        self.exclude_outdated_candidates(all_entries)
         for index, entry in enumerate(all_entries):
             atomical_id = entry['value']
             mint_info = self.get_atomicals_id_mint_info(atomical_id, False)
@@ -2037,6 +2038,7 @@ class BlockProcessor:
         all_entries.extend(db_entries)
         # sort by the earliest tx number because it was the first one committed
         all_entries.sort(key=lambda x: x['tx_num'])
+        self.exclude_outdated_candidates(all_entries)
         if len(all_entries) > 0:
             candidate_entry = all_entries[0]
             atomical_id = candidate_entry['value']
