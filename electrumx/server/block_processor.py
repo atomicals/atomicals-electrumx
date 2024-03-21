@@ -2366,19 +2366,25 @@ class BlockProcessor:
         dmint_format_status['dmint'] = dmint
         return dmint_format_status
 
+    # Convert candidates to heights info.
+    def build_candidate_heights_info(self, raw_candidate_entry):
+        candidate_atomical_id = raw_candidate_entry['value']
+        raw_mint_info_for_candidate_id = self.get_atomicals_id_mint_info(candidate_atomical_id, True)
+        return candidate_atomical_id, {
+            'commit_height': raw_mint_info_for_candidate_id['commit_height'],
+            'reveal_location_height': raw_mint_info_for_candidate_id['reveal_location_height']
+        }
+
     # Build a map for the name candidates (not subrealms, that's handled below in another function)
-    # We use this method to fetch information such as commit_height and reveal_location_height for informative purposes to display to client
+    # We use this method to fetch information such as commit_height and reveal_location_height
+    # for informative purposes to display to client.
     def build_atomical_id_to_candidate_map(self, raw_candidate_entries):
         atomical_id_to_candidates_map = {}
         for raw_candidate_entry in raw_candidate_entries:
-            candidate_atomical_id = raw_candidate_entry['value']
-            raw_mint_info_for_candidate_id = self.get_atomicals_id_mint_info(candidate_atomical_id, True)
-            atomical_id_to_candidates_map[candidate_atomical_id] = {
-                'commit_height': raw_mint_info_for_candidate_id['commit_height'],
-                'reveal_location_height': raw_mint_info_for_candidate_id['reveal_location_height']
-            }
+            candidate_atomical_id, map = self.build_candidate_heights_info(raw_candidate_entry)
+            atomical_id_to_candidates_map[candidate_atomical_id] = map
         return atomical_id_to_candidates_map
-        
+
     # Populate the requested full realm name to provide context for a subrealm request
     def populate_request_full_realm_name(self, atomical, pid, request_subrealm):
         # Resolve the parent realm to get the parent realm path and construct the full_realm_name
