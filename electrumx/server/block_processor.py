@@ -1913,7 +1913,7 @@ class BlockProcessor:
         dmitem_names = await self.db.get_dmitem_entries_paginated(parent_container_id, limit, offset)
         populated_entries = {}
         for dmitem_name in dmitem_names: 
-            status, atomical_id, candidates = self.get_effective_dmitem(parent_container_id, dmitem_name, height)
+            status, atomical_id, _ = self.get_effective_dmitem(parent_container_id, dmitem_name, height)
             if status == 'verified':
                 populated_entries[dmitem_name] = {
                     'status': status,
@@ -1922,8 +1922,7 @@ class BlockProcessor:
                 }
         return populated_entries
 
-    def get_effective_dmitem(self, parent_container_id, dmitem_name, height):
-        current_height = height
+    def get_effective_dmitem(self, parent_container_id, dmitem_name, current_height):
         db_prefix = b'codmt'
         # Get the effective name entries from the database
         all_entries = []
@@ -1944,11 +1943,29 @@ class BlockProcessor:
         if len(all_entries) == 0:
             return None, None, []
         all_entries.sort(key=lambda x: x['tx_num'])
+        # Exclude candidates that are earlier than MINT_SUBNAME_COMMIT_PAYMENT_DELAY_BLOCKS blocks
+        # of the current batch of candidates. For example: [808202, 808203, 808254, 808255] will return [808254, 808255]
+        # This will only affect session queries, regardless of indexing.
+        potential_exclude_entries = []
+        earliest_height = 0
+        for entry in all_entries:
+            _, height_info = self.build_candidate_heights_info(entry)
+            commit_height = height_info['commit_height']
+            if earliest_height == 0:
+                earliest_height = commit_height
+                potential_exclude_entries.append(entry)
+                continue
+            if commit_height - earliest_height > MINT_SUBNAME_COMMIT_PAYMENT_DELAY_BLOCKS:
+                for old_entry in potential_exclude_entries:
+                    all_entries.remove(old_entry)
+                potential_exclude_entries.clear()
+                earliest_height = commit_height
+            potential_exclude_entries.append(entry)
         for index, entry in enumerate(all_entries):
             atomical_id = entry['value']
             mint_info = self.get_atomicals_id_mint_info(atomical_id, False)
             # Sanity check to make sure it matches
-            self.logger.debug(f'get_effective_dmitem dmitem_name={dmitem_name} atomical_id={location_id_bytes_to_compact(atomical_id)} parent_container_id={location_id_bytes_to_compact(parent_container_id)} entry={entry} height={height}')
+            self.logger.debug(f'get_effective_dmitem dmitem_name={dmitem_name} atomical_id={location_id_bytes_to_compact(atomical_id)} parent_container_id={location_id_bytes_to_compact(parent_container_id)} entry={entry} height={current_height}')
             assert mint_info['commit_tx_num'] == entry['tx_num']
             # Get any payments (correct and valid or even premature, just get them all for now)
             payment_entry = self.get_earliest_dmitem_payment(atomical_id)
