@@ -61,11 +61,11 @@ def calculate_outputs_to_color_for_ft_atomical_ids(tx, ft_atomicals, sort_by_fif
         return None
         # return FtColoringSummary(potential_atomical_ids_to_output_idxs_map, fts_burned, not non_clean_output_slots, atomical_list)
     atomical_list = order_ft_inputs(ft_atomicals, sort_by_fifo)
-    next_start_out_idx = 0
     potential_atomical_ids_to_output_idxs_map = {}
     non_clean_output_slots = False
     fts_burned = {}
     for item in atomical_list:
+      next_start_out_idx = 0
       atomical_id = item.atomical_id
       # If a target exponent was provided, then use that instead
       use_exponent = item.max_exponent
@@ -597,7 +597,7 @@ class AtomicalsTransferBlueprintBuilder:
         input_value = ft_info['value']
         if sum_out_value and sum_out_value > input_value:
             atomical_id_compact = location_id_bytes_to_compact(atomical_id)
-            raise AtomicalsTransferBlueprintBuilderError(f'validate_ft_transfer_has_no_inflation: Fatal error the output sum of outputs is greater than input sum for Atomical: atomical_id={atomical_id_compact} input_value={input_value} sum_out_value={sum_out_value} {hash_to_hex_str(tx_hash)} ft_atomicals={ft_atomicals}')
+            raise AtomicalsTransferBlueprintBuilderError(f'validate_ft_transfer_has_no_inflation: Fatal error the output sum of outputs is greater than input sum for Atomical: atomical_id={atomical_id_compact} input_value={input_value} sum_out_value={sum_out_value} ft_atomicals={ft_atomicals}')
   
   def is_split_operation(self):
     return is_split_operation(self.operations_found_at_inputs)
