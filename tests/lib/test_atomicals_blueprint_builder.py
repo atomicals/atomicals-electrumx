@@ -115,7 +115,6 @@ def test_spends_ft_multiple_valid_collapsed():
     subject_atomical_id2 = b"A\x03\x8f'\xe7\x85`l\xa0\xcc\x1e\xfd\x8e:\xa9\x12\xa1\\r\xd0o5\x9a\xeb\x05$=\xab+p\xa8V\x00\x00\x00\x00"
     
     tx, tx_hash = coin.DESERIALIZER(raw_tx, 0).read_tx_and_hash()
-    print(tx)
     atomicals_spent_at_inputs= {
         0: [{'atomical_id': subject_atomical_id, 'location_id': b'not_used', 'data': b'not_used', 'data_ex': {'value': 1000, 'exponent': 0}}], 
         1: [{'atomical_id': subject_atomical_id2, 'location_id': b'not_used', 'data': b'not_used', 'data_ex': {'value': 3000, 'exponent': 0}}], 
