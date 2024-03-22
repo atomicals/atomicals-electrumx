@@ -1982,17 +1982,27 @@ class HttpHandler(object):
         atomicals_receive_at_outputs = self.session_mgr.bp.build_atomicals_receive_at_ouutput_for_validation_only(tx, tx_hash)
         blueprint_builder = AtomicalsTransferBlueprintBuilder(self.logger, atomicals_spent_at_inputs, operation_found_at_inputs, tx_hash, tx, self.session_mgr.bp.get_atomicals_id_mint_info, True)
         is_burned = blueprint_builder.are_fts_burned
+        is_cleanly_assigned = blueprint_builder.cleanly_assigned
         # format burned_fts
         raw_burned_fts = blueprint_builder.get_fts_burned()
         burned_fts = {}
         for ft_key, ft_value in raw_burned_fts.items():
             burned_fts[location_id_bytes_to_compact(ft_key)] = ft_value
 
-        # if operation_found_at_inputs:
-        #     print(f"{operation_found_at_inputs.get('op', None)}, txid: {txid}")
-        #     print(operation_found_at_inputs)
-
-        res = {"op": "", "txid": txid, "height": height, "tx_num": tx_num, "info": {}, "transfers": {"inputs": {}, "outputs": {}, "is_burned": is_burned, "burned_fts": burned_fts}}
+        res = {
+            "op": "", 
+            "txid": txid,
+            "height": height,
+            "tx_num": tx_num,
+            "info": {},
+            "transfers":{
+                "inputs": {}, 
+                "outputs": {}, 
+                "is_burned": is_burned, 
+                "burned_fts": burned_fts,
+                "is_cleanly_assigned": is_cleanly_assigned
+            }
+        }
         if operation_found_at_inputs:
             res["info"]["payload"] = operation_found_at_inputs.get("payload", {})
         if blueprint_builder.is_mint and operation_found_at_inputs["op"] in ["dmt", "ft"]:
@@ -2083,9 +2093,9 @@ class HttpHandler(object):
                     prev_txid = hash_to_hex_str(tx.inputs[i.txin_index].prev_hash)
                     prev_raw_tx = self.db.get_raw_tx_by_tx_hash(hex_str_to_hash(prev_txid))
                     if not prev_raw_tx:
-                        prev_raw_tx = await self.daemon_request('getrawtransaction', prev_txid, False)            
-                        self.session_mgr.bp.general_data_cache[b'rtx' + hex_str_to_hash(prev_txid)] = raw_tx
+                        prev_raw_tx = await self.daemon_request('getrawtransaction', prev_txid, False)
                         prev_raw_tx = bytes.fromhex(prev_raw_tx)
+                        self.session_mgr.bp.general_data_cache[b'rtx' + hex_str_to_hash(prev_txid)] = prev_raw_tx
                     prev_tx, _ = self.coin.DESERIALIZER(prev_raw_tx, 0).read_tx_and_hash()
                     ft_data = {
                         "address": get_address_from_output_script(prev_tx.outputs[tx.inputs[i.txin_index].prev_idx].pk_script),
@@ -2121,9 +2131,9 @@ class HttpHandler(object):
                     prev_txid = hash_to_hex_str(tx.inputs[i.txin_index].prev_hash)
                     prev_raw_tx = self.db.get_raw_tx_by_tx_hash(hex_str_to_hash(prev_txid))
                     if not prev_raw_tx:
-                        prev_raw_tx = await self.daemon_request('getrawtransaction', prev_txid, False)             
-                        self.session_mgr.bp.general_data_cache[b'rtx' + hex_str_to_hash(prev_txid)] = raw_tx
+                        prev_raw_tx = await self.daemon_request('getrawtransaction', prev_txid, False)
                         prev_raw_tx = bytes.fromhex(prev_raw_tx)
+                        self.session_mgr.bp.general_data_cache[b'rtx' + hex_str_to_hash(prev_txid)] = prev_raw_tx
                     prev_tx, _ = self.coin.DESERIALIZER(prev_raw_tx, 0).read_tx_and_hash()
                     nft_data = {
                         "address": get_address_from_output_script(prev_tx.outputs[tx.inputs[i.txin_index].prev_idx].pk_script),
