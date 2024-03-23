@@ -1982,17 +1982,27 @@ class HttpHandler(object):
         atomicals_receive_at_outputs = self.session_mgr.bp.build_atomicals_receive_at_ouutput_for_validation_only(tx, tx_hash)
         blueprint_builder = AtomicalsTransferBlueprintBuilder(self.logger, atomicals_spent_at_inputs, operation_found_at_inputs, tx_hash, tx, self.session_mgr.bp.get_atomicals_id_mint_info, True)
         is_burned = blueprint_builder.are_fts_burned
+        is_cleanly_assigned = blueprint_builder.cleanly_assigned
         # format burned_fts
         raw_burned_fts = blueprint_builder.get_fts_burned()
         burned_fts = {}
         for ft_key, ft_value in raw_burned_fts.items():
             burned_fts[location_id_bytes_to_compact(ft_key)] = ft_value
 
-        # if operation_found_at_inputs:
-        #     print(f"{operation_found_at_inputs.get('op', None)}, txid: {txid}")
-        #     print(operation_found_at_inputs)
-
-        res = {"op": "", "txid": txid, "height": height, "tx_num": tx_num, "info": {}, "transfers": {"inputs": {}, "outputs": {}, "is_burned": is_burned, "burned_fts": burned_fts}}
+        res = {
+            "op": "", 
+            "txid": txid,
+            "height": height,
+            "tx_num": tx_num,
+            "info": {},
+            "transfers":{
+                "inputs": {}, 
+                "outputs": {}, 
+                "is_burned": is_burned, 
+                "burned_fts": burned_fts,
+                "is_cleanly_assigned": is_cleanly_assigned
+            }
+        }
         if operation_found_at_inputs:
             res["info"]["payload"] = operation_found_at_inputs.get("payload", {})
         if blueprint_builder.is_mint and operation_found_at_inputs["op"] in ["dmt", "ft"]:
@@ -2015,13 +2025,13 @@ class HttpHandler(object):
                         "location_id": location_id_bytes_to_compact(location),
                         "payload": operation_found_at_inputs.get("payload"),
                         "outputs": {
-                            expected_output_index: {
+                            expected_output_index: [{
                                 "address": get_address_from_output_script(txout.pk_script),
                                 "atomical_id": atomical_id,
                                 "type": "FT",
                                 "index": expected_output_index,
                                 "value": txout.value
-                            }
+                            }]
                         }
                     }
             else:
@@ -2048,13 +2058,13 @@ class HttpHandler(object):
                     "location_id": location_id_bytes_to_compact(location),
                     "payload": operation_found_at_inputs.get("payload"),
                     "outputs": {
-                        expected_output_index: {
+                        expected_output_index: [{
                             "address": get_address_from_output_script(txout.pk_script),
                             "atomical_id": atomical_id,
                             "type": "NFT",
                             "index": expected_output_index,
                             "value": txout.value
-                        }
+                        }]
                     }
                 }
             else:
@@ -2083,27 +2093,35 @@ class HttpHandler(object):
                     prev_txid = hash_to_hex_str(tx.inputs[i.txin_index].prev_hash)
                     prev_raw_tx = self.db.get_raw_tx_by_tx_hash(hex_str_to_hash(prev_txid))
                     if not prev_raw_tx:
-                        prev_raw_tx = await self.daemon_request('getrawtransaction', prev_txid, False)            
-                        self.session_mgr.bp.general_data_cache[b'rtx' + hex_str_to_hash(prev_txid)] = raw_tx
+                        prev_raw_tx = await self.daemon_request('getrawtransaction', prev_txid, False)
                         prev_raw_tx = bytes.fromhex(prev_raw_tx)
+                        self.session_mgr.bp.general_data_cache[b'rtx' + hex_str_to_hash(prev_txid)] = prev_raw_tx
                     prev_tx, _ = self.coin.DESERIALIZER(prev_raw_tx, 0).read_tx_and_hash()
-                    res["transfers"]["inputs"][i.txin_index] = {
+                    ft_data = {
                         "address": get_address_from_output_script(prev_tx.outputs[tx.inputs[i.txin_index].prev_idx].pk_script),
                         "atomical_id": compact_atomical_id,
                         "type": "FT",
                         "index": i.txin_index,
                         "value": prev_tx.outputs[tx.inputs[i.txin_index].prev_idx].value
                     }
+                    if i.txin_index not in res["transfers"]["inputs"]:
+                        res["transfers"]["inputs"][i.txin_index] = [ft_data]
+                    else:
+                        res["transfers"]["inputs"][i.txin_index].append(ft_data)
             for k, v in blueprint_builder.ft_output_blueprint.outputs.items():
                 for atomical_id, output_ft in v['atomicals'].items():
                     compact_atomical_id = location_id_bytes_to_compact(atomical_id)
-                    res["transfers"]["outputs"][k] = {
+                    ft_data = {
                         "address": get_address_from_output_script(tx.outputs[k].pk_script),
                         "atomical_id": compact_atomical_id,
                         "type": "FT",
                         "index": k,
                         "value": output_ft.satvalue
                     }
+                    if k not in res["transfers"]["outputs"]:
+                        res["transfers"]["outputs"][k] = [ft_data]
+                    else:
+                        res["transfers"]["outputs"][k].append(ft_data)
         if blueprint_builder.nft_atomicals and atomicals_spent_at_inputs:
             if not operation_found_at_inputs:
                 res["op"] = "transfer"
@@ -2113,27 +2131,35 @@ class HttpHandler(object):
                     prev_txid = hash_to_hex_str(tx.inputs[i.txin_index].prev_hash)
                     prev_raw_tx = self.db.get_raw_tx_by_tx_hash(hex_str_to_hash(prev_txid))
                     if not prev_raw_tx:
-                        prev_raw_tx = await self.daemon_request('getrawtransaction', prev_txid, False)             
-                        self.session_mgr.bp.general_data_cache[b'rtx' + hex_str_to_hash(prev_txid)] = raw_tx
+                        prev_raw_tx = await self.daemon_request('getrawtransaction', prev_txid, False)
                         prev_raw_tx = bytes.fromhex(prev_raw_tx)
+                        self.session_mgr.bp.general_data_cache[b'rtx' + hex_str_to_hash(prev_txid)] = prev_raw_tx
                     prev_tx, _ = self.coin.DESERIALIZER(prev_raw_tx, 0).read_tx_and_hash()
-                    res["transfers"]["inputs"][i.txin_index] = {
+                    nft_data = {
                         "address": get_address_from_output_script(prev_tx.outputs[tx.inputs[i.txin_index].prev_idx].pk_script),
                         "atomical_id": compact_atomical_id,
                         "type": "NFT",
                         "index": i.txin_index,
                         "value": prev_tx.outputs[tx.inputs[i.txin_index].prev_idx].value
                     }
+                    if i.txin_index not in res["transfers"]["inputs"]:
+                        res["transfers"]["inputs"][i.txin_index] = [nft_data]
+                    else:
+                        res["transfers"]["inputs"][i.txin_index].append(nft_data)
             for k, v in blueprint_builder.nft_output_blueprint.outputs.items():
                 for atomical_id, output_nft in v['atomicals'].items():
                     compact_atomical_id = location_id_bytes_to_compact(atomical_id)
-                    res["transfers"]["outputs"][k] = {
+                    nft_data = {
                         "address": get_address_from_output_script(tx.outputs[k].pk_script),
                         "atomical_id": compact_atomical_id,
                         "type": output_nft.type,
                         "index": k,
                         "value": output_nft.total_satsvalue
                     }
+                    if k not in res["transfers"]["outputs"]:
+                        res["transfers"]["outputs"][k] = [nft_data]
+                    else:
+                        res["transfers"]["outputs"][k].append(nft_data)
 
         atomical_id_for_payment, payment_marker_idx, entity_type = AtomicalsTransferBlueprintBuilder.get_atomical_id_for_payment_marker_if_found(tx)
         if atomical_id_for_payment:
