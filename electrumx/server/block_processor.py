@@ -1826,10 +1826,11 @@ class BlockProcessor:
     # Exclude candidates that are earlier than MINT_SUBNAME_COMMIT_PAYMENT_DELAY_BLOCKS blocks
     # of the current batch of candidates. For example: [808202, 808203, 808254, 808255] will return [808254, 808255]
     # This will only affect session queries, regardless of indexing.
-    def exclude_outdated_candidates(self, all_entries):
+    def exclude_outdated_candidates(self, all_entries: List[dict]):
+        entries = all_entries.copy()
         potential_exclude_entries = []
         earliest_height = 0
-        for entry in all_entries:
+        for entry in entries:
             _, height_info = self.build_candidate_heights_info(entry)
             commit_height = height_info['commit_height']
             if earliest_height == 0:
@@ -1838,10 +1839,11 @@ class BlockProcessor:
                 continue
             if commit_height - earliest_height > MINT_SUBNAME_COMMIT_PAYMENT_DELAY_BLOCKS:
                 for old_entry in potential_exclude_entries:
-                    all_entries.remove(old_entry)
+                    entries.remove(old_entry)
                 potential_exclude_entries.clear()
                 earliest_height = commit_height
             potential_exclude_entries.append(entry)
+        return entries
 
     # Get the effective realm considering cache and database
     def get_effective_realm(self, realm_name, height):
@@ -1876,7 +1878,7 @@ class BlockProcessor:
         if len(all_entries) == 0:
             return None, None, []
         all_entries.sort(key=lambda x: x['tx_num'])
-        self.exclude_outdated_candidates(all_entries)
+        all_entries = self.exclude_outdated_candidates(all_entries)
         for index, entry in enumerate(all_entries):
             atomical_id = entry['value']
             mint_info = self.get_atomicals_id_mint_info(atomical_id, False)
@@ -1964,7 +1966,7 @@ class BlockProcessor:
         if len(all_entries) == 0:
             return None, None, []
         all_entries.sort(key=lambda x: x['tx_num'])
-        self.exclude_outdated_candidates(all_entries)
+        all_entries = self.exclude_outdated_candidates(all_entries)
         for index, entry in enumerate(all_entries):
             atomical_id = entry['value']
             mint_info = self.get_atomicals_id_mint_info(atomical_id, False)
@@ -2038,7 +2040,7 @@ class BlockProcessor:
         all_entries.extend(db_entries)
         # sort by the earliest tx number because it was the first one committed
         all_entries.sort(key=lambda x: x['tx_num'])
-        self.exclude_outdated_candidates(all_entries)
+        all_entries = self.exclude_outdated_candidates(all_entries)
         if len(all_entries) > 0:
             candidate_entry = all_entries[0]
             atomical_id = candidate_entry['value']
@@ -2389,7 +2391,7 @@ class BlockProcessor:
         return dmint_format_status
 
     # Convert candidates to heights info.
-    def build_candidate_heights_info(self, raw_candidate_entry):
+    def build_candidate_heights_info(self, raw_candidate_entry: dict):
         candidate_atomical_id = raw_candidate_entry['value']
         raw_mint_info_for_candidate_id = self.get_atomicals_id_mint_info(candidate_atomical_id, True)
         return candidate_atomical_id, {
