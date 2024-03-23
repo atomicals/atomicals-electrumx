@@ -1,6 +1,5 @@
 aiorpcX[ws]>=0.22.0,<0.23
 attrs
-plyvel
 pylru @ git+https://github.com/atomicals-community/pylru@c9b47f0
 aiohttp>=3.3,<4
 cbor2
@@ -9,3 +8,10 @@ regex
 krock32
 merkletools
 requests==2.31.0
+
+# For LevelDB
+plyvel
+
+# For RocksDB
+Cython
+rocksdb @ git+https://github.com/jansegre/python-rocksdb@6177a68
