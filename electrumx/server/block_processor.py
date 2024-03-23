@@ -2403,8 +2403,8 @@ class BlockProcessor:
     def build_atomical_id_to_candidate_map(self, raw_candidate_entries):
         atomical_id_to_candidates_map = {}
         for raw_candidate_entry in raw_candidate_entries:
-            candidate_atomical_id, map = self.build_candidate_heights_info(raw_candidate_entry)
-            atomical_id_to_candidates_map[candidate_atomical_id] = map
+            candidate_atomical_id, heights_info = self.build_candidate_heights_info(raw_candidate_entry)
+            atomical_id_to_candidates_map[candidate_atomical_id] = heights_info
         return atomical_id_to_candidates_map
 
     # Populate the requested full realm name to provide context for a subrealm request
