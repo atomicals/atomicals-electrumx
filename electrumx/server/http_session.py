@@ -1712,8 +1712,9 @@ class HttpHandler(object):
             self.logger.info(f'formatted_entries {formatted_entries}')
             raise RPCError(BAD_REQUEST, f'Container does not exist')
         status, candidate_atomical_id, all_entries = self.session_mgr.bp.get_effective_dmitem(found_atomical_id, item_name, height)
-        found_item_atomical_id = None
         formatted_entries = format_name_type_candidates_to_rpc(all_entries, self.session_mgr.bp.build_atomical_id_to_candidate_map(all_entries))
+
+        found_item_atomical_id = None
         if candidate_atomical_id:
             candidate_atomical_id = location_id_bytes_to_compact(candidate_atomical_id)
         if status == 'verified':
@@ -1762,8 +1763,9 @@ class HttpHandler(object):
 
         dmint = container_dmint_status.get('dmint')
         status, candidate_atomical_id, all_entries = self.session_mgr.bp.get_effective_dmitem(found_parent_atomical_id, item_name, height)
-        found_item_atomical_id = None
         formatted_entries = format_name_type_candidates_to_rpc(all_entries, self.session_mgr.bp.build_atomical_id_to_candidate_map(all_entries))
+
+        found_item_atomical_id = None
         if candidate_atomical_id:
             candidate_atomical_id = location_id_bytes_to_compact(candidate_atomical_id)
         if status == 'verified':
