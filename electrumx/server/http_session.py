@@ -1959,7 +1959,6 @@ class HttpHandler(object):
     # analysis the transaction detail by txid
     # might be mint-dft, dmint, transfer, burn...
     async def get_transaction_detail(self, txid, height=None, tx_num=-1):
-
         tx_hash = hex_str_to_hash(txid)
         res = self.session_mgr._tx_detail_cache.get(tx_hash)
         if res:
@@ -1968,7 +1967,7 @@ class HttpHandler(object):
             return res
         if not height:
             tx_num, height = self.db.get_tx_num_height_from_tx_hash(tx_hash)
-        
+
         res = {}
         raw_tx = self.db.get_raw_tx_by_tx_hash(tx_hash)
         if not raw_tx:
@@ -1990,15 +1989,15 @@ class HttpHandler(object):
             burned_fts[location_id_bytes_to_compact(ft_key)] = ft_value
 
         res = {
-            "op": "", 
+            "op": "",
             "txid": txid,
             "height": height,
             "tx_num": tx_num,
             "info": {},
             "transfers":{
-                "inputs": {}, 
-                "outputs": {}, 
-                "is_burned": is_burned, 
+                "inputs": {},
+                "outputs": {},
+                "is_burned": is_burned,
                 "burned_fts": burned_fts,
                 "is_cleanly_assigned": is_cleanly_assigned
             }
@@ -2174,7 +2173,11 @@ class HttpHandler(object):
 
         if res.get("op"):
             self.session_mgr._tx_detail_cache[tx_hash] = res
+
+        # Recursively encode payload content.
+        res["info"]["payload"] = auto_encode_bytes_elements(res["info"]["payload"])
         return res
+
 
     async def atomicals_transaction(self, request):
         params = await self.format_params(request)
