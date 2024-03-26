@@ -208,13 +208,15 @@ class SessionManager:
         self.session_event = Event()
         self.op_list = {
             "mint-dft": 1, "mint-ft": 2, "mint-nft": 3, "mint-nft-realm": 4,
-            "mint-nft-subrealm": 5, "mint-nft-container": 6, "mint-nft-item": 7,
+            "mint-nft-subrealm": 5, "mint-nft-container": 6, "mint-nft-dmitem": 7,
             "dft": 20, "dat": 21, "split": 22, "splat": 23,
             "seal": 24, "evt": 25, "mod": 26,
-            "transfer": 30, "invalid-mint": 31,
+            "transfer": 30,
             "payment-subrealm": 40, "payment-dmitem": 41,
             "mint-dft-failed": 51, "mint-ft-failed": 52, "mint-nft-failed": 53, "mint-nft-realm-failed": 54,
-            "mint-nft-subrealm-failed": 55, "mint-nft-container-failed": 56, "mint-nft-item-failed": 57,
+            "mint-nft-subrealm-failed": 55, "mint-nft-container-failed": 56, "mint-nft-dmitem-failed": 57,
+            "invalid-mint": 59,
+            "burn": 70,
         }
 
         # Set up the RPC request handlers
@@ -1035,6 +1037,8 @@ class SessionManager:
             history_data.sort(key=lambda x: x['tx_num'], reverse=reverse)
         if op:
             history_data = list(filter(lambda x: x["op"] == op, history_data))
+        else:
+            history_data = list(filter(lambda x: x["op"], history_data))
         return history_data[offset:limit+offset], len(history_data)
 
     async def _notify_sessions(self, height, touched):
@@ -1048,11 +1052,11 @@ class SessionManager:
             for hashX in set(cache).intersection(touched):
                 del cache[hashX]
             for hashX in set(op_cache).intersection(touched):
-                del op_cache[hashX]
-                if self.notified_height == await self.daemon.height():
-                    time.sleep(20)
-                    background_task = asyncio.create_task(self.get_history_op(hashX, 10, 0, None, False))
-                    await background_task
+                op_cache.pop(hashX, None)
+                self.logger.info(f"refresh op cache {self.notified_height}")
+                time.sleep(2)
+                background_task = asyncio.create_task(self.get_history_op(hashX, 10, 0, None, True))
+                await background_task
 
         for session in self.sessions:
             if self._task_group.joined:  # this can happen during shutdown
@@ -3035,7 +3039,7 @@ class ElectrumX(SessionBase):
 
         res = []
         if op_type:
-            op = self.session_mgr.op_list.get(op_type, None)
+            op = self.session_mgr.bp.op_list.get(op_type, None)
             history_data, total = await self.session_mgr.get_history_op(hashX, limit, offset, op, reverse)
         else:
             history_data, total = await self.session_mgr.get_history_op(hashX, limit, offset, None, reverse)
@@ -3049,18 +3053,19 @@ class ElectrumX(SessionBase):
     
     # get transaction by scripthash
     async def transaction_by_scripthash(self, scripthash, limit=10, offset=0, op_type=None, reverse=True):
-        res = []
         hashX = scripthash_to_hashX(scripthash)
+        res = []
         if op_type:
-            op = self.session_mgr.op_list.get(op_type, None)
+            op = self.session_mgr.bp.op_list.get(op_type, None)
             history_data, total = await self.session_mgr.get_history_op(hashX, limit, offset, op, reverse)
         else:
             history_data, total = await self.session_mgr.get_history_op(hashX, limit, offset, None, reverse)
+
         for history in history_data:
             tx_hash, tx_height = self.db.fs_tx_hash(history["tx_num"])
             data = await self.get_transaction_detail(hash_to_hex_str(tx_hash), tx_height, history["tx_num"])
             if data and data["op"]:
-                if (op_type and data["op"] == op_type) or not op_type:
+                if data["op"] and (data["op"] == op_type or not op_type):
                     res.append(data)
         return {"result": res, "total": total, "limit": limit, "offset": offset}
 
