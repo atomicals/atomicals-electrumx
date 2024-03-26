@@ -110,17 +110,7 @@ class HttpHandler(object):
         self.mempool_statuses = {}
         self.sv_seen = False
         self.MAX_CHUNK_SIZE = 2016
-        self.hashX_subs = {}        
-        self.op_list = {
-            "mint-dft": 1, "mint-ft": 2, "mint-nft": 3, "mint-nft-realm": 4,
-            "mint-nft-subrealm": 5, "mint-nft-container": 6, "mint-nft-item": 7,
-            "dft": 20, "dat": 21, "split": 22, "splat": 23,
-            "seal": 24, "evt": 25, "mod": 26,
-            "transfer": 30, "invalid-mint": 31,
-            "payment-subrealm": 40, "payment-dmitem": 41,
-            "mint-dft-failed": 51, "mint-ft-failed": 52, "mint-nft-failed": 53, "mint-nft-realm-failed": 54,
-            "mint-nft-subrealm-failed": 55, "mint-nft-container-failed": 56, "mint-nft-item-failed": 57,
-        }
+        self.hashX_subs = {}
 
     async def format_params(self, request):
         if request.method == "GET":
@@ -2236,7 +2226,7 @@ class HttpHandler(object):
 
         res = []
         if op_type:
-            op = self.op_list.get(op_type, None)
+            op = self.session_mgr.bp.op_list.get(op_type, None)
             history_data, total = await self.session_mgr.get_history_op(hashX, limit, offset, op, reverse)
         else:
             history_data, total = await self.session_mgr.get_history_op(hashX, limit, offset, None, reverse)
@@ -2257,18 +2247,19 @@ class HttpHandler(object):
         op_type = params.get(3, None)
         reverse = params.get(4, True)
 
-        res = []
         hashX = scripthash_to_hashX(scripthash)
+        res = []
         if op_type:
-            op = self.op_list.get(op_type, None)
+            op = self.session_mgr.bp.op_list.get(op_type, None)
             history_data, total = await self.session_mgr.get_history_op(hashX, limit, offset, op, reverse)
         else:
             history_data, total = await self.session_mgr.get_history_op(hashX, limit, offset, None, reverse)
+
         for history in history_data:
             tx_hash, tx_height = self.db.fs_tx_hash(history["tx_num"])
             data = await self.get_transaction_detail(hash_to_hex_str(tx_hash), tx_height, history["tx_num"])
             if data and data["op"]:
-                if (op_type and data["op"] == op_type) or not op_type:
+                if data["op"] and (data["op"] == op_type or not op_type):
                     res.append(data)
         return {"result": res, "total": total, "limit": limit, "offset": offset}
     

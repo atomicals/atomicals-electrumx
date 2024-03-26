@@ -288,7 +288,19 @@ class BlockProcessor:
         self.atomicals_rpc_format_cache = pylru.lrucache(100000)
         self.atomicals_rpc_general_cache = pylru.lrucache(100000)
         self.atomicals_dft_mint_count_cache = pylru.lrucache(1000)        # tracks number of minted tokens per dft mint to make processing faster per blocks
-  
+        self.op_list = {
+            "mint-dft": 1, "mint-ft": 2, "mint-nft": 3, "mint-nft-realm": 4,
+            "mint-nft-subrealm": 5, "mint-nft-container": 6, "mint-nft-dmitem": 7,
+            "dft": 20, "dat": 21, "split": 22, "splat": 23,
+            "seal": 24, "evt": 25, "mod": 26,
+            "transfer": 30,
+            "payment-subrealm": 40, "payment-dmitem": 41,
+            "mint-dft-failed": 51, "mint-ft-failed": 52, "mint-nft-failed": 53, "mint-nft-realm-failed": 54,
+            "mint-nft-subrealm-failed": 55, "mint-nft-container-failed": 56, "mint-nft-dmitem-failed": 57,
+            "invalid-mint": 59,
+            "burn": 70,
+        }
+
     async def run_in_thread_with_lock(self, func, *args):
         # Run in a thread to prevent blocking.  Shielded so that
         # cancellations from shutdown don't lose work - when the task
@@ -951,17 +963,7 @@ class BlockProcessor:
     
     # Function to cache and eventually flush the op
     def put_op_data(self, tx_num, tx_hash, op):
-        op_list = {
-            "mint-dft": 1, "mint-ft": 2, "mint-nft": 3, "mint-nft-realm": 4,
-            "mint-nft-subrealm": 5, "mint-nft-container": 6, "mint-nft-item": 7,
-            "dft": 20, "dat": 21, "split": 22, "splat": 23,
-            "seal": 24, "evt": 25, "mod": 26,
-            "transfer": 30, "invalid-mint": 31,
-            "payment-subrealm": 40, "payment-dmitem": 41,
-            "mint-dft-failed": 51, "mint-ft-failed": 52, "mint-nft-failed": 53, "mint-nft-realm-failed": 54,
-            "mint-nft-subrealm-failed": 55, "mint-nft-container-failed": 56, "mint-nft-item-failed": 57,
-        }
-        op_num = op_list.get(op)
+        op_num = self.op_list.get(op)
         if op_num:
             op_prefix_key = b'op' + pack_le_uint64(tx_num)
             self.logger.debug(f'add the {op} op transaction detail for {hash_to_hex_str(tx_hash)}')
@@ -1466,6 +1468,16 @@ class BlockProcessor:
                     return None
             if not Delete:
                 if not self.validate_and_create_nft_mint_utxo(mint_info, txout, height, tx_hash):
+                    if mint_info.get('$request_realm'):
+                        self.put_op_data(tx_num, tx_hash, "mint-nft-realm-failed")
+                    elif mint_info.get('$request_subrealm'):
+                        self.put_op_data(tx_num, tx_hash, "mint-nft-subrealm-failed")
+                    elif mint_info.get('$request_container'):
+                        self.put_op_data(tx_num, tx_hash, "mint-nft-container-failed")
+                    elif mint_info.get('$request_dmitem'):
+                        self.put_op_data(tx_num, tx_hash, "mint-nft-dmitem-failed")
+                    else:
+                        self.put_op_data(tx_num, tx_hash, "mint-nft-failed")
                     self.logger.info(f'create_or_delete_atomical: validate_and_create_nft_mint_utxo returned FALSE in Transaction {hash_to_hex_str(tx_hash)}. Skipping...') 
                     return None
                 else:
@@ -1499,6 +1511,10 @@ class BlockProcessor:
             if not Delete:
                 if not self.validate_and_create_ft_mint_utxo(mint_info, tx_hash):
                     self.logger.info(f'create_or_delete_atomical: validate_and_create_ft_mint_utxo returned FALSE in Transaction {hash_to_hex_str(tx_hash)}. Skipping...') 
+                    if mint_info['subtype'] == 'decentralized':
+                        self.put_op_data(tx_num, tx_hash, "mint-dft-failed")
+                    else:
+                        self.put_op_data(tx_num, tx_hash, "mint-ft-failed")
                     return None
                 else:
                     if mint_info['subtype'] == 'decentralized':
@@ -1720,6 +1736,7 @@ class BlockProcessor:
         
         # Log that there were tokens burned due to not being cleanly assigned
         if blueprint_builder.get_are_fts_burned():
+            self.put_op_data(tx_num, tx_hash, "burn")
             self.logger.debug(f'color_atomicals_outputs:are_fts_burned=True tx_hash={tx_hash} ft_output_blueprint={ft_output_blueprint}')
 
         return blueprint_builder
@@ -2724,9 +2741,11 @@ class BlockProcessor:
                     return dmt_mint_atomical_id
             else:
                 self.logger.debug(f'create_or_delete_decentralized_mint_outputs found invalid mint operation because it is minted out completely. {hash_to_hex_str(tx_hash)}. Ignoring...')
+                self.put_op_data(tx_num, tx_hash, "mint-dft-failed")
                 return None
         else: 
             self.logger.warning(f'create_or_delete_decentralized_mint_outputs: found invalid mint operation in {hash_to_hex_str(tx_hash)} for {ticker} because incorrect txout.value {txout.value} when expected {mint_amount}')
+            self.put_op_data(tx_num, tx_hash, "mint-dft-failed")
             return None
 
     def is_atomicals_activated(self, height): 
