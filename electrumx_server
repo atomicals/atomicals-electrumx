@@ -15,8 +15,11 @@ import os
 import sys
 import logging.handlers
 
+from dotenv import load_dotenv
 from electrumx import Controller, Env
 from electrumx.lib.util import CompactFormatter, make_logger
+
+load_dotenv()
 
 
 def main():
