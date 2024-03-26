@@ -2775,7 +2775,6 @@ class ElectrumX(SessionBase):
         return await self.mempool.compact_fee_histogram()
     
     async def get_transaction_detail(self, txid, height=None, tx_num=-1):
-
         tx_hash = hex_str_to_hash(txid)
         res = self.session_mgr._tx_detail_cache.get(tx_hash)
         if res:
@@ -2784,14 +2783,13 @@ class ElectrumX(SessionBase):
             return res
         if not height:
             tx_num, height = self.db.get_tx_num_height_from_tx_hash(tx_hash)
-        
-        res = {}
+
         raw_tx = self.db.get_raw_tx_by_tx_hash(tx_hash)
         if not raw_tx:
             raw_tx = await self.daemon_request('getrawtransaction', txid, False)
             raw_tx = bytes.fromhex(raw_tx)
         tx, _tx_hash = self.coin.DESERIALIZER(raw_tx, 0).read_tx_and_hash()
-        assert(tx_hash == _tx_hash)
+        assert tx_hash == _tx_hash
 
         operation_found_at_inputs = parse_protocols_operations_from_witness_array(tx, tx_hash, True)
         atomicals_spent_at_inputs = self.session_mgr.bp.build_atomicals_spent_at_inputs_for_validation_only(tx)
@@ -2806,15 +2804,15 @@ class ElectrumX(SessionBase):
             burned_fts[location_id_bytes_to_compact(ft_key)] = ft_value
 
         res = {
-            "op": "", 
+            "op": "",
             "txid": txid,
             "height": height,
             "tx_num": tx_num,
             "info": {},
-            "transfers":{
-                "inputs": {}, 
-                "outputs": {}, 
-                "is_burned": is_burned, 
+            "transfers": {
+                "inputs": {},
+                "outputs": {},
+                "is_burned": is_burned,
                 "burned_fts": burned_fts,
                 "is_cleanly_assigned": is_cleanly_assigned
             }
@@ -2910,7 +2908,7 @@ class ElectrumX(SessionBase):
                     prev_raw_tx = self.db.get_raw_tx_by_tx_hash(hex_str_to_hash(prev_txid))
                     if not prev_raw_tx:
                         prev_raw_tx = await self.daemon_request('getrawtransaction', prev_txid, False)
-                        prev_raw_tx = bytes.fromhex(prev_raw_tx) 
+                        prev_raw_tx = bytes.fromhex(prev_raw_tx)
                         self.session_mgr.bp.general_data_cache[b'rtx' + hex_str_to_hash(prev_txid)] = prev_raw_tx
                     prev_tx, _ = self.coin.DESERIALIZER(prev_raw_tx, 0).read_tx_and_hash()
                     ft_data = {
@@ -2947,7 +2945,7 @@ class ElectrumX(SessionBase):
                     prev_txid = hash_to_hex_str(tx.inputs[i.txin_index].prev_hash)
                     prev_raw_tx = self.db.get_raw_tx_by_tx_hash(hex_str_to_hash(prev_txid))
                     if not prev_raw_tx:
-                        prev_raw_tx = await self.daemon_request('getrawtransaction', prev_txid, False)             
+                        prev_raw_tx = await self.daemon_request('getrawtransaction', prev_txid, False)
                         prev_raw_tx = bytes.fromhex(prev_raw_tx)
                         self.session_mgr.bp.general_data_cache[b'rtx' + hex_str_to_hash(prev_txid)] = prev_raw_tx
                     prev_tx, _ = self.coin.DESERIALIZER(prev_raw_tx, 0).read_tx_and_hash()
@@ -2990,7 +2988,9 @@ class ElectrumX(SessionBase):
 
         if res.get("op"):
             self.session_mgr._tx_detail_cache[tx_hash] = res
-        return res
+
+        # Recursively encode the result.
+        return auto_encode_bytes_elements(res)
 
     async def atomicals_transaction(self, txid):
         return await self.get_transaction_detail(txid)
