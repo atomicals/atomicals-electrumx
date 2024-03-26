@@ -78,8 +78,6 @@ def calculate_outputs_to_color_for_ft_atomical_ids(tx, ft_atomicals, sort_by_fif
         # Erase the potential for safety
         potential_atomical_ids_to_output_idxs_map = {}
         non_clean_output_slots = True
-        if remaining_value_from_assign > 0:
-          fts_burned[atomical_id] = get_nominal_token_value(remaining_value_from_assign, use_exponent)
         break
 
     # If the output slots did not fit cleanly, then default to just assigning everything from the 0'th output index
