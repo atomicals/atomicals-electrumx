@@ -2174,10 +2174,8 @@ class HttpHandler(object):
         if res.get("op"):
             self.session_mgr._tx_detail_cache[tx_hash] = res
 
-        # Recursively encode payload content.
-        res["info"]["payload"] = auto_encode_bytes_elements(res["info"]["payload"])
-        return res
-
+        # Recursively encode the result.
+        return auto_encode_bytes_elements(res)
 
     async def atomicals_transaction(self, request):
         params = await self.format_params(request)
