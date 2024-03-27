@@ -1338,8 +1338,9 @@ class ElectrumX(SessionBase):
 
     async def headers_subscribe(self):
         '''Subscribe to get raw headers of new blocks.'''
-        self.subscribe_headers = True
-        self.bump_cost(0.25)
+        if not self.subscribe_headers:
+            self.subscribe_headers = True
+            self.bump_cost(0.25)
         return await self.subscribe_headers_result()
 
     async def add_peer(self, features):
