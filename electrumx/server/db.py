@@ -1326,7 +1326,7 @@ class DB:
                 'location': location_id_bytes_to_compact(location),
                 'txid': hash_to_hex_str(tx_hash),
                 'index': index,
-                'scripthash': hash_to_hex_str(last_scripthash),
+                'scripthash': last_scripthash,
                 'script': script.hex(),
                 'value': last_value
             }
