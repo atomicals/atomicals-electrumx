@@ -96,6 +96,7 @@ class HttpHandler(object):
         # self.transport = transport
         self.logger = util.class_logger(__name__, self.__class__.__name__)
         self.session_mgr = session_mgr
+        self.subscribe_headers = False
         self.db = db
         self.mempool = mempool
         self.peer_mgr = peer_mgr
