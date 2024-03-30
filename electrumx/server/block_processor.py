@@ -2505,37 +2505,53 @@ class BlockProcessor:
 
     # Populate the specific dmitem request type information
     def populate_dmitem_subtype_specific_fields(self, atomical):
-        # Check if the effective subrealm is for the current atomical and also resolve it's parent
+        # Check if the effective dmitem is for the current atomical and also resolve its parent.
         request_dmitem = atomical['mint_info'].get('$request_dmitem')
-        if not request_dmitem: 
+        if not request_dmitem:
             return None, None
-        pid_compact = atomical['mint_info']['$parent_container'] 
-        pid = compact_to_location_id_bytes(pid_compact)  
+        pid_compact = atomical['mint_info']['$parent_container']
+        pid = compact_to_location_id_bytes(pid_compact)
         height = self.height
         status, candidate_id, raw_candidate_entries = self.get_effective_dmitem(pid, request_dmitem, height)
-        atomical['subtype'] = 'request_dmitem' # Will change to 'subrealm' if it is found to be valid
-        # Populate the requested full realm name
-        # self.populate_request_full_realm_name(atomical, pid, request_subrealm)
-        # Build the applicable rule set mapping of atomical_id to the rule that will need to be matched and payment made 
-        # We use this information to display to each candidate what rule would apply to their mint and how much to pay and by which block height
-        # they must submit their payment (assuming they are the leading candidate)
+        atomical['subtype'] = 'request_dmitem'  # Will change to 'dmitem' if it is found to be valid.
+        # Build the applicable rule set mapping of atomical_id to the rule that will need to be matched and paid.
+        # We use this information to display to each candidate what rule would apply to their mint
+        # and how much to pay and by which block height they must submit their payment
+        # (assuming they are the leading candidate).
         applicable_rule_map = self.build_applicable_rule_map_dmitem(raw_candidate_entries, pid, request_dmitem)
-        self.logger.info(f'populate_dmitem_subtype_specific_fields build_applicable_rule_map_dmitem applicable_rule_map={applicable_rule_map} raw_candidate_entries={raw_candidate_entries}')
-        atomical['$dmitem_candidates'] = format_name_type_candidates_to_rpc_for_subname(raw_candidate_entries, applicable_rule_map)
-        atomical['$request_dmitem_status'] = get_subname_request_candidate_status(self.height, atomical, status, candidate_id, 'dmitem') 
-        # Populate the request specific fields
+        self.logger.info(
+            f'populate_dmitem_subtype_specific_fields '
+            f'build_applicable_rule_map_dmitem '
+            f'applicable_rule_map={applicable_rule_map} '
+            f'raw_candidate_entries={raw_candidate_entries}',
+        )
+        atomical['$dmitem_candidates'] = format_name_type_candidates_to_rpc_for_subname(
+            raw_candidate_entries,
+            applicable_rule_map,
+        )
+        atomical['$request_dmitem_status'] = get_subname_request_candidate_status(
+            self.height,
+            atomical,
+            status,
+            candidate_id,
+            'dmitem',
+        )
+        # Populate the request specific fields.
         atomical['$request_dmitem'] = atomical['mint_info'].get('$request_dmitem')
-        atomical['$parent_container'] = atomical['mint_info'].get('$parent_container')
+        atomical['$parent_container'] = pid_compact
+        # Resolve the parent to get the parent path and construct the `parent_container_name`.
+        parent_container = self.get_base_mint_info_by_atomical_id(pid)
+        if not parent_container:
+            atomical_id = atomical['mint_info']['id']
+            raise IndexError(
+                f'populate_dmitem_subtype_specific_fields: '
+                f'parent container not found atomical_id={atomical_id}, '
+                f'parent_container={parent_container}',
+            )
+        atomical['$parent_container_name'] = parent_container['$container']
         if status == 'verified' and candidate_id == atomical['atomical_id']:
             atomical['subtype'] = 'dmitem'
             atomical['$dmitem'] = request_dmitem
-            atomical['$parent_container'] = pid_compact
-            # Resolve the parent to get the parent path and construct the full_realm_name
-            parent_container = self.get_base_mint_info_by_atomical_id(pid)
-            if not parent_container:
-                atomical_id = atomical['mint_info']['id']
-                raise IndexError(f'populate_dmitem_subtype_specific_fields: parent container not found atomical_id={atomical_id}, parent_container={parent_container}')
-            atomical['$parent_container_name'] = parent_container['$container']
             return request_dmitem, True
         return request_dmitem, False
 
