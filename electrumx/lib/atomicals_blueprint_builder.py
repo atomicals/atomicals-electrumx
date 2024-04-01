@@ -40,10 +40,9 @@ def build_reverse_output_to_atomical_id_exponent_map(atomical_id_to_output_index
         return {}
     reverse_mapped = {}
     for atomical_id, output_info in atomical_id_to_output_index_map.items():
-        print(f'atomical_id={atomical_id} output_info={output_info} atomical_id_to_output_index_map={atomical_id_to_output_index_map}')
         for out_idx in output_info.expected_outputs:
             reverse_mapped[out_idx] = reverse_mapped.get(out_idx) or {}
-            # reverse_mapped[out_idx][atomical_id] = output_info.exponent
+            reverse_mapped[out_idx][atomical_id] = output_info.expected_values
     return reverse_mapped
 
 def get_nominal_token_value(value):
@@ -491,7 +490,7 @@ class AtomicalsTransferBlueprintBuilder:
               if remaining_value > 0:
                 continue
               if remaining_value == 0:
-                return True, expected_output_indexes, remaining_value
+                  return True, expected_output_indexes, remaining_value
               return False, expected_output_indexes, remaining_value
           else:
             if txout.value <= remaining_value:
@@ -549,7 +548,7 @@ class AtomicalsTransferBlueprintBuilder:
       else:
         # Map the output script hex only
         expected_output_keys_satisfied[output_script_key] = False
-        
+
     # Prepare the mapping of which ARC20 is paid at which output
     ft_coloring_summary = calculate_outputs_to_color_for_ft_atomical_ids(self.tx, self.ft_atomicals, self.sort_fifo, self.is_split_activated)
     output_idx_to_atomical_id_map = {}
@@ -576,18 +575,23 @@ class AtomicalsTransferBlueprintBuilder:
           if txout.value >= expected_output_payment_value:
             expected_output_keys_satisfied[output_script_hex] = True # Mark that the output was matched at least once   
       else:
+        print(output_idx_to_atomical_id_map)
         # Otherwise it is a payment in a specific ARC20 fungible token
         expected_output_payment_id_type_long_form = compact_to_location_id_bytes(expected_output_payment_id_type)
         # Check in the reverse map if the current output idx is colored with the expected color
         output_summary = output_idx_to_atomical_id_map.get(idx)
+        print(output_summary)
         if output_summary and output_summary.get(expected_output_payment_id_type_long_form, None) != None:
           # Ensure the normalized tokenvalue is greater than or equal to the expected payment amount in that token type
           # exponent_for_for_atomical_id = output_summary.get(expected_output_payment_id_type_long_form)
           tokenvalue = get_nominal_token_value(txout.value)
+          print(tokenvalue)
+          print(expected_output_payment_value)
           if tokenvalue >= expected_output_payment_value:
             expected_output_keys_satisfied[output_script_hex + expected_output_payment_id_type_long_form.hex()] = True # Mark that the output was matched at least once
-    
     # Check if there are any unsatisfied requirements
+    print(111)
+    print(len(expected_output_keys_satisfied))
     for output_script_not_used, satisfied in expected_output_keys_satisfied.items():
         if not satisfied:
           self.logger.warning(f'are_payments_satisfied is_all_outputs_matched_not_satisfied={expected_output_keys_satisfied} tx_hash={hash_to_hex_str(self.tx_hash)}')

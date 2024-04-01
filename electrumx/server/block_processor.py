@@ -931,7 +931,7 @@ class BlockProcessor:
                 'atomical_id': atomical_id,
                 'location_id': location_id,
                 'data': atomical_i_db_value,
-                'data_value': expand_spend_utxo_data(atomical_i_db_value)
+                'data_value': expand_spend_utxo_data(atomical_i_db_value)  # expand spend uxto data for token value
             })
             
             # Return all of the atomicals spent at the address
@@ -3070,7 +3070,7 @@ class BlockProcessor:
         if not valid_pattern.match(request_subname):
             raise IndexError(f'create_or_delete_subname_payment_output_if_valid: valid pattern failed. DeveloperError request_subname={request_subname}, regex={regex}')
  
-        if not blueprint_builder.are_payments_satisfied(matched_price_point['matched_rule'].get('o'), blueprint_builder.is_split_activated):
+        if not blueprint_builder.are_payments_satisfied(matched_price_point['matched_rule'].get('o')):
             self.logger.warning(f'create_or_delete_subname_payment_output_if_valid: payments not satisfied. request_subname={request_subname}, regex={regex} atomical_id_for_payment={location_id_bytes_to_compact(atomical_id_for_payment)}')
             return None 
     
