@@ -427,3 +427,26 @@ def test_spends_fts_are_payments_satisfied_checks2():
     }
     payment_valid = blueprint_builder.are_payments_satisfied(rules)
     assert(payment_valid)
+
+def test_spends_ft_split_one_token():
+    raw_tx_str = '020000000001036156b41db4932212ebb5ec023d364e147469fe19f72df554b0619c128303095a0000000000fdffffff2303b8203a140e142563cd4bdbee802175ed61b1ae1e2dde62b1aee4eb97d8100000000000fdffffffa8517f14bc5bbb0808304900162f00651ee16ae9393f302348cb6b818df09def0200000000fdffffff03ae0500000000000022512061f023b192540b40b459e9aa62aedceb874e6ea599723d21aa7274e5ddc3be89cf9605000000000022512061f023b192540b40b459e9aa62aedceb874e6ea599723d21aa7274e5ddc3be898813000000000000225120147a5a8865130d15d399a57be23f8f3a1687314972d6ea1e5e34902fb8cb022101402b081e67f42e55db22ffbcfa4ab827d613afe538fd02a7ce3e7a6e5038d365166bfad0dc20a87ec14c7e154b158cc37c71d19f5df1bc3423d543c75c921c44b40140471af0ccb8cfa9e6f7194462a6853fdf9ab5f6f48b39777a9de971b052550639c5068dac18457a790f10a7fd09f69d6b25c604be8106f2ed6fcd6c3257979f8501405726e2c31d65de8a5da3796fe51fefc14cd58386684bfa8b76f7609d4b33098cf0e26d31b9d41711e275d0eb169e9705bfdbc88784d1a0c54b5e85d21363a98000000000'
+    raw_tx = bytes.fromhex(raw_tx_str)
+    subject_atomical_id = b"A\x03\x8f'\xe7\x85`l\xa0\xcc\x1e\xfd\x8e:\xa9\x12\xa1\\r\xd0o5\x9a\xeb\x05$=\xab+p\xa8V\x00\x00\x00\x01"
+    tx, tx_hash = coin.DESERIALIZER(raw_tx, 0).read_tx_and_hash()
+    atomicals_spent_at_inputs= {
+        0: [{'atomical_id': subject_atomical_id, 'location_id': b'not_used', 'data': b'not_used', 'data_value': {'satvalue': 900, 'tokenvalue': 900}}],
+        1: [{'atomical_id': subject_atomical_id, 'location_id': b'not_used', 'data': b'not_used', 'data_value': {'satvalue': 555, 'tokenvalue': 555}}]
+    }
+    def mock_mint_fetcher(self, atomical_id):
+        return {
+            'atomical_id': atomical_id,
+            'type': 'FT'
+        }
+    blueprint_builder = AtomicalsTransferBlueprintBuilder(MockLogger(), atomicals_spent_at_inputs, {}, tx_hash, tx, mock_mint_fetcher, True, True)
+    nft_output_blueprint = blueprint_builder.get_nft_output_blueprint()
+    assert(len(nft_output_blueprint.outputs) == 0)
+    ft_output_blueprint = blueprint_builder.get_ft_output_blueprint()
+    assert(len(ft_output_blueprint.outputs) == 2)
+    assert(ft_output_blueprint.outputs[1]["atomicals"][subject_atomical_id].tokenvalue == 1)
+    assert(ft_output_blueprint.first_atomical_id == subject_atomical_id)
+    assert(blueprint_builder.get_are_fts_burned() == False)
