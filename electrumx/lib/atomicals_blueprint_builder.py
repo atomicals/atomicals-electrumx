@@ -21,12 +21,16 @@ class FtColoringSummary:
     self.atomical_id_to_expected_outs_map = atomical_id_to_expected_outs_map
     self.cleanly_assigned = cleanly_assigned
     self.fts_burned = fts_burned
-    self.atomicals_list = atomicals_list 
+    self.atomicals_list = atomicals_list
+  
+  def __repr__(self):
+    return f'FtColoringSummary cleanly_assigned: {self.cleanly_assigned}, fts_burned: {self.fts_burned}, atomicals_list: {self.atomicals_list}'
 
 class ExpectedOutputSet:
    '''Store the expected output indexes to be colored and the exponent for the outputs to apply'''
-   def __init__(self, expected_outputs):
+   def __init__(self, expected_outputs, expected_values):
       self.expected_outputs = expected_outputs
+      self.expected_values = expected_values
 
 def build_reverse_output_to_atomical_id_exponent_map(atomical_id_to_output_index_map):
     if not atomical_id_to_output_index_map:
@@ -62,12 +66,11 @@ def calculate_outputs_to_color_for_ft_atomical_ids(tx, ft_atomicals, sort_by_fif
     for item in atomical_list:
       atomical_id = item.atomical_id
       # If a target exponent was provided, then use that instead
-      # use_exponent = item.max_exponent
       sats_needed = get_adjusted_sats_needed_by_exponent(item.total_tokenvalue)
-      cleanly_assigned, expected_outputs, remaining_value_from_assign = AtomicalsTransferBlueprintBuilder.assign_expected_outputs_basic(sats_needed, tx, next_start_out_idx)
+      cleanly_assigned, expected_outputs, remaining_value_from_assign = AtomicalsTransferBlueprintBuilder.assign_expected_outputs_basic(sats_needed, tx, next_start_out_idx, False)
       if cleanly_assigned and len(expected_outputs) > 0:
         next_start_out_idx = expected_outputs[-1] + 1
-        potential_atomical_ids_to_output_idxs_map[atomical_id] = ExpectedOutputSet(expected_outputs)
+        potential_atomical_ids_to_output_idxs_map[atomical_id] = ExpectedOutputSet(expected_outputs, sats_needed)
       else:
         # Erase the potential for safety
         potential_atomical_ids_to_output_idxs_map = {}
@@ -79,17 +82,18 @@ def calculate_outputs_to_color_for_ft_atomical_ids(tx, ft_atomicals, sort_by_fif
       potential_atomical_ids_to_output_idxs_map = {}
       for item in atomical_list:
         atomical_id = item.atomical_id
-        sats_needed = get_adjusted_sats_needed_by_exponent(item.total_tokenvalue)
-        cleanly_assigned, expected_outputs, remaining_value_from_assign = AtomicalsTransferBlueprintBuilder.assign_expected_outputs_basic(sats_needed, tx, 0)
-        potential_atomical_ids_to_output_idxs_map[atomical_id] = ExpectedOutputSet(expected_outputs)
         if is_split_activated:
-          pass
+          sats_needed = get_adjusted_sats_needed_by_exponent(item.total_tokenvalue)
+          cleanly_assigned, expected_outputs, remaining_value_from_assign = AtomicalsTransferBlueprintBuilder.assign_expected_outputs_basic(sats_needed, tx, 0, is_split_activated)
+          potential_atomical_ids_to_output_idxs_map[atomical_id] = ExpectedOutputSet(expected_outputs, sats_needed)
         else:
+          sats_needed = get_adjusted_sats_needed_by_exponent(item.total_tokenvalue)
+          cleanly_assigned, expected_outputs, remaining_value_from_assign = AtomicalsTransferBlueprintBuilder.assign_expected_outputs_basic(sats_needed, tx, 0, False)
+          potential_atomical_ids_to_output_idxs_map[atomical_id] = ExpectedOutputSet(expected_outputs, sats_needed)
           if not cleanly_assigned and remaining_value_from_assign > 0:
             fts_burned[atomical_id] = get_nominal_token_value(remaining_value_from_assign)
       return FtColoringSummary(potential_atomical_ids_to_output_idxs_map, fts_burned, not non_clean_output_slots, atomical_list)
-    else:
-      return FtColoringSummary(potential_atomical_ids_to_output_idxs_map, fts_burned, not non_clean_output_slots, atomical_list)
+    return FtColoringSummary(potential_atomical_ids_to_output_idxs_map, fts_burned, not non_clean_output_slots, atomical_list)
   
 class AtomicalsTransferBlueprintBuilderError(Exception):
     '''Raised when Atomicals Blueprint builder has an error'''
@@ -112,10 +116,8 @@ class AtomicalInputSummary:
     self.max_exponent = 0
     self.mint_info = mint_info
 
-  def apply_input(self, txin_index, satvalue):
+  def apply_input(self, txin_index, satvalue, tokenvalue):
     self.total_satsvalue += satvalue
-    # Calculate the tokenvalue for the current input according to the found exponent
-    tokenvalue = get_nominal_token_value(satvalue)
     # Accumulate the total token value
     self.total_tokenvalue += tokenvalue
     # Track the current input index encountered and the details of the input such as satvalue, tokenvalue, exponent, txin index
@@ -236,13 +238,11 @@ class AtomicalsTransferBlueprintBuilder:
         if atomical_mint_info['type'] != 'NFT':
             continue
         input_idx_to_atomical_ids_map[txin_index] = input_idx_to_atomical_ids_map.get(txin_index) or {}
-        # map_atomical_ids_to_summaries[atomical_id] = AtomicalInputSummary(atomical_id, atomicals_id_mint_info_map[atomical_id]['type'], atomicals_id_mint_info_map[atomical_id])
-        # map_atomical_ids_to_summaries[atomical_id].apply_input(txin_index, value, exponent)
         input_idx_to_atomical_ids_map[txin_index][atomical_id] = AtomicalInputSummary(atomical_id, atomical_mint_info['type'], atomical_mint_info)
         # Populate the summary information
-        value = atomicals_entry['data_value']['token_value']
+        value = atomicals_entry['data_value']['value']
         # Exponent is always 0 for NFTs
-        input_idx_to_atomical_ids_map[txin_index][atomical_id].apply_input(txin_index, value)
+        input_idx_to_atomical_ids_map[txin_index][atomical_id].apply_input(txin_index, value, value)
     return input_idx_to_atomical_ids_map
 
   @classmethod
@@ -376,14 +376,21 @@ class AtomicalsTransferBlueprintBuilder:
       if ft_coloring_summary.atomicals_list and len(ft_coloring_summary.atomicals_list):
         first_atomical_id = ft_coloring_summary.atomicals_list[0].atomical_id
       
-      for atomical_id, atomical_info in ft_coloring_summary.atomical_id_to_expected_outs_map.items():
-        for expected_output_index in atomical_info.expected_outputs:
-            txout = tx.outputs[expected_output_index]
-            output_colored_map[expected_output_index] = output_colored_map.get(expected_output_index) or {'atomicals': {}}
-            output_colored_map[expected_output_index]['atomicals'][atomical_id] = AtomicalColoredOutputFt(txout.value, get_nominal_token_value(txout.value), atomical_info)
-      
-      return AtomicalFtOutputBlueprintAssignmentSummary(output_colored_map, ft_coloring_summary.fts_burned, ft_coloring_summary.cleanly_assigned, first_atomical_id) 
-  
+      if not is_split_activated:
+        for atomical_id, atomical_info in ft_coloring_summary.atomical_id_to_expected_outs_map.items():
+          for expected_output_index in atomical_info.expected_outputs:
+              txout = tx.outputs[expected_output_index]
+              output_colored_map[expected_output_index] = output_colored_map.get(expected_output_index) or {'atomicals': {}}
+              output_colored_map[expected_output_index]['atomicals'][atomical_id] = AtomicalColoredOutputFt(txout.value, txout.value, atomical_info)
+        return AtomicalFtOutputBlueprintAssignmentSummary(output_colored_map, ft_coloring_summary.fts_burned, ft_coloring_summary.cleanly_assigned, first_atomical_id)
+      else:
+        for atomical_id, atomical_info in ft_coloring_summary.atomical_id_to_expected_outs_map.items():
+          for expected_output_index in atomical_info.expected_outputs:
+              txout = tx.outputs[expected_output_index]
+              output_colored_map[expected_output_index] = output_colored_map.get(expected_output_index) or {'atomicals': {}}
+              output_colored_map[expected_output_index]['atomicals'][atomical_id] = AtomicalColoredOutputFt(txout.value, atomical_info.expected_values, atomical_info)
+        return AtomicalFtOutputBlueprintAssignmentSummary(output_colored_map, ft_coloring_summary.fts_burned, ft_coloring_summary.cleanly_assigned, first_atomical_id)
+
   @classmethod
   def calculate_output_blueprint(cls, get_atomicals_id_mint_info, tx, nft_atomicals, ft_atomicals, atomicals_spent_at_inputs, operations_found_at_inputs, sort_fifo, is_split_activated):
       nft_blueprint = AtomicalsTransferBlueprintBuilder.calculate_output_blueprint_nfts(get_atomicals_id_mint_info, tx, nft_atomicals, atomicals_spent_at_inputs, operations_found_at_inputs, sort_fifo)
@@ -400,7 +407,8 @@ class AtomicalsTransferBlueprintBuilder:
           atomical_id = atomicals_entry['atomical_id']
           # value, = unpack_le_uint64(atomicals_entry['data'][HASHX_LEN + SCRIPTHASH_LEN : HASHX_LEN + SCRIPTHASH_LEN + 8])
           # exponent, = unpack_le_uint16_from(atomicals_entry['data'][HASHX_LEN + SCRIPTHASH_LEN + 8: HASHX_LEN + SCRIPTHASH_LEN + 8 + 2])
-          value = atomicals_entry['data_value']['token_value']
+          value = atomicals_entry['data_value']['value']
+          tokenvalue = atomicals_entry['data_value']['token_value']
           # exponent = atomicals_entry['data_ex']['exponent']
           # assert(value == atomicals_entry['data_ex']['value'])
           # assert(exponent == atomicals_entry['data_ex']['exponent'])
@@ -415,7 +423,7 @@ class AtomicalsTransferBlueprintBuilder:
           # However note that only FTs will have an exponent >= 0 as NFT will always be exponent = 0
           if not map_atomical_ids_to_summaries.get(atomical_id):
             map_atomical_ids_to_summaries[atomical_id] = AtomicalInputSummary(atomical_id, atomicals_id_mint_info_map[atomical_id]['type'], atomicals_id_mint_info_map[atomical_id])
-          map_atomical_ids_to_summaries[atomical_id].apply_input(txin_index, value)
+          map_atomical_ids_to_summaries[atomical_id].apply_input(txin_index, value, tokenvalue)
       return map_atomical_ids_to_summaries
   
   @classmethod
@@ -459,7 +467,7 @@ class AtomicalsTransferBlueprintBuilder:
   # Returns the sequence of output indexes that matches until the final one that matched
   # Also returns whether it fit cleanly in (ie: exact with no left overs or under)
   @classmethod
-  def assign_expected_outputs_basic(cls, total_value_to_assign, tx, start_out_idx):
+  def assign_expected_outputs_basic(cls, total_value_to_assign, tx, start_out_idx, is_split_activated):
       expected_output_indexes = []
       remaining_value = total_value_to_assign
       idx_count = 0
@@ -474,16 +482,25 @@ class AtomicalsTransferBlueprintBuilder:
           if is_unspendable_genesis(txout.pk_script) or is_unspendable_legacy(txout.pk_script):
               idx_count += 1
               continue
-          if txout.value <= remaining_value:
+          if is_split_activated:
               expected_output_indexes.append(out_idx)
               remaining_value -= txout.value
               if remaining_value == 0:
-                  # The token input was fully exhausted cleanly into the outputs
-                  return True, expected_output_indexes, remaining_value
-          # Exit case output is greater than what we have in remaining_value
+                 cleanly_assigned = True
+              else:
+                 cleanly_assigned = False
+              return cleanly_assigned, expected_output_indexes, remaining_value
           else:
-              # There was still some token units left, but the next output was greater than the amount. Therefore we burned the remainder tokens.
-              return False, expected_output_indexes, remaining_value
+            if txout.value <= remaining_value:
+                expected_output_indexes.append(out_idx)
+                remaining_value -= txout.value
+                if remaining_value == 0:
+                    # The token input was fully exhausted cleanly into the outputs
+                    return True, expected_output_indexes, remaining_value
+            # Exit case output is greater than what we have in remaining_value
+            else:
+                # There was still some token units left, but the next output was greater than the amount. Therefore we burned the remainder tokens.
+                return False, expected_output_indexes, remaining_value
           idx_count += 1
       # There was still some token units left, but there were no more outputs to take the quantity. Tokens were burned.
       return False, expected_output_indexes, remaining_value

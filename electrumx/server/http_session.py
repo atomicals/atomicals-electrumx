@@ -2120,7 +2120,7 @@ class HttpHandler(object):
                         "atomical_id": compact_atomical_id,
                         "type": "FT",
                         "index": k,
-                        "value": output_ft.satvalue
+                        "value": output_ft.tokenvalue
                     }
                     if k not in res["transfers"]["outputs"]:
                         res["transfers"]["outputs"][k] = [ft_data]
