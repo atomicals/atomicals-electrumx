@@ -622,12 +622,12 @@ class DB:
                 hashX = value[:HASHX_LEN]
                 scripthash = value[HASHX_LEN : HASHX_LEN + SCRIPTHASH_LEN]
                 value_sats = value[HASHX_LEN + SCRIPTHASH_LEN : HASHX_LEN + SCRIPTHASH_LEN + 8]
-                exponent = value[HASHX_LEN + SCRIPTHASH_LEN + 8: HASHX_LEN + SCRIPTHASH_LEN + 8 + 2]
-                tx_numb = value[-TXNUM_LEN:]  
-                batch_put(b'i' + location_key + atomical_id, hashX + scripthash + value_sats + exponent + tx_numb) 
+                token_value = value[HASHX_LEN + SCRIPTHASH_LEN + 8: HASHX_LEN + SCRIPTHASH_LEN + 8 + 8]
+                tx_numb = value[-TXNUM_LEN:]
+                batch_put(b'i' + location_key + atomical_id, hashX + scripthash + value_sats + token_value + tx_numb)
                 # Add the active b'a' atomicals location if it was not deleted
                 if not value_with_tombstone.get('deleted', False):
-                    batch_put(b'a' + atomical_id + location_key, hashX + scripthash + value_sats + exponent + tx_numb) 
+                    batch_put(b'a' + atomical_id + location_key, hashX + scripthash + value_sats + token_value + tx_numb)
         flush_data.atomicals_adds.clear()
  
         # Distributed mint data adds

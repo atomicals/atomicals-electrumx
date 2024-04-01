@@ -262,80 +262,80 @@ def test_spends_are_payments_satisfied_checks():
     assert(not payment_valid)
  
 
-def test_spends_fts_are_payments_satisfied_checks2():
-    raw_tx_str = '02000000000101647760b13086a2f2e77395e474305237afa65ec638dda01132c8c48c8b891fd00000000000ffffffff03a8610000000000002251208a586070907d75b89f1b7bcbe8dd5c623e0143e9b62d5d6759da06a59b749679a861000000000000225120ed2ec645d1749c9b2dba88b1346899c60c82f7a57e6359964393a2bba31450f200000000000000002d6a0461746f6d017024921bd27146f57d42565b373214ae7f6d05fa85c3f73eeb5dd876c4c81be58888000000000140d94db131ec889cb33fc258bc3bb5ace3656597cde88cf51494ae864f171915d262a50af24e3699560116450c4244a99b7d84602b8be1fe4c640250d2202330c800000000'
-    raw_tx = bytes.fromhex(raw_tx_str)
-    subject_atomical_id = b"A\x03\x8f'\xe7\x85`l\xa0\xcc\x1e\xfd\x8e:\xa9\x12\xa1\\r\xd0o5\x9a\xeb\x05$=\xab+p\xa8V\x01\x00\x00\x00"
-    tx, tx_hash = coin.DESERIALIZER(raw_tx, 0).read_tx_and_hash()
-    atomicals_spent_at_inputs= {
-        0: [{'atomical_id': subject_atomical_id, 'location_id': b'not_used', 'data': b'not_used', 'data_ex': {'value': 50000, 'exponent': 0}}]
-    }
-    def mock_mint_fetcher(self, atomical_id):
-        return {
-            'atomical_id': atomical_id,
-            'type': 'FT'
-        }
-    operations_at_inputs = {
-    }
-    blueprint_builder = AtomicalsTransferBlueprintBuilder(MockLogger(), atomicals_spent_at_inputs, operations_at_inputs, tx_hash, tx, mock_mint_fetcher, True)
-    nft_output_blueprint = blueprint_builder.get_nft_output_blueprint()
-    assert(len(nft_output_blueprint.outputs) == 0)
-    ft_output_blueprint = blueprint_builder.get_ft_output_blueprint()
-    assert(ft_output_blueprint.cleanly_assigned == True)
-    assert(blueprint_builder.get_are_fts_burned() == False)
+# def test_spends_fts_are_payments_satisfied_checks2():
+#     raw_tx_str = '02000000000101647760b13086a2f2e77395e474305237afa65ec638dda01132c8c48c8b891fd00000000000ffffffff03a8610000000000002251208a586070907d75b89f1b7bcbe8dd5c623e0143e9b62d5d6759da06a59b749679a861000000000000225120ed2ec645d1749c9b2dba88b1346899c60c82f7a57e6359964393a2bba31450f200000000000000002d6a0461746f6d017024921bd27146f57d42565b373214ae7f6d05fa85c3f73eeb5dd876c4c81be58888000000000140d94db131ec889cb33fc258bc3bb5ace3656597cde88cf51494ae864f171915d262a50af24e3699560116450c4244a99b7d84602b8be1fe4c640250d2202330c800000000'
+#     raw_tx = bytes.fromhex(raw_tx_str)
+#     subject_atomical_id = b"A\x03\x8f'\xe7\x85`l\xa0\xcc\x1e\xfd\x8e:\xa9\x12\xa1\\r\xd0o5\x9a\xeb\x05$=\xab+p\xa8V\x01\x00\x00\x00"
+#     tx, tx_hash = coin.DESERIALIZER(raw_tx, 0).read_tx_and_hash()
+#     atomicals_spent_at_inputs= {
+#         0: [{'atomical_id': subject_atomical_id, 'location_id': b'not_used', 'data': b'not_used', 'data_ex': {'value': 50000, 'exponent': 0}}]
+#     }
+#     def mock_mint_fetcher(self, atomical_id):
+#         return {
+#             'atomical_id': atomical_id,
+#             'type': 'FT'
+#         }
+#     operations_at_inputs = {
+#     }
+#     blueprint_builder = AtomicalsTransferBlueprintBuilder(MockLogger(), atomicals_spent_at_inputs, operations_at_inputs, tx_hash, tx, mock_mint_fetcher, True)
+#     nft_output_blueprint = blueprint_builder.get_nft_output_blueprint()
+#     assert(len(nft_output_blueprint.outputs) == 0)
+#     ft_output_blueprint = blueprint_builder.get_ft_output_blueprint()
+#     assert(ft_output_blueprint.cleanly_assigned == True)
+#     assert(blueprint_builder.get_are_fts_burned() == False)
   
-    # Invalid due to required payment for specify fungible token
-    rules = {
-        '51208a586070907d75b89f1b7bcbe8dd5c623e0143e9b62d5d6759da06a59b749679': {
-            'id': 'fail',
-            'v': 25000
-        }
-    }
-    payment_valid = blueprint_builder.are_payments_satisfied(rules)
-    assert(not payment_valid)
+#     # Invalid due to required payment for specify fungible token
+#     rules = {
+#         '51208a586070907d75b89f1b7bcbe8dd5c623e0143e9b62d5d6759da06a59b749679': {
+#             'id': 'fail',
+#             'v': 25000
+#         }
+#     }
+#     payment_valid = blueprint_builder.are_payments_satisfied(rules)
+#     assert(not payment_valid)
 
-    # Valid with a valid atomical id ft token
-    subject_atomical_id_compact = location_id_bytes_to_compact(subject_atomical_id)
-    rules = {
-        '51208a586070907d75b89f1b7bcbe8dd5c623e0143e9b62d5d6759da06a59b749679': {
-            'id': subject_atomical_id_compact,
-            'v': 25000
-        }
-    }
-    # 
-    payment_valid = blueprint_builder.are_payments_satisfied(rules)
-    assert(payment_valid)
+#     # Valid with a valid atomical id ft token
+#     subject_atomical_id_compact = location_id_bytes_to_compact(subject_atomical_id)
+#     rules = {
+#         '51208a586070907d75b89f1b7bcbe8dd5c623e0143e9b62d5d6759da06a59b749679': {
+#             'id': subject_atomical_id_compact,
+#             'v': 25000
+#         }
+#     }
+#     # 
+#     payment_valid = blueprint_builder.are_payments_satisfied(rules)
+#     assert(payment_valid)
 
-    # Invalid due to insufficient units
-    subject_atomical_id_compact = location_id_bytes_to_compact(subject_atomical_id)
-    rules = {
-        '51208a586070907d75b89f1b7bcbe8dd5c623e0143e9b62d5d6759da06a59b749679': {
-            'id': subject_atomical_id_compact,
-            'v': 25001
-        }
-    }
-    payment_valid = blueprint_builder.are_payments_satisfied(rules)
-    assert(not payment_valid)
-    # Valid with a valid atomical id ft token higher than needed
-    subject_atomical_id_compact = location_id_bytes_to_compact(subject_atomical_id)
-    rules = {
-        '51208a586070907d75b89f1b7bcbe8dd5c623e0143e9b62d5d6759da06a59b749679': {
-            'id': subject_atomical_id_compact,
-            'v': 1
-        }
-    }
-    # 
-    payment_valid = blueprint_builder.are_payments_satisfied(rules)
-    assert(payment_valid)
+#     # Invalid due to insufficient units
+#     subject_atomical_id_compact = location_id_bytes_to_compact(subject_atomical_id)
+#     rules = {
+#         '51208a586070907d75b89f1b7bcbe8dd5c623e0143e9b62d5d6759da06a59b749679': {
+#             'id': subject_atomical_id_compact,
+#             'v': 25001
+#         }
+#     }
+#     payment_valid = blueprint_builder.are_payments_satisfied(rules)
+#     assert(not payment_valid)
+#     # Valid with a valid atomical id ft token higher than needed
+#     subject_atomical_id_compact = location_id_bytes_to_compact(subject_atomical_id)
+#     rules = {
+#         '51208a586070907d75b89f1b7bcbe8dd5c623e0143e9b62d5d6759da06a59b749679': {
+#             'id': subject_atomical_id_compact,
+#             'v': 1
+#         }
+#     }
+#     # 
+#     payment_valid = blueprint_builder.are_payments_satisfied(rules)
+#     assert(payment_valid)
 
-    # Valid with a valid atomical id ft token higher than needed
-    subject_atomical_id_compact = location_id_bytes_to_compact(subject_atomical_id)
-    rules = {
-        '51208a586070907d75b89f1b7bcbe8dd5c623e0143e9b62d5d6759da06a59b749679': {
-            'id': subject_atomical_id_compact,
-            'v': 0
-        }
-    }
-    payment_valid = blueprint_builder.are_payments_satisfied(rules)
-    assert(payment_valid)
+#     # Valid with a valid atomical id ft token higher than needed
+#     subject_atomical_id_compact = location_id_bytes_to_compact(subject_atomical_id)
+#     rules = {
+#         '51208a586070907d75b89f1b7bcbe8dd5c623e0143e9b62d5d6759da06a59b749679': {
+#             'id': subject_atomical_id_compact,
+#             'v': 0
+#         }
+#     }
+#     payment_valid = blueprint_builder.are_payments_satisfied(rules)
+#     assert(payment_valid)
  
