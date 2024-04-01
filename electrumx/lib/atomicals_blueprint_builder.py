@@ -116,7 +116,7 @@ class AtomicalInputSummary:
     # Accumulate the total token value
     self.total_tokenvalue += tokenvalue
     # Track the current input index encountered and the details of the input such as satvalue, tokenvalue, exponent, txin index
-    self.input_indexes.append(AtomicalInputItem(txin_index, satvalue, tokenvalue))          
+    self.input_indexes.append(AtomicalInputItem(txin_index, satvalue, tokenvalue))      
     # Track the max exponent encountered across all inputs for the same atomical id
     # if self.max_exponent < exponent:
     #   self.max_exponent = exponent
@@ -167,8 +167,9 @@ def order_ft_inputs(ft_atomicals: AtomicalInputSummary, sort_by_fifo):
  
 class AtomicalsTransferBlueprintBuilder:
   '''Atomicals transfer blueprint builder for calculating outputs to color'''
-  def __init__(self, logger, atomicals_spent_at_inputs, operations_found_at_inputs, tx_hash, tx, get_atomicals_id_mint_info, sort_fifo):
+  def __init__(self, logger, height, atomicals_spent_at_inputs, operations_found_at_inputs, tx_hash, tx, get_atomicals_id_mint_info, sort_fifo):
     self.logger = logger
+    self.height = height
     self.atomicals_spent_at_inputs = atomicals_spent_at_inputs
     self.operations_found_at_inputs = operations_found_at_inputs
     self.tx_hash = tx_hash
@@ -188,6 +189,10 @@ class AtomicalsTransferBlueprintBuilder:
     self.are_fts_burned = len(ft_output_blueprint.fts_burned) > 0
     self.atomical_ids_spent = atomical_ids_spent
     self.is_mint = is_mint_operation(self.operations_found_at_inputs)
+
+  @classmethod
+  def is_split_activated(self):
+    return self.height >= self.coin.ATOMICALS_ACTIVATION_SPLIT
 
   @classmethod
   def order_ft_inputs(cls, ft_atomicals, sort_by_fifo):
@@ -233,7 +238,7 @@ class AtomicalsTransferBlueprintBuilder:
         # map_atomical_ids_to_summaries[atomical_id].apply_input(txin_index, value, exponent)
         input_idx_to_atomical_ids_map[txin_index][atomical_id] = AtomicalInputSummary(atomical_id, atomical_mint_info['type'], atomical_mint_info)
         # Populate the summary information
-        value = atomicals_entry['data_ex']['value']
+        value = atomicals_entry['data_value']['token_value']
         # Exponent is always 0 for NFTs
         input_idx_to_atomical_ids_map[txin_index][atomical_id].apply_input(txin_index, value)
     return input_idx_to_atomical_ids_map
@@ -393,7 +398,7 @@ class AtomicalsTransferBlueprintBuilder:
           atomical_id = atomicals_entry['atomical_id']
           # value, = unpack_le_uint64(atomicals_entry['data'][HASHX_LEN + SCRIPTHASH_LEN : HASHX_LEN + SCRIPTHASH_LEN + 8])
           # exponent, = unpack_le_uint16_from(atomicals_entry['data'][HASHX_LEN + SCRIPTHASH_LEN + 8: HASHX_LEN + SCRIPTHASH_LEN + 8 + 2])
-          value = atomicals_entry['data_ex']['value']
+          value = atomicals_entry['data_value']['token_value']
           # exponent = atomicals_entry['data_ex']['exponent']
           # assert(value == atomicals_entry['data_ex']['value'])
           # assert(exponent == atomicals_entry['data_ex']['exponent'])

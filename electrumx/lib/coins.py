@@ -667,6 +667,7 @@ class Bitcoin(BitcoinMixin, Coin):
     ATOMICALS_ACTIVATION_HEIGHT_COMMITZ = 822800
     ATOMICALS_ACTIVATION_HEIGHT_DENSITY = 828128
     ATOMICALS_ACTIVATION_HEIGHT_DFT_BITWORK_ROLLOVER = 828628
+    ATOMICALS_ACTIVATION_SPLIT = 840000
 
     @classmethod
     def warn_old_client_on_tx_broadcast(cls, client_ver):
@@ -935,6 +936,7 @@ class BitcoinTestnet(BitcoinTestnetMixin, Coin):
     ATOMICALS_ACTIVATION_HEIGHT_COMMITZ = 2543936
     ATOMICALS_ACTIVATION_HEIGHT_DENSITY = 2572729
     ATOMICALS_ACTIVATION_HEIGHT_DFT_BITWORK_ROLLOVER = 2576412
+    ATOMICALS_ACTIVATION_SPLIT = 2584776
 
     @classmethod
     def warn_old_client_on_tx_broadcast(cls, client_ver):

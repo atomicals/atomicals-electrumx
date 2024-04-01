@@ -1768,7 +1768,7 @@ def expand_spend_utxo_data(data):
     token_value, = unpack_le_uint64_from(data[HASHX_LEN + SCRIPTHASH_LEN + 8: HASHX_LEN + SCRIPTHASH_LEN + 8 + 8])
     return {
         'value': value,
-        'exponent': token_value
+        'token_value': token_value
     }
 
 def validate_dmitem_mint_args_with_container_dmint(mint_args, mint_data_payload, dmint):
