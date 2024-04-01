@@ -1348,9 +1348,9 @@ class DB:
         else:
             return self.get_atomicals_by_location(location)
         
-    def get_uxto_token_value(self, utxo):
+    def get_uxto_token_value(self, location):
         data_value = None
-        location_id_prefix = b'i' + utxo.tx_hash + pack_le_uint32(utxo.tx_pos)
+        location_id_prefix = b'i' + location
         for _, atomical_i_db_value in self.utxo_db.iterator(prefix=location_id_prefix):
             data_value = expand_spend_utxo_data(atomical_i_db_value)
         if data_value:

@@ -1416,7 +1416,8 @@ class ElectrumX(SessionBase):
                 atomical_id_compact = location_id_bytes_to_compact(atomical_id)
                 atomicals_basic_infos.append(atomical_id_compact)
             
-            satvalue, tokenvalue = self.db.get_uxto_token_value(utxo)
+            location = utxo.tx_hash + util.pack_le_uint32(utxo.tx_pos)
+            satvalue, tokenvalue = self.db.get_uxto_token_value(location)
             returned_utxos.append({
                 'txid': hash_to_hex_str(utxo.tx_hash),
                 'tx_hash': hash_to_hex_str(utxo.tx_hash),
@@ -2195,7 +2196,8 @@ class ElectrumX(SessionBase):
                 atomicals_id_map[atomical_id_compact] = atomical_basic_info
                 atomicals_basic_infos.append(atomical_id_compact)
             if len(atomicals) > 0:
-                satvalue, tokenvalue = self.db.get_uxto_token_value(utxo)
+                location = utxo.tx_hash + util.pack_le_uint32(utxo.tx_pos)
+                satvalue, tokenvalue = self.db.get_uxto_token_value(location)
                 returned_utxos.append({'txid': hash_to_hex_str(utxo.tx_hash),
                 'index': utxo.tx_pos,
                 'vout': utxo.tx_pos,
@@ -2246,7 +2248,8 @@ class ElectrumX(SessionBase):
                 atomicals_id_map[atomical_id_compact] = atomical_basic_info
                 atomicals_basic_infos.append(atomical_id_compact)
             if len(atomicals) > 0:
-                satvalue, tokenvalue = self.db.get_uxto_token_value(utxo)
+                location = utxo.tx_hash + util.pack_le_uint32(utxo.tx_pos)
+                satvalue, tokenvalue = self.db.get_uxto_token_value(location)
                 returned_utxos.append({'txid': hash_to_hex_str(utxo.tx_hash),
                 'index': utxo.tx_pos,
                 'vout': utxo.tx_pos,
@@ -2325,7 +2328,8 @@ class ElectrumX(SessionBase):
                 atomicals_id_map[atomical_id_compact] = atomical_basic_info
                 atomicals_basic_infos.append(atomical_id_compact)
             if Verbose or len(atomicals) > 0:
-                satvalue, tokenvalue = self.db.get_uxto_token_value(utxo)
+                location = utxo.tx_hash + util.pack_le_uint32(utxo.tx_pos)
+                satvalue, tokenvalue = self.db.get_uxto_token_value(location)
                 returned_utxos.append({'txid': hash_to_hex_str(utxo.tx_hash),
                 'index': utxo.tx_pos,
                 'vout': utxo.tx_pos,
@@ -2860,8 +2864,9 @@ class ElectrumX(SessionBase):
                                 "atomical_id": atomical_id,
                                 "type": "FT",
                                 "index": expected_output_index,
-                                "satvalue": prev_tx.outputs[tx.inputs[i.txin_index].prev_idx].value,
-                                "tokenvalue": prev_tx.outputs[tx.inputs[i.txin_index].prev_idx].value,
+                                "value": txout.value,
+                                "satvalue": txout.value,
+                                "tokenvalue": txout.value
                             }]
                         }
                     }
@@ -2894,8 +2899,9 @@ class ElectrumX(SessionBase):
                             "atomical_id": atomical_id,
                             "type": "NFT",
                             "index": expected_output_index,
-                            "satvalue": output_ft.satvalue,
-                            "tokenvalue": output_ft.tokenvalue
+                            "value": txout.value,
+                            "satvalue": txout.value,
+                            "tokenvalue": txout.value
                         }]
                     }
                 }
@@ -2928,14 +2934,17 @@ class ElectrumX(SessionBase):
                         prev_raw_tx = await self.daemon_request('getrawtransaction', prev_txid, False)
                         prev_raw_tx = bytes.fromhex(prev_raw_tx)
                         self.session_mgr.bp.general_data_cache[b'rtx' + hex_str_to_hash(prev_txid)] = prev_raw_tx
-                    prev_tx, _ = self.coin.DESERIALIZER(prev_raw_tx, 0).read_tx_and_hash()
+                    prev_tx, prev_tx_hash = self.coin.DESERIALIZER(prev_raw_tx, 0).read_tx_and_hash()
+                    location = prev_tx_hash + util.pack_le_uint32(tx.inputs[i.txin_index].prev_idx)
+                    satvalue, tokenvalue = self.db.get_uxto_token_value(location)
                     ft_data = {
                         "address": get_address_from_output_script(prev_tx.outputs[tx.inputs[i.txin_index].prev_idx].pk_script),
                         "atomical_id": compact_atomical_id,
                         "type": "FT",
                         "index": i.txin_index,
-                        "satvalue": prev_tx.outputs[tx.inputs[i.txin_index].prev_idx].value,
-                        "tokenvalue": prev_tx.outputs[tx.inputs[i.txin_index].prev_idx].value,
+                        "value": prev_tx.outputs[tx.inputs[i.txin_index].prev_idx].value,
+                        "satvalue": satvalue,
+                        "tokenvalue": tokenvalue,
                     }
                     if i.txin_index not in res["transfers"]["inputs"]:
                         res["transfers"]["inputs"][i.txin_index] = [ft_data]
@@ -2949,6 +2958,7 @@ class ElectrumX(SessionBase):
                         "atomical_id": compact_atomical_id,
                         "type": "FT",
                         "index": k,
+                        "value": output_ft.satvalue,
                         "satvalue": output_ft.satvalue,
                         "tokenvalue": output_ft.tokenvalue
                     }
@@ -2968,13 +2978,17 @@ class ElectrumX(SessionBase):
                         prev_raw_tx = await self.daemon_request('getrawtransaction', prev_txid, False)
                         prev_raw_tx = bytes.fromhex(prev_raw_tx)
                         self.session_mgr.bp.general_data_cache[b'rtx' + hex_str_to_hash(prev_txid)] = prev_raw_tx
-                    prev_tx, _ = self.coin.DESERIALIZER(prev_raw_tx, 0).read_tx_and_hash()
+                    prev_tx, prev_tx_hash = self.coin.DESERIALIZER(prev_raw_tx, 0).read_tx_and_hash()
+                    location = prev_tx_hash + util.pack_le_uint32(tx.inputs[i.txin_index].prev_idx)
+                    satvalue, tokenvalue = self.db.get_uxto_token_value(location)
                     nft_data = {
                         "address": get_address_from_output_script(prev_tx.outputs[tx.inputs[i.txin_index].prev_idx].pk_script),
                         "atomical_id": compact_atomical_id,
                         "type": "NFT",
                         "index": i.txin_index,
-                        "value": prev_tx.outputs[tx.inputs[i.txin_index].prev_idx].value
+                        "value": prev_tx.outputs[tx.inputs[i.txin_index].prev_idx].value,
+                        "satvalue": satvalue,
+                        "tokenvalue": tokenvalue
                     }
                     if i.txin_index not in res["transfers"]["inputs"]:
                         res["transfers"]["inputs"][i.txin_index] = [nft_data]
@@ -2988,7 +3002,9 @@ class ElectrumX(SessionBase):
                         "atomical_id": compact_atomical_id,
                         "type": output_nft.type,
                         "index": k,
-                        "value": output_nft.total_satsvalue
+                        "value": output_nft.total_satsvalue,
+                        "satvalue": output_nft.total_satsvalue,
+                        "tokenvalue": output_nft.total_satsvalue
                     }
                     if k not in res["transfers"]["outputs"]:
                         res["transfers"]["outputs"][k] = [nft_data]
