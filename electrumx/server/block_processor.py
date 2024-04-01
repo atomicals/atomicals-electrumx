@@ -1650,18 +1650,18 @@ class BlockProcessor:
             value_sats = pack_le_uint64(txout.value)
             self.put_or_delete_state_updates(operations_found_at_inputs, atomical_id, tx_num, tx_hash, output_idx_le, height, 1, False)
 
-    def build_put_atomicals_utxo(self, atomical_id, tx_hash, tx, tx_num, out_idx, token_value):
+    def build_put_atomicals_utxo(self, atomical_id, tx_hash, tx, tx_num, out_idx, tokenvalue):
         output_idx_le = pack_le_uint32(out_idx)
         location = tx_hash + output_idx_le
         txout = tx.outputs[out_idx]
         scripthash = double_sha256(txout.pk_script)
         hashX = self.coin.hashX_from_script(txout.pk_script)
         value_sats = pack_le_uint64(txout.value)
-        token_value = pack_le_uint64(token_value)
+        tokenvalue = pack_le_uint64(tokenvalue)
         put_general_data = self.general_data_cache.__setitem__
         put_general_data(b'po' + location, txout.pk_script)
         tx_numb = pack_le_uint64(tx_num)[:TXNUM_LEN]
-        self.put_atomicals_utxo(location, atomical_id, hashX + scripthash + value_sats + token_value + tx_numb)
+        self.put_atomicals_utxo(location, atomical_id, hashX + scripthash + value_sats + tokenvalue + tx_numb)
     
  
     def put_nft_outputs_by_blueprint(self, nft_blueprint, operations_found_at_inputs, tx_hash, tx, tx_num, height):

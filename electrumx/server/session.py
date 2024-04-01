@@ -2848,7 +2848,8 @@ class ElectrumX(SessionBase):
                                 "atomical_id": atomical_id,
                                 "type": "FT",
                                 "index": expected_output_index,
-                                "value": txout.value
+                                "satvalue": prev_tx.outputs[tx.inputs[i.txin_index].prev_idx].value,
+                                "tokenvalue": prev_tx.outputs[tx.inputs[i.txin_index].prev_idx].value,
                             }]
                         }
                     }
@@ -2881,7 +2882,8 @@ class ElectrumX(SessionBase):
                             "atomical_id": atomical_id,
                             "type": "NFT",
                             "index": expected_output_index,
-                            "value": txout.value
+                            "satvalue": output_ft.satvalue,
+                            "tokenvalue": output_ft.tokenvalue
                         }]
                     }
                 }
@@ -2920,7 +2922,8 @@ class ElectrumX(SessionBase):
                         "atomical_id": compact_atomical_id,
                         "type": "FT",
                         "index": i.txin_index,
-                        "value": prev_tx.outputs[tx.inputs[i.txin_index].prev_idx].value
+                        "satvalue": prev_tx.outputs[tx.inputs[i.txin_index].prev_idx].value,
+                        "tokenvalue": prev_tx.outputs[tx.inputs[i.txin_index].prev_idx].value,
                     }
                     if i.txin_index not in res["transfers"]["inputs"]:
                         res["transfers"]["inputs"][i.txin_index] = [ft_data]
@@ -2934,7 +2937,8 @@ class ElectrumX(SessionBase):
                         "atomical_id": compact_atomical_id,
                         "type": "FT",
                         "index": k,
-                        "value": output_ft.tokenvalue
+                        "satvalue": output_ft.satvalue,
+                        "tokenvalue": output_ft.tokenvalue
                     }
                     if k not in res["transfers"]["outputs"]:
                         res["transfers"]["outputs"][k] = [ft_data]

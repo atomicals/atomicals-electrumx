@@ -1764,11 +1764,11 @@ def is_mint_pow_valid(txid, mint_pow_commit):
     return False
 
 def expand_spend_utxo_data(data):
-    value, = unpack_le_uint64(data[HASHX_LEN + SCRIPTHASH_LEN : HASHX_LEN + SCRIPTHASH_LEN + 8])
-    token_value, = unpack_le_uint64_from(data[HASHX_LEN + SCRIPTHASH_LEN + 8: HASHX_LEN + SCRIPTHASH_LEN + 8 + 8])
+    satvalue, = unpack_le_uint64(data[HASHX_LEN + SCRIPTHASH_LEN : HASHX_LEN + SCRIPTHASH_LEN + 8])
+    tokenvalue, = unpack_le_uint64_from(data[HASHX_LEN + SCRIPTHASH_LEN + 8: HASHX_LEN + SCRIPTHASH_LEN + 8 + 8])
     return {
-        'value': value,
-        'token_value': token_value
+        'satvalue': satvalue,
+        'tokenvalue': tokenvalue
     }
 
 def validate_dmitem_mint_args_with_container_dmint(mint_args, mint_data_payload, dmint):

@@ -406,8 +406,8 @@ class AtomicalsTransferBlueprintBuilder:
           atomical_id = atomicals_entry['atomical_id']
           # value, = unpack_le_uint64(atomicals_entry['data'][HASHX_LEN + SCRIPTHASH_LEN : HASHX_LEN + SCRIPTHASH_LEN + 8])
           # exponent, = unpack_le_uint16_from(atomicals_entry['data'][HASHX_LEN + SCRIPTHASH_LEN + 8: HASHX_LEN + SCRIPTHASH_LEN + 8 + 2])
-          value = atomicals_entry['data_value']['value']
-          tokenvalue = atomicals_entry['data_value']['token_value']
+          satvalue = atomicals_entry['data_value']['satvalue']
+          tokenvalue = atomicals_entry['data_value']['tokenvalue']
           # exponent = atomicals_entry['data_ex']['exponent']
           # assert(value == atomicals_entry['data_ex']['value'])
           # assert(exponent == atomicals_entry['data_ex']['exponent'])
@@ -424,7 +424,7 @@ class AtomicalsTransferBlueprintBuilder:
             map_atomical_ids_to_summaries[atomical_id] = AtomicalInputSummary(atomical_id, atomicals_id_mint_info_map[atomical_id]['type'], atomicals_id_mint_info_map[atomical_id])
           # use tokenvalue, not value
           # for Partially case
-          map_atomical_ids_to_summaries[atomical_id].apply_input(txin_index, value, tokenvalue)
+          map_atomical_ids_to_summaries[atomical_id].apply_input(txin_index, satvalue, tokenvalue)
       return map_atomical_ids_to_summaries
   
   @classmethod
@@ -575,23 +575,17 @@ class AtomicalsTransferBlueprintBuilder:
           if txout.value >= expected_output_payment_value:
             expected_output_keys_satisfied[output_script_hex] = True # Mark that the output was matched at least once   
       else:
-        print(output_idx_to_atomical_id_map)
         # Otherwise it is a payment in a specific ARC20 fungible token
         expected_output_payment_id_type_long_form = compact_to_location_id_bytes(expected_output_payment_id_type)
         # Check in the reverse map if the current output idx is colored with the expected color
         output_summary = output_idx_to_atomical_id_map.get(idx)
-        print(output_summary)
         if output_summary and output_summary.get(expected_output_payment_id_type_long_form, None) != None:
           # Ensure the normalized tokenvalue is greater than or equal to the expected payment amount in that token type
           # exponent_for_for_atomical_id = output_summary.get(expected_output_payment_id_type_long_form)
           tokenvalue = get_nominal_token_value(txout.value)
-          print(tokenvalue)
-          print(expected_output_payment_value)
           if tokenvalue >= expected_output_payment_value:
             expected_output_keys_satisfied[output_script_hex + expected_output_payment_id_type_long_form.hex()] = True # Mark that the output was matched at least once
     # Check if there are any unsatisfied requirements
-    print(111)
-    print(len(expected_output_keys_satisfied))
     for output_script_not_used, satisfied in expected_output_keys_satisfied.items():
         if not satisfied:
           self.logger.warning(f'are_payments_satisfied is_all_outputs_matched_not_satisfied={expected_output_keys_satisfied} tx_hash={hash_to_hex_str(self.tx_hash)}')
