@@ -1984,7 +1984,7 @@ class HttpHandler(object):
         operation_found_at_inputs = parse_protocols_operations_from_witness_array(tx, tx_hash, True)
         atomicals_spent_at_inputs = self.session_mgr.bp.build_atomicals_spent_at_inputs_for_validation_only(tx)
         atomicals_receive_at_outputs = self.session_mgr.bp.build_atomicals_receive_at_ouutput_for_validation_only(tx, tx_hash)
-        blueprint_builder = AtomicalsTransferBlueprintBuilder(self.logger, height, atomicals_spent_at_inputs, operation_found_at_inputs, tx_hash, tx, self.session_mgr.bp.get_atomicals_id_mint_info, True)
+        blueprint_builder = AtomicalsTransferBlueprintBuilder(self.logger, atomicals_spent_at_inputs, operation_found_at_inputs, tx_hash, tx, self.session_mgr.bp.get_atomicals_id_mint_info, True, self.session_mgr.bp.is_split_activated(height))
         is_burned = blueprint_builder.are_fts_burned
         is_cleanly_assigned = blueprint_builder.cleanly_assigned
         # format burned_fts

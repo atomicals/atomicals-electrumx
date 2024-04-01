@@ -541,7 +541,7 @@ class BlockProcessor:
         # Build a structure of organizing into NFT and FTs
         # Note: We do not validate anything with NFTs, just FTs
         # Build the "blueprint" for how to assign all atomicals
-        blueprint_builder = AtomicalsTransferBlueprintBuilder(self.logger, self.height, atomicals_spent_at_inputs, operations_found_at_inputs, tx_hash, tx, self.get_atomicals_id_mint_info, True)
+        blueprint_builder = AtomicalsTransferBlueprintBuilder(self.logger, atomicals_spent_at_inputs, operations_found_at_inputs, tx_hash, tx, self.get_atomicals_id_mint_info, True, self.is_split_activated(self.height))
         ft_output_blueprint = blueprint_builder.get_ft_output_blueprint() 
         # Log that there were tokens burned due to not being cleanly assigned
         if blueprint_builder.get_are_fts_burned() or not blueprint_builder.cleanly_assigned:
@@ -1719,7 +1719,7 @@ class BlockProcessor:
     # Apply the rules to color the outputs of the atomicals
     def color_atomicals_outputs(self, operations_found_at_inputs, atomicals_spent_at_inputs, tx, tx_hash, tx_num, height):
         # Build the "blueprint" for how to assign all atomicals
-        blueprint_builder = AtomicalsTransferBlueprintBuilder(self.logger, self.height, atomicals_spent_at_inputs, operations_found_at_inputs, tx_hash, tx, self.get_atomicals_id_mint_info, self.is_dmint_activated(height))
+        blueprint_builder = AtomicalsTransferBlueprintBuilder(self.logger, atomicals_spent_at_inputs, operations_found_at_inputs, tx_hash, tx, self.get_atomicals_id_mint_info, self.is_dmint_activated(height), self.is_split_activated(height))
         
         nft_output_blueprint = blueprint_builder.get_nft_output_blueprint()
         if nft_output_blueprint and len(nft_output_blueprint.outputs):
@@ -2762,7 +2762,12 @@ class BlockProcessor:
     def is_density_activated(self, height): 
         if height >= self.coin.ATOMICALS_ACTIVATION_HEIGHT_DENSITY:
             return True 
-        return False 
+        return False
+    
+    def is_split_activated(self, height):
+        if height >= self.coin.ATOMICALS_ACTIVATION_SPLIT:
+            return True 
+        return False
     
     # Builds a map of the atomicals spent at a tx
     # It uses the spend_atomicals_utxo method but with live_run == False
@@ -3043,7 +3048,7 @@ class BlockProcessor:
             return None 
         
         # Rebuild the blueprint builder here
-        blueprint_builder = AtomicalsTransferBlueprintBuilder(self.logger, self.height, self.height, atomicals_spent_at_inputs, operations_found_at_inputs, tx_hash, tx, self.get_atomicals_id_mint_info, self.is_dmint_activated(height))
+        blueprint_builder = AtomicalsTransferBlueprintBuilder(self.logger, atomicals_spent_at_inputs, operations_found_at_inputs, tx_hash, tx, self.get_atomicals_id_mint_info, self.is_dmint_activated(height), self.is_split_activated(height))
         if blueprint_builder.is_split_operation():
             self.logger.warning(f'create_or_delete_subname_payment_output_if_valid: invalid payment split op found tx_hash={hash_to_hex_str(tx_hash)}')
             return None 
@@ -3065,7 +3070,7 @@ class BlockProcessor:
         if not valid_pattern.match(request_subname):
             raise IndexError(f'create_or_delete_subname_payment_output_if_valid: valid pattern failed. DeveloperError request_subname={request_subname}, regex={regex}')
  
-        if not blueprint_builder.are_payments_satisfied(matched_price_point['matched_rule'].get('o')):
+        if not blueprint_builder.are_payments_satisfied(matched_price_point['matched_rule'].get('o'), blueprint_builder.is_split_activated):
             self.logger.warning(f'create_or_delete_subname_payment_output_if_valid: payments not satisfied. request_subname={request_subname}, regex={regex} atomical_id_for_payment={location_id_bytes_to_compact(atomical_id_for_payment)}')
             return None 
     
