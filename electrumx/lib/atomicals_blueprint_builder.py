@@ -52,10 +52,6 @@ def get_nominal_token_value(value):
     # assert(exponent >= 0)
     # return value / (10**exponent)
 
-def get_adjusted_sats_needed_by_exponent(value):
-    return int(value)
-    return int(value * (10**exponent))
-
 def calculate_outputs_to_color_for_ft_atomical_ids(tx, ft_atomicals, sort_by_fifo, is_split_activated) -> FtColoringSummary:
     num_fts = len(ft_atomicals.keys())
     if num_fts == 0:
@@ -324,7 +320,7 @@ class AtomicalsTransferBlueprintBuilder:
     cleanly_assigned = True
     for atomical_id, atomical_info in sorted(ft_atomicals.items()):
       expected_output_indexes = []
-      remaining_value = get_adjusted_sats_needed_by_exponent(atomical_info.total_tokenvalue)
+      remaining_value = atomical_info.total_tokenvalue
       # The FT type has the 'split' (y) method which allows us to selectively split (skip) a certain total number of token units (satoshis)
       # before beginning to color the outputs.
       # Essentially this makes it possible to "split" out multiple FT's located at the same input
@@ -381,6 +377,7 @@ class AtomicalsTransferBlueprintBuilder:
               output_colored_map[expected_output_index]['atomicals'][atomical_id] = AtomicalColoredOutputFt(txout.value, txout.value, atomical_info)
         return AtomicalFtOutputBlueprintAssignmentSummary(output_colored_map, ft_coloring_summary.fts_burned, ft_coloring_summary.cleanly_assigned, first_atomical_id)
       else:
+        # for multiple expected_outputs case
         for atomical_id, atomical_info in ft_coloring_summary.atomical_id_to_expected_outs_map.items():
           total_value = atomical_info.expected_values
           for expected_output_index in atomical_info.expected_outputs:
@@ -426,6 +423,8 @@ class AtomicalsTransferBlueprintBuilder:
           # However note that only FTs will have an exponent >= 0 as NFT will always be exponent = 0
           if not map_atomical_ids_to_summaries.get(atomical_id):
             map_atomical_ids_to_summaries[atomical_id] = AtomicalInputSummary(atomical_id, atomicals_id_mint_info_map[atomical_id]['type'], atomicals_id_mint_info_map[atomical_id])
+          # use tokenvalue, not value
+          # for Partially case
           map_atomical_ids_to_summaries[atomical_id].apply_input(txin_index, value, tokenvalue)
       return map_atomical_ids_to_summaries
   
