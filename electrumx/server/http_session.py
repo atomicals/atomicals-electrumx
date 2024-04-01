@@ -15,7 +15,7 @@ from electrumx.lib.atomicals_blueprint_builder import AtomicalsTransferBlueprint
 from electrumx.lib.hash import HASHX_LEN, double_sha256, hash_to_hex_str, hex_str_to_hash, sha256
 import electrumx.lib.util as util
 from electrumx.lib.script2addr import get_address_from_output_script
-from electrumx.lib.util_atomicals import DFT_MINT_MAX_MAX_COUNT_DENSITY, DMINT_PATH, MINT_SUBNAME_RULES_BECOME_EFFECTIVE_IN_BLOCKS, SUBREALM_MINT_PATH, AtomicalsValidationError, auto_encode_bytes_elements, calculate_latest_state_from_mod_history, compact_to_location_id_bytes, format_name_type_candidates_to_rpc, format_name_type_candidates_to_rpc_for_subname, is_compact_atomical_id, location_id_bytes_to_compact, parse_protocols_operations_from_witness_array, validate_merkle_proof_dmint, validate_rules_data
+from electrumx.lib.util_atomicals import DFT_MINT_MAX_MAX_COUNT_DENSITY, DMINT_PATH, MINT_SUBNAME_RULES_BECOME_EFFECTIVE_IN_BLOCKS, SUBREALM_MINT_PATH, AtomicalsValidationError, auto_encode_bytes_elements, calculate_latest_state_from_mod_history, compact_to_location_id_bytes, expand_spend_utxo_data, format_name_type_candidates_to_rpc, format_name_type_candidates_to_rpc_for_subname, is_compact_atomical_id, location_id_bytes_to_compact, parse_protocols_operations_from_witness_array, validate_merkle_proof_dmint, validate_rules_data
 from electrumx.server.daemon import DaemonError
 
 
@@ -561,6 +561,7 @@ class HttpHandler(object):
                 atomical_id_compact = location_id_bytes_to_compact(atomical_id)
                 atomicals_basic_infos.append(atomical_id_compact)
 
+            satvalue, tokenvalue = self.db.get_uxto_token_value(utxo)
             returned_utxos.append({
                 'txid': hash_to_hex_str(utxo.tx_hash),
                 'tx_hash': hash_to_hex_str(utxo.tx_hash),
@@ -569,6 +570,8 @@ class HttpHandler(object):
                 'vout': utxo.tx_pos,
                 'height': utxo.height,
                 'value': utxo.value,
+                'satvalue': satvalue,
+                'tokenvalue': tokenvalue,
                 'atomicals': atomicals_basic_infos
             })
         return returned_utxos
@@ -594,11 +597,14 @@ class HttpHandler(object):
                 atomicals_id_map[atomical_id_compact] = atomical_basic_info
                 atomicals_basic_infos.append(atomical_id_compact)
             if len(atomicals) > 0:
+                satvalue, tokenvalue = self.db.get_uxto_token_value(utxo)
                 returned_utxos.append({'txid': hash_to_hex_str(utxo.tx_hash),
                 'index': utxo.tx_pos,
                 'vout': utxo.tx_pos,
                 'height': utxo.height,
                 'value': utxo.value,
+                'satvalue': satvalue,
+                'tokenvalue': tokenvalue,
                 'atomicals': atomicals_basic_infos})
         # Aggregate balances
         return_struct = {
@@ -616,7 +622,7 @@ class HttpHandler(object):
                         return_struct['balances'][atomical_id_compact]['ticker'] = atomical_id_basic_info.get('$ticker')
                         return_struct['balances'][atomical_id_compact]['confirmed'] = 0
                     if returned_utxo['height'] > 0:
-                        return_struct['balances'][atomical_id_compact]['confirmed'] += returned_utxo['value']
+                        return_struct['balances'][atomical_id_compact]['confirmed'] += returned_utxo['tokenvalue']
         return return_struct
 
     async def hashX_nft_balances_atomicals(self, hashX):
@@ -641,11 +647,14 @@ class HttpHandler(object):
                 atomicals_id_map[atomical_id_compact] = atomical_basic_info
                 atomicals_basic_infos.append(atomical_id_compact)
             if len(atomicals) > 0:
+                satvalue, tokenvalue = self.db.get_uxto_token_value(utxo)
                 returned_utxos.append({'txid': hash_to_hex_str(utxo.tx_hash),
                 'index': utxo.tx_pos,
                 'vout': utxo.tx_pos,
                 'height': utxo.height,
                 'value': utxo.value,
+                'satvalue': satvalue,
+                'tokenvalue': tokenvalue,
                 'atomicals': atomicals_basic_infos})
         # Aggregate balances
         return_struct = {
@@ -692,7 +701,7 @@ class HttpHandler(object):
                     if atomical_id_basic_info.get('$parents'):
                         return_struct['balances'][atomical_id_compact]['parents'] = atomical_id_basic_info.get('$parents')
                     if returned_utxo['height'] > 0:
-                        return_struct['balances'][atomical_id_compact]['confirmed'] += returned_utxo['value']
+                        return_struct['balances'][atomical_id_compact]['confirmed'] += returned_utxo['tokenvalue']
         return return_struct
     
     def atomical_resolve_id(self, compact_atomical_id_or_atomical_number):
@@ -793,11 +802,14 @@ class HttpHandler(object):
                 atomicals_id_map[atomical_id_compact] = atomical_basic_info
                 atomicals_basic_infos.append(atomical_id_compact)
             if Verbose or len(atomicals) > 0:
+                satvalue, tokenvalue = self.db.get_uxto_token_value(utxo)
                 returned_utxos.append({'txid': hash_to_hex_str(utxo.tx_hash),
                 'index': utxo.tx_pos,
                 'vout': utxo.tx_pos,
                 'height': utxo.height,
                 'value': utxo.value,
+                'satvalue': satvalue,
+                'tokenvalue': tokenvalue,
                 'atomicals': atomicals_basic_infos})
 
         # Aggregate balances
@@ -881,9 +893,9 @@ class HttpHandler(object):
                         return_struct['atomicals'][atomical_id_ref]['request_ticker'] = atomical_id_basic_info.get('$request_ticker')
 
                 if returned_utxo['height'] <= 0:
-                    return_struct['atomicals'][atomical_id_ref]['unconfirmed'] += returned_utxo['value']
+                    return_struct['atomicals'][atomical_id_ref]['unconfirmed'] += returned_utxo['tokenvalue']
                 else:
-                    return_struct['atomicals'][atomical_id_ref]['confirmed'] += returned_utxo['value']
+                    return_struct['atomicals'][atomical_id_ref]['confirmed'] += returned_utxo['tokenvalue']
 
         return return_struct
     

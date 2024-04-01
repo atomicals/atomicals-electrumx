@@ -27,7 +27,7 @@ from electrumx.lib.util import (
     formatted_time, pack_be_uint16, pack_be_uint32, pack_le_uint64, pack_be_uint64, pack_le_uint32,
     unpack_le_uint32, unpack_be_uint32, unpack_le_uint64, unpack_be_uint64, unpack_le_uint16_from, unpack_le_uint32_from
 )
-from electrumx.lib.util_atomicals import auto_encode_bytes_elements, pad_bytes64, get_tx_hash_index_from_location_id, location_id_bytes_to_compact, calculate_latest_state_from_mod_history
+from electrumx.lib.util_atomicals import auto_encode_bytes_elements, expand_spend_utxo_data, pad_bytes64, get_tx_hash_index_from_location_id, location_id_bytes_to_compact, calculate_latest_state_from_mod_history
 from electrumx.server.storage import db_class, Storage
 from electrumx.server.history import History, TXNUM_LEN
 from electrumx.lib.script import SCRIPTHASH_LEN
@@ -1347,6 +1347,18 @@ class DB:
             return self.get_atomicals_by_location_long_form(location)
         else:
             return self.get_atomicals_by_location(location)
+        
+    def get_uxto_token_value(self, utxo):
+        data_value = None
+        location_id_prefix = b'i' + utxo.tx_hash + pack_le_uint32(utxo.tx_pos)
+        for _, atomical_i_db_value in self.utxo_db.iterator(prefix=location_id_prefix):
+            data_value = expand_spend_utxo_data(atomical_i_db_value)
+        if data_value:
+            satvalue = data_value['satvalue']
+            tokenvalue = data_value['tokenvalue']
+        else:
+            satvalue, tokenvalue = utxo.value, 0
+        return satvalue, tokenvalue
 
     # Get atomicals hash by height
     def get_atomicals_block_hash(self, height):

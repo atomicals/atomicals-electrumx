@@ -232,7 +232,7 @@ class AtomicalsTransferBlueprintBuilder:
         input_idx_to_atomical_ids_map[txin_index] = input_idx_to_atomical_ids_map.get(txin_index) or {}
         input_idx_to_atomical_ids_map[txin_index][atomical_id] = AtomicalInputSummary(atomical_id, atomical_mint_info['type'], atomical_mint_info)
         # Populate the summary information
-        value = atomicals_entry['data_value']['value']
+        value = atomicals_entry['data_value']['satvalue']
         # Exponent is always 0 for NFTs
         input_idx_to_atomical_ids_map[txin_index][atomical_id].apply_input(txin_index, value, value)
     return input_idx_to_atomical_ids_map
@@ -408,9 +408,6 @@ class AtomicalsTransferBlueprintBuilder:
           # exponent, = unpack_le_uint16_from(atomicals_entry['data'][HASHX_LEN + SCRIPTHASH_LEN + 8: HASHX_LEN + SCRIPTHASH_LEN + 8 + 2])
           satvalue = atomicals_entry['data_value']['satvalue']
           tokenvalue = atomicals_entry['data_value']['tokenvalue']
-          # exponent = atomicals_entry['data_ex']['exponent']
-          # assert(value == atomicals_entry['data_ex']['value'])
-          # assert(exponent == atomicals_entry['data_ex']['exponent'])
           # Perform a cache lookup for the mint information since we do not want to query multiple times for same input atomical_id
           if not atomicals_id_mint_info_map.get(atomical_id):
               atomical_mint_info = get_atomicals_id_mint_info(atomical_id, True)
@@ -604,7 +601,7 @@ class AtomicalsTransferBlueprintBuilder:
     # Sanity check that there can be no inflation
     for atomical_id, ft_info in sorted(ft_atomicals.items()):
         sum_out_value = sanity_check_sums.get(atomical_id)
-        input_value = ft_info['value']
+        input_value = ft_info['tokenvalue']
         if sum_out_value and sum_out_value > input_value:
             atomical_id_compact = location_id_bytes_to_compact(atomical_id)
             raise AtomicalsTransferBlueprintBuilderError(f'validate_ft_transfer_has_no_inflation: Fatal error the output sum of outputs is greater than input sum for Atomical: atomical_id={atomical_id_compact} input_value={input_value} sum_out_value={sum_out_value} ft_atomicals={ft_atomicals}')
