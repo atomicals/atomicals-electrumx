@@ -1348,7 +1348,7 @@ class DB:
         else:
             return self.get_atomicals_by_location(location)
         
-    def get_uxto_token_value(self, location):
+    def get_uxto_token_value(self, location, satvalue):
         data_value = None
         location_id_prefix = b'i' + location
         for _, atomical_i_db_value in self.utxo_db.iterator(prefix=location_id_prefix):
@@ -1357,7 +1357,7 @@ class DB:
             satvalue = data_value['satvalue']
             tokenvalue = data_value['tokenvalue']
         else:
-            satvalue, tokenvalue = utxo.value, 0
+            satvalue, tokenvalue = satvalue, 0
         return satvalue, tokenvalue
 
     # Get atomicals hash by height

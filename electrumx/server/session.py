@@ -1417,7 +1417,7 @@ class ElectrumX(SessionBase):
                 atomicals_basic_infos.append(atomical_id_compact)
             
             location = utxo.tx_hash + util.pack_le_uint32(utxo.tx_pos)
-            satvalue, tokenvalue = self.db.get_uxto_token_value(location)
+            satvalue, tokenvalue = self.db.get_uxto_token_value(location, utxo.value)
             returned_utxos.append({
                 'txid': hash_to_hex_str(utxo.tx_hash),
                 'tx_hash': hash_to_hex_str(utxo.tx_hash),
@@ -2197,7 +2197,7 @@ class ElectrumX(SessionBase):
                 atomicals_basic_infos.append(atomical_id_compact)
             if len(atomicals) > 0:
                 location = utxo.tx_hash + util.pack_le_uint32(utxo.tx_pos)
-                satvalue, tokenvalue = self.db.get_uxto_token_value(location)
+                satvalue, tokenvalue = self.db.get_uxto_token_value(location, utxo.value)
                 returned_utxos.append({'txid': hash_to_hex_str(utxo.tx_hash),
                 'index': utxo.tx_pos,
                 'vout': utxo.tx_pos,
@@ -2249,7 +2249,7 @@ class ElectrumX(SessionBase):
                 atomicals_basic_infos.append(atomical_id_compact)
             if len(atomicals) > 0:
                 location = utxo.tx_hash + util.pack_le_uint32(utxo.tx_pos)
-                satvalue, tokenvalue = self.db.get_uxto_token_value(location)
+                satvalue, tokenvalue = self.db.get_uxto_token_value(location, utxo.value)
                 returned_utxos.append({'txid': hash_to_hex_str(utxo.tx_hash),
                 'index': utxo.tx_pos,
                 'vout': utxo.tx_pos,
@@ -2329,7 +2329,7 @@ class ElectrumX(SessionBase):
                 atomicals_basic_infos.append(atomical_id_compact)
             if Verbose or len(atomicals) > 0:
                 location = utxo.tx_hash + util.pack_le_uint32(utxo.tx_pos)
-                satvalue, tokenvalue = self.db.get_uxto_token_value(location)
+                satvalue, tokenvalue = self.db.get_uxto_token_value(location, utxo.value)
                 returned_utxos.append({'txid': hash_to_hex_str(utxo.tx_hash),
                 'index': utxo.tx_pos,
                 'vout': utxo.tx_pos,
@@ -2936,13 +2936,14 @@ class ElectrumX(SessionBase):
                         self.session_mgr.bp.general_data_cache[b'rtx' + hex_str_to_hash(prev_txid)] = prev_raw_tx
                     prev_tx, prev_tx_hash = self.coin.DESERIALIZER(prev_raw_tx, 0).read_tx_and_hash()
                     location = prev_tx_hash + util.pack_le_uint32(tx.inputs[i.txin_index].prev_idx)
-                    satvalue, tokenvalue = self.db.get_uxto_token_value(location)
+                    satvalue = prev_tx.outputs[tx.inputs[i.txin_index].prev_idx].value
+                    satvalue, tokenvalue = self.db.get_uxto_token_value(location, satvalue)
                     ft_data = {
                         "address": get_address_from_output_script(prev_tx.outputs[tx.inputs[i.txin_index].prev_idx].pk_script),
                         "atomical_id": compact_atomical_id,
                         "type": "FT",
                         "index": i.txin_index,
-                        "value": prev_tx.outputs[tx.inputs[i.txin_index].prev_idx].value,
+                        "value": satvalue,
                         "satvalue": satvalue,
                         "tokenvalue": tokenvalue,
                     }
@@ -2980,13 +2981,14 @@ class ElectrumX(SessionBase):
                         self.session_mgr.bp.general_data_cache[b'rtx' + hex_str_to_hash(prev_txid)] = prev_raw_tx
                     prev_tx, prev_tx_hash = self.coin.DESERIALIZER(prev_raw_tx, 0).read_tx_and_hash()
                     location = prev_tx_hash + util.pack_le_uint32(tx.inputs[i.txin_index].prev_idx)
-                    satvalue, tokenvalue = self.db.get_uxto_token_value(location)
+                    satvalue = prev_tx.outputs[tx.inputs[i.txin_index].prev_idx].value
+                    satvalue, tokenvalue = self.db.get_uxto_token_value(location, satvalue)
                     nft_data = {
                         "address": get_address_from_output_script(prev_tx.outputs[tx.inputs[i.txin_index].prev_idx].pk_script),
                         "atomical_id": compact_atomical_id,
                         "type": "NFT",
                         "index": i.txin_index,
-                        "value": prev_tx.outputs[tx.inputs[i.txin_index].prev_idx].value,
+                        "value": satvalue,
                         "satvalue": satvalue,
                         "tokenvalue": tokenvalue
                     }
