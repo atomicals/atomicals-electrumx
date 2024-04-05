@@ -6,7 +6,8 @@ from electrumx.lib.hash import HASHX_LEN, hex_str_to_hash, hash_to_hex_str
 from electrumx.lib.tx import Tx, TxInput, TxOutput
 
 from electrumx.lib.util_atomicals import (
-    location_id_bytes_to_compact
+    location_id_bytes_to_compact,
+    parse_protocols_operations_from_witness_array
 )
 
 coin = Bitcoin
@@ -449,4 +450,30 @@ def test_spends_ft_split_one_token():
     assert(len(ft_output_blueprint.outputs) == 2)
     assert(ft_output_blueprint.outputs[1]["atomicals"][subject_atomical_id].tokenvalue == 1)
     assert(ft_output_blueprint.first_atomical_id == subject_atomical_id)
+    assert(blueprint_builder.get_are_fts_burned() == False)
+
+
+def test_spends_ft_y_split_normal():
+    raw_tx_str = '0100000000010213ac24b68388e0e32f3b19e95764c67d03b151d1f524eb07bc6e4f2790a3b7f00000000000ffffffff2423c79220c41bd904699aada54868e5c5aecb15168971964c6f5950a7b1d6860000000000ffffffff03e80300000000000022512011b6ce99eab0d8873d787e99e68a351358228893cdf1049ac48aae51391598abe80300000000000022512011b6ce99eab0d8873d787e99e68a351358228893cdf1049ac48aae51391598abe80300000000000022512011b6ce99eab0d8873d787e99e68a351358228893cdf1049ac48aae51391598ab03401aaa5ca0d475dcec02867f28f687494a639b3b43aff0a776c68d94f8cd3e987bb08a3463d8ab937f18f5dadfc916337b2df98cdd700b8514c6fdaff7f5ddffc975201764381bc0b54064cc55a0dda055c5e9875e5cdd7a7c1452d9b93d6015546170ac00630461746f6d017948a178423935323765666134333236323633366438663539313766633736336662646430393333336534623338376166643664346564376139303561313237623237623469301903e86821c01764381bc0b54064cc55a0dda055c5e9875e5cdd7a7c1452d9b93d60155461700140101db7c999f69c7f551d6800341a75ae659e8c100d1bb116b0935afc9ac3aec69bb97eed3ea72fa75912401400aa53f85f8a862f0f672620f31c5e704d8b4d5c00000000'
+    raw_tx = bytes.fromhex(raw_tx_str)
+    subject_atomical_id = b'\x13Jv:\xb1\xad\x9a\xaf\x8a#[7\xa9s\xc0\xcc\xb2\xca\xe1"\x05Y\xc8s\x87\x11\xcc\x90W\xe2\x88\x88\x00\x00\x00\x00'
+    subject_atomical_id1 = b"\xb4'{\x12Z\x90z\xed\xd4\xd6\xaf\x87\xb3\xe43\x93\xd0\xbd?v\xfc\x17Y\x8fmcb2\xa4\xef'\x95\x00\x00\x00\x00"
+    tx, tx_hash = coin.DESERIALIZER(raw_tx, 0).read_tx_and_hash()
+    operation_found_at_inputs = parse_protocols_operations_from_witness_array(tx, tx_hash, True)
+    # print(operation_found_at_inputs)
+    atomicals_spent_at_inputs= {
+        1: [{'atomical_id': subject_atomical_id1, 'location_id': b'not_used', 'data': b'not_used', 'data_value': {'satvalue': 1000, 'tokenvalue': 1000}},
+            {'atomical_id': subject_atomical_id, 'location_id': b'not_used', 'data': b'not_used', 'data_value': {'satvalue': 1000, 'tokenvalue': 1000}}]
+    }
+    def mock_mint_fetcher(self, atomical_id):
+        return {
+            'atomical_id': atomical_id,
+            'type': 'FT'
+        }
+    blueprint_builder = AtomicalsTransferBlueprintBuilder(MockLogger(), atomicals_spent_at_inputs, operation_found_at_inputs, tx_hash, tx, mock_mint_fetcher, True, False)
+    nft_output_blueprint = blueprint_builder.get_nft_output_blueprint()
+    assert(len(nft_output_blueprint.outputs) == 0)
+    ft_output_blueprint = blueprint_builder.get_ft_output_blueprint()
+    assert(len(ft_output_blueprint.outputs) == 2)
+    assert(ft_output_blueprint.fts_burned == {})
     assert(blueprint_builder.get_are_fts_burned() == False)

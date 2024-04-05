@@ -2766,7 +2766,9 @@ class BlockProcessor:
     
     def is_split_activated(self, height):
         if height >= self.coin.ATOMICALS_ACTIVATION_SPLIT:
-            return True 
+            return True
+        if height <= 0:
+            return True
         return False
     
     # Builds a map of the atomicals spent at a tx

@@ -47,9 +47,6 @@ def build_reverse_output_to_atomical_id_exponent_map(atomical_id_to_output_index
 
 def get_nominal_token_value(value):
     return value
-    # assert(value >= 0)
-    # assert(exponent >= 0)
-    # return value / (10**exponent)
 
 def calculate_outputs_to_color_for_ft_atomical_ids(tx, ft_atomicals, sort_by_fifo, is_split_activated) -> FtColoringSummary:
     num_fts = len(ft_atomicals.keys())
@@ -64,15 +61,26 @@ def calculate_outputs_to_color_for_ft_atomical_ids(tx, ft_atomicals, sort_by_fif
     for item in atomical_list:
       atomical_id = item.atomical_id
       # If a target exponent was provided, then use that instead
-      cleanly_assigned, expected_outputs, remaining_value_from_assign = AtomicalsTransferBlueprintBuilder.assign_expected_outputs_basic(item.total_tokenvalue, tx, next_start_out_idx, False)
-      if cleanly_assigned and len(expected_outputs) > 0:
-        next_start_out_idx = expected_outputs[-1] + 1
-        potential_atomical_ids_to_output_idxs_map[atomical_id] = ExpectedOutputSet(expected_outputs, item.total_tokenvalue)
+      cleanly_assigned, expected_outputs, remaining_value_from_assign = AtomicalsTransferBlueprintBuilder.assign_expected_outputs_basic(item.total_tokenvalue, tx, next_start_out_idx, is_split_activated)
+      if not is_split_activated:
+        if cleanly_assigned and len(expected_outputs) > 0:
+          next_start_out_idx = expected_outputs[-1] + 1
+          potential_atomical_ids_to_output_idxs_map[atomical_id] = ExpectedOutputSet(expected_outputs, item.total_tokenvalue)
+        else:
+          # Erase the potential for safety
+          potential_atomical_ids_to_output_idxs_map = {}
+          non_clean_output_slots = True
+          break
       else:
-        # Erase the potential for safety
-        potential_atomical_ids_to_output_idxs_map = {}
-        non_clean_output_slots = True
-        break
+        # no need cleanly_assigned
+        if len(expected_outputs) > 0:
+          next_start_out_idx = expected_outputs[-1] + 1
+          potential_atomical_ids_to_output_idxs_map[atomical_id] = ExpectedOutputSet(expected_outputs, item.total_tokenvalue)
+        else:
+          # if no enable uxto
+          potential_atomical_ids_to_output_idxs_map = {}
+          non_clean_output_slots = True
+          break
 
     # If the output slots did not fit cleanly, then default to just assigning everything from the 0'th output index
     if non_clean_output_slots:
@@ -81,9 +89,8 @@ def calculate_outputs_to_color_for_ft_atomical_ids(tx, ft_atomicals, sort_by_fif
         atomical_id = item.atomical_id
         cleanly_assigned, expected_outputs, remaining_value_from_assign = AtomicalsTransferBlueprintBuilder.assign_expected_outputs_basic(item.total_tokenvalue, tx, 0, is_split_activated)
         potential_atomical_ids_to_output_idxs_map[atomical_id] = ExpectedOutputSet(expected_outputs, item.total_tokenvalue)
-        if not is_split_activated:
-          if not cleanly_assigned and remaining_value_from_assign > 0:
-            fts_burned[atomical_id] = get_nominal_token_value(remaining_value_from_assign)
+        if remaining_value_from_assign > 0:
+          fts_burned[atomical_id] = remaining_value_from_assign
       return FtColoringSummary(potential_atomical_ids_to_output_idxs_map, fts_burned, not non_clean_output_slots, atomical_list)
     return FtColoringSummary(potential_atomical_ids_to_output_idxs_map, fts_burned, not non_clean_output_slots, atomical_list)
   
@@ -307,15 +314,14 @@ class AtomicalsTransferBlueprintBuilder:
       # Split apart multiple NFT/FT from a UTXO
       should_split_ft_atomicals = is_split_operation(operations_found_at_inputs)
       if should_split_ft_atomicals:
-          return AtomicalsTransferBlueprintBuilder.color_ft_atomicals_split(ft_atomicals, operations_found_at_inputs, tx)
-     
+          return AtomicalsTransferBlueprintBuilder.color_ft_atomicals_split(ft_atomicals, operations_found_at_inputs, tx, is_split_activated)
       # Normal assignment in all cases including fall through of failure to provide a target exponent in the above resubstantiation
       return AtomicalsTransferBlueprintBuilder.color_ft_atomicals_regular(ft_atomicals, tx, sort_fifo, is_split_activated)
 
   @classmethod
-  def color_ft_atomicals_split(cls, ft_atomicals, operations_found_at_inputs, tx):
-    output_colored_map = {}  
-    fts_burned = {}               
+  def color_ft_atomicals_split(cls, ft_atomicals, operations_found_at_inputs, tx, is_split_activated):
+    output_colored_map = {}
+    fts_burned = {}
     cleanly_assigned = True
     for atomical_id, atomical_info in sorted(ft_atomicals.items()):
       expected_output_indexes = []
@@ -331,31 +337,58 @@ class AtomicalsTransferBlueprintBuilder:
       if isinstance(total_amount_to_skip_potential, int) and total_amount_to_skip_potential >= 0:
         total_amount_to_skip = total_amount_to_skip_potential
       total_skipped_so_far = 0
-      for out_idx, txout in enumerate(tx.outputs): 
-        # If the first output should be skipped and we have not yet done so, then skip/ignore it
-        if total_amount_to_skip > 0 and total_skipped_so_far < total_amount_to_skip:
-            total_skipped_so_far += txout.value 
-            continue 
-        # For all remaining outputs attach colors as long as there is adequate remaining_value left to cover the entire output value
-        if txout.value <= remaining_value:
+      if is_split_activated:
+        for out_idx, txout in enumerate(tx.outputs):
+          # If the first output should be skipped and we have not yet done so, then skip/ignore it
+          if total_amount_to_skip > 0 and total_skipped_so_far < total_amount_to_skip:
+              total_skipped_so_far += txout.value
+              continue
+          # For all remaining outputs attach colors as long as there is adequate remaining_value left to cover the entire output value
+          # if txout.value <= remaining_value:
           expected_output_indexes.append(out_idx)
+          if txout.value <= remaining_value:
+            expected_value = txout.value
+          else:
+            expected_value = remaining_value
           remaining_value -= txout.value
           output_colored_map[out_idx] = output_colored_map.get(out_idx) or {'atomicals': {}}
-          output_colored_map[out_idx]['atomicals'][atomical_id] = AtomicalColoredOutputFt(txout.value, get_nominal_token_value(txout.value), atomical_info)
+          output_colored_map[out_idx]['atomicals'][atomical_id] = AtomicalColoredOutputFt(txout.value, expected_value, atomical_info)
           # We are done assigning all remaining values
           if remaining_value == 0:
               break
-        # Exit case when we have no more remaining_value to assign or the next output is greater than what we have in remaining_value
-        if txout.value > remaining_value or remaining_value < 0:
-            cleanly_assigned = False # Used to indicate that all was cleanly assigned
-            fts_burned[atomical_id] = get_nominal_token_value(remaining_value)
-            break
-      # Used to indicate that all was cleanly assigned
-      if remaining_value != 0:
-        cleanly_assigned = False
-        fts_burned[atomical_id] = get_nominal_token_value(remaining_value)
-    
-    return AtomicalFtOutputBlueprintAssignmentSummary(output_colored_map, fts_burned, cleanly_assigned, None) 
+          # Exit case when we have no more remaining_value to assign or the next output is greater than what we have in remaining_value
+          if remaining_value < 0:
+              remaining_value = 0
+              cleanly_assigned = False # Used to indicate that all was cleanly assigned
+              break
+          if remaining_value != 0:
+            cleanly_assigned = False
+            fts_burned[atomical_id] = remaining_value
+      else:
+        # is_split_activated logic
+        # use if else keep it simple
+        for out_idx, txout in enumerate(tx.outputs):
+          if total_amount_to_skip > 0 and total_skipped_so_far < total_amount_to_skip:
+            total_skipped_so_far += txout.value 
+            continue
+          # For all remaining outputs attach colors as long as there is adequate remaining_value left to cover the entire output value
+          if txout.value <= remaining_value:
+            expected_output_indexes.append(out_idx)
+            remaining_value -= txout.value
+            output_colored_map[out_idx] = output_colored_map.get(out_idx) or {'atomicals': {}}
+            output_colored_map[out_idx]['atomicals'][atomical_id] = AtomicalColoredOutputFt(txout.value, txout.value, atomical_info)
+            # We are done assigning all remaining values
+            if remaining_value == 0:
+                break
+          # Exit case when we have no more remaining_value to assign or the next output is greater than what we have in remaining_value
+          if txout.value > remaining_value or remaining_value < 0:
+              cleanly_assigned = False # Used to indicate that all was cleanly assigned
+              fts_burned[atomical_id] = remaining_value
+              break
+        if remaining_value != 0:
+          cleanly_assigned = False
+          fts_burned[atomical_id] = remaining_value
+    return AtomicalFtOutputBlueprintAssignmentSummary(output_colored_map, fts_burned, cleanly_assigned, None)
 
   @classmethod
   def color_ft_atomicals_regular(cls, ft_atomicals, tx, sort_fifo, is_split_activated):

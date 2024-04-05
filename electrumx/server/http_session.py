@@ -1988,6 +1988,9 @@ class HttpHandler(object):
             return res
         if not height:
             tx_num, height = self.db.get_tx_num_height_from_tx_hash(tx_hash)
+            if not tx_num:
+                height = 0
+                tx_num = -1
 
         res = {}
         raw_tx = self.db.get_raw_tx_by_tx_hash(tx_hash)
@@ -2210,7 +2213,7 @@ class HttpHandler(object):
             if entity_type == 'dmitem':
                 res["op"] = "payment-dmitem"
 
-        if res.get("op"):
+        if res.get("op") and height > 0:
             self.session_mgr._tx_detail_cache[tx_hash] = res
 
         # Recursively encode the result.

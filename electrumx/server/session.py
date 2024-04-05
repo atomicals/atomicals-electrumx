@@ -2803,6 +2803,9 @@ class ElectrumX(SessionBase):
             return res
         if not height:
             tx_num, height = self.db.get_tx_num_height_from_tx_hash(tx_hash)
+            if not tx_num:
+                height = 0
+                tx_num = -1
 
         raw_tx = self.db.get_raw_tx_by_tx_hash(tx_hash)
         if not raw_tx:
