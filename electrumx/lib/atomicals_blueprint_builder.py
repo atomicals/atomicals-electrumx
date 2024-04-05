@@ -57,6 +57,7 @@ def calculate_outputs_to_color_for_ft_atomical_ids(tx, ft_atomicals, sort_by_fif
     next_start_out_idx = 0
     potential_atomical_ids_to_output_idxs_map = {}
     non_clean_output_slots = False
+    utxo_cleanly_assigned = True
     fts_burned = {}
     for item in atomical_list:
       atomical_id = item.atomical_id
@@ -72,6 +73,10 @@ def calculate_outputs_to_color_for_ft_atomical_ids(tx, ft_atomicals, sort_by_fif
           non_clean_output_slots = True
           break
       else:
+        if remaining_value_from_assign > 0:
+          fts_burned[atomical_id] = remaining_value_from_assign
+        if not cleanly_assigned:
+          utxo_cleanly_assigned = False
         # no need cleanly_assigned
         if len(expected_outputs) > 0:
           next_start_out_idx = expected_outputs[-1] + 1
@@ -91,8 +96,10 @@ def calculate_outputs_to_color_for_ft_atomical_ids(tx, ft_atomicals, sort_by_fif
         potential_atomical_ids_to_output_idxs_map[atomical_id] = ExpectedOutputSet(expected_outputs, item.total_tokenvalue)
         if remaining_value_from_assign > 0:
           fts_burned[atomical_id] = remaining_value_from_assign
-      return FtColoringSummary(potential_atomical_ids_to_output_idxs_map, fts_burned, not non_clean_output_slots, atomical_list)
-    return FtColoringSummary(potential_atomical_ids_to_output_idxs_map, fts_burned, not non_clean_output_slots, atomical_list)
+        if not cleanly_assigned:
+          utxo_cleanly_assigned = False
+      return FtColoringSummary(potential_atomical_ids_to_output_idxs_map, fts_burned, utxo_cleanly_assigned, atomical_list)
+    return FtColoringSummary(potential_atomical_ids_to_output_idxs_map, fts_burned, utxo_cleanly_assigned, atomical_list)
   
 class AtomicalsTransferBlueprintBuilderError(Exception):
     '''Raised when Atomicals Blueprint builder has an error'''
@@ -402,8 +409,11 @@ class AtomicalsTransferBlueprintBuilder:
         return AtomicalFtOutputBlueprintAssignmentSummary(output_colored_map, ft_coloring_summary.fts_burned, ft_coloring_summary.cleanly_assigned, first_atomical_id)
       else:
         # for multiple expected_outputs case
+        cleanly_assigned = True
         for atomical_id, atomical_info in ft_coloring_summary.atomical_id_to_expected_outs_map.items():
           total_value = atomical_info.expected_values
+          if not ft_coloring_summary.cleanly_assigned:
+             cleanly_assigned = False
           for expected_output_index in atomical_info.expected_outputs:
               txout = tx.outputs[expected_output_index]
               output_colored_map[expected_output_index] = output_colored_map.get(expected_output_index) or {'atomicals': {}}
@@ -413,7 +423,7 @@ class AtomicalsTransferBlueprintBuilder:
               else:
                  expected_value = total_value
               output_colored_map[expected_output_index]['atomicals'][atomical_id] = AtomicalColoredOutputFt(txout.value, expected_value, atomical_info)
-        return AtomicalFtOutputBlueprintAssignmentSummary(output_colored_map, ft_coloring_summary.fts_burned, ft_coloring_summary.cleanly_assigned, first_atomical_id)
+        return AtomicalFtOutputBlueprintAssignmentSummary(output_colored_map, ft_coloring_summary.fts_burned, cleanly_assigned, first_atomical_id)
 
   @classmethod
   def calculate_output_blueprint(cls, get_atomicals_id_mint_info, tx, nft_atomicals, ft_atomicals, atomicals_spent_at_inputs, operations_found_at_inputs, sort_fifo, is_split_activated):
