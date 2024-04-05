@@ -112,7 +112,6 @@ class AtomicalInputSummary:
     self.total_satsvalue = 0 
     self.total_tokenvalue = 0
     self.input_indexes = []
-    self.max_exponent = 0
     self.mint_info = mint_info
 
   def apply_input(self, txin_index, satvalue, tokenvalue):
@@ -121,9 +120,6 @@ class AtomicalInputSummary:
     self.total_tokenvalue += tokenvalue
     # Track the current input index encountered and the details of the input such as satvalue, tokenvalue, exponent, txin index
     self.input_indexes.append(AtomicalInputItem(txin_index, satvalue, tokenvalue))      
-    # Track the max exponent encountered across all inputs for the same atomical id
-    # if self.max_exponent < exponent:
-    #   self.max_exponent = exponent
 
 class AtomicalColoredOutputFt:
   def __init__(self, satvalue: int, tokenvalue, input_summary_info: AtomicalInputSummary):
@@ -343,8 +339,6 @@ class AtomicalsTransferBlueprintBuilder:
           if total_amount_to_skip > 0 and total_skipped_so_far < total_amount_to_skip:
               total_skipped_so_far += txout.value
               continue
-          # For all remaining outputs attach colors as long as there is adequate remaining_value left to cover the entire output value
-          # if txout.value <= remaining_value:
           expected_output_indexes.append(out_idx)
           if txout.value <= remaining_value:
             expected_value = txout.value
@@ -353,23 +347,21 @@ class AtomicalsTransferBlueprintBuilder:
           remaining_value -= txout.value
           output_colored_map[out_idx] = output_colored_map.get(out_idx) or {'atomicals': {}}
           output_colored_map[out_idx]['atomicals'][atomical_id] = AtomicalColoredOutputFt(txout.value, expected_value, atomical_info)
-          # We are done assigning all remaining values
           if remaining_value == 0:
               break
-          # Exit case when we have no more remaining_value to assign or the next output is greater than what we have in remaining_value
           if remaining_value < 0:
               remaining_value = 0
               cleanly_assigned = False # Used to indicate that all was cleanly assigned
               break
-          if remaining_value != 0:
-            cleanly_assigned = False
-            fts_burned[atomical_id] = remaining_value
+        if remaining_value != 0:
+          cleanly_assigned = False
+          fts_burned[atomical_id] = remaining_value
       else:
         # is_split_activated logic
         # use if else keep it simple
         for out_idx, txout in enumerate(tx.outputs):
           if total_amount_to_skip > 0 and total_skipped_so_far < total_amount_to_skip:
-            total_skipped_so_far += txout.value 
+            total_skipped_so_far += txout.value
             continue
           # For all remaining outputs attach colors as long as there is adequate remaining_value left to cover the entire output value
           if txout.value <= remaining_value:
