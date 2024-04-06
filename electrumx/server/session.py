@@ -1407,17 +1407,15 @@ class ElectrumX(SessionBase):
             if (utxo.tx_hash, utxo.tx_pos) in spends:
                 continue
             atomicals = self.db.get_atomicals_by_utxo(utxo, True)
-            atomicals_basic_infos = []
+            atomicals_basic_infos = {}
             for atomical_id in atomicals: 
                 # This call is efficient in that it's cached underneath
                 # For now we only show the atomical id because it can always be fetched separately and it will be more efficient
                 atomical_basic_info = await self.session_mgr.bp.get_base_mint_info_rpc_format_by_atomical_id(atomical_id) 
                 # Todo need to combine mempool atomicals 
                 atomical_id_compact = location_id_bytes_to_compact(atomical_id)
-                atomicals_basic_infos.append(atomical_id_compact)
-            
-            location = utxo.tx_hash + util.pack_le_uint32(utxo.tx_pos)
-            satvalue, tokenvalue = self.db.get_uxto_token_value(location, utxo.value)
+                location = utxo.tx_hash + util.pack_le_uint32(utxo.tx_pos)
+                atomicals_basic_infos[atomical_id_compact] = self.db.get_uxto_token_value(location, atomical_id)
             returned_utxos.append({
                 'txid': hash_to_hex_str(utxo.tx_hash),
                 'tx_hash': hash_to_hex_str(utxo.tx_hash),
@@ -1426,8 +1424,6 @@ class ElectrumX(SessionBase):
                 'vout': utxo.tx_pos,
                 'height': utxo.height, 
                 'value': utxo.value,
-                'satvalue': satvalue,
-                'tokenvalue': tokenvalue,
                 'atomicals': atomicals_basic_infos
             })
         return returned_utxos
@@ -2187,24 +2183,22 @@ class ElectrumX(SessionBase):
             if (utxo.tx_hash, utxo.tx_pos) in spends:
                 continue
             atomicals = self.db.get_atomicals_by_utxo(utxo, True)
-            atomicals_basic_infos = []
+            atomicals_basic_infos = {}
             for atomical_id in atomicals: 
                 # This call is efficient in that it's cached underneath
                 # For now we only show the atomical id because it can always be fetched separately and it will be more efficient
                 atomical_basic_info = await self.session_mgr.bp.get_base_mint_info_rpc_format_by_atomical_id(atomical_id) 
                 atomical_id_compact = location_id_bytes_to_compact(atomical_id)
                 atomicals_id_map[atomical_id_compact] = atomical_basic_info
-                atomicals_basic_infos.append(atomical_id_compact)
-            if len(atomicals) > 0:
                 location = utxo.tx_hash + util.pack_le_uint32(utxo.tx_pos)
-                satvalue, tokenvalue = self.db.get_uxto_token_value(location, utxo.value)
+                atomicals_basic_infos[atomical_id_compact] = self.db.get_uxto_token_value(location, atomical_id)
+            if len(atomicals) > 0:
                 returned_utxos.append({'txid': hash_to_hex_str(utxo.tx_hash),
                 'index': utxo.tx_pos,
                 'vout': utxo.tx_pos,
                 'height': utxo.height,
                 'value': utxo.value,
-                'satvalue': satvalue,
-                'tokenvalue': tokenvalue,
+                'satvalue': utxo.value,
                 'atomicals': atomicals_basic_infos})
         # Aggregate balances
         return_struct = {
@@ -2222,7 +2216,7 @@ class ElectrumX(SessionBase):
                         return_struct['balances'][atomical_id_compact]['ticker'] = atomical_id_basic_info.get('$ticker')
                         return_struct['balances'][atomical_id_compact]['confirmed'] = 0
                     if returned_utxo['height'] > 0:
-                        return_struct['balances'][atomical_id_compact]['confirmed'] += returned_utxo['tokenvalue']
+                        return_struct['balances'][atomical_id_compact]['confirmed'] += returned_utxo['atomicals'][atomical_id_compact]
         return return_struct
 
     async def hashX_nft_balances_atomicals(self, hashX):
@@ -2239,24 +2233,22 @@ class ElectrumX(SessionBase):
             if (utxo.tx_hash, utxo.tx_pos) in spends:
                 continue
             atomicals = self.db.get_atomicals_by_utxo(utxo, True)
-            atomicals_basic_infos = []
+            atomicals_basic_infos = {}
             for atomical_id in atomicals: 
                 # This call is efficient in that it's cached underneath
                 # For now we only show the atomical id because it can always be fetched separately and it will be more efficient
                 atomical_basic_info = await self.session_mgr.bp.get_base_mint_info_rpc_format_by_atomical_id(atomical_id) 
                 atomical_id_compact = location_id_bytes_to_compact(atomical_id)
                 atomicals_id_map[atomical_id_compact] = atomical_basic_info
-                atomicals_basic_infos.append(atomical_id_compact)
-            if len(atomicals) > 0:
                 location = utxo.tx_hash + util.pack_le_uint32(utxo.tx_pos)
-                satvalue, tokenvalue = self.db.get_uxto_token_value(location, utxo.value)
+                atomicals_basic_infos[atomical_id_compact] = self.db.get_uxto_token_value(location, atomical_id)
+            if len(atomicals) > 0:
                 returned_utxos.append({'txid': hash_to_hex_str(utxo.tx_hash),
                 'index': utxo.tx_pos,
                 'vout': utxo.tx_pos,
                 'height': utxo.height,
                 'value': utxo.value,
-                'satvalue': satvalue,
-                'tokenvalue': tokenvalue,
+                'satvalue': utxo.value,
                 'atomicals': atomicals_basic_infos})
         # Aggregate balances
         return_struct = {
@@ -2303,7 +2295,7 @@ class ElectrumX(SessionBase):
                     if atomical_id_basic_info.get('$parents'):
                         return_struct['balances'][atomical_id_compact]['parents'] = atomical_id_basic_info.get('$parents')
                     if returned_utxo['height'] > 0:
-                        return_struct['balances'][atomical_id_compact]['confirmed'] += returned_utxo['tokenvalue']
+                        return_struct['balances'][atomical_id_compact]['confirmed'] += returned_utxo['atomicals'][atomical_id_compact]
         return return_struct
 
     async def hashX_listscripthash_atomicals(self, hashX, Verbose=False):
@@ -2319,24 +2311,22 @@ class ElectrumX(SessionBase):
             if (utxo.tx_hash, utxo.tx_pos) in spends:
                 continue
             atomicals = self.db.get_atomicals_by_utxo(utxo, True)
-            atomicals_basic_infos = []
+            atomicals_basic_infos = {}
             for atomical_id in atomicals: 
                 # This call is efficient in that it's cached underneath
                 # For now we only show the atomical id because it can always be fetched separately and it will be more efficient
                 atomical_basic_info = await self.session_mgr.bp.get_base_mint_info_rpc_format_by_atomical_id(atomical_id) 
                 atomical_id_compact = location_id_bytes_to_compact(atomical_id)
                 atomicals_id_map[atomical_id_compact] = atomical_basic_info
-                atomicals_basic_infos.append(atomical_id_compact)
-            if Verbose or len(atomicals) > 0:
                 location = utxo.tx_hash + util.pack_le_uint32(utxo.tx_pos)
-                satvalue, tokenvalue = self.db.get_uxto_token_value(location, utxo.value)
+                atomicals_basic_infos[atomical_id_compact] = self.db.get_uxto_token_value(location, atomical_id)
+            if Verbose or len(atomicals) > 0:
                 returned_utxos.append({'txid': hash_to_hex_str(utxo.tx_hash),
                 'index': utxo.tx_pos,
                 'vout': utxo.tx_pos,
                 'height': utxo.height, 
                 'value': utxo.value,
-                'satvalue': satvalue,
-                'tokenvalue': tokenvalue,
+                'satvalue': utxo.value,
                 'atomicals': atomicals_basic_infos})
  
         # Aggregate balances
@@ -2420,9 +2410,9 @@ class ElectrumX(SessionBase):
                         return_struct['atomicals'][atomical_id_ref]['request_ticker'] = atomical_id_basic_info.get('$request_ticker')
                 
                 if returned_utxo['height'] <= 0:
-                    return_struct['atomicals'][atomical_id_ref]['unconfirmed'] += returned_utxo['tokenvalue']
+                    return_struct['atomicals'][atomical_id_ref]['unconfirmed'] += returned_utxo["atomicals"][atomical_id_ref]
                 else:
-                    return_struct['atomicals'][atomical_id_ref]['confirmed'] += returned_utxo['tokenvalue']
+                    return_struct['atomicals'][atomical_id_ref]['confirmed'] += returned_utxo["atomicals"][atomical_id_ref]
         
         return return_struct 
 
@@ -2940,7 +2930,7 @@ class ElectrumX(SessionBase):
                     prev_tx, prev_tx_hash = self.coin.DESERIALIZER(prev_raw_tx, 0).read_tx_and_hash()
                     location = prev_tx_hash + util.pack_le_uint32(tx.inputs[i.txin_index].prev_idx)
                     satvalue = prev_tx.outputs[tx.inputs[i.txin_index].prev_idx].value
-                    satvalue, tokenvalue = self.db.get_uxto_token_value(location, satvalue)
+                    tokenvalue = self.db.get_uxto_token_value(location, atomical_id)
                     ft_data = {
                         "address": get_address_from_output_script(prev_tx.outputs[tx.inputs[i.txin_index].prev_idx].pk_script),
                         "atomical_id": compact_atomical_id,
@@ -2985,7 +2975,7 @@ class ElectrumX(SessionBase):
                     prev_tx, prev_tx_hash = self.coin.DESERIALIZER(prev_raw_tx, 0).read_tx_and_hash()
                     location = prev_tx_hash + util.pack_le_uint32(tx.inputs[i.txin_index].prev_idx)
                     satvalue = prev_tx.outputs[tx.inputs[i.txin_index].prev_idx].value
-                    satvalue, tokenvalue = self.db.get_uxto_token_value(location, satvalue)
+                    tokenvalue = self.db.get_uxto_token_value(location, atomical_id)
                     nft_data = {
                         "address": get_address_from_output_script(prev_tx.outputs[tx.inputs[i.txin_index].prev_idx].pk_script),
                         "atomical_id": compact_atomical_id,

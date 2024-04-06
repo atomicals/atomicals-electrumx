@@ -554,7 +554,6 @@ def test_spends_ft_split_one_token():
         0: [{'atomical_id': subject_atomical_id, 'location_id': b'not_used', 'data': b'not_used', 'data_value': {'satvalue': 900, 'tokenvalue': 900}}],
         1: [{'atomical_id': subject_atomical_id, 'location_id': b'not_used', 'data': b'not_used', 'data_value': {'satvalue': 553, 'tokenvalue': 553}}]
     }
-    print(">>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>")
     blueprint_builder = AtomicalsTransferBlueprintBuilder(MockLogger(), atomicals_spent_at_inputs, {}, tx_hash, tx, mock_mint_fetcher, True, True)
     nft_output_blueprint = blueprint_builder.get_nft_output_blueprint()
     assert(len(nft_output_blueprint.outputs) == 0)
