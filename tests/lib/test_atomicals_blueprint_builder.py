@@ -140,7 +140,7 @@ def test_spends_ft_multiple_valid_collapsed():
     assert(len(ft_output_blueprint.outputs) == 1)
     assert(ft_output_blueprint.first_atomical_id == subject_atomical_id)
     assert(len(ft_output_blueprint.fts_burned) == 0)
-    assert(ft_output_blueprint.cleanly_assigned == True)
+    assert(ft_output_blueprint.cleanly_assigned == False)
     assert(blueprint_builder.get_are_fts_burned() == False)
  
 def test_spends_ft_single_burned_under():
