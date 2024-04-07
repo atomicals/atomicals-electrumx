@@ -544,7 +544,7 @@ class BlockProcessor:
         blueprint_builder = AtomicalsTransferBlueprintBuilder(self.logger, atomicals_spent_at_inputs, operations_found_at_inputs, tx_hash, tx, self.get_atomicals_id_mint_info, True, self.is_split_activated(self.height))
         ft_output_blueprint = blueprint_builder.get_ft_output_blueprint() 
         # Log that there were tokens burned due to not being cleanly assigned
-        if blueprint_builder.get_are_fts_burned() or not blueprint_builder.cleanly_assigned:
+        if blueprint_builder.get_are_fts_burned():
             encoded_atomicals_spent_at_inputs = encode_atomical_ids_hex(atomicals_spent_at_inputs)
             encoded_ft_output_blueprint = encode_atomical_ids_hex(ft_output_blueprint)
             raise AtomicalsValidationError(f'detected invalid ft token inputs and outputs for tx_hash={hash_to_hex_str(tx_hash)}, operations_found_at_inputs={operations_found_at_inputs}, atomicals_spent_at_inputs={encoded_atomicals_spent_at_inputs}, ft_output_blueprint.outputs={encoded_ft_output_blueprint.outputs} ft_output_blueprint.fts_burned={encoded_ft_output_blueprint.fts_burned}')

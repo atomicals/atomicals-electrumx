@@ -63,6 +63,8 @@ def calculate_outputs_to_color_for_ft_atomical_ids(tx, ft_atomicals, sort_by_fif
       atomical_id = item.atomical_id
       # If a target exponent was provided, then use that instead
       cleanly_assigned, expected_outputs, remaining_value_from_assign = AtomicalsTransferBlueprintBuilder.assign_expected_outputs_basic(item.total_tokenvalue, tx, next_start_out_idx, is_split_activated)
+      if not cleanly_assigned:
+        utxo_cleanly_assigned = False
       if not is_split_activated:
         if cleanly_assigned and len(expected_outputs) > 0:
           next_start_out_idx = expected_outputs[-1] + 1
@@ -75,8 +77,6 @@ def calculate_outputs_to_color_for_ft_atomical_ids(tx, ft_atomicals, sort_by_fif
       else:
         if remaining_value_from_assign > 0:
           fts_burned[atomical_id] = remaining_value_from_assign
-        if not cleanly_assigned:
-          utxo_cleanly_assigned = False
         # no need cleanly_assigned
         if len(expected_outputs) > 0:
           next_start_out_idx = expected_outputs[-1] + 1
