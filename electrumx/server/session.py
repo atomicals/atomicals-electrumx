@@ -1408,11 +1408,11 @@ class ElectrumX(SessionBase):
                 continue
             atomicals = self.db.get_atomicals_by_utxo(utxo, True)
             atomicals_basic_infos = {}
-            for atomical_id in atomicals: 
-                # This call is efficient in that it's cached underneath
-                # For now we only show the atomical id because it can always be fetched separately and it will be more efficient
-                atomical_basic_info = await self.session_mgr.bp.get_base_mint_info_rpc_format_by_atomical_id(atomical_id) 
-                # Todo need to combine mempool atomicals 
+            for atomical_id in atomicals:
+                # This call is efficient in that it's cached underneath.
+                # Now we only show the atomical id and its corresponding value
+                # because it can always be fetched separately which is more efficient.
+                # Todo need to combine mempool atomicals
                 atomical_id_compact = location_id_bytes_to_compact(atomical_id)
                 location = utxo.tx_hash + util.pack_le_uint32(utxo.tx_pos)
                 atomicals_basic_infos[atomical_id_compact] = self.db.get_uxto_atomicals_value(location, atomical_id)
