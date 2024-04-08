@@ -782,7 +782,7 @@ class HttpHandler(object):
         utxos = sorted(utxos)
         # Comment out the utxos for now and add it in later
         # utxos.extend(await self.mempool.unordered_UTXOs(hashX))
-        spends = [] # await self.mempool.potential_spends(hashX)
+        spends = []  # await self.mempool.potential_spends(hashX)
         returned_utxos = []
         atomicals_id_map = {}
         for utxo in utxos:
@@ -791,22 +791,24 @@ class HttpHandler(object):
             atomicals = self.db.get_atomicals_by_utxo(utxo, True)
             atomicals_basic_infos = {}
             for atomical_id in atomicals:
-                # This call is efficient in that it's cached underneath
-                # For now we only show the atomical id because it can always be fetched separately and it will be more efficient
-                atomical_basic_info = await self.session_mgr.bp.get_base_mint_info_rpc_format_by_atomical_id(atomical_id) 
+                # This call is efficient in that it's cached underneath.
+                # Now we only show the atomical id and its corresponding value
+                # because it can always be fetched separately which is more efficient.
+                atomical_basic_info = await self.session_mgr.bp.get_base_mint_info_rpc_format_by_atomical_id(atomical_id)
                 atomical_id_compact = location_id_bytes_to_compact(atomical_id)
                 atomicals_id_map[atomical_id_compact] = atomical_basic_info
                 location = utxo.tx_hash + util.pack_le_uint32(utxo.tx_pos)
                 atomicals_basic_infos[atomical_id_compact] = self.db.get_uxto_atomicals_value(location, atomical_id)
             if Verbose or len(atomicals) > 0:
-                location = utxo.tx_hash + util.pack_le_uint32(utxo.tx_pos)
-                returned_utxos.append({'txid': hash_to_hex_str(utxo.tx_hash),
-                'index': utxo.tx_pos,
-                'vout': utxo.tx_pos,
-                'height': utxo.height,
-                'value': utxo.value,
-                'sat_value': utxo.value,
-                'atomicals': atomicals_basic_infos})
+                returned_utxos.append({
+                    'txid': hash_to_hex_str(utxo.tx_hash),
+                    'index': utxo.tx_pos,
+                    'vout': utxo.tx_pos,
+                    'height': utxo.height,
+                    'value': utxo.value,  # Considered to be removed in the future.
+                    'sat_value': utxo.value,
+                    'atomicals': atomicals_basic_infos
+                })
 
         # Aggregate balances
         return_struct = {
@@ -819,7 +821,7 @@ class HttpHandler(object):
             for atomical_id_entry_compact in returned_utxo['atomicals']:
                 atomical_id_basic_info = atomicals_id_map[atomical_id_entry_compact]
                 atomical_id_ref = atomical_id_basic_info['atomical_id']
-                if return_struct['atomicals'].get(atomical_id_ref) == None:
+                if return_struct['atomicals'].get(atomical_id_ref) is None:
                     return_struct['atomicals'][atomical_id_ref] = {
                         'atomical_id': atomical_id_ref,
                         'atomical_number': atomical_id_basic_info['atomical_number'],
