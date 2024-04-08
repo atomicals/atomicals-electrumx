@@ -1,6 +1,6 @@
 import pytest
 
-from electrumx.lib.atomicals_blueprint_builder import AtomicalsTransferBlueprintBuilder, get_nominal_token_value
+from electrumx.lib.atomicals_blueprint_builder import AtomicalsTransferBlueprintBuilder
 from electrumx.lib.coins import Bitcoin
 from electrumx.lib.hash import HASHX_LEN, hex_str_to_hash, hash_to_hex_str
 from electrumx.lib.tx import Tx, TxInput, TxOutput
@@ -41,14 +41,82 @@ def test_empty_spends():
  
     # Log that there were tokens burned due to not being cleanly assigned
     assert(blueprint_builder.get_are_fts_burned() == False)
-        
+
+
 def test_spends_ft_burned():
     raw_tx_str = '0100000000010194578be9bc16dfdef6f58ef5bd2aa4828718c6602da20a363588e70db12318160000000000ffffffff01e8030000000000002251206068a57a273b499e7bdaae062cd4b15dc4ddb602182ce0ebbfa04f143d2796880340dae087925e4e7dd1ed3217f945e1fa799975e4f825ad35b7376625c7e58b7c066e2d30b1b8837e73dce3f892748ef9debbab4a66472b36c9780d688043bc93286a2037fc7282c932b06d79257eae409224f5fb1fa283a7eb7d90d1e8e6e2dec78954ac00630461746f6d03646d743ba16461726773a468626974776f726b6364313631386b6d696e745f7469636b65726461746f6d656e6f6e63651a003cdbbb6474696d651a650a94566821c137fc7282c932b06d79257eae409224f5fb1fa283a7eb7d90d1e8e6e2dec7895400000000'
     raw_tx = bytes.fromhex(raw_tx_str)
 
     subject_atomical_id = b"A\x03\x8f'\xe7\x85`l\xa0\xcc\x1e\xfd\x8e:\xa9\x12\xa1\\r\xd0o5\x9a\xeb\x05$=\xab+p\xa8V\x00\x00\x00\x00"
     tx, tx_hash = coin.DESERIALIZER(raw_tx, 0).read_tx_and_hash()
-    atomicals_spent_at_inputs={0: [{'atomical_id': subject_atomical_id, 'location_id': b'\xb2\x90h\x91\xf2y\xf9\xc1\xdc2\x12\xf4\x8f,S\xb5x\xb7y!\x89\xa3\xbb\xff\xcd\xe4(\xc4\xa1\xd3}\\\x00\x00\x00\x00', 'data': b't&\xd4\xd8\xbd\x9a?:\x8b\x9bj\xc2\x93L\\\xd5\xedU\xdd\x01\x03\xf1q\xe2 \xaf#6\xe3\x9a\xc3\r[\xbeTS\xda\xc1\xd39\x05\xa2\xcf\xe8\x03\x00\x00\x00\x00\x00\x00\x00\x00\x9f\x87\x7f5\x00', 'data_value': {'satvalue': 1000, 'tokenvalue': 1000}}], 1: [{'atomical_id': b"A\x03\x8f'\xe7\x85`l\xa0\xcc\x1e\xfd\x8e:\xa9\x12\xa1\\r\xd0o5\x9a\xeb\x05$=\xab+p\xa8V\x00\x00\x00\x00", 'location_id': b'\xbe\\\x19\xb0\x92\xce\xc2]c\xdf\xc7\xb8\x90,Qj\x88\x19`m\x7f\xcc\x01&VAbI@\xf2\x10|\x00\x00\x00\x00', 'data': b't&\xd4\xd8\xbd\x9a?:\x8b\x9bj\xc2\x93L\\\xd5\xedU\xdd\x01\x03\xf1q\xe2 \xaf#6\xe3\x9a\xc3\r[\xbeTS\xda\xc1\xd39\x05\xa2\xcf\xe8\x03\x00\x00\x00\x00\x00\x00\x00\x00\xa2\x87\x7f5\x00', 'data_value': {'satvalue': 1000, 'tokenvalue': 1000}}], 2: [{'atomical_id': b"A\x03\x8f'\xe7\x85`l\xa0\xcc\x1e\xfd\x8e:\xa9\x12\xa1\\r\xd0o5\x9a\xeb\x05$=\xab+p\xa8V\x00\x00\x00\x00", 'location_id': b'\\\xbe\x08\xaf\xba\xe6\x87+\x9cL\x9c\x8e%|\xbdY/\xf2\x1e4\xbb\xd1\x7f~3\x91\xb2\xa9z7W\xcd\x00\x00\x00\x00', 'data': b't&\xd4\xd8\xbd\x9a?:\x8b\x9bj\xc2\x93L\\\xd5\xedU\xdd\x01\x03\xf1q\xe2 \xaf#6\xe3\x9a\xc3\r[\xbeTS\xda\xc1\xd39\x05\xa2\xcf\xe8\x03\x00\x00\x00\x00\x00\x00\x00\x00\xfd\x8e\x7f5\x00', 'data_value': {'satvalue': 1000, 'tokenvalue': 1000}}], 3: [{'atomical_id': b"A\x03\x8f'\xe7\x85`l\xa0\xcc\x1e\xfd\x8e:\xa9\x12\xa1\\r\xd0o5\x9a\xeb\x05$=\xab+p\xa8V\x00\x00\x00\x00", 'location_id': b'\xa3\x9b\xfe\xc9e\xef\x90\x816\x1c\x85&|\xe6\xab\x16\xe7\x1e{\x1b\xee8l\xddp&\x13+\xd9\xe5\xad\x0f\x00\x00\x00\x00', 'data': b't&\xd4\xd8\xbd\x9a?:\x8b\x9bj\xc2\x93L\\\xd5\xedU\xdd\x01\x03\xf1q\xe2 \xaf#6\xe3\x9a\xc3\r[\xbeTS\xda\xc1\xd39\x05\xa2\xcf\xe8\x03\x00\x00\x00\x00\x00\x00\x00\x00\x00\x8f\x7f5\x00', 'data_value': {'satvalue': 1000, 'tokenvalue': 1000}}], 4: [{'atomical_id': b"A\x03\x8f'\xe7\x85`l\xa0\xcc\x1e\xfd\x8e:\xa9\x12\xa1\\r\xd0o5\x9a\xeb\x05$=\xab+p\xa8V\x00\x00\x00\x00", 'location_id': b'\xccc\xfb\x9d\xbe\xc2+\x07Gb}\xb0\x08#\xc1S\xd9q\x1c\x86P\xfa\xfe\xce!\x93"$\xf8\xd4d\xd5\x00\x00\x00\x00', 'data': b't&\xd4\xd8\xbd\x9a?:\x8b\x9bj\xc2\x93L\\\xd5\xedU\xdd\x01\x03\xf1q\xe2 \xaf#6\xe3\x9a\xc3\r[\xbeTS\xda\xc1\xd39\x05\xa2\xcf\xe8\x03\x00\x00\x00\x00\x00\x00\x00\x00\x03\x8f\x7f5\x00', 'data_value': {'satvalue': 1000, 'tokenvalue': 1000}}], 5: [{'atomical_id': b"A\x03\x8f'\xe7\x85`l\xa0\xcc\x1e\xfd\x8e:\xa9\x12\xa1\\r\xd0o5\x9a\xeb\x05$=\xab+p\xa8V\x00\x00\x00\x00", 'location_id': b'\t#,>,`b\xc0<\x8a\xc2\xe9\x87OyK\x9cY\xac^\x13\xa3\x97\t\xaezA\xcb5 \x1b\x96\x00\x00\x00\x00', 'data': b't&\xd4\xd8\xbd\x9a?:\x8b\x9bj\xc2\x93L\\\xd5\xedU\xdd\x01\x03\xf1q\xe2 \xaf#6\xe3\x9a\xc3\r[\xbeTS\xda\xc1\xd39\x05\xa2\xcf\xe8\x03\x00\x00\x00\x00\x00\x00\x00\x00\xb2\xa6\x7f5\x00', 'data_value': {'satvalue': 1000, 'tokenvalue': 1000}}], 6: [{'atomical_id': b"A\x03\x8f'\xe7\x85`l\xa0\xcc\x1e\xfd\x8e:\xa9\x12\xa1\\r\xd0o5\x9a\xeb\x05$=\xab+p\xa8V\x00\x00\x00\x00", 'location_id': b'\x0c\xa0\xe7\xc8\xef\n\xaa\xc3\x10\x83$4\xdd\xa5 \xa6\x7fo\x0e\xe6$\xe3\x8d?\xf0\x13+\x1b\x1b\x029\x8c\x00\x00\x00\x00', 'data': b't&\xd4\xd8\xbd\x9a?:\x8b\x9bj\xc2\x93L\\\xd5\xedU\xdd\x01\x03\xf1q\xe2 \xaf#6\xe3\x9a\xc3\r[\xbeTS\xda\xc1\xd39\x05\xa2\xcf\xe8\x03\x00\x00\x00\x00\x00\x00\x00\x00\xe4\xaa\x7f5\x00', 'data_value': {'satvalue': 1000, 'tokenvalue': 1000}}], 7: [{'atomical_id': b"A\x03\x8f'\xe7\x85`l\xa0\xcc\x1e\xfd\x8e:\xa9\x12\xa1\\r\xd0o5\x9a\xeb\x05$=\xab+p\xa8V\x00\x00\x00\x00", 'location_id': b'|\xcf:\xbf\x84\x16\x1d\xdbl\xd2"C\xef\x1b\x16\xf8\xdd\xf4\xae\x9bY\xf3\xe8\xc7\xae1N^W\x1dy\xba\x00\x00\x00\x00', 'data': b't&\xd4\xd8\xbd\x9a?:\x8b\x9bj\xc2\x93L\\\xd5\xedU\xdd\x01\x03\xf1q\xe2 \xaf#6\xe3\x9a\xc3\r[\xbeTS\xda\xc1\xd39\x05\xa2\xcf\xe8\x03\x00\x00\x00\x00\x00\x00\x00\x00\x16\xfb\x7f5\x00', 'data_value': {'satvalue': 1000, 'tokenvalue': 1000}}], 8: [{'atomical_id': b"A\x03\x8f'\xe7\x85`l\xa0\xcc\x1e\xfd\x8e:\xa9\x12\xa1\\r\xd0o5\x9a\xeb\x05$=\xab+p\xa8V\x00\x00\x00\x00", 'location_id': b'\t\xe1\xd9\xd2\x8c\x06\xd4\x87\xc8+5\x1d\x88\xe4\xbd\xb92\xa6=I\x89\xd3\xaa\xbe`;\xba\x04\xe5\xc6F\xc0\x00\x00\x00\x00', 'data': b't&\xd4\xd8\xbd\x9a?:\x8b\x9bj\xc2\x93L\\\xd5\xedU\xdd\x01\x03\xf1q\xe2 \xaf#6\xe3\x9a\xc3\r[\xbeTS\xda\xc1\xd39\x05\xa2\xcf\xe8\x03\x00\x00\x00\x00\x00\x00\x00\x00\x1d\xfb\x7f5\x00', 'data_value': {'satvalue': 1000, 'tokenvalue': 1000}}], 9: [{'atomical_id': b"A\x03\x8f'\xe7\x85`l\xa0\xcc\x1e\xfd\x8e:\xa9\x12\xa1\\r\xd0o5\x9a\xeb\x05$=\xab+p\xa8V\x00\x00\x00\x00", 'location_id': b'T\x99\x02\x16\xd2\xbag\x97\xc6\xd5UwO\x02\xde]\xe7\xd2w\xfe\xfd0e\x88\xb0\x92\xec\x14\\VDu\x00\x00\x00\x00', 'data': b't&\xd4\xd8\xbd\x9a?:\x8b\x9bj\xc2\x93L\\\xd5\xedU\xdd\x01\x03\xf1q\xe2 \xaf#6\xe3\x9a\xc3\r[\xbeTS\xda\xc1\xd39\x05\xa2\xcf\xe8\x03\x00\x00\x00\x00\x00\x00\x00\x00!\xfb\x7f5\x00', 'data_value': {'satvalue': 1000, 'tokenvalue': 1000}}], 10: [{'atomical_id': b"A\x03\x8f'\xe7\x85`l\xa0\xcc\x1e\xfd\x8e:\xa9\x12\xa1\\r\xd0o5\x9a\xeb\x05$=\xab+p\xa8V\x00\x00\x00\x00", 'location_id': b'Z\xcaR\xee\xba\x8a\x03+\xd0\xa3n\xf2\xae#\xf3\xc7\x94\x8a\x12\xe4$\xdf\x0fE\x0b\n\xa2\xfa\x0c\xb1\xb1c\x00\x00\x00\x00', 'data': b't&\xd4\xd8\xbd\x9a?:\x8b\x9bj\xc2\x93L\\\xd5\xedU\xdd\x01\x03\xf1q\xe2 \xaf#6\xe3\x9a\xc3\r[\xbeTS\xda\xc1\xd39\x05\xa2\xcf\xe8\x03\x00\x00\x00\x00\x00\x00\x00\x00L\t\x805\x00', 'data_value': {'satvalue': 1000, 'tokenvalue': 1000}}]}
+    atomicals_spent_at_inputs = {
+        0: [{
+            'atomical_id': subject_atomical_id,
+            'location_id': b'\xb2\x90h\x91\xf2y\xf9\xc1\xdc2\x12\xf4\x8f,S\xb5x\xb7y!\x89\xa3\xbb\xff\xcd\xe4(\xc4\xa1\xd3}\\\x00\x00\x00\x00',
+            'data': b't&\xd4\xd8\xbd\x9a?:\x8b\x9bj\xc2\x93L\\\xd5\xedU\xdd\x01\x03\xf1q\xe2 \xaf#6\xe3\x9a\xc3\r[\xbeTS\xda\xc1\xd39\x05\xa2\xcf\xe8\x03\x00\x00\x00\x00\x00\x00\x00\x00\x9f\x87\x7f5\x00',
+            'data_value': {'sat_value': 1000, 'atomical_value': 1000}
+        }],
+        1: [{
+            'atomical_id': b"A\x03\x8f'\xe7\x85`l\xa0\xcc\x1e\xfd\x8e:\xa9\x12\xa1\\r\xd0o5\x9a\xeb\x05$=\xab+p\xa8V\x00\x00\x00\x00",
+            'location_id': b'\xbe\\\x19\xb0\x92\xce\xc2]c\xdf\xc7\xb8\x90,Qj\x88\x19`m\x7f\xcc\x01&VAbI@\xf2\x10|\x00\x00\x00\x00',
+            'data': b't&\xd4\xd8\xbd\x9a?:\x8b\x9bj\xc2\x93L\\\xd5\xedU\xdd\x01\x03\xf1q\xe2 \xaf#6\xe3\x9a\xc3\r[\xbeTS\xda\xc1\xd39\x05\xa2\xcf\xe8\x03\x00\x00\x00\x00\x00\x00\x00\x00\xa2\x87\x7f5\x00',
+            'data_value': {'sat_value': 1000, 'atomical_value': 1000}
+        }],
+        2: [{
+            'atomical_id': b"A\x03\x8f'\xe7\x85`l\xa0\xcc\x1e\xfd\x8e:\xa9\x12\xa1\\r\xd0o5\x9a\xeb\x05$=\xab+p\xa8V\x00\x00\x00\x00",
+            'location_id': b'\\\xbe\x08\xaf\xba\xe6\x87+\x9cL\x9c\x8e%|\xbdY/\xf2\x1e4\xbb\xd1\x7f~3\x91\xb2\xa9z7W\xcd\x00\x00\x00\x00',
+            'data': b't&\xd4\xd8\xbd\x9a?:\x8b\x9bj\xc2\x93L\\\xd5\xedU\xdd\x01\x03\xf1q\xe2 \xaf#6\xe3\x9a\xc3\r[\xbeTS\xda\xc1\xd39\x05\xa2\xcf\xe8\x03\x00\x00\x00\x00\x00\x00\x00\x00\xfd\x8e\x7f5\x00',
+            'data_value': {'sat_value': 1000, 'atomical_value': 1000}
+        }],
+        3: [{
+            'atomical_id': b"A\x03\x8f'\xe7\x85`l\xa0\xcc\x1e\xfd\x8e:\xa9\x12\xa1\\r\xd0o5\x9a\xeb\x05$=\xab+p\xa8V\x00\x00\x00\x00",
+            'location_id': b'\xa3\x9b\xfe\xc9e\xef\x90\x816\x1c\x85&|\xe6\xab\x16\xe7\x1e{\x1b\xee8l\xddp&\x13+\xd9\xe5\xad\x0f\x00\x00\x00\x00',
+            'data': b't&\xd4\xd8\xbd\x9a?:\x8b\x9bj\xc2\x93L\\\xd5\xedU\xdd\x01\x03\xf1q\xe2 \xaf#6\xe3\x9a\xc3\r[\xbeTS\xda\xc1\xd39\x05\xa2\xcf\xe8\x03\x00\x00\x00\x00\x00\x00\x00\x00\x00\x8f\x7f5\x00',
+            'data_value': {'sat_value': 1000, 'atomical_value': 1000}
+        }],
+        4: [{
+            'atomical_id': b"A\x03\x8f'\xe7\x85`l\xa0\xcc\x1e\xfd\x8e:\xa9\x12\xa1\\r\xd0o5\x9a\xeb\x05$=\xab+p\xa8V\x00\x00\x00\x00",
+            'location_id': b'\xccc\xfb\x9d\xbe\xc2+\x07Gb}\xb0\x08#\xc1S\xd9q\x1c\x86P\xfa\xfe\xce!\x93"$\xf8\xd4d\xd5\x00\x00\x00\x00',
+            'data': b't&\xd4\xd8\xbd\x9a?:\x8b\x9bj\xc2\x93L\\\xd5\xedU\xdd\x01\x03\xf1q\xe2 \xaf#6\xe3\x9a\xc3\r[\xbeTS\xda\xc1\xd39\x05\xa2\xcf\xe8\x03\x00\x00\x00\x00\x00\x00\x00\x00\x03\x8f\x7f5\x00',
+            'data_value': {'sat_value': 1000, 'atomical_value': 1000}
+        }],
+        5: [{
+            'atomical_id': b"A\x03\x8f'\xe7\x85`l\xa0\xcc\x1e\xfd\x8e:\xa9\x12\xa1\\r\xd0o5\x9a\xeb\x05$=\xab+p\xa8V\x00\x00\x00\x00",
+            'location_id': b'\t#,>,`b\xc0<\x8a\xc2\xe9\x87OyK\x9cY\xac^\x13\xa3\x97\t\xaezA\xcb5 \x1b\x96\x00\x00\x00\x00',
+            'data': b't&\xd4\xd8\xbd\x9a?:\x8b\x9bj\xc2\x93L\\\xd5\xedU\xdd\x01\x03\xf1q\xe2 \xaf#6\xe3\x9a\xc3\r[\xbeTS\xda\xc1\xd39\x05\xa2\xcf\xe8\x03\x00\x00\x00\x00\x00\x00\x00\x00\xb2\xa6\x7f5\x00',
+            'data_value': {'sat_value': 1000, 'atomical_value': 1000}
+        }],
+        6: [{
+            'atomical_id': b"A\x03\x8f'\xe7\x85`l\xa0\xcc\x1e\xfd\x8e:\xa9\x12\xa1\\r\xd0o5\x9a\xeb\x05$=\xab+p\xa8V\x00\x00\x00\x00",
+            'location_id': b'\x0c\xa0\xe7\xc8\xef\n\xaa\xc3\x10\x83$4\xdd\xa5 \xa6\x7fo\x0e\xe6$\xe3\x8d?\xf0\x13+\x1b\x1b\x029\x8c\x00\x00\x00\x00',
+            'data': b't&\xd4\xd8\xbd\x9a?:\x8b\x9bj\xc2\x93L\\\xd5\xedU\xdd\x01\x03\xf1q\xe2 \xaf#6\xe3\x9a\xc3\r[\xbeTS\xda\xc1\xd39\x05\xa2\xcf\xe8\x03\x00\x00\x00\x00\x00\x00\x00\x00\xe4\xaa\x7f5\x00',
+            'data_value': {'sat_value': 1000, 'atomical_value': 1000}
+        }],
+        7: [{
+            'atomical_id': b"A\x03\x8f'\xe7\x85`l\xa0\xcc\x1e\xfd\x8e:\xa9\x12\xa1\\r\xd0o5\x9a\xeb\x05$=\xab+p\xa8V\x00\x00\x00\x00",
+            'location_id': b'|\xcf:\xbf\x84\x16\x1d\xdbl\xd2"C\xef\x1b\x16\xf8\xdd\xf4\xae\x9bY\xf3\xe8\xc7\xae1N^W\x1dy\xba\x00\x00\x00\x00',
+            'data': b't&\xd4\xd8\xbd\x9a?:\x8b\x9bj\xc2\x93L\\\xd5\xedU\xdd\x01\x03\xf1q\xe2 \xaf#6\xe3\x9a\xc3\r[\xbeTS\xda\xc1\xd39\x05\xa2\xcf\xe8\x03\x00\x00\x00\x00\x00\x00\x00\x00\x16\xfb\x7f5\x00',
+            'data_value': {'sat_value': 1000, 'atomical_value': 1000}
+        }],
+        8: [{
+            'atomical_id': b"A\x03\x8f'\xe7\x85`l\xa0\xcc\x1e\xfd\x8e:\xa9\x12\xa1\\r\xd0o5\x9a\xeb\x05$=\xab+p\xa8V\x00\x00\x00\x00",
+            'location_id': b'\t\xe1\xd9\xd2\x8c\x06\xd4\x87\xc8+5\x1d\x88\xe4\xbd\xb92\xa6=I\x89\xd3\xaa\xbe`;\xba\x04\xe5\xc6F\xc0\x00\x00\x00\x00',
+            'data': b't&\xd4\xd8\xbd\x9a?:\x8b\x9bj\xc2\x93L\\\xd5\xedU\xdd\x01\x03\xf1q\xe2 \xaf#6\xe3\x9a\xc3\r[\xbeTS\xda\xc1\xd39\x05\xa2\xcf\xe8\x03\x00\x00\x00\x00\x00\x00\x00\x00\x1d\xfb\x7f5\x00',
+            'data_value': {'sat_value': 1000, 'atomical_value': 1000}
+        }],
+        9: [{
+            'atomical_id': b"A\x03\x8f'\xe7\x85`l\xa0\xcc\x1e\xfd\x8e:\xa9\x12\xa1\\r\xd0o5\x9a\xeb\x05$=\xab+p\xa8V\x00\x00\x00\x00",
+            'location_id': b'T\x99\x02\x16\xd2\xbag\x97\xc6\xd5UwO\x02\xde]\xe7\xd2w\xfe\xfd0e\x88\xb0\x92\xec\x14\\VDu\x00\x00\x00\x00',
+            'data': b't&\xd4\xd8\xbd\x9a?:\x8b\x9bj\xc2\x93L\\\xd5\xedU\xdd\x01\x03\xf1q\xe2 \xaf#6\xe3\x9a\xc3\r[\xbeTS\xda\xc1\xd39\x05\xa2\xcf\xe8\x03\x00\x00\x00\x00\x00\x00\x00\x00!\xfb\x7f5\x00',
+            'data_value': {'sat_value': 1000, 'atomical_value': 1000}
+        }],
+        10: [{
+            'atomical_id': b"A\x03\x8f'\xe7\x85`l\xa0\xcc\x1e\xfd\x8e:\xa9\x12\xa1\\r\xd0o5\x9a\xeb\x05$=\xab+p\xa8V\x00\x00\x00\x00",
+            'location_id': b'Z\xcaR\xee\xba\x8a\x03+\xd0\xa3n\xf2\xae#\xf3\xc7\x94\x8a\x12\xe4$\xdf\x0fE\x0b\n\xa2\xfa\x0c\xb1\xb1c\x00\x00\x00\x00',
+            'data': b't&\xd4\xd8\xbd\x9a?:\x8b\x9bj\xc2\x93L\\\xd5\xedU\xdd\x01\x03\xf1q\xe2 \xaf#6\xe3\x9a\xc3\r[\xbeTS\xda\xc1\xd39\x05\xa2\xcf\xe8\x03\x00\x00\x00\x00\x00\x00\x00\x00L\t\x805\x00',
+            'data_value': {'sat_value': 1000, 'atomical_value': 1000}
+        }]
+    }
     
     def mock_mint_fetcher(self, atomical_id):
         return {
@@ -76,19 +144,74 @@ def test_spends_ft_valid():
     subject_atomical_id = b"A\x03\x8f'\xe7\x85`l\xa0\xcc\x1e\xfd\x8e:\xa9\x12\xa1\\r\xd0o5\x9a\xeb\x05$=\xab+p\xa8V\x00\x00\x00\x00"
     
     tx, tx_hash = coin.DESERIALIZER(raw_tx, 0).read_tx_and_hash()
-    atomicals_spent_at_inputs= {
-        0: [{'atomical_id': subject_atomical_id, 'location_id': b'not_used', 'data': b'not_used', 'data_value': {'satvalue': 1000, 'tokenvalue': 1000}}], 
-        1: [{'atomical_id': subject_atomical_id, 'location_id': b'not_used', 'data': b'not_used', 'data_value': {'satvalue': 1000, 'tokenvalue': 1000}}], 
-        2: [{'atomical_id': subject_atomical_id, 'location_id': b'not_used', 'data': b'not_used', 'data_value': {'satvalue': 1000, 'tokenvalue': 1000}}], 
-        3: [{'atomical_id': subject_atomical_id, 'location_id': b'not_used', 'data': b'not_used', 'data_value': {'satvalue': 1000, 'tokenvalue': 1000}}], 
-        4: [{'atomical_id': subject_atomical_id, 'location_id': b'not_used', 'data': b'not_used', 'data_value': {'satvalue': 1000, 'tokenvalue': 1000}}], 
-        5: [{'atomical_id': subject_atomical_id, 'location_id': b'not_used', 'data': b'not_used', 'data_value': {'satvalue': 1000, 'tokenvalue': 1000}}], 
-        6: [{'atomical_id': subject_atomical_id, 'location_id': b'not_used', 'data': b'not_used', 'data_value': {'satvalue': 1000, 'tokenvalue': 1000}}], 
-        7: [{'atomical_id': subject_atomical_id, 'location_id': b'not_used', 'data': b'not_used', 'data_value': {'satvalue': 1000, 'tokenvalue': 1000}}], 
-        8: [{'atomical_id': subject_atomical_id, 'location_id': b'not_used', 'data': b'not_used', 'data_value': {'satvalue': 1000, 'tokenvalue': 1000}}], 
-        9: [{'atomical_id': subject_atomical_id, 'location_id': b'not_used', 'data': b'not_used', 'data_value': {'satvalue': 1000, 'tokenvalue': 1000}}], 
-        10: [{'atomical_id': subject_atomical_id, 'location_id': b'not_used', 'data': b'not_used', 'data_value': {'satvalue': 1000, 'tokenvalue': 1000}}]}
- 
+    atomicals_spent_at_inputs = {
+        0: [{
+            'atomical_id': subject_atomical_id,
+            'location_id': b'not_used', 'data': b'not_used',
+            'data_value': {'sat_value': 1000, 'atomical_value': 1000}
+        }],
+        1: [{
+            'atomical_id': subject_atomical_id,
+            'location_id': b'not_used',
+            'data': b'not_used',
+            'data_value': {'sat_value': 1000, 'atomical_value': 1000}
+        }],
+        2: [{
+            'atomical_id': subject_atomical_id,
+            'location_id': b'not_used',
+            'data': b'not_used',
+            'data_value': {'sat_value': 1000, 'atomical_value': 1000}
+        }],
+        3: [{
+            'atomical_id': subject_atomical_id,
+            'location_id': b'not_used',
+            'data': b'not_used',
+            'data_value': {'sat_value': 1000, 'atomical_value': 1000}
+        }],
+        4: [{
+            'atomical_id': subject_atomical_id,
+            'location_id': b'not_used',
+            'data': b'not_used',
+            'data_value': {'sat_value': 1000, 'atomical_value': 1000}
+        }],
+        5: [{
+            'atomical_id': subject_atomical_id,
+            'location_id': b'not_used',
+            'data': b'not_used',
+            'data_value': {'sat_value': 1000, 'atomical_value': 1000}
+        }],
+        6: [{
+            'atomical_id': subject_atomical_id,
+            'location_id': b'not_used',
+            'data': b'not_used',
+            'data_value': {'sat_value': 1000, 'atomical_value': 1000}
+        }],
+        7: [{
+            'atomical_id': subject_atomical_id,
+            'location_id': b'not_used',
+            'data': b'not_used',
+            'data_value': {'sat_value': 1000, 'atomical_value': 1000}
+        }],
+        8: [{
+            'atomical_id': subject_atomical_id,
+            'location_id': b'not_used',
+            'data': b'not_used',
+            'data_value': {'sat_value': 1000, 'atomical_value': 1000}
+        }],
+        9: [{
+            'atomical_id': subject_atomical_id,
+            'location_id': b'not_used',
+            'data': b'not_used',
+            'data_value': {'sat_value': 1000, 'atomical_value': 1000}
+        }],
+        10: [{
+            'atomical_id': subject_atomical_id,
+            'location_id': b'not_used',
+            'data': b'not_used',
+            'data_value': {'sat_value': 1000, 'atomical_value': 1000}}
+        ]}
+
+
     def mock_mint_fetcher(self, atomical_id):
         return {
             'atomical_id': atomical_id,
@@ -113,18 +236,19 @@ def test_spends_ft_multiple_valid_collapsed():
     subject_atomical_id2 = b"A\x03\x8f'\xe7\x85`l\xa0\xcc\x1e\xfd\x8e:\xa9\x12\xa1\\r\xd0o5\x9a\xeb\x05$=\xab+p\xa8V\x00\x00\x00\x00"
     
     tx, tx_hash = coin.DESERIALIZER(raw_tx, 0).read_tx_and_hash()
-    atomicals_spent_at_inputs= {
-        0: [{'atomical_id': subject_atomical_id, 'location_id': b'not_used', 'data': b'not_used', 'data_value': {'satvalue': 1000, 'tokenvalue': 1000}}], 
-        1: [{'atomical_id': subject_atomical_id2, 'location_id': b'not_used', 'data': b'not_used', 'data_value': {'satvalue': 3000, 'tokenvalue': 3000}}], 
-        2: [{'atomical_id': subject_atomical_id, 'location_id': b'not_used', 'data': b'not_used', 'data_value': {'satvalue': 2000, 'tokenvalue': 2000}}], 
-        3: [{'atomical_id': subject_atomical_id2, 'location_id': b'not_used', 'data': b'not_used', 'data_value': {'satvalue': 2000, 'tokenvalue': 2000}}], 
-        4: [{'atomical_id': subject_atomical_id, 'location_id': b'not_used', 'data': b'not_used', 'data_value': {'satvalue': 2000, 'tokenvalue': 2000}}], 
-        5: [{'atomical_id': subject_atomical_id2, 'location_id': b'not_used', 'data': b'not_used', 'data_value': {'satvalue': 2000, 'tokenvalue': 2000}}], 
-        6: [{'atomical_id': subject_atomical_id, 'location_id': b'not_used', 'data': b'not_used', 'data_value': {'satvalue': 2000, 'tokenvalue': 2000}}], 
-        7: [{'atomical_id': subject_atomical_id2, 'location_id': b'not_used', 'data': b'not_used', 'data_value': {'satvalue': 2000, 'tokenvalue': 2000}}], 
-        8: [{'atomical_id': subject_atomical_id, 'location_id': b'not_used', 'data': b'not_used', 'data_value': {'satvalue': 2000, 'tokenvalue': 2000}}], 
-        9: [{'atomical_id': subject_atomical_id2, 'location_id': b'not_used', 'data': b'not_used', 'data_value': {'satvalue': 2000, 'tokenvalue': 2000}}], 
-        10: [{'atomical_id': subject_atomical_id, 'location_id': b'not_used', 'data': b'not_used', 'data_value': {'satvalue': 2000, 'tokenvalue': 2000}}]}
+    atomicals_spent_at_inputs = {
+        0: [{'atomical_id': subject_atomical_id, 'location_id': b'not_used', 'data': b'not_used', 'data_value': {'sat_value': 1000, 'atomical_value': 1000}}], 
+        1: [{'atomical_id': subject_atomical_id2, 'location_id': b'not_used', 'data': b'not_used', 'data_value': {'sat_value': 3000, 'atomical_value': 3000}}], 
+        2: [{'atomical_id': subject_atomical_id, 'location_id': b'not_used', 'data': b'not_used', 'data_value': {'sat_value': 2000, 'atomical_value': 2000}}], 
+        3: [{'atomical_id': subject_atomical_id2, 'location_id': b'not_used', 'data': b'not_used', 'data_value': {'sat_value': 2000, 'atomical_value': 2000}}], 
+        4: [{'atomical_id': subject_atomical_id, 'location_id': b'not_used', 'data': b'not_used', 'data_value': {'sat_value': 2000, 'atomical_value': 2000}}], 
+        5: [{'atomical_id': subject_atomical_id2, 'location_id': b'not_used', 'data': b'not_used', 'data_value': {'sat_value': 2000, 'atomical_value': 2000}}], 
+        6: [{'atomical_id': subject_atomical_id, 'location_id': b'not_used', 'data': b'not_used', 'data_value': {'sat_value': 2000, 'atomical_value': 2000}}], 
+        7: [{'atomical_id': subject_atomical_id2, 'location_id': b'not_used', 'data': b'not_used', 'data_value': {'sat_value': 2000, 'atomical_value': 2000}}], 
+        8: [{'atomical_id': subject_atomical_id, 'location_id': b'not_used', 'data': b'not_used', 'data_value': {'sat_value': 2000, 'atomical_value': 2000}}], 
+        9: [{'atomical_id': subject_atomical_id2, 'location_id': b'not_used', 'data': b'not_used', 'data_value': {'sat_value': 2000, 'atomical_value': 2000}}], 
+        10: [{'atomical_id': subject_atomical_id, 'location_id': b'not_used', 'data': b'not_used', 'data_value': {'sat_value': 2000, 'atomical_value': 2000}}]
+    }
     
     def mock_mint_fetcher(self, atomical_id):
         return {
@@ -148,8 +272,8 @@ def test_spends_ft_single_burned_under():
     raw_tx = bytes.fromhex(raw_tx_str)
     subject_atomical_id = b"A\x03\x8f'\xe7\x85`l\xa0\xcc\x1e\xfd\x8e:\xa9\x12\xa1\\r\xd0o5\x9a\xeb\x05$=\xab+p\xa8V\x00\x00\x00\x01"
     tx, tx_hash = coin.DESERIALIZER(raw_tx, 0).read_tx_and_hash()
-    atomicals_spent_at_inputs= {
-        0: [{'atomical_id': subject_atomical_id, 'location_id': b'not_used', 'data': b'not_used', 'data_value': {'satvalue': 10999, 'tokenvalue': 10999}}]
+    atomicals_spent_at_inputs = {
+        0: [{'atomical_id': subject_atomical_id, 'location_id': b'not_used', 'data': b'not_used', 'data_value': {'sat_value': 10999, 'atomical_value': 10999}}]
     }
     def mock_mint_fetcher(self, atomical_id):
         return {
@@ -171,8 +295,8 @@ def test_spends_ft_single_burned_over():
     raw_tx = bytes.fromhex(raw_tx_str)
     subject_atomical_id = b"A\x03\x8f'\xe7\x85`l\xa0\xcc\x1e\xfd\x8e:\xa9\x12\xa1\\r\xd0o5\x9a\xeb\x05$=\xab+p\xa8V\x00\x00\x00\x01"
     tx, tx_hash = coin.DESERIALIZER(raw_tx, 0).read_tx_and_hash()
-    atomicals_spent_at_inputs= {
-        0: [{'atomical_id': subject_atomical_id, 'location_id': b'not_used', 'data': b'not_used', 'data_value': {'satvalue': 11001, 'tokenvalue': 11001}}]
+    atomicals_spent_at_inputs = {
+        0: [{'atomical_id': subject_atomical_id, 'location_id': b'not_used', 'data': b'not_used', 'data_value': {'sat_value': 11001, 'atomical_value': 11001}}]
     }
     def mock_mint_fetcher(self, atomical_id):
         return {
@@ -193,7 +317,7 @@ def test_spends_are_payments_satisfied_checks():
     raw_tx = bytes.fromhex(raw_tx_str)
     subject_atomical_id = b"A\x03\x8f'\xe7\x85`l\xa0\xcc\x1e\xfd\x8e:\xa9\x12\xa1\\r\xd0o5\x9a\xeb\x05$=\xab+p\xa8V\x01\x00\x00\x00"
     tx, tx_hash = coin.DESERIALIZER(raw_tx, 0).read_tx_and_hash()
-    atomicals_spent_at_inputs= {
+    atomicals_spent_at_inputs = {
     }
     def mock_mint_fetcher(self, atomical_id):
         return {
@@ -264,8 +388,8 @@ def test_spends_fts_are_payments_satisfied_checks2():
     raw_tx = bytes.fromhex(raw_tx_str)
     subject_atomical_id = b"A\x03\x8f'\xe7\x85`l\xa0\xcc\x1e\xfd\x8e:\xa9\x12\xa1\\r\xd0o5\x9a\xeb\x05$=\xab+p\xa8V\x01\x00\x00\x00"
     tx, tx_hash = coin.DESERIALIZER(raw_tx, 0).read_tx_and_hash()
-    atomicals_spent_at_inputs= {
-        0: [{'atomical_id': subject_atomical_id, 'location_id': b'not_used', 'data': b'not_used', 'data_value': {'satvalue': 50000, 'tokenvalue': 50000}}]
+    atomicals_spent_at_inputs = {
+        0: [{'atomical_id': subject_atomical_id, 'location_id': b'not_used', 'data': b'not_used', 'data_value': {'sat_value': 50000, 'atomical_value': 50000}}]
     }
     def mock_mint_fetcher(self, atomical_id):
         return {
@@ -345,8 +469,8 @@ def test_spends_ft_single_split():
     raw_tx = bytes.fromhex(raw_tx_str)
     subject_atomical_id = b"A\x03\x8f'\xe7\x85`l\xa0\xcc\x1e\xfd\x8e:\xa9\x12\xa1\\r\xd0o5\x9a\xeb\x05$=\xab+p\xa8V\x00\x00\x00\x01"
     tx, tx_hash = coin.DESERIALIZER(raw_tx, 0).read_tx_and_hash()
-    atomicals_spent_at_inputs= {
-        0: [{'atomical_id': subject_atomical_id, 'location_id': b'not_used', 'data': b'not_used', 'data_value': {'satvalue': 11001, 'tokenvalue': 11001}}]
+    atomicals_spent_at_inputs = {
+        0: [{'atomical_id': subject_atomical_id, 'location_id': b'not_used', 'data': b'not_used', 'data_value': {'sat_value': 11001, 'atomical_value': 11001}}]
     }
     def mock_mint_fetcher(self, atomical_id):
         return {
@@ -362,7 +486,7 @@ def test_spends_ft_single_split():
     nft_output_blueprint = blueprint_builder.get_nft_output_blueprint()
     assert(len(nft_output_blueprint.outputs) == 0)
     ft_output_blueprint = blueprint_builder.get_ft_output_blueprint()
-    assert(ft_output_blueprint.outputs[0]['atomicals'][subject_atomical_id].tokenvalue == 11000)
+    assert(ft_output_blueprint.outputs[0]['atomicals'][subject_atomical_id].atomical_value == 11000)
     assert(len(ft_output_blueprint.outputs) == 1)
     assert(ft_output_blueprint.fts_burned != {})
     assert(ft_output_blueprint.first_atomical_id == subject_atomical_id)
@@ -376,7 +500,7 @@ def test_spends_ft_single_split():
     nft_output_blueprint = blueprint_builder.get_nft_output_blueprint()
     assert(len(nft_output_blueprint.outputs) == 0)
     ft_output_blueprint = blueprint_builder.get_ft_output_blueprint()
-    assert(ft_output_blueprint.outputs[0]['atomicals'][subject_atomical_id].tokenvalue == 11000)
+    assert(ft_output_blueprint.outputs[0]['atomicals'][subject_atomical_id].atomical_value == 11000)
     assert(len(ft_output_blueprint.outputs) == 1)
     assert(ft_output_blueprint.fts_burned != {})
     assert(ft_output_blueprint.first_atomical_id == subject_atomical_id)
@@ -387,8 +511,8 @@ def test_spends_single_ft_partially_colored_transfer():
     raw_tx = bytes.fromhex(raw_tx_str)
     subject_atomical_id = b"A\x03\x8f'\xe7\x85`l\xa0\xcc\x1e\xfd\x8e:\xa9\x12\xa1\\r\xd0o5\x9a\xeb\x05$=\xab+p\xa8V\x00\x00\x00\x01"
     tx, tx_hash = coin.DESERIALIZER(raw_tx, 0).read_tx_and_hash()
-    atomicals_spent_at_inputs= {
-        0: [{'atomical_id': subject_atomical_id, 'location_id': b'not_used', 'data': b'not_used', 'data_value': {'satvalue': 11001, 'tokenvalue': 500}}]
+    atomicals_spent_at_inputs = {
+        0: [{'atomical_id': subject_atomical_id, 'location_id': b'not_used', 'data': b'not_used', 'data_value': {'sat_value': 11001, 'atomical_value': 500}}]
     }
     def mock_mint_fetcher(self, atomical_id):
         return {
@@ -401,7 +525,7 @@ def test_spends_single_ft_partially_colored_transfer():
     nft_output_blueprint = blueprint_builder.get_nft_output_blueprint()
     assert(len(nft_output_blueprint.outputs) == 0)
     ft_output_blueprint = blueprint_builder.get_ft_output_blueprint()
-    assert(ft_output_blueprint.outputs[0]['atomicals'][subject_atomical_id].tokenvalue == 500)
+    assert(ft_output_blueprint.outputs[0]['atomicals'][subject_atomical_id].atomical_value == 500)
     assert(len(ft_output_blueprint.outputs) == 1)
     assert(ft_output_blueprint.fts_burned == {})
     assert(ft_output_blueprint.first_atomical_id == subject_atomical_id)
@@ -416,18 +540,19 @@ def test_spends_multiple_ft_partially_colored_merged():
     subject_atomical_id2 = b"A\x03\x8f'\xe7\x85`l\xa0\xcc\x1e\xfd\x8e:\xa9\x12\xa1\\r\xd0o5\x9a\xeb\x05$=\xab+p\xa8V\x00\x00\x00\x00"
     
     tx, tx_hash = coin.DESERIALIZER(raw_tx, 0).read_tx_and_hash()
-    atomicals_spent_at_inputs= {
-        0: [{'atomical_id': subject_atomical_id, 'location_id': b'not_used', 'data': b'not_used', 'data_value': {'satvalue': 1000, 'tokenvalue': 501}}], 
-        1: [{'atomical_id': subject_atomical_id2, 'location_id': b'not_used', 'data': b'not_used', 'data_value': {'satvalue': 3000, 'tokenvalue': 3000}}], 
-        2: [{'atomical_id': subject_atomical_id, 'location_id': b'not_used', 'data': b'not_used', 'data_value': {'satvalue': 2000, 'tokenvalue': 1000}}], 
-        3: [{'atomical_id': subject_atomical_id2, 'location_id': b'not_used', 'data': b'not_used', 'data_value': {'satvalue': 2000, 'tokenvalue': 2000}}], 
-        4: [{'atomical_id': subject_atomical_id, 'location_id': b'not_used', 'data': b'not_used', 'data_value': {'satvalue': 2000, 'tokenvalue': 2000}}], 
-        5: [{'atomical_id': subject_atomical_id2, 'location_id': b'not_used', 'data': b'not_used', 'data_value': {'satvalue': 2000, 'tokenvalue': 2000}}], 
-        6: [{'atomical_id': subject_atomical_id, 'location_id': b'not_used', 'data': b'not_used', 'data_value': {'satvalue': 2000, 'tokenvalue': 2000}}], 
-        7: [{'atomical_id': subject_atomical_id2, 'location_id': b'not_used', 'data': b'not_used', 'data_value': {'satvalue': 2000, 'tokenvalue': 2000}}], 
-        8: [{'atomical_id': subject_atomical_id, 'location_id': b'not_used', 'data': b'not_used', 'data_value': {'satvalue': 2000, 'tokenvalue': 2000}}], 
-        9: [{'atomical_id': subject_atomical_id2, 'location_id': b'not_used', 'data': b'not_used', 'data_value': {'satvalue': 2000, 'tokenvalue': 2000}}], 
-        10: [{'atomical_id': subject_atomical_id, 'location_id': b'not_used', 'data': b'not_used', 'data_value': {'satvalue': 2000, 'tokenvalue': 2000}}]}
+    atomicals_spent_at_inputs = {
+        0: [{'atomical_id': subject_atomical_id, 'location_id': b'not_used', 'data': b'not_used', 'data_value': {'sat_value': 1000, 'atomical_value': 501}}], 
+        1: [{'atomical_id': subject_atomical_id2, 'location_id': b'not_used', 'data': b'not_used', 'data_value': {'sat_value': 3000, 'atomical_value': 3000}}], 
+        2: [{'atomical_id': subject_atomical_id, 'location_id': b'not_used', 'data': b'not_used', 'data_value': {'sat_value': 2000, 'atomical_value': 1000}}], 
+        3: [{'atomical_id': subject_atomical_id2, 'location_id': b'not_used', 'data': b'not_used', 'data_value': {'sat_value': 2000, 'atomical_value': 2000}}], 
+        4: [{'atomical_id': subject_atomical_id, 'location_id': b'not_used', 'data': b'not_used', 'data_value': {'sat_value': 2000, 'atomical_value': 2000}}], 
+        5: [{'atomical_id': subject_atomical_id2, 'location_id': b'not_used', 'data': b'not_used', 'data_value': {'sat_value': 2000, 'atomical_value': 2000}}], 
+        6: [{'atomical_id': subject_atomical_id, 'location_id': b'not_used', 'data': b'not_used', 'data_value': {'sat_value': 2000, 'atomical_value': 2000}}], 
+        7: [{'atomical_id': subject_atomical_id2, 'location_id': b'not_used', 'data': b'not_used', 'data_value': {'sat_value': 2000, 'atomical_value': 2000}}], 
+        8: [{'atomical_id': subject_atomical_id, 'location_id': b'not_used', 'data': b'not_used', 'data_value': {'sat_value': 2000, 'atomical_value': 2000}}], 
+        9: [{'atomical_id': subject_atomical_id2, 'location_id': b'not_used', 'data': b'not_used', 'data_value': {'sat_value': 2000, 'atomical_value': 2000}}], 
+        10: [{'atomical_id': subject_atomical_id, 'location_id': b'not_used', 'data': b'not_used', 'data_value': {'sat_value': 2000, 'atomical_value': 2000}}]
+    }
     
     def mock_mint_fetcher(self, atomical_id):
         return {
@@ -445,8 +570,8 @@ def test_spends_multiple_ft_partially_colored_merged():
     ft_output_blueprint = blueprint_builder.get_ft_output_blueprint()
     assert(len(ft_output_blueprint.outputs) == 1)
     assert(ft_output_blueprint.first_atomical_id == subject_atomical_id)
-    assert(ft_output_blueprint.outputs[0]['atomicals'][subject_atomical_id].tokenvalue == 9501)
-    assert(ft_output_blueprint.outputs[0]['atomicals'][subject_atomical_id2].tokenvalue == 11000)
+    assert(ft_output_blueprint.outputs[0]['atomicals'][subject_atomical_id].atomical_value == 9501)
+    assert(ft_output_blueprint.outputs[0]['atomicals'][subject_atomical_id2].atomical_value == 11000)
     assert(len(ft_output_blueprint.fts_burned) == 0)
     assert(ft_output_blueprint.cleanly_assigned == False)
     assert(blueprint_builder.get_are_fts_burned() == False)
@@ -458,9 +583,11 @@ def test_spends_multiple_nft_and_ft_partially_colored_merged():
     ft_atomical_id = b'\x13Jv:\xb1\xad\x9a\xaf\x8a#[7\xa9s\xc0\xcc\xb2\xca\xe1"\x05Y\xc8s\x87\x11\xcc\x90W\xe2\x88\x88\x00\x00\x00\x00'
     nft_atomical_id = b"\xb4'{\x12Z\x90z\xed\xd4\xd6\xaf\x87\xb3\xe43\x93\xd0\xbd?v\xfc\x17Y\x8fmcb2\xa4\xef'\x95\x00\x00\x00\x00"
     tx, tx_hash = coin.DESERIALIZER(raw_tx, 0).read_tx_and_hash()
-    atomicals_spent_at_inputs= {
-        1: [{'atomical_id': ft_atomical_id, 'location_id': b'not_used', 'data': b'not_used', 'data_value': {'satvalue': 1100, 'tokenvalue': 1100}},
-            {'atomical_id': nft_atomical_id, 'location_id': b'not_used', 'data': b'not_used', 'data_value': {'satvalue': 1100, 'tokenvalue': 1100}}],
+    atomicals_spent_at_inputs = {
+        1: [
+            {'atomical_id': ft_atomical_id, 'location_id': b'not_used', 'data': b'not_used', 'data_value': {'sat_value': 1100, 'atomical_value': 1100}},
+            {'atomical_id': nft_atomical_id, 'location_id': b'not_used', 'data': b'not_used', 'data_value': {'sat_value': 1100, 'atomical_value': 1100}}
+        ],
     }
     def mock_mint_fetcher(self, atomical_id):
         if self == ft_atomical_id:
@@ -480,7 +607,7 @@ def test_spends_multiple_nft_and_ft_partially_colored_merged():
     assert(len(nft_output_blueprint.outputs) == 1)
     ft_output_blueprint = blueprint_builder.get_ft_output_blueprint()
     assert(len(ft_output_blueprint.outputs) == 2)
-    assert(ft_output_blueprint.outputs[1]["atomicals"][ft_atomical_id].tokenvalue == 100)
+    assert(ft_output_blueprint.outputs[1]["atomicals"][ft_atomical_id].atomical_value == 100)
     assert(len(ft_output_blueprint.fts_burned) == 0)
     assert(ft_output_blueprint.cleanly_assigned == False)
     assert(blueprint_builder.get_are_fts_burned() == False)
@@ -491,9 +618,9 @@ def test_spends_ft_split_one_token():
     raw_tx = bytes.fromhex(raw_tx_str)
     subject_atomical_id = b"A\x03\x8f'\xe7\x85`l\xa0\xcc\x1e\xfd\x8e:\xa9\x12\xa1\\r\xd0o5\x9a\xeb\x05$=\xab+p\xa8V\x00\x00\x00\x01"
     tx, tx_hash = coin.DESERIALIZER(raw_tx, 0).read_tx_and_hash()
-    atomicals_spent_at_inputs= {
-        0: [{'atomical_id': subject_atomical_id, 'location_id': b'not_used', 'data': b'not_used', 'data_value': {'satvalue': 900, 'tokenvalue': 900}}],
-        1: [{'atomical_id': subject_atomical_id, 'location_id': b'not_used', 'data': b'not_used', 'data_value': {'satvalue': 555, 'tokenvalue': 555}}]
+    atomicals_spent_at_inputs = {
+        0: [{'atomical_id': subject_atomical_id, 'location_id': b'not_used', 'data': b'not_used', 'data_value': {'sat_value': 900, 'atomical_value': 900}}],
+        1: [{'atomical_id': subject_atomical_id, 'location_id': b'not_used', 'data': b'not_used', 'data_value': {'sat_value': 555, 'atomical_value': 555}}]
     }
     def mock_mint_fetcher(self, atomical_id):
         return {
@@ -524,7 +651,7 @@ def test_spends_ft_split_one_token():
     assert(len(nft_output_blueprint.outputs) == 0)
     ft_output_blueprint = blueprint_builder.get_ft_output_blueprint()
     assert(len(ft_output_blueprint.outputs) == 2)
-    assert(ft_output_blueprint.outputs[1]["atomicals"][subject_atomical_id].tokenvalue == 1)
+    assert(ft_output_blueprint.outputs[1]["atomicals"][subject_atomical_id].atomical_value == 1)
     assert(ft_output_blueprint.first_atomical_id == subject_atomical_id)
     assert(blueprint_builder.get_are_fts_burned() == False)
 
@@ -532,9 +659,9 @@ def test_spends_ft_split_one_token():
     # input[0] = 900 ft
     # input[1] = 553 ft
     # burn 1453 ft
-    atomicals_spent_at_inputs= {
-        0: [{'atomical_id': subject_atomical_id, 'location_id': b'not_used', 'data': b'not_used', 'data_value': {'satvalue': 900, 'tokenvalue': 900}}],
-        1: [{'atomical_id': subject_atomical_id, 'location_id': b'not_used', 'data': b'not_used', 'data_value': {'satvalue': 553, 'tokenvalue': 553}}]
+    atomicals_spent_at_inputs = {
+        0: [{'atomical_id': subject_atomical_id, 'location_id': b'not_used', 'data': b'not_used', 'data_value': {'sat_value': 900, 'atomical_value': 900}}],
+        1: [{'atomical_id': subject_atomical_id, 'location_id': b'not_used', 'data': b'not_used', 'data_value': {'sat_value': 553, 'atomical_value': 553}}]
     }
     blueprint_builder = AtomicalsTransferBlueprintBuilder(MockLogger(), atomicals_spent_at_inputs, {}, tx_hash, tx, mock_mint_fetcher, True, False)
     nft_output_blueprint = blueprint_builder.get_nft_output_blueprint()
@@ -550,9 +677,9 @@ def test_spends_ft_split_one_token():
     # input[0] = 900 ft
     # input[1] = 553 ft
     # ouput[0] 1453 ft partlly colored
-    atomicals_spent_at_inputs= {
-        0: [{'atomical_id': subject_atomical_id, 'location_id': b'not_used', 'data': b'not_used', 'data_value': {'satvalue': 900, 'tokenvalue': 900}}],
-        1: [{'atomical_id': subject_atomical_id, 'location_id': b'not_used', 'data': b'not_used', 'data_value': {'satvalue': 553, 'tokenvalue': 553}}]
+    atomicals_spent_at_inputs = {
+        0: [{'atomical_id': subject_atomical_id, 'location_id': b'not_used', 'data': b'not_used', 'data_value': {'sat_value': 900, 'atomical_value': 900}}],
+        1: [{'atomical_id': subject_atomical_id, 'location_id': b'not_used', 'data': b'not_used', 'data_value': {'sat_value': 553, 'atomical_value': 553}}]
     }
     blueprint_builder = AtomicalsTransferBlueprintBuilder(MockLogger(), atomicals_spent_at_inputs, {}, tx_hash, tx, mock_mint_fetcher, True, True)
     nft_output_blueprint = blueprint_builder.get_nft_output_blueprint()
@@ -575,9 +702,11 @@ def test_ft_y_split_ft_normal():
     # input[1] = 1000 ft and 1000 ft1
     # output[0] = 1000 ft
     # output[1] = 1000 ft
-    atomicals_spent_at_inputs= {
-        1: [{'atomical_id': subject_atomical_id1, 'location_id': b'not_used', 'data': b'not_used', 'data_value': {'satvalue': 1000, 'tokenvalue': 1000}},
-            {'atomical_id': subject_atomical_id, 'location_id': b'not_used', 'data': b'not_used', 'data_value': {'satvalue': 1000, 'tokenvalue': 1000}}]
+    atomicals_spent_at_inputs = {
+        1: [
+            {'atomical_id': subject_atomical_id1, 'location_id': b'not_used', 'data': b'not_used', 'data_value': {'sat_value': 1000, 'atomical_value': 1000}},
+            {'atomical_id': subject_atomical_id, 'location_id': b'not_used', 'data': b'not_used', 'data_value': {'sat_value': 1000, 'atomical_value': 1000}}
+        ]
     }
     def mock_mint_fetcher(self, atomical_id):
         return {
@@ -599,9 +728,11 @@ def test_ft_y_split_ft_normal():
     # output[0] = 1000 ft
     # output[1] = 1000 ft1
     # burn 100 ft
-    atomicals_spent_at_inputs= {
-        1: [{'atomical_id': subject_atomical_id1, 'location_id': b'not_used', 'data': b'not_used', 'data_value': {'satvalue': 1000, 'tokenvalue': 1000}},
-            {'atomical_id': subject_atomical_id, 'location_id': b'not_used', 'data': b'not_used', 'data_value': {'satvalue': 1100, 'tokenvalue': 1100}}]
+    atomicals_spent_at_inputs = {
+        1: [
+            {'atomical_id': subject_atomical_id1, 'location_id': b'not_used', 'data': b'not_used', 'data_value': {'sat_value': 1000, 'atomical_value': 1000}},
+            {'atomical_id': subject_atomical_id, 'location_id': b'not_used', 'data': b'not_used', 'data_value': {'sat_value': 1100, 'atomical_value': 1100}}
+        ]
     }
     blueprint_builder = AtomicalsTransferBlueprintBuilder(MockLogger(), atomicals_spent_at_inputs, operation_found_at_inputs, tx_hash, tx, mock_mint_fetcher, True, False)
     nft_output_blueprint = blueprint_builder.get_nft_output_blueprint()
@@ -625,16 +756,18 @@ def test_ft_y_split_ft_normal():
     assert(ft_output_blueprint.fts_burned == {})
     assert(blueprint_builder.get_are_fts_burned() == False)
 
-    # after is_split_activated and set tokenvalue > utxo value
-    # in this case skip value in operation_found_at_inputs match the tokenvalue
+    # after is_split_activated and set atomical_value > utxo value
+    # in this case skip value in operation_found_at_inputs match the atomical_value
     # skip subject_atomical_id for 1000 in operation_found_at_inputs
     # input[1] = 1000 ft and 1100 ft1
     # output[0] = 1000 ft
     # output[1] = 1000 ft1
     # output[2] = 100 ft1
-    atomicals_spent_at_inputs= {
-        1: [{'atomical_id': subject_atomical_id1, 'location_id': b'not_used', 'data': b'not_used', 'data_value': {'satvalue': 1100, 'tokenvalue': 1100}},
-            {'atomical_id': subject_atomical_id, 'location_id': b'not_used', 'data': b'not_used', 'data_value': {'satvalue': 1000, 'tokenvalue': 1000}}]
+    atomicals_spent_at_inputs = {
+        1: [
+            {'atomical_id': subject_atomical_id1, 'location_id': b'not_used', 'data': b'not_used', 'data_value': {'sat_value': 1100, 'atomical_value': 1100}},
+            {'atomical_id': subject_atomical_id, 'location_id': b'not_used', 'data': b'not_used', 'data_value': {'sat_value': 1000, 'atomical_value': 1000}}
+        ]
     }
     blueprint_builder = AtomicalsTransferBlueprintBuilder(MockLogger(), atomicals_spent_at_inputs, operation_found_at_inputs, tx_hash, tx, mock_mint_fetcher, True, True)
     nft_output_blueprint = blueprint_builder.get_nft_output_blueprint()
@@ -644,16 +777,18 @@ def test_ft_y_split_ft_normal():
     assert(ft_output_blueprint.fts_burned == {})
     assert(blueprint_builder.get_are_fts_burned() == False)
 
-    # after is_split_activated and set tokenvalue > utxo value
-    # in this case skip value in operation_found_at_inputs *not match* the tokenvalue
+    # after is_split_activated and set atomical_value > utxo value
+    # in this case skip value in operation_found_at_inputs *not match* the atomical_value
     # try to split, but will not cause burn.
     # input[1] = 1100 ft and 1100 ft1
     # output[0] = 1000 ft
     # output[1] = 100ft and 1000 ft1
     # output[2] = 100 ft1
-    atomicals_spent_at_inputs= {
-        1: [{'atomical_id': subject_atomical_id1, 'location_id': b'not_used', 'data': b'not_used', 'data_value': {'satvalue': 1100, 'tokenvalue': 1100}},
-            {'atomical_id': subject_atomical_id, 'location_id': b'not_used', 'data': b'not_used', 'data_value': {'satvalue': 1100, 'tokenvalue': 1100}}]
+    atomicals_spent_at_inputs = {
+        1: [
+            {'atomical_id': subject_atomical_id1, 'location_id': b'not_used', 'data': b'not_used', 'data_value': {'sat_value': 1100, 'atomical_value': 1100}},
+            {'atomical_id': subject_atomical_id, 'location_id': b'not_used', 'data': b'not_used', 'data_value': {'sat_value': 1100, 'atomical_value': 1100}}
+        ]
     }
     blueprint_builder = AtomicalsTransferBlueprintBuilder(MockLogger(), atomicals_spent_at_inputs, operation_found_at_inputs, tx_hash, tx, mock_mint_fetcher, True, True)
     nft_output_blueprint = blueprint_builder.get_nft_output_blueprint()
@@ -663,17 +798,19 @@ def test_ft_y_split_ft_normal():
     assert(ft_output_blueprint.fts_burned == {})
     assert(blueprint_builder.get_are_fts_burned() == False)
     
-    # after is_split_activated and set tokenvalue > all utxo value
-    # in this case skip value in operation_found_at_inputs match the tokenvalue
+    # after is_split_activated and set atomical_value > all utxo value
+    # in this case skip value in operation_found_at_inputs match the atomical_value
     # it will be burn
     # input[1] = 1000 ft and 2100 ft1
     # output[0] = 1000 ft
     # output[1] = 1000 ft1
     # output[2] = 1000 ft1
     # burn 100 ft1
-    atomicals_spent_at_inputs= {
-        1: [{'atomical_id': subject_atomical_id1, 'location_id': b'not_used', 'data': b'not_used', 'data_value': {'satvalue': 2100, 'tokenvalue': 2100}},
-            {'atomical_id': subject_atomical_id, 'location_id': b'not_used', 'data': b'not_used', 'data_value': {'satvalue': 1000, 'tokenvalue': 1000}}]
+    atomicals_spent_at_inputs = {
+        1: [
+            {'atomical_id': subject_atomical_id1, 'location_id': b'not_used', 'data': b'not_used', 'data_value': {'sat_value': 2100, 'atomical_value': 2100}},
+            {'atomical_id': subject_atomical_id, 'location_id': b'not_used', 'data': b'not_used', 'data_value': {'sat_value': 1000, 'atomical_value': 1000}}
+        ]
     }
     blueprint_builder = AtomicalsTransferBlueprintBuilder(MockLogger(), atomicals_spent_at_inputs, operation_found_at_inputs, tx_hash, tx, mock_mint_fetcher, True, True)
     nft_output_blueprint = blueprint_builder.get_nft_output_blueprint()
@@ -694,15 +831,17 @@ def test_y_split_nft_and_ft():
     operation_found_at_inputs = parse_protocols_operations_from_witness_array(tx, tx_hash, True)
     # skip 1000 for ft
     operation_found_at_inputs["payload"]["9527efa43262636d8f5917fc763fbdd09333e4b387afd6d4ed7a905a127b27b4i0"] = 1000
-    # if tokenvalue <= utxo value
+    # if atomical_value <= utxo value
     # if will be fullly colored all total ft
     # input[1] = 1000 nft and 1100 ft
     # output[0] = 1000 nft
     # output[1] = 1000 ft
     # output[2] = 100 ft
-    atomicals_spent_at_inputs= {
-        1: [{'atomical_id': ft_atomical_id, 'location_id': b'not_used', 'data': b'not_used', 'data_value': {'satvalue': 1100, 'tokenvalue': 1100}},
-            {'atomical_id': nft_atomical_id, 'location_id': b'not_used', 'data': b'not_used', 'data_value': {'satvalue': 1000, 'tokenvalue': 1000}}]
+    atomicals_spent_at_inputs = {
+        1: [
+            {'atomical_id': ft_atomical_id, 'location_id': b'not_used', 'data': b'not_used', 'data_value': {'sat_value': 1100, 'atomical_value': 1100}},
+            {'atomical_id': nft_atomical_id, 'location_id': b'not_used', 'data': b'not_used', 'data_value': {'sat_value': 1000, 'atomical_value': 1000}}
+        ]
     }
     def mock_mint_fetcher(self, atomical_id):
         if self == ft_atomical_id:
@@ -719,7 +858,7 @@ def test_y_split_nft_and_ft():
     assert(len(nft_output_blueprint.outputs) == 1)
     ft_output_blueprint = blueprint_builder.get_ft_output_blueprint()
     assert(len(ft_output_blueprint.outputs) == 2)
-    assert(ft_output_blueprint.outputs[2]["atomicals"][ft_atomical_id].tokenvalue == 100)
+    assert(ft_output_blueprint.outputs[2]["atomicals"][ft_atomical_id].atomical_value == 100)
     assert(ft_output_blueprint.fts_burned == {})
     assert(blueprint_builder.get_are_fts_burned() == False)
 
@@ -738,7 +877,7 @@ def test_y_split_nft_and_ft():
     assert(ft_output_blueprint.fts_burned != {})
     assert(blueprint_builder.get_are_fts_burned() == True)
 
-    # if tokenvalue > utxo value
+    # if atomical_value > utxo value
     # it will be burned
     # set is_split_activated = True
     # input[1] = 1000 nft and 2100 ft
@@ -746,15 +885,17 @@ def test_y_split_nft_and_ft():
     # output[1] = 1000 ft
     # output[2] = 1000 ft
     # burn 100 ft
-    atomicals_spent_at_inputs= {
-        1: [{'atomical_id': ft_atomical_id, 'location_id': b'not_used', 'data': b'not_used', 'data_value': {'satvalue': 2100, 'tokenvalue': 2100}},
-            {'atomical_id': nft_atomical_id, 'location_id': b'not_used', 'data': b'not_used', 'data_value': {'satvalue': 1000, 'tokenvalue': 1000}}]
+    atomicals_spent_at_inputs = {
+        1: [
+            {'atomical_id': ft_atomical_id, 'location_id': b'not_used', 'data': b'not_used', 'data_value': {'sat_value': 2100, 'atomical_value': 2100}},
+            {'atomical_id': nft_atomical_id, 'location_id': b'not_used', 'data': b'not_used', 'data_value': {'sat_value': 1000, 'atomical_value': 1000}}
+        ]
     }
     blueprint_builder = AtomicalsTransferBlueprintBuilder(MockLogger(), atomicals_spent_at_inputs, operation_found_at_inputs, tx_hash, tx, mock_mint_fetcher, True, True)
     nft_output_blueprint = blueprint_builder.get_nft_output_blueprint()
     assert(len(nft_output_blueprint.outputs) == 1)
     ft_output_blueprint = blueprint_builder.get_ft_output_blueprint()
     assert(len(ft_output_blueprint.outputs) == 2)
-    assert(ft_output_blueprint.outputs[2]["atomicals"][ft_atomical_id].tokenvalue == 1000)
+    assert(ft_output_blueprint.outputs[2]["atomicals"][ft_atomical_id].atomical_value == 1000)
     assert(ft_output_blueprint.fts_burned != {})
     assert(blueprint_builder.get_are_fts_burned() == True)
