@@ -436,7 +436,7 @@ def get_mint_info_op_factory(coin, tx, tx_hash, op_found_struct, atomicals_spent
         output_idx_le = pack_le_uint32(expected_output_index) 
         atomical_id = commit_txid + pack_le_uint32(commit_index)
         location = reveal_location_txid + pack_le_uint32(reveal_location_index)
-        value_sats = pack_le_uint64(txout.value)
+        # sat_value = pack_le_uint64(txout.value)
         # Create the general mint information
         encoder = krock32.Encoder(checksum=False)
         commit_txid_reversed = bytearray(commit_txid)
@@ -1764,11 +1764,11 @@ def is_mint_pow_valid(txid, mint_pow_commit):
     return False
 
 def expand_spend_utxo_data(data):
-    satvalue, = unpack_le_uint64(data[HASHX_LEN + SCRIPTHASH_LEN : HASHX_LEN + SCRIPTHASH_LEN + 8])
-    tokenvalue, = unpack_le_uint64_from(data[HASHX_LEN + SCRIPTHASH_LEN + 8: HASHX_LEN + SCRIPTHASH_LEN + 8 + 8])
+    sat_value, = unpack_le_uint64(data[HASHX_LEN + SCRIPTHASH_LEN: HASHX_LEN + SCRIPTHASH_LEN + 8])
+    atomical_value, = unpack_le_uint64_from(data[HASHX_LEN + SCRIPTHASH_LEN + 8: HASHX_LEN + SCRIPTHASH_LEN + 8 + 8])
     return {
-        'satvalue': satvalue,
-        'tokenvalue': tokenvalue
+        'sat_value': sat_value,
+        'atomical_value': atomical_value
     }
 
 def validate_dmitem_mint_args_with_container_dmint(mint_args, mint_data_payload, dmint):

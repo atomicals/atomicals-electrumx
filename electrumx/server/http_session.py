@@ -560,7 +560,7 @@ class HttpHandler(object):
                 # Todo need to combine mempool atomicals 
                 atomical_id_compact = location_id_bytes_to_compact(atomical_id)
                 location = utxo.tx_hash + util.pack_le_uint32(utxo.tx_pos)
-                atomicals_basic_infos[atomical_id_compact] = self.db.get_uxto_token_value(location, atomical_id)
+                atomicals_basic_infos[atomical_id_compact] = self.db.get_uxto_atomicals_value(location, atomical_id)
             returned_utxos.append({
                 'txid': hash_to_hex_str(utxo.tx_hash),
                 'tx_hash': hash_to_hex_str(utxo.tx_hash),
@@ -569,7 +569,7 @@ class HttpHandler(object):
                 'vout': utxo.tx_pos,
                 'height': utxo.height,
                 'value': utxo.value,
-                'satvalue': utxo.value,
+                'sat_value': utxo.value,
                 'atomicals': atomicals_basic_infos
             })
         return returned_utxos
@@ -594,14 +594,14 @@ class HttpHandler(object):
                 atomical_id_compact = location_id_bytes_to_compact(atomical_id)
                 atomicals_id_map[atomical_id_compact] = atomical_basic_info
                 location = utxo.tx_hash + util.pack_le_uint32(utxo.tx_pos)
-                atomicals_basic_infos[atomical_id_compact] = self.db.get_uxto_token_value(location, atomical_id)
+                atomicals_basic_infos[atomical_id_compact] = self.db.get_uxto_atomicals_value(location, atomical_id)
             if len(atomicals) > 0:
                 returned_utxos.append({'txid': hash_to_hex_str(utxo.tx_hash),
                 'index': utxo.tx_pos,
                 'vout': utxo.tx_pos,
                 'height': utxo.height,
                 'value': utxo.value,
-                'satvalue': utxo.value,
+                'sat_value': utxo.value,
                 'atomicals': atomicals_basic_infos})
         # Aggregate balances
         return_struct = {
@@ -643,14 +643,14 @@ class HttpHandler(object):
                 atomical_id_compact = location_id_bytes_to_compact(atomical_id)
                 atomicals_id_map[atomical_id_compact] = atomical_basic_info
                 location = utxo.tx_hash + util.pack_le_uint32(utxo.tx_pos)
-                atomicals_basic_infos[atomical_id_compact] = self.db.get_uxto_token_value(location, atomical_id)
+                atomicals_basic_infos[atomical_id_compact] = self.db.get_uxto_atomicals_value(location, atomical_id)
             if len(atomicals) > 0:
                 returned_utxos.append({'txid': hash_to_hex_str(utxo.tx_hash),
                 'index': utxo.tx_pos,
                 'vout': utxo.tx_pos,
                 'height': utxo.height,
                 'value': utxo.value,
-                'satvalue': utxo.value,
+                'sat_value': utxo.value,
                 'atomicals': atomicals_basic_infos})
         # Aggregate balances
         return_struct = {
@@ -797,7 +797,7 @@ class HttpHandler(object):
                 atomical_id_compact = location_id_bytes_to_compact(atomical_id)
                 atomicals_id_map[atomical_id_compact] = atomical_basic_info
                 location = utxo.tx_hash + util.pack_le_uint32(utxo.tx_pos)
-                atomicals_basic_infos[atomical_id_compact] = self.db.get_uxto_token_value(location, atomical_id)
+                atomicals_basic_infos[atomical_id_compact] = self.db.get_uxto_atomicals_value(location, atomical_id)
             if Verbose or len(atomicals) > 0:
                 location = utxo.tx_hash + util.pack_le_uint32(utxo.tx_pos)
                 returned_utxos.append({'txid': hash_to_hex_str(utxo.tx_hash),
@@ -805,7 +805,7 @@ class HttpHandler(object):
                 'vout': utxo.tx_pos,
                 'height': utxo.height,
                 'value': utxo.value,
-                'satvalue': utxo.value,
+                'sat_value': utxo.value,
                 'atomicals': atomicals_basic_infos})
 
         # Aggregate balances
@@ -2046,8 +2046,8 @@ class HttpHandler(object):
                                 "type": "FT",
                                 "index": expected_output_index,
                                 "value": txout.value,
-                                "satvalue": txout.value,
-                                "tokenvalue": txout.value
+                                "sat_value": txout.value,
+                                "atomical_value": txout.value
                             }]
                         }
                     }
@@ -2081,8 +2081,8 @@ class HttpHandler(object):
                             "type": "NFT",
                             "index": expected_output_index,
                             "value": txout.value,
-                            "satvalue": txout.value,
-                            "tokenvalue": txout.value
+                            "sat_value": txout.value,
+                            "atomical_value": txout.value
                         }]
                     }
                 }
@@ -2117,16 +2117,16 @@ class HttpHandler(object):
                         self.session_mgr.bp.general_data_cache[b'rtx' + hex_str_to_hash(prev_txid)] = prev_raw_tx
                     prev_tx, prev_tx_hash = self.coin.DESERIALIZER(prev_raw_tx, 0).read_tx_and_hash()
                     location = prev_tx_hash + util.pack_le_uint32(tx.inputs[i.txin_index].prev_idx)
-                    satvalue = prev_tx.outputs[tx.inputs[i.txin_index].prev_idx].value
-                    tokenvalue = self.db.get_uxto_token_value(location, atomical_id)
+                    sat_value = prev_tx.outputs[tx.inputs[i.txin_index].prev_idx].value
+                    atomical_value = self.db.get_uxto_atomicals_value(location, atomical_id)
                     ft_data = {
                         "address": get_address_from_output_script(prev_tx.outputs[tx.inputs[i.txin_index].prev_idx].pk_script),
                         "atomical_id": compact_atomical_id,
                         "type": "FT",
                         "index": i.txin_index,
-                        "value": satvalue,
-                        "satvalue": satvalue,
-                        "tokenvalue": tokenvalue,
+                        "value": sat_value,
+                        "sat_value": sat_value,
+                        "atomical_value": atomical_value,
                     }
                     if i.txin_index not in res["transfers"]["inputs"]:
                         res["transfers"]["inputs"][i.txin_index] = [ft_data]
@@ -2140,9 +2140,9 @@ class HttpHandler(object):
                         "atomical_id": compact_atomical_id,
                         "type": "FT",
                         "index": k,
-                        "value": output_ft.satvalue,
-                        "satvalue": output_ft.satvalue,
-                        "tokenvalue": output_ft.tokenvalue
+                        "value": output_ft.sat_value,
+                        "sat_value": output_ft.sat_value,
+                        "atomical_value": output_ft.atomical_value
                     }
                     if k not in res["transfers"]["outputs"]:
                         res["transfers"]["outputs"][k] = [ft_data]
@@ -2162,16 +2162,16 @@ class HttpHandler(object):
                         self.session_mgr.bp.general_data_cache[b'rtx' + hex_str_to_hash(prev_txid)] = prev_raw_tx
                     prev_tx, prev_tx_hash = self.coin.DESERIALIZER(prev_raw_tx, 0).read_tx_and_hash()
                     location = prev_tx_hash + util.pack_le_uint32(tx.inputs[i.txin_index].prev_idx)
-                    satvalue = prev_tx.outputs[tx.inputs[i.txin_index].prev_idx].value
-                    tokenvalue = self.db.get_uxto_token_value(location, atomical_id)
+                    sat_value = prev_tx.outputs[tx.inputs[i.txin_index].prev_idx].value
+                    atomical_value = self.db.get_uxto_atomicals_value(location, atomical_id)
                     nft_data = {
                         "address": get_address_from_output_script(prev_tx.outputs[tx.inputs[i.txin_index].prev_idx].pk_script),
                         "atomical_id": compact_atomical_id,
                         "type": "NFT",
                         "index": i.txin_index,
-                        "value": satvalue,
-                        "satvalue": satvalue,
-                        "tokenvalue": tokenvalue
+                        "value": sat_value,
+                        "sat_value": sat_value,
+                        "atomical_value": atomical_value
                     }
                     if i.txin_index not in res["transfers"]["inputs"]:
                         res["transfers"]["inputs"][i.txin_index] = [nft_data]
@@ -2185,9 +2185,9 @@ class HttpHandler(object):
                         "atomical_id": compact_atomical_id,
                         "type": output_nft.type,
                         "index": k,
-                        "value": output_nft.total_satsvalue,
-                        "satvalue": output_nft.total_satsvalue,
-                        "tokenvalue": output_nft.total_satsvalue
+                        "value": output_nft.total_sat_value,
+                        "sat_value": output_nft.total_sat_value,
+                        "atomical_value": output_nft.total_sat_value
                     }
                     if k not in res["transfers"]["outputs"]:
                         res["transfers"]["outputs"][k] = [nft_data]
