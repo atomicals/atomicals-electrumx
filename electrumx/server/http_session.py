@@ -804,8 +804,7 @@ class HttpHandler(object):
                     'index': utxo.tx_pos,
                     'vout': utxo.tx_pos,
                     'height': utxo.height,
-                    'value': utxo.value,  # Considered to be removed in the future.
-                    'sat_value': utxo.value,
+                    'value': utxo.value,
                     'atomicals': atomicals_basic_infos
                 })
 
