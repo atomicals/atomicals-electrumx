@@ -2176,7 +2176,7 @@ class ElectrumX(SessionBase):
         # Comment out the utxos for now and add it in later
         # utxos.extend(await self.mempool.unordered_UTXOs(hashX))
         self.bump_cost(1.0 + len(utxos) / 50)
-        spends = [] # await self.mempool.potential_spends(hashX)
+        spends = []  # await self.mempool.potential_spends(hashX)
         returned_utxos = []
         atomicals_id_map = {}
         for utxo in utxos:
@@ -2184,33 +2184,35 @@ class ElectrumX(SessionBase):
                 continue
             atomicals = self.db.get_atomicals_by_utxo(utxo, True)
             atomicals_basic_infos = {}
-            for atomical_id in atomicals: 
-                # This call is efficient in that it's cached underneath
-                # For now we only show the atomical id because it can always be fetched separately and it will be more efficient
-                atomical_basic_info = await self.session_mgr.bp.get_base_mint_info_rpc_format_by_atomical_id(atomical_id) 
+            for atomical_id in atomicals:
+                # This call is efficient in that it's cached underneath.
+                # Now we only show the atomical id and its corresponding value
+                # because it can always be fetched separately which is more efficient.
+                atomical_basic_info = await self.session_mgr.bp.get_base_mint_info_rpc_format_by_atomical_id(atomical_id)
                 atomical_id_compact = location_id_bytes_to_compact(atomical_id)
                 atomicals_id_map[atomical_id_compact] = atomical_basic_info
                 location = utxo.tx_hash + util.pack_le_uint32(utxo.tx_pos)
                 atomicals_basic_infos[atomical_id_compact] = self.db.get_uxto_atomicals_value(location, atomical_id)
             if len(atomicals) > 0:
-                returned_utxos.append({'txid': hash_to_hex_str(utxo.tx_hash),
-                'index': utxo.tx_pos,
-                'vout': utxo.tx_pos,
-                'height': utxo.height,
-                'value': utxo.value,
-                'sat_value': utxo.value,
-                'atomicals': atomicals_basic_infos})
+                returned_utxos.append({
+                    'txid': hash_to_hex_str(utxo.tx_hash),
+                    'index': utxo.tx_pos,
+                    'vout': utxo.tx_pos,
+                    'height': utxo.height,
+                    'value': utxo.value,
+                    'atomicals': atomicals_basic_infos
+                })
         # Aggregate balances
         return_struct = {
             'balances': {}
         }
-        for returned_utxo in returned_utxos: 
+        for returned_utxo in returned_utxos:
             for atomical_id_entry_compact in returned_utxo['atomicals']:
                 atomical_id_basic_info = atomicals_id_map[atomical_id_entry_compact]
                 atomical_id_compact = atomical_id_basic_info['atomical_id']
-                assert(atomical_id_compact == atomical_id_entry_compact)
+                assert (atomical_id_compact == atomical_id_entry_compact)
                 if atomical_id_basic_info.get('type') == 'FT':
-                    if return_struct['balances'].get(atomical_id_compact) == None:
+                    if return_struct['balances'].get(atomical_id_compact) is None:
                         return_struct['balances'][atomical_id_compact] = {}
                         return_struct['balances'][atomical_id_compact]['id'] = atomical_id_compact
                         return_struct['balances'][atomical_id_compact]['ticker'] = atomical_id_basic_info.get('$ticker')
@@ -2220,7 +2222,6 @@ class ElectrumX(SessionBase):
         return return_struct
 
     async def hashX_nft_balances_atomicals(self, hashX):
-        Verbose = False
         utxos = await self.db.all_utxos(hashX)
         utxos = sorted(utxos)
         # Comment out the utxos for now and add it in later
@@ -2235,21 +2236,23 @@ class ElectrumX(SessionBase):
             atomicals = self.db.get_atomicals_by_utxo(utxo, True)
             atomicals_basic_infos = {}
             for atomical_id in atomicals: 
-                # This call is efficient in that it's cached underneath
-                # For now we only show the atomical id because it can always be fetched separately and it will be more efficient
+                # This call is efficient in that it's cached underneath.
+                # Now we only show the atomical id and its corresponding value
+                # because it can always be fetched separately which is more efficient.
                 atomical_basic_info = await self.session_mgr.bp.get_base_mint_info_rpc_format_by_atomical_id(atomical_id) 
                 atomical_id_compact = location_id_bytes_to_compact(atomical_id)
                 atomicals_id_map[atomical_id_compact] = atomical_basic_info
                 location = utxo.tx_hash + util.pack_le_uint32(utxo.tx_pos)
                 atomicals_basic_infos[atomical_id_compact] = self.db.get_uxto_atomicals_value(location, atomical_id)
             if len(atomicals) > 0:
-                returned_utxos.append({'txid': hash_to_hex_str(utxo.tx_hash),
-                'index': utxo.tx_pos,
-                'vout': utxo.tx_pos,
-                'height': utxo.height,
-                'value': utxo.value,
-                'sat_value': utxo.value,
-                'atomicals': atomicals_basic_infos})
+                returned_utxos.append({
+                    'txid': hash_to_hex_str(utxo.tx_hash),
+                    'index': utxo.tx_pos,
+                    'vout': utxo.tx_pos,
+                    'height': utxo.height,
+                    'value': utxo.value,
+                    'atomicals': atomicals_basic_infos
+                })
         # Aggregate balances
         return_struct = {
             'balances': {}
@@ -2260,7 +2263,7 @@ class ElectrumX(SessionBase):
                 atomical_id_compact = atomical_id_basic_info['atomical_id']
                 assert(atomical_id_compact == atomical_id_entry_compact)
                 if atomical_id_basic_info.get('type') == 'NFT':
-                    if return_struct['balances'].get(atomical_id_compact) == None:
+                    if return_struct['balances'].get(atomical_id_compact) is None:
                         return_struct['balances'][atomical_id_compact] = {}
                         return_struct['balances'][atomical_id_compact]['id'] = atomical_id_compact
                         return_struct['balances'][atomical_id_compact]['confirmed'] = 0
@@ -2860,7 +2863,6 @@ class ElectrumX(SessionBase):
                                 "type": "FT",
                                 "index": expected_output_index,
                                 "value": txout.value,
-                                "sat_value": txout.value,
                                 "atomical_value": txout.value
                             }]
                         }
@@ -2895,7 +2897,6 @@ class ElectrumX(SessionBase):
                             "type": "NFT",
                             "index": expected_output_index,
                             "value": txout.value,
-                            "sat_value": txout.value,
                             "atomical_value": txout.value
                         }]
                     }
@@ -2939,7 +2940,6 @@ class ElectrumX(SessionBase):
                         "type": "FT",
                         "index": i.txin_index,
                         "value": sat_value,
-                        "sat_value": sat_value,
                         "atomical_value": atomical_value,
                     }
                     if i.txin_index not in res["transfers"]["inputs"]:
@@ -2955,7 +2955,6 @@ class ElectrumX(SessionBase):
                         "type": "FT",
                         "index": k,
                         "value": output_ft.sat_value,
-                        "sat_value": output_ft.sat_value,
                         "atomical_value": output_ft.atomical_value
                     }
                     if k not in res["transfers"]["outputs"]:
@@ -2984,7 +2983,6 @@ class ElectrumX(SessionBase):
                         "type": "NFT",
                         "index": i.txin_index,
                         "value": sat_value,
-                        "sat_value": sat_value,
                         "atomical_value": atomical_value
                     }
                     if i.txin_index not in res["transfers"]["inputs"]:
@@ -3000,7 +2998,6 @@ class ElectrumX(SessionBase):
                         "type": output_nft.type,
                         "index": k,
                         "value": output_nft.total_sat_value,
-                        "sat_value": output_nft.total_sat_value,
                         "atomical_value": output_nft.total_sat_value
                     }
                     if k not in res["transfers"]["outputs"]:
