@@ -36,20 +36,20 @@ import electrumx.lib.util as util
 from electrumx.lib.util import OldTaskGroup, unpack_le_uint64
 from electrumx.lib.util_atomicals import (
     DFT_MINT_MAX_MAX_COUNT_DENSITY,
-    format_name_type_candidates_to_rpc, 
-    SUBREALM_MINT_PATH, 
+    format_name_type_candidates_to_rpc,
+    SUBREALM_MINT_PATH,
     MINT_SUBNAME_RULES_BECOME_EFFECTIVE_IN_BLOCKS,
     DMINT_PATH,
-    convert_db_mint_info_to_rpc_mint_info_format, 
-    compact_to_location_id_bytes, 
-    location_id_bytes_to_compact, 
+    convert_db_mint_info_to_rpc_mint_info_format,
+    compact_to_location_id_bytes,
+    location_id_bytes_to_compact,
     is_compact_atomical_id,
     format_name_type_candidates_to_rpc_for_subname,
     calculate_latest_state_from_mod_history,
     parse_protocols_operations_from_witness_array,
     validate_rules_data,
     AtomicalsValidationError,
-    auto_encode_bytes_elements, 
+    auto_encode_bytes_elements,
     validate_merkle_proof_dmint
 )
 from electrumx.lib.hash import (HASHX_LEN, Base58Error, hash_to_hex_str,
@@ -123,7 +123,7 @@ def assert_atomical_id(value):
         if value == None or value == "":
             raise RPCError(BAD_REQUEST, f'atomical_id required')
         index_of_i = value.find("i")
-        if index_of_i != 64: 
+        if index_of_i != 64:
             raise RPCError(BAD_REQUEST, f'{value} should be an atomical_id')
         raw_hash = hex_str_to_hash(value[ : 64])
         if len(raw_hash) == 32:
@@ -1015,7 +1015,7 @@ class SessionManager:
         if isinstance(result, Exception):
             raise result
         return result, cost
-    
+
     async def get_history_op(self, hashX, limit=10, offset=0, op=None, reverse=True):
         history_data = self._history_op_cache.get(hashX, [])
         if not history_data:
@@ -1408,21 +1408,21 @@ class ElectrumX(SessionBase):
                 continue
             atomicals = self.db.get_atomicals_by_utxo(utxo, True)
             atomicals_basic_infos = []
-            for atomical_id in atomicals: 
+            for atomical_id in atomicals:
                 # This call is efficient in that it's cached underneath
                 # For now we only show the atomical id because it can always be fetched separately and it will be more efficient
-                atomical_basic_info = await self.session_mgr.bp.get_base_mint_info_rpc_format_by_atomical_id(atomical_id) 
-                # Todo need to combine mempool atomicals 
+                atomical_basic_info = await self.session_mgr.bp.get_base_mint_info_rpc_format_by_atomical_id(atomical_id)
+                # Todo need to combine mempool atomicals
                 atomical_id_compact = location_id_bytes_to_compact(atomical_id)
                 atomicals_basic_infos.append(atomical_id_compact)
-            
+
             returned_utxos.append({
                 'txid': hash_to_hex_str(utxo.tx_hash),
                 'tx_hash': hash_to_hex_str(utxo.tx_hash),
                 'index': utxo.tx_pos,
                 'tx_pos': utxo.tx_pos,
                 'vout': utxo.tx_pos,
-                'height': utxo.height, 
+                'height': utxo.height,
                 'value': utxo.value,
                 'atomicals': atomicals_basic_infos
             })
@@ -1440,25 +1440,25 @@ class ElectrumX(SessionBase):
             return atomical
         # Check mempool
         atomical_in_mempool = await self.mempool.get_atomical_mint(atomical_id)
-        if atomical_in_mempool == None: 
+        if atomical_in_mempool == None:
             raise RPCError(BAD_REQUEST, f'"{compact_atomical_id}" is not found')
         return atomical_in_mempool
-    
+
     async def atomical_id_get_ft_info(self, compact_atomical_id):
         atomical_id = compact_to_location_id_bytes(compact_atomical_id)
         atomical = await self.session_mgr.bp.get_base_mint_info_rpc_format_by_atomical_id(atomical_id)
         if atomical['subtype'] == 'decentralized':
             atomical = await self.session_mgr.bp.get_dft_mint_info_rpc_format_by_atomical_id(atomical_id)
-        elif atomical['subtype'] == 'direct': 
+        elif atomical['subtype'] == 'direct':
             atomical = await self.session_mgr.bp.get_ft_mint_info_rpc_format_by_atomical_id(atomical_id)
-        else: 
+        else:
             raise RPCError(BAD_REQUEST, f'"{compact_atomical_id}" is not a fungible token (FT)')
-        
+
         if atomical:
             return atomical
         # Check mempool
         atomical_in_mempool = await self.mempool.get_atomical_mint(atomical_id)
-        if atomical_in_mempool == None: 
+        if atomical_in_mempool == None:
             raise RPCError(BAD_REQUEST, f'"{compact_atomical_id}" is not found')
         return atomical_in_mempool
 
@@ -1467,7 +1467,7 @@ class ElectrumX(SessionBase):
         atomical = await self.atomical_id_get(compact_atomical_id)
         height = self.session_mgr.bp.height
         self.db.populate_extended_mod_state_latest_atomical_info(atomical_id, atomical, height)
-        await self.db.populate_extended_location_atomical_info(atomical_id, atomical)  
+        await self.db.populate_extended_location_atomical_info(atomical_id, atomical)
         return atomical
 
     async def atomical_id_get_state_history(self, compact_atomical_id):
@@ -1475,17 +1475,17 @@ class ElectrumX(SessionBase):
         atomical = await self.atomical_id_get(compact_atomical_id)
         height = self.session_mgr.bp.height
         self.db.populate_extended_mod_state_history_atomical_info(atomical_id, atomical, height)
-        await self.db.populate_extended_location_atomical_info(atomical_id, atomical)  
+        await self.db.populate_extended_location_atomical_info(atomical_id, atomical)
         return atomical
- 
+
     async def atomical_id_get_events(self, compact_atomical_id):
         atomical_id = compact_to_location_id_bytes(compact_atomical_id)
         atomical = await self.atomical_id_get(compact_atomical_id)
         height = self.session_mgr.bp.height
         self.db.populate_extended_events_atomical_info(atomical_id, atomical, height)
-        await self.db.populate_extended_location_atomical_info(atomical_id, atomical)  
+        await self.db.populate_extended_location_atomical_info(atomical_id, atomical)
         return atomical
- 
+
     async def atomical_id_get_tx_history(self, compact_atomical_id):
         atomical_id = compact_to_location_id_bytes(compact_atomical_id)
         atomical = await self.atomical_id_get(compact_atomical_id)
@@ -1532,7 +1532,7 @@ class ElectrumX(SessionBase):
     async def atomicals_list_get(self, limit, offset, asc):
         atomicals = await self.db.get_atomicals_list(limit, offset, asc)
         atomicals_populated = []
-        for atomical_id in atomicals: 
+        for atomical_id in atomicals:
             atomical = await self.atomical_id_get(location_id_bytes_to_compact(atomical_id))
             atomicals_populated.append(atomical)
         return {'global': await self.get_summary_info(), 'result': atomicals_populated }
@@ -1540,7 +1540,7 @@ class ElectrumX(SessionBase):
     async def atomicals_num_to_id(self, limit, offset, asc):
         atomicals_num_to_id_map = await self.db.get_num_to_id(limit, offset, asc)
         atomicals_num_to_id_map_reformatted = {}
-        for num, id in atomicals_num_to_id_map.items(): 
+        for num, id in atomicals_num_to_id_map.items():
             atomicals_num_to_id_map_reformatted[num] = location_id_bytes_to_compact(id)
         return {'global': await self.get_summary_info(), 'result': atomicals_num_to_id_map_reformatted }
 
@@ -1583,7 +1583,7 @@ class ElectrumX(SessionBase):
         conf = [{'tx_hash': hash_to_hex_str(tx_hash), 'height': height}
                 for tx_hash, height in history]
         return conf + await self.unconfirmed_history(hashX)
-    
+
     async def atomicals_listscripthash(self, scripthash, Verbose=False):
         '''Return the list of Atomical UTXOs for an address'''
         hashX = scripthash_to_hashX(scripthash)
@@ -1595,42 +1595,42 @@ class ElectrumX(SessionBase):
 
     async def atomicals_get(self, compact_atomical_id_or_atomical_number):
         compact_atomical_id = self.atomical_resolve_id(compact_atomical_id_or_atomical_number)
-        return {'global': await self.get_summary_info(), 'result': await self.atomical_id_get(compact_atomical_id)} 
+        return {'global': await self.get_summary_info(), 'result': await self.atomical_id_get(compact_atomical_id)}
 
     async def atomicals_dump(self):
         if True:
             self.db.dump()
-            return {'result': True} 
-        else: 
-            return {'result': False} 
+            return {'result': True}
+        else:
+            return {'result': False}
 
     async def atomicals_get_dft_mints(self, compact_atomical_id, limit=100, offset=0):
         atomical_id = compact_to_location_id_bytes(compact_atomical_id)
         entries = self.session_mgr.bp.get_distmints_by_atomical_id(atomical_id, limit, offset)
-        return {'global': await self.get_summary_info(), 'result': entries} 
-    
+        return {'global': await self.get_summary_info(), 'result': entries}
+
     async def atomicals_get_ft_info(self, compact_atomical_id_or_atomical_number):
         compact_atomical_id = self.atomical_resolve_id(compact_atomical_id_or_atomical_number)
-        return {'global': await self.get_summary_info(), 'result': await self.atomical_id_get_ft_info(compact_atomical_id)} 
+        return {'global': await self.get_summary_info(), 'result': await self.atomical_id_get_ft_info(compact_atomical_id)}
 
     async def atomicals_get_global(self, hashes=10):
-        return {'global': await self.get_summary_info(hashes)} 
+        return {'global': await self.get_summary_info(hashes)}
 
     async def atomicals_get_location(self, compact_atomical_id_or_atomical_number):
         compact_atomical_id = self.atomical_resolve_id(compact_atomical_id_or_atomical_number)
-        return {'global': await self.get_summary_info(), 'result': await self.atomical_id_get_location(compact_atomical_id)} 
- 
+        return {'global': await self.get_summary_info(), 'result': await self.atomical_id_get_location(compact_atomical_id)}
+
     async def atomical_get_state(self, compact_atomical_id_or_atomical_number, Verbose=False):
         compact_atomical_id = self.atomical_resolve_id(compact_atomical_id_or_atomical_number)
-        return {'global': await self.get_summary_info(), 'result': await self.atomical_id_get_state(compact_atomical_id, Verbose)} 
-    
+        return {'global': await self.get_summary_info(), 'result': await self.atomical_id_get_state(compact_atomical_id, Verbose)}
+
     async def atomical_get_state_history(self, compact_atomical_id_or_atomical_number):
         compact_atomical_id = self.atomical_resolve_id(compact_atomical_id_or_atomical_number)
-        return {'global': await self.get_summary_info(), 'result': await self.atomical_id_get_state_history(compact_atomical_id)} 
+        return {'global': await self.get_summary_info(), 'result': await self.atomical_id_get_state_history(compact_atomical_id)}
 
     async def atomical_get_events(self, compact_atomical_id_or_atomical_number):
         compact_atomical_id = self.atomical_resolve_id(compact_atomical_id_or_atomical_number)
-        return {'global': await self.get_summary_info(), 'result': await self.atomical_id_get_events(compact_atomical_id)} 
+        return {'global': await self.get_summary_info(), 'result': await self.atomical_id_get_events(compact_atomical_id)}
 
     def atomical_resolve_id(self, compact_atomical_id_or_atomical_number):
         compact_atomical_id = compact_atomical_id_or_atomical_number
@@ -1653,25 +1653,25 @@ class ElectrumX(SessionBase):
             assert_atomical_id(compact_atomical_id)
         else:
             compact_atomical_id = location_id_bytes_to_compact(self.get_atomical_id_by_atomical_number(compact_atomical_id_or_atomical_number))
-        return {'global': await self.get_summary_info(), 'result': await self.atomical_id_get_tx_history(compact_atomical_id)} 
+        return {'global': await self.get_summary_info(), 'result': await self.atomical_id_get_tx_history(compact_atomical_id)}
 
     async def atomicals_get_by_ticker(self, ticker):
         height = self.session_mgr.bp.height
         status, candidate_atomical_id, all_entries = self.session_mgr.bp.get_effective_ticker(ticker, height)
         formatted_entries = format_name_type_candidates_to_rpc(all_entries, self.session_mgr.bp.build_atomical_id_to_candidate_map(all_entries))
-        
+
         if candidate_atomical_id:
             candidate_atomical_id = location_id_bytes_to_compact(candidate_atomical_id)
-        
+
         found_atomical_id = None
         if status == 'verified':
             found_atomical_id = candidate_atomical_id
-        
+
         return_result = {
-            'status': status, 
-            'candidate_atomical_id': candidate_atomical_id, 
-            'atomical_id': found_atomical_id, 
-            'candidates': formatted_entries, 
+            'status': status,
+            'candidate_atomical_id': candidate_atomical_id,
+            'atomical_id': found_atomical_id,
+            'candidates': formatted_entries,
             'type': 'ticker'
         }
         return {
@@ -1683,19 +1683,19 @@ class ElectrumX(SessionBase):
         height = self.session_mgr.bp.height
         status, candidate_atomical_id, all_entries = self.session_mgr.bp.get_effective_container(container, height)
         formatted_entries = format_name_type_candidates_to_rpc(all_entries, self.session_mgr.bp.build_atomical_id_to_candidate_map(all_entries))
-        
+
         if candidate_atomical_id:
             candidate_atomical_id = location_id_bytes_to_compact(candidate_atomical_id)
-        
+
         found_atomical_id = None
         if status == 'verified':
             found_atomical_id = candidate_atomical_id
-        
+
         return_result = {
-            'status': status, 
-            'candidate_atomical_id': candidate_atomical_id, 
-            'atomical_id': found_atomical_id, 
-            'candidates': formatted_entries, 
+            'status': status,
+            'candidate_atomical_id': candidate_atomical_id,
+            'atomical_id': found_atomical_id,
+            'candidates': formatted_entries,
             'type': 'container'
         }
         return {
@@ -1706,7 +1706,7 @@ class ElectrumX(SessionBase):
         if not items or not isinstance(items, dict):
             return {}
         for item, value in items.items():
-            provided_id = value.get('id') 
+            provided_id = value.get('id')
             value['status'] = 'verified'
             if provided_id and isinstance(provided_id, bytes) and len(provided_id) == 36:
                 value['$id'] = location_id_bytes_to_compact(provided_id)
@@ -1716,7 +1716,7 @@ class ElectrumX(SessionBase):
         if not items or not isinstance(items, dict):
             return {}
         for item, value in items.items():
-            provided_id = value.get('id') 
+            provided_id = value.get('id')
             if provided_id and isinstance(provided_id, bytes) and len(provided_id) == 36:
                 value['$id'] = location_id_bytes_to_compact(provided_id)
         return auto_encode_bytes_elements(items)
@@ -1728,7 +1728,7 @@ class ElectrumX(SessionBase):
         found_atomical_id = None
         if status == 'verified':
             found_atomical_id = candidate_atomical_id
-        else: 
+        else:
             raise RPCError(BAD_REQUEST, f'Container not found')
 
         compact_atomical_id = location_id_bytes_to_compact(found_atomical_id)
@@ -1754,7 +1754,7 @@ class ElectrumX(SessionBase):
                     }
                 }
             }
-        else: 
+        else:
             container_mod_history = self.session_mgr.bp.get_mod_history(found_atomical_id, self.session_mgr.bp.height)
             current_height_latest_state = calculate_latest_state_from_mod_history(container_mod_history)
             items = current_height_latest_state.get('items', [])
@@ -1779,7 +1779,7 @@ class ElectrumX(SessionBase):
         formatted_entries = format_name_type_candidates_to_rpc(all_entries, self.session_mgr.bp.build_atomical_id_to_candidate_map(all_entries))
         if status == 'verified':
             found_atomical_id = candidate_atomical_id
-        else: 
+        else:
             self.logger.info(f'formatted_entries {formatted_entries}')
             raise RPCError(BAD_REQUEST, f'Container does not exist')
         status, candidate_atomical_id, all_entries = self.session_mgr.bp.get_effective_dmitem(found_atomical_id, item_name, height)
@@ -1790,16 +1790,16 @@ class ElectrumX(SessionBase):
         if status == 'verified':
             found_item_atomical_id = candidate_atomical_id
         return_result = {
-            'status': status, 
-            'candidate_atomical_id': candidate_atomical_id, 
-            'atomical_id': found_item_atomical_id, 
-            'candidates': formatted_entries, 
+            'status': status,
+            'candidate_atomical_id': candidate_atomical_id,
+            'atomical_id': found_item_atomical_id,
+            'candidates': formatted_entries,
             'type': 'item'
         }
         return {
             'result': return_result
         }
-    
+
     async def atomicals_get_by_container_item_validation(self, container, item_name, bitworkc, bitworkr, main_name, main_hash, proof, check_without_sealed):
         if not isinstance(container, str):
             raise RPCError(BAD_REQUEST, f'empty container')
@@ -1809,7 +1809,7 @@ class ElectrumX(SessionBase):
         formatted_entries = format_name_type_candidates_to_rpc(all_entries, self.session_mgr.bp.build_atomical_id_to_candidate_map(all_entries))
         if status == 'verified':
             found_parent_atomical_id = candidate_atomical_id
-        else: 
+        else:
             raise RPCError(BAD_REQUEST, f'Container does not exist')
         compact_atomical_id = location_id_bytes_to_compact(found_parent_atomical_id)
         container_info = await self.atomical_id_get(compact_atomical_id)
@@ -1821,7 +1821,7 @@ class ElectrumX(SessionBase):
         if container_dmint_status.get('status') != 'valid':
             errors = container_dmint_status.get('errors')
             if check_without_sealed and errors and len(errors) == 1 and errors[0] == 'container not sealed':
-                pass 
+                pass
             else:
                 raise RPCError(BAD_REQUEST, f'Container dmint status is invalid')
 
@@ -1836,18 +1836,18 @@ class ElectrumX(SessionBase):
 
         # validate the proof data nonetheless
         if not proof or not isinstance(proof, list) or len(proof) == 0:
-            raise RPCError(BAD_REQUEST, f'Proof must be provided')    
-        
+            raise RPCError(BAD_REQUEST, f'Proof must be provided')
+
         applicable_rule, state_at_height = self.session_mgr.bp.get_applicable_rule_by_height(found_parent_atomical_id, item_name, height - MINT_SUBNAME_RULES_BECOME_EFFECTIVE_IN_BLOCKS, DMINT_PATH)
         proof_valid, target_vector, target_hash = validate_merkle_proof_dmint(dmint['merkle'], item_name, bitworkc, bitworkr, main_name, main_hash, proof)
         if applicable_rule and applicable_rule.get('matched_rule'):
             applicable_rule = applicable_rule.get('matched_rule')
-        
+
         return_result = {
-            'status': status, 
-            'candidate_atomical_id': candidate_atomical_id, 
-            'atomical_id': found_item_atomical_id, 
-            'candidates': formatted_entries, 
+            'status': status,
+            'candidate_atomical_id': candidate_atomical_id,
+            'atomical_id': found_item_atomical_id,
+            'candidates': formatted_entries,
             'type': 'item',
             'applicable_rule': applicable_rule,
             'proof_valid': proof_valid,
@@ -1863,19 +1863,19 @@ class ElectrumX(SessionBase):
         height = self.session_mgr.bp.height
         status, candidate_atomical_id, all_entries = self.session_mgr.bp.get_effective_realm(name, height)
         formatted_entries = format_name_type_candidates_to_rpc(all_entries, self.session_mgr.bp.build_atomical_id_to_candidate_map(all_entries))
-        
+
         if candidate_atomical_id:
             candidate_atomical_id = location_id_bytes_to_compact(candidate_atomical_id)
-        
+
         found_atomical_id = None
         if status == 'verified':
             found_atomical_id = candidate_atomical_id
-        
+
         return_result = {
-            'status': status, 
-            'candidate_atomical_id': candidate_atomical_id, 
-            'atomical_id': found_atomical_id, 
-            'candidates': formatted_entries, 
+            'status': status,
+            'candidate_atomical_id': candidate_atomical_id,
+            'atomical_id': found_atomical_id,
+            'candidates': formatted_entries,
             'type': 'realm'
         }
         return {
@@ -1891,16 +1891,16 @@ class ElectrumX(SessionBase):
 
         if candidate_atomical_id:
             candidate_atomical_id = location_id_bytes_to_compact(candidate_atomical_id)
-        
+
         found_atomical_id = None
         if status == 'verified':
             found_atomical_id = candidate_atomical_id
-        
+
         return_result = {
-            'status': status, 
-            'candidate_atomical_id': candidate_atomical_id, 
-            'atomical_id': found_atomical_id, 
-            'candidates': formatted_entries, 
+            'status': status,
+            'candidate_atomical_id': candidate_atomical_id,
+            'atomical_id': found_atomical_id,
+            'candidates': formatted_entries,
             'type': 'subrealm'
         }
         return {
@@ -1916,16 +1916,16 @@ class ElectrumX(SessionBase):
 
         if candidate_atomical_id:
             candidate_atomical_id = location_id_bytes_to_compact(candidate_atomical_id)
-        
+
         found_atomical_id = None
         if status == 'verified':
             found_atomical_id = candidate_atomical_id
-        
+
         return_result = {
-            'status': status, 
-            'candidate_atomical_id': candidate_atomical_id, 
-            'atomical_id': found_atomical_id, 
-            'candidates': formatted_entries, 
+            'status': status,
+            'candidate_atomical_id': candidate_atomical_id,
+            'atomical_id': found_atomical_id,
+            'candidates': formatted_entries,
             'type': 'dmitem'
         }
         return {
@@ -1948,7 +1948,7 @@ class ElectrumX(SessionBase):
         for name_part in split_names:
             if level == 0:
                 realm_status, last_found_realm, latest_all_entries_candidates = self.session_mgr.bp.get_effective_realm(name_part, height)
-            else: 
+            else:
                 self.logger.info(f'atomicals_get_realm_info {last_found_realm} {name_part}')
                 realm_status, last_found_realm, latest_all_entries_candidates = self.session_mgr.bp.get_effective_subrealm(last_found_realm, name_part, height)
             # stops when it does not found the realm component
@@ -1976,18 +1976,18 @@ class ElectrumX(SessionBase):
         realms_path_len = len(realms_path)
         if realms_path_len == 0:
             return {'result': {
-                    'atomical_id': None, 
-                    'top_level_realm_atomical_id': None, 
-                    'top_level_realm_name': None, 
-                    'nearest_parent_realm_atomical_id': None, 
-                    'nearest_parent_realm_name': None, 
-                    'request_full_realm_name': full_name, 
-                    'found_full_realm_name': None, 
+                    'atomical_id': None,
+                    'top_level_realm_atomical_id': None,
+                    'top_level_realm_name': None,
+                    'nearest_parent_realm_atomical_id': None,
+                    'nearest_parent_realm_name': None,
+                    'request_full_realm_name': full_name,
+                    'found_full_realm_name': None,
                     'missing_name_parts': full_name,
                     'candidates': format_name_type_candidates_to_rpc(latest_all_entries_candidates, self.session_mgr.bp.build_atomical_id_to_candidate_map(latest_all_entries_candidates)) }
                 }
         # Populate the subrealm minting rules for a parent atomical
-        that = self 
+        that = self
         def populate_rules_response_struct(parent_atomical_id, struct_to_populate, Verbose):
             current_height = that.session_mgr.bp.height
             subrealm_mint_mod_history = that.session_mgr.bp.get_mod_history(parent_atomical_id, current_height)
@@ -2010,7 +2010,7 @@ class ElectrumX(SessionBase):
         #
         # The number of realms returned and name components is equal, therefore the subrealm was found correctly
         if realms_path_len == total_name_parts:
-            nearest_parent_realm_atomical_id = None 
+            nearest_parent_realm_atomical_id = None
             nearest_parent_realm_name = None
             top_level_realm = realms_path[0]['atomical_id']
             top_level_realm_name = realms_path[0]['name_part']
@@ -2023,10 +2023,10 @@ class ElectrumX(SessionBase):
             final_subrealm_name = split_names[-1]
             applicable_rule_map = self.session_mgr.bp.build_applicable_rule_map(latest_all_entries_candidates, compact_to_location_id_bytes(nearest_parent_realm_atomical_id), final_subrealm_name)
             return_struct = {
-                'atomical_id': realms_path[-1]['atomical_id'], 
-                'top_level_realm_atomical_id': top_level_realm, 
-                'top_level_realm_name': top_level_realm_name, 
-                'nearest_parent_realm_atomical_id': nearest_parent_realm_atomical_id, 
+                'atomical_id': realms_path[-1]['atomical_id'],
+                'top_level_realm_atomical_id': top_level_realm,
+                'top_level_realm_name': top_level_realm_name,
+                'nearest_parent_realm_atomical_id': nearest_parent_realm_atomical_id,
                 'nearest_parent_realm_name': nearest_parent_realm_name,
                 'request_full_realm_name': full_name,
                 'found_full_realm_name': joined_name,
@@ -2035,12 +2035,12 @@ class ElectrumX(SessionBase):
             }
             populate_rules_response_struct(compact_to_location_id_bytes(nearest_parent_realm_atomical_id), return_struct, Verbose)
             return {'result': return_struct}
-        
+
         # The number of realms and components do not match, that is because at least the top level realm or intermediate subrealm was found
         # But the final subrealm does not exist yet
         # if realms_path_len < total_name_parts:
         # It is known if we got this far that realms_path_len < total_name_parts
-        nearest_parent_realm_atomical_id = None 
+        nearest_parent_realm_atomical_id = None
         nearest_parent_realm_name = None
         top_level_realm = realms_path[0]['atomical_id']
         top_level_realm_name = realms_path[0]['name_part']
@@ -2055,10 +2055,10 @@ class ElectrumX(SessionBase):
         final_subrealm_name = split_names[-1]
         applicable_rule_map = self.session_mgr.bp.build_applicable_rule_map(latest_all_entries_candidates, compact_to_location_id_bytes(nearest_parent_realm_atomical_id), final_subrealm_name)
         return_struct = {
-            'atomical_id': None, 
-            'top_level_realm_atomical_id': top_level_realm, 
-            'top_level_realm_name': top_level_realm_name, 
-            'nearest_parent_realm_atomical_id': nearest_parent_realm_atomical_id, 
+            'atomical_id': None,
+            'top_level_realm_atomical_id': top_level_realm,
+            'top_level_realm_name': top_level_realm_name,
+            'nearest_parent_realm_atomical_id': nearest_parent_realm_atomical_id,
             'nearest_parent_realm_name': nearest_parent_realm_name,
             'request_full_realm_name': full_name,
             'found_full_realm_name': joined_name,
@@ -2070,7 +2070,7 @@ class ElectrumX(SessionBase):
             populate_rules_response_struct(compact_to_location_id_bytes(nearest_parent_realm_atomical_id), return_struct, Verbose)
         return {'result': return_struct}
 
-    # Perform a search for tickers, containers, and realms  
+    # Perform a search for tickers, containers, and realms
     def atomicals_search_name_template(self, db_prefix, name_type_str, parent_prefix=None, prefix=None, Reverse=False, Limit=1000, Offset=0, is_verified_only=False):
         db_entries = self.db.get_name_entries_template_limited(db_prefix, parent_prefix, prefix, Reverse, Limit, Offset)
         formatted_results = []
@@ -2111,12 +2111,12 @@ class ElectrumX(SessionBase):
         if isinstance(prefix, str):
             prefix = prefix.encode()
         return self.atomicals_search_name_template(b'srlm', 'subrealm', parent_realm_id_long_form, prefix, Reverse, Limit, Offset, is_verified_only)
-    
+
     async def atomicals_search_containers(self, prefix=None, Reverse=False, Limit=100, Offset=0, is_verified_only=False):
         if isinstance(prefix, str):
             prefix = prefix.encode()
         return self.atomicals_search_name_template(b'co', 'collection', None, prefix, Reverse, Limit, Offset, is_verified_only)
- 
+
     async def atomicals_at_location(self, compact_location_id):
         '''Return the Atomicals at a specific location id```
         '''
@@ -2139,7 +2139,7 @@ class ElectrumX(SessionBase):
         '''Return the NFT balances for a scripthash address'''
         hashX = scripthash_to_hashX(scripthash)
         return await self.hashX_nft_balances_atomicals(hashX)
-    
+
     async def atomicals_get_holders(self, compact_atomical_id, limit=50, offset=0):
         '''Return the holder by a specific location id```
         '''
@@ -2184,10 +2184,10 @@ class ElectrumX(SessionBase):
                 continue
             atomicals = self.db.get_atomicals_by_utxo(utxo, True)
             atomicals_basic_infos = []
-            for atomical_id in atomicals: 
+            for atomical_id in atomicals:
                 # This call is efficient in that it's cached underneath
                 # For now we only show the atomical id because it can always be fetched separately and it will be more efficient
-                atomical_basic_info = await self.session_mgr.bp.get_base_mint_info_rpc_format_by_atomical_id(atomical_id) 
+                atomical_basic_info = await self.session_mgr.bp.get_base_mint_info_rpc_format_by_atomical_id(atomical_id)
                 atomical_id_compact = location_id_bytes_to_compact(atomical_id)
                 atomicals_id_map[atomical_id_compact] = atomical_basic_info
                 atomicals_basic_infos.append(atomical_id_compact)
@@ -2202,7 +2202,7 @@ class ElectrumX(SessionBase):
         return_struct = {
             'balances': {}
         }
-        for returned_utxo in returned_utxos: 
+        for returned_utxo in returned_utxos:
             for atomical_id_entry_compact in returned_utxo['atomicals']:
                 atomical_id_basic_info = atomicals_id_map[atomical_id_entry_compact]
                 atomical_id_compact = atomical_id_basic_info['atomical_id']
@@ -2232,10 +2232,10 @@ class ElectrumX(SessionBase):
                 continue
             atomicals = self.db.get_atomicals_by_utxo(utxo, True)
             atomicals_basic_infos = []
-            for atomical_id in atomicals: 
+            for atomical_id in atomicals:
                 # This call is efficient in that it's cached underneath
                 # For now we only show the atomical id because it can always be fetched separately and it will be more efficient
-                atomical_basic_info = await self.session_mgr.bp.get_base_mint_info_rpc_format_by_atomical_id(atomical_id) 
+                atomical_basic_info = await self.session_mgr.bp.get_base_mint_info_rpc_format_by_atomical_id(atomical_id)
                 atomical_id_compact = location_id_bytes_to_compact(atomical_id)
                 atomicals_id_map[atomical_id_compact] = atomical_basic_info
                 atomicals_basic_infos.append(atomical_id_compact)
@@ -2250,7 +2250,7 @@ class ElectrumX(SessionBase):
         return_struct = {
             'balances': {}
         }
-        for returned_utxo in returned_utxos: 
+        for returned_utxo in returned_utxos:
             for atomical_id_entry_compact in returned_utxo['atomicals']:
                 atomical_id_basic_info = atomicals_id_map[atomical_id_entry_compact]
                 atomical_id_compact = atomical_id_basic_info['atomical_id']
@@ -2308,10 +2308,10 @@ class ElectrumX(SessionBase):
                 continue
             atomicals = self.db.get_atomicals_by_utxo(utxo, True)
             atomicals_basic_infos = []
-            for atomical_id in atomicals: 
+            for atomical_id in atomicals:
                 # This call is efficient in that it's cached underneath
                 # For now we only show the atomical id because it can always be fetched separately and it will be more efficient
-                atomical_basic_info = await self.session_mgr.bp.get_base_mint_info_rpc_format_by_atomical_id(atomical_id) 
+                atomical_basic_info = await self.session_mgr.bp.get_base_mint_info_rpc_format_by_atomical_id(atomical_id)
                 atomical_id_compact = location_id_bytes_to_compact(atomical_id)
                 atomicals_id_map[atomical_id_compact] = atomical_basic_info
                 atomicals_basic_infos.append(atomical_id_compact)
@@ -2319,10 +2319,10 @@ class ElectrumX(SessionBase):
                 returned_utxos.append({'txid': hash_to_hex_str(utxo.tx_hash),
                 'index': utxo.tx_pos,
                 'vout': utxo.tx_pos,
-                'height': utxo.height, 
+                'height': utxo.height,
                 'value': utxo.value,
                 'atomicals': atomicals_basic_infos})
- 
+
         # Aggregate balances
         return_struct = {
             'global': await self.get_summary_info(),
@@ -2330,11 +2330,11 @@ class ElectrumX(SessionBase):
             'utxos': returned_utxos
         }
 
-        for returned_utxo in returned_utxos: 
+        for returned_utxo in returned_utxos:
             for atomical_id_entry_compact in returned_utxo['atomicals']:
                 atomical_id_basic_info = atomicals_id_map[atomical_id_entry_compact]
                 atomical_id_ref = atomical_id_basic_info['atomical_id']
-                if return_struct['atomicals'].get(atomical_id_ref) == None: 
+                if return_struct['atomicals'].get(atomical_id_ref) == None:
                     return_struct['atomicals'][atomical_id_ref] = {
                         'atomical_id': atomical_id_ref,
                         'atomical_number': atomical_id_basic_info['atomical_number'],
@@ -2342,7 +2342,7 @@ class ElectrumX(SessionBase):
                         'confirmed': 0,
                         # 'subtype': atomical_id_basic_info.get('subtype'),
                         'data': atomical_id_basic_info
-                    } 
+                    }
                     if atomical_id_basic_info.get('$realm'):
                         return_struct['atomicals'][atomical_id_ref]['subtype'] = atomical_id_basic_info.get('subtype')
                         return_struct['atomicals'][atomical_id_ref]['request_realm_status'] = atomical_id_basic_info.get('$request_realm_status')
@@ -2402,13 +2402,13 @@ class ElectrumX(SessionBase):
                         return_struct['atomicals'][atomical_id_ref]['ticker_candidates'] = atomical_id_basic_info.get('$ticker_candidates')
                         return_struct['atomicals'][atomical_id_ref]['request_ticker_status'] =  atomical_id_basic_info.get('$request_ticker_status')
                         return_struct['atomicals'][atomical_id_ref]['request_ticker'] = atomical_id_basic_info.get('$request_ticker')
-                
+
                 if returned_utxo['height'] <= 0:
                     return_struct['atomicals'][atomical_id_ref]['unconfirmed'] += returned_utxo['value']
                 else:
                     return_struct['atomicals'][atomical_id_ref]['confirmed'] += returned_utxo['value']
-        
-        return return_struct 
+
+        return return_struct
 
     async def atomicals_get_tx(self, txids):
         return await self.atomical_get_tx(txids)
@@ -2657,7 +2657,7 @@ class ElectrumX(SessionBase):
         try:
             hex_hash = await self.session_mgr.broadcast_transaction_validated(raw_tx, False)
             return hex_hash
-        except AtomicalsValidationError as e: 
+        except AtomicalsValidationError as e:
             self.logger.info(f'error validating atomicals transaction: {e}')
             raise RPCError(ATOMICALS_INVALID_TX, 'the transaction was rejected by '
                            f'atomicals rules.\n\n{e}\n[{raw_tx}]')
@@ -2676,7 +2676,7 @@ class ElectrumX(SessionBase):
             self.logger.info(f'error sending transaction: {message}')
             raise RPCError(BAD_REQUEST, 'the transaction was rejected by '
                            f'network rules.\n\n{message}\n[{raw_tx}]')
-        except AtomicalsValidationError as e: 
+        except AtomicalsValidationError as e:
             self.logger.info(f'error validating atomicals transaction: {e}')
             raise RPCError(ATOMICALS_INVALID_TX, 'the transaction was rejected by '
                            f'atomicals rules.\n\n{e}\n[{raw_tx}]')
@@ -2777,7 +2777,7 @@ class ElectrumX(SessionBase):
     async def compact_fee_histogram(self):
         self.bump_cost(1.0)
         return await self.mempool.compact_fee_histogram()
-    
+
     async def get_transaction_detail(self, txid, height=None, tx_num=-1):
         tx_hash = hex_str_to_hash(txid)
         res = self.session_mgr._tx_detail_cache.get(tx_hash)
@@ -2823,7 +2823,7 @@ class ElectrumX(SessionBase):
         }
         if operation_found_at_inputs:
             res["info"]["payload"] = operation_found_at_inputs.get("payload", {})
-        if blueprint_builder.is_mint and operation_found_at_inputs["op"] in ["dmt", "ft"]:
+        if blueprint_builder.is_mint and operation_found_at_inputs and operation_found_at_inputs["op"] in ["dmt", "ft"]:
             if operation_found_at_inputs["op"] == "dmt":
                 res["op"] = "mint-dft"
             if operation_found_at_inputs["op"] == "ft":
@@ -2854,7 +2854,7 @@ class ElectrumX(SessionBase):
                     }
             else:
                 res["op"] = f"{res['op']}-failed"
-        elif operation_found_at_inputs and operation_found_at_inputs["op"] == "nft":
+        elif operation_found_at_inputs and operation_found_at_inputs and operation_found_at_inputs["op"] == "nft":
             mint_info = operation_found_at_inputs.get("payload", {}).get("args", {})
             if mint_info.get('request_realm'):
                 res["op"] = "mint-nft-realm"
@@ -2870,7 +2870,7 @@ class ElectrumX(SessionBase):
                 expected_output_index = 0
                 location = tx_hash + util.pack_le_uint32(expected_output_index)
                 txout = tx.outputs[expected_output_index]
-                atomical_id = location_id_bytes_to_compact(atomicals_receive_at_outputs[expected_output_index][0]["atomical_id"])
+                atomical_id = location_id_bytes_to_compact(atomicals_receive_at_outputs[expected_output_index][-1]["atomical_id"])
                 res["info"] = {
                     "atomical_id": atomical_id,
                     "location_id": location_id_bytes_to_compact(location),
@@ -2998,7 +2998,7 @@ class ElectrumX(SessionBase):
 
     async def atomicals_transaction(self, txid):
         return await self.get_transaction_detail(txid)
-    
+
     async def get_transaction_detail_by_height(self, height, limit, offset, op_type, reverse=True):
         res = []
         txs_list = []
@@ -3007,7 +3007,7 @@ class ElectrumX(SessionBase):
             # get operation by db method
             tx_num, _ = self.db.get_tx_num_height_from_tx_hash(hex_str_to_hash(tx))
             txs_list.append({
-                "tx_num": tx_num, 
+                "tx_num": tx_num,
                 "tx_hash": tx,
                 "height": height
             })
@@ -3019,13 +3019,13 @@ class ElectrumX(SessionBase):
                 res.append(data)
         total = len(res)
         return res[offset:offset+limit], total
-    
+
     # get the whole transaction by block height
     # return transaction detail
     async def transaction_by_height(self, height, limit=10, offset=0, op_type=None, reverse=True):
         res, total = await self.get_transaction_detail_by_height(height, limit, offset, op_type, reverse)
         return {"result": res, "total": total, "limit": limit, "offset": offset}
-    
+
     # get transaction by atomical id
     async def transaction_by_atomical_id(self, compact_atomical_id_or_atomical_number, limit=10, offset=0, op_type=None, reverse=True):
         res = []
@@ -3050,7 +3050,7 @@ class ElectrumX(SessionBase):
                 if (op_type and data["op"] == op_type) or not op_type:
                     res.append(data)
         return {"result": res, "total": total, "limit": limit, "offset": offset}
-    
+
     # get transaction by scripthash
     async def transaction_by_scripthash(self, scripthash, limit=10, offset=0, op_type=None, reverse=True):
         hashX = scripthash_to_hashX(scripthash)
