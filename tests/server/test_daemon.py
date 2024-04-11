@@ -1,3 +1,5 @@
+from typing import Any
+
 import aiohttp
 import asyncio
 import json
@@ -79,7 +81,7 @@ class ClientSessionGood:
         self.count = 0
         self.expected_url = urls[0]
 
-    def post(self, url, data=""):
+    def post(self, url, data="", **kwargs: Any):
         assert url == self.expected_url
         request, request_id = JSONRPCLoose.message_to_item(data.encode())
         method, args, result = self.triples[self.count]
@@ -101,13 +103,13 @@ class ClientSessionGood:
 
 class ClientSessionBadAuth:
 
-    def post(self, url, data=""):
+    def post(self, url, data="", **kwargs: Any):
          return HTMLResponse('', 'Unauthorized', 401)
 
 
 class ClientSessionWorkQueueFull(ClientSessionGood):
 
-    def post(self, url, data=""):
+    def post(self, url, data="", **kwargs: Any):
         self.post = super().post
         return HTMLResponse('Work queue depth exceeded',
                             'Internal server error', 500)
@@ -120,7 +122,7 @@ class ClientSessionPostError(ClientSessionGood):
         self.exception = exception
         self.n = 0
 
-    def post(self, url, data=""):
+    def post(self, url, data="", **kwargs: Any):
         self.n += 1
         if self.n == 1:
             raise self.exception
@@ -129,7 +131,7 @@ class ClientSessionPostError(ClientSessionGood):
 
 class ClientSessionFailover(ClientSessionGood):
 
-    def post(self, url, data=""):
+    def post(self, url, data="", **kwargs: Any):
         # If not failed over; simulate disconnecting
         if url == self.expected_url:
             raise aiohttp.ServerDisconnectedError
