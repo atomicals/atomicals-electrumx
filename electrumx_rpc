@@ -16,8 +16,11 @@ import json
 import sys
 from os import environ
 
+from dotenv import load_dotenv
 from aiorpcx import timeout_after, connect_rs
 import electrumx.lib.text as text
+
+load_dotenv()
 
 
 simple_commands = {

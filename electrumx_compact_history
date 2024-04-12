@@ -37,8 +37,11 @@ import sys
 import traceback
 from os import environ
 
+from dotenv import load_dotenv
 from electrumx import Env
 from electrumx.server.db import DB
+
+load_dotenv()
 
 
 async def compact_history():

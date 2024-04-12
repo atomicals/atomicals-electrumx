@@ -96,6 +96,7 @@ class HttpHandler(object):
         # self.transport = transport
         self.logger = util.class_logger(__name__, self.__class__.__name__)
         self.session_mgr = session_mgr
+        self.subscribe_headers = False
         self.db = db
         self.mempool = mempool
         self.peer_mgr = peer_mgr
@@ -1570,6 +1571,8 @@ class HttpHandler(object):
         found_atomical_id = None
         if status == 'verified':
             found_atomical_id = candidate_atomical_id
+        if status is None:
+            formatted_entries = []
 
         return_result = {
             'status': status,
@@ -1600,6 +1603,8 @@ class HttpHandler(object):
         found_atomical_id = None
         if status == 'verified':
             found_atomical_id = candidate_atomical_id
+        if status is None:
+            formatted_entries = []
 
         return_result = {
             'status': status,
@@ -1630,6 +1635,8 @@ class HttpHandler(object):
         found_atomical_id = None
         if status == 'verified':
             found_atomical_id = candidate_atomical_id
+        if status is None:
+            formatted_entries = []
 
         return_result = {
             'status': status,
@@ -1658,6 +1665,8 @@ class HttpHandler(object):
         found_atomical_id = None
         if status == 'verified':
             found_atomical_id = candidate_atomical_id
+        if status is None:
+            formatted_entries = []
 
         return_result = {
             'status': status,
@@ -1684,6 +1693,8 @@ class HttpHandler(object):
         found_atomical_id = None
         if status == 'verified':
             found_atomical_id = candidate_atomical_id
+        if status is None:
+            formatted_entries = []
 
         return_result = {
             'status': status,
@@ -1719,6 +1730,9 @@ class HttpHandler(object):
             candidate_atomical_id = location_id_bytes_to_compact(candidate_atomical_id)
         if status == 'verified':
             found_item_atomical_id = candidate_atomical_id
+        if status is None:
+            formatted_entries = []
+
         return_result = {
             'status': status, 
             'candidate_atomical_id': candidate_atomical_id, 

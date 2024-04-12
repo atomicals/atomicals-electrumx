@@ -1046,11 +1046,10 @@ class SessionManager:
         height_changed = height != self.notified_height
         if height_changed:
             await self._refresh_hsub_results(height)
-            # Invalidate our history cache for touched hashXs
-            cache = self._history_cache
+            # Invalidate all history caches since they rely on block heights
+            self._history_cache.clear()
+            # Invalidate our op cache for touched hashXs
             op_cache = self._history_op_cache
-            for hashX in set(cache).intersection(touched):
-                del cache[hashX]
             for hashX in set(op_cache).intersection(touched):
                 op_cache.pop(hashX, None)
                 self.logger.info(f"refresh op cache {self.notified_height}")
@@ -1338,8 +1337,9 @@ class ElectrumX(SessionBase):
 
     async def headers_subscribe(self):
         '''Subscribe to get raw headers of new blocks.'''
-        self.subscribe_headers = True
-        self.bump_cost(0.25)
+        if not self.subscribe_headers:
+            self.subscribe_headers = True
+            self.bump_cost(0.25)
         return await self.subscribe_headers_result()
 
     async def add_peer(self, features):
