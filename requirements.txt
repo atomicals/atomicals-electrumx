@@ -15,4 +15,3 @@ plyvel
 
 # For RocksDB
 Cython
-rocksdb @ git+https://github.com/jansegre/python-rocksdb@6177a68
