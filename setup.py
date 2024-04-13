@@ -29,7 +29,7 @@ setuptools.setup(
     extras_require={
         'dev': ['objgraph'],
         'rapidjson': ['python-rapidjson>=0.4.1,<2.0'],
-        'rocksdb': ['rocksdb @ git+https://github.com/jansegre/python-rocksdb@6177a68'],
+        'rocksdb': ['Cython', 'rocksdb @ git+https://github.com/jansegre/python-rocksdb@6177a68'],
         'ujson': ['ujson>=2.0.0,<4.0.0'],
         'uvloop': ['uvloop>=0.14'],
         # For various coins
