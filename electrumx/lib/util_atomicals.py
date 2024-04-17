@@ -39,7 +39,7 @@ import krock32
 import pickle
 import math
 from electrumx.lib.hash import sha256, double_sha256
-from cbor2 import dumps, loads, CBORDecodeError
+from cbor2 import dumps, loads, CBORDecodeError, CBORTag
 from collections.abc import Mapping
 from functools import reduce
 from merkletools import MerkleTools
@@ -1290,6 +1290,10 @@ def auto_encode_bytes_elements(state):
             '$len': sys.getsizeof(state),
             '$auto': True
         }
+    
+    if isinstance(state, CBORTag):
+        return dumps(state)
+    
     if not isinstance(state, dict) and not isinstance(state, list):
         return state 
     
@@ -1297,8 +1301,8 @@ def auto_encode_bytes_elements(state):
         reformatted_list = []
         for item in state:
             reformatted_list.append(auto_encode_bytes_elements(item))
-        return reformatted_list 
-
+        return reformatted_list
+    
     for key, value in state.items():
         state[key] = auto_encode_bytes_elements(value)
     return state 
