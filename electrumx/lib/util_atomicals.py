@@ -1282,7 +1282,8 @@ def encode_tx_hash_hex(state):
         cloned_state[encode_tx_hash_hex(key)] = encode_tx_hash_hex(value)
     return cloned_state 
 
-# Auto detect any bytes data and encoded it
+
+# Auto encodes data into structured bytes data.
 def auto_encode_bytes_elements(state):
     if isinstance(state, bytes):
         return {
@@ -1290,23 +1291,23 @@ def auto_encode_bytes_elements(state):
             '$len': sys.getsizeof(state),
             '$auto': True
         }
-    
+
     if isinstance(state, CBORTag):
-        return dumps(state)
-    
-    if not isinstance(state, dict) and not isinstance(state, list):
-        return state 
-    
+        dumped_bytes = dumps(state)
+        return auto_encode_bytes_elements(dumped_bytes)
+
     if isinstance(state, list):
         reformatted_list = []
         for item in state:
             reformatted_list.append(auto_encode_bytes_elements(item))
         return reformatted_list
-    
-    for key, value in state.items():
-        state[key] = auto_encode_bytes_elements(value)
-    return state 
- 
+
+    if isinstance(state, dict):
+        for key, value in state.items():
+            state[key] = auto_encode_bytes_elements(value)
+
+    return state
+
 
 # Base atomical commit to reveal delay allowed
 def is_within_acceptable_blocks_for_general_reveal(commit_height, reveal_location_height):

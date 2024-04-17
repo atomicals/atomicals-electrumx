@@ -1619,7 +1619,7 @@ class BlockProcessor:
         # Make a deep copy of the data payload and remove the reserved sections
         copied_data_state = {}
         for k, v in data_payload.items():
-            if k != "args":
+            if k != 'args':
                 copied_data_state[k] = v
         init_payload_bytes = dumps(copied_data_state)
         op_struct = {
