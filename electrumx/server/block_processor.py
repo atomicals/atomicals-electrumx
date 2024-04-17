@@ -548,13 +548,15 @@ class BlockProcessor:
         if blueprint_builder.get_are_fts_burned() or not blueprint_builder.cleanly_assigned:
             encoded_atomicals_spent_at_inputs = encode_atomical_ids_hex(atomicals_spent_at_inputs)
             encoded_ft_output_blueprint = auto_encode_bytes_items(encode_atomical_ids_hex(ft_output_blueprint))
+            outputs = encoded_ft_output_blueprint['outputs']
+            fts_burned = encoded_ft_output_blueprint['fts_burned']
             raise AtomicalsValidationError(
                 f'Invalid FT token inputs/outputs:\n'
                 f'tx_hash={hash_to_hex_str(tx_hash)}\n'
                 f'operations_found_at_inputs={operations_found_at_inputs}\n'
                 f'atomicals_spent_at_inputs={encoded_atomicals_spent_at_inputs}\n'
-                f'ft_output_blueprint.outputs={encoded_ft_output_blueprint['outputs']}\n'
-                f'ft_output_blueprint.fts_burned={encoded_ft_output_blueprint['fts_burned']}'
+                f'ft_output_blueprint.outputs={outputs}\n'
+                f'ft_output_blueprint.fts_burned={fts_burned}'
             )
     
     # Query general data including the cache
