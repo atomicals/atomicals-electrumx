@@ -2567,7 +2567,11 @@ class BlockProcessor:
                 f'parent container not found atomical_id={atomical_id}, '
                 f'parent_container={parent_container}',
             )
-        atomical['$parent_container_name'] = parent_container['$container']
+        # The parent container name may not be populated if it's still in the mempool,
+        # or it's not settled realm request yet. Therefore, check to make sure it exists
+        # before we can populate this dmitem's container name.
+        if parent_container.get('$container'):
+            atomical['$parent_container_name'] = parent_container['$container']
         if status == 'verified' and candidate_id == atomical['atomical_id']:
             atomical['subtype'] = 'dmitem'
             atomical['$dmitem'] = request_dmitem
