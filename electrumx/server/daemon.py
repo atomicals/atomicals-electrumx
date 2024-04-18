@@ -54,12 +54,16 @@ class Daemon:
             max_workqueue=10,
             init_retry=0.25,
             max_retry=4.0,
+            proxy_url=None
     ):
         self.coin = coin
         self.logger = class_logger(__name__, self.__class__.__name__)
         self.url_index = None
         self.urls = []
         self.set_url(url)
+        self.proxy_url: str | None = proxy_url
+        if proxy_url:
+            self.logger.info(f'Using proxy {proxy_url} for daemon.')
         # Limit concurrent RPC calls to this number.
         # See DEFAULT_HTTP_WORKQUEUE in bitcoind, which is typically 16
         self.workqueue_semaphore = asyncio.Semaphore(value=max_workqueue)
@@ -67,7 +71,7 @@ class Daemon:
         self.max_retry = max_retry
         self._height = None
         self.available_rpcs = {}
-        self.session = None
+        self.session: aiohttp.ClientSession | None = None
 
         self._networkinfo_cache = (None, 0)
         self._networkinfo_lock = asyncio.Lock()
@@ -117,7 +121,7 @@ class Daemon:
     async def _send_data(self, data):
         async with self.workqueue_semaphore:
             if self.session:
-                async with self.session.post(self.current_url(), data=data) as resp:
+                async with self.session.post(self.current_url(), data=data, proxy=self.proxy_url) as resp:
                     kind = resp.headers.get('Content-Type', None)
                     if kind == 'application/json':
                         return await resp.json(loads=json_deserialize)

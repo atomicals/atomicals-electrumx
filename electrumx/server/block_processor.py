@@ -1617,9 +1617,10 @@ class BlockProcessor:
         height = mint_info['reveal_location_height']
 
         # Make a deep copy of the data payload and remove the reserved sections
-        copied_data_state = copy.deepcopy(data_payload)
-        # Remove any of the reserved sections
-        copied_data_state.pop('args', None)
+        copied_data_state = {}
+        for k, v in data_payload.items():
+            if k != 'args':
+                copied_data_state[k] = v
         init_payload_bytes = dumps(copied_data_state)
         op_struct = {
             'op': 'mod',
@@ -2566,7 +2567,11 @@ class BlockProcessor:
                 f'parent container not found atomical_id={atomical_id}, '
                 f'parent_container={parent_container}',
             )
-        atomical['$parent_container_name'] = parent_container['$container']
+        # The parent container name may not be populated if it's still in the mempool,
+        # or it's not settled realm request yet. Therefore, check to make sure it exists
+        # before we can populate this dmitem's container name.
+        if parent_container.get('$container'):
+            atomical['$parent_container_name'] = parent_container['$container']
         if status == 'verified' and candidate_id == atomical['atomical_id']:
             atomical['subtype'] = 'dmitem'
             atomical['$dmitem'] = request_dmitem
