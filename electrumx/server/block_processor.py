@@ -1617,10 +1617,7 @@ class BlockProcessor:
         height = mint_info['reveal_location_height']
 
         # Make a deep copy of the data payload and remove the reserved sections
-        copied_data_state = {}
-        for k, v in data_payload.items():
-            if k != 'args':
-                copied_data_state[k] = v
+        copied_data_state = {k: v for k, v in data_payload.items() if k != "args"}
         init_payload_bytes = dumps(copied_data_state)
         op_struct = {
             'op': 'mod',
