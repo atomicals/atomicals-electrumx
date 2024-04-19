@@ -1217,7 +1217,7 @@ def parse_protocols_operations_from_witness_array(tx, tx_hash, allow_args_bytes)
             # Also enforce that if there are meta, args, or ctx fields that they must be dicts
             # This is done to ensure that these fields are always easily parseable and do not contain unexpected data which could cause parsing problems later
             # Ensure that they are not allowed to contain bytes like objects
-            if not is_sanitized_dict_whitelist_only(decoded_object.get('meta', {})) or not is_sanitized_dict_whitelist_only(decoded_object.get('args', {}), allow_args_bytes) or not is_sanitized_dict_whitelist_only(decoded_object.get('ctx', {})) or not is_sanitized_dict_whitelist_only(decoded_object.get('init', {}), True):
+            if not is_sanitized_dict_whitelist_only(decoded_object) or not is_sanitized_dict_whitelist_only(decoded_object.get('meta', {})) or not is_sanitized_dict_whitelist_only(decoded_object.get('args', {}), allow_args_bytes) or not is_sanitized_dict_whitelist_only(decoded_object.get('ctx', {})) or not is_sanitized_dict_whitelist_only(decoded_object.get('init', {}), True):
                 print(f'parse_protocols_operations_from_witness_array found {op_name} but decoded CBOR payload has an args, meta, ctx, or init that has not permitted data type {tx} {decoded_object}. Skipping tx input...')
                 continue  
 
