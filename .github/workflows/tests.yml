@@ -21,6 +21,11 @@ jobs:
         with:
           python-version: '3.10'
           cache: 'pip'
+      - name: Setup Python caches
+        uses: actions/cache@v2
+        with:
+          path: ${{ env.pythonLocation }}
+          key: ${{ env.pythonLocation }}-${{ hashFiles('setup.py','requirements.txt','requirements-test.txt') }}
       - name: Install dependencies
         run: |
           sudo apt-get update

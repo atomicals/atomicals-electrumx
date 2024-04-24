@@ -32,7 +32,7 @@ def scripthash_to_hashX(scripthash):
     except (ValueError, TypeError):
         pass
     raise RPCError(BAD_REQUEST, f'{scripthash} is not a valid script hash')
-    
+
 
 def assert_atomical_id(value):
     '''Raise an RPCError if the value is not a valid atomical id
@@ -120,21 +120,21 @@ class HttpHandler(object):
             json_data = await request.json()
             params = json_data.get("params", [])
         return dict(zip(range(len(params)), params))
-    
+
     async def get_rpc_server(self):
         for service in self.env.services:
             if service.protocol == 'tcp':
                 return service
-            
+
     def remote_address(self):
         '''Returns a NetAddress or None if not connected.'''
         return self.transport.remote_address()
-    
+
     @classmethod
     def protocol_min_max_strings(cls):
         return [util.version_string(ver)
                 for ver in (cls.PROTOCOL_MIN, cls.PROTOCOL_MAX)]
-            
+
     @classmethod
     def server_features(cls, env):
         '''Return the server features dictionary.'''
@@ -155,7 +155,7 @@ class HttpHandler(object):
             'hash_function': 'sha256',
             'services': [str(service) for service in env.report_services],
         }
-    
+
     def is_tor(self):
         '''Try to detect if the connection is to a tor hidden service we are
         running.'''
@@ -180,7 +180,7 @@ class HttpHandler(object):
             'branch': [hash_to_hex_str(elt) for elt in branch],
             'root': hash_to_hex_str(root),
         }
-    
+
     async def address_listunspent(self, request):
         '''Return the list of UTXOs of an address.'''
         addrs = request.match_info.get('addrs', '')
@@ -210,141 +210,6 @@ class HttpHandler(object):
                "unconfirmedBalanceSat": addr_balance["unconfirmed"]}
         return web.json_response(res)
 
-    async def history(self, request):
-        '''Query parameters check.'''
-        addrs = request.match_info.get('addrs', '')
-        query_str = request.rel_url.query
-        query_from = util.parse_int(query_str['from'], 0) if 'from' in query_str else 0
-        query_to = util.parse_int(query_str['to'], MAX_TX_QUERY) if 'to' in query_str else MAX_TX_QUERY
-        if query_from < 0:
-            return web.Response(status=400, text=f'Invalid state: "from" ({query_from}) is expected to be greater '
-            f'than or equal to 0')
-
-        if query_to < 0:
-            return web.Response(status=400, text=f'Invalid state: "to" ({query_to}) is expected to be greater '
-            f'than or equal to 0')
-
-        if query_from > query_to:
-            return web.Response(status=400, text=f'Invalid state: "from" ({query_from}) is '
-            f'expected to be less than "to" ({query_to})')
-
-        if not addrs:
-            return web.Response(status=404)
-
-        query_to = query_to if query_to - query_from < MAX_TX_QUERY else query_from + MAX_TX_QUERY
-
-        list_addr = list(dict.fromkeys(addrs.split(',')))
-        items = list()
-        list_history = []
-        for address in list_addr:
-            list_history = list_history + await self.address_get_history(address)
-        for i in range(len(list_history)):
-            if i < query_from or i >= query_to:
-                continue
-            item = list_history[i]
-            blockheight = item["height"]
-            tx_detail = await self.transaction_get(item["tx_hash"], True)
-            items.append(await self.wallet_history(blockheight, tx_detail))
-        res = {"totalItems": len(list_history),
-               "from": query_from,
-               "to": query_to,
-               "items": items}
-        jsonStr = json.dumps(res, cls=DecimalEncoder)
-        return web.json_response(json.loads(jsonStr))
-
-    async def wallet_history(self, blockheight, tx_detail):
-        txid = tx_detail["txid"]
-        confirmations = tx_detail["confirmations"] if 'confirmations' in tx_detail else 0
-        if 'time' in tx_detail:
-            time = tx_detail["time"]
-        else:
-            # This is unconfirmed transaction, so get the time from memory pool
-            # The time the transaction entered the memory pool, Unix epoch time format
-            mempool = await self.mempool_get(True)
-            tx = mempool.get(txid)
-            if tx is not None:
-                time = tx["time"] if 'time' in tx else None
-            else:
-                time = None
-        if time is None:
-            raise RPCError(BAD_REQUEST, f'cannot get the transaction\'s time')
-        list_vin = tx_detail["vin"]
-        list_vout = tx_detail["vout"]
-        list_final_vin = [await self.vin_factory(item) for item in list_vin]
-        value_in = Decimal(str(reduce(lambda prev, x: prev + x["value"], list_final_vin, 0)))
-        value_out = Decimal(str(reduce(lambda prev, x: prev + x["value"], list_vout, 0)))
-        value_in_places = value_in.as_tuple().exponent
-        value_out_places = value_out.as_tuple().exponent
-        min_places = min(value_in_places, value_out_places)
-        if min_places < 0:
-            pos = abs(min_places)
-        else:
-            pos = 0
-        if value_in > 0:
-            fees = round(value_in - value_out, pos)
-        else:
-            '''from Block Reward'''
-            fees = 0
-
-        return {"txid": txid,
-                "blockheight": blockheight,
-                "vin": list_final_vin,
-                "vout": list_vout,
-                "valueOut": value_out,
-                "valueIn": value_in,
-                "fees": fees,
-                "confirmations": confirmations,
-                "time": time}
-
-    async def vin_factory(self, obj):
-        if 'txid' in obj:
-            txid = obj["txid"]
-            vout = obj["vout"]
-            tx_detail = await self.transaction_get(txid, True)
-            list_vout = tx_detail["vout"]
-            prev_vout = list_vout[vout]
-            value = prev_vout["value"]
-            addr = prev_vout["scriptPubKey"]["addresses"][0]
-            return {
-                "txid": txid,
-                "addr": addr,
-                "valueSat": value * self.coin.VALUE_PER_COIN,
-                "value": value
-            }
-        else:
-            '''from Block Reward'''
-            obj["value"] = 0
-            return obj
-
-    async def wallet_unspent(self, address, utxo, tx_detail):
-        height = utxo["height"]
-        satoshis = utxo["value"]
-        vout = utxo["tx_pos"]
-        confirmations = tx_detail["confirmations"] if 'confirmations' in tx_detail else 0
-        list_vout = tx_detail["vout"]
-        list_pick = []
-        for item in list_vout:
-            '''In case some vout will contain OP_RETURN and no addresses key'''
-            addr = item["scriptPubKey"]["addresses"][0] if 'addresses' in item["scriptPubKey"] else ""
-            n = item["n"] if 'n' in item else ""
-            if addr == address or (addr == "" and n == vout):
-                list_pick.append(item)
-
-        if len(list_pick) > 0:
-            obj = list_pick[0]
-            amount = obj["value"]
-            script_pub_key = obj["scriptPubKey"]["hex"]
-        else:
-            raise Exception(f'cannot get the transaction\'s list of outputs from address:{address}')
-        return {"address": address,
-                "txid": tx_detail["txid"],
-                "vout": vout,
-                "scriptPubKey": script_pub_key,
-                "amount": amount,
-                "satoshis": satoshis,
-                "height": height,
-                "confirmations": confirmations}
-    
     async def address_status(self, hashX):
         '''Returns an address status.
 
@@ -413,7 +278,7 @@ class HttpHandler(object):
                  'height': -tx.has_unconfirmed_inputs,
                  'fee': tx.fee}
                 for tx in await self.mempool.transaction_summaries(hashX)]
-    
+
     async def confirmed_history(self, hashX):
         # Note history is ordered
         history, cost = await self.session_mgr.limited_history(hashX)
@@ -427,7 +292,7 @@ class HttpHandler(object):
         conf = [{'tx_hash': hash_to_hex_str(tx_hash), 'height': height}
                 for tx_hash, height in history]
         return conf + await self.unconfirmed_history(hashX)
-    
+
     async def mempool_get(self, verbose=False):
         '''Returns all transaction ids in memory pool as a json array of string transaction ids
 
@@ -449,7 +314,7 @@ class HttpHandler(object):
         if atomical_in_mempool == None:
             raise RPCError(BAD_REQUEST, f'"{compact_atomical_id}" is not found')
         return atomical_in_mempool
-    
+
 
     async def atomicals_list_get(self, limit, offset, asc):
         atomicals = await self.db.get_atomicals_list(limit, offset, asc)
@@ -458,7 +323,7 @@ class HttpHandler(object):
             atomical = await self.atomical_id_get(location_id_bytes_to_compact(atomical_id))
             atomicals_populated.append(atomical)
         return {'global': await self.get_summary_info(), 'result': atomicals_populated }
-    
+
 
     async def atomical_id_get_ft_info(self, compact_atomical_id):
         atomical_id = compact_to_location_id_bytes(compact_atomical_id)
@@ -479,8 +344,8 @@ class HttpHandler(object):
         if atomical_in_mempool == None:
             raise RPCError(BAD_REQUEST, f'"{compact_atomical_id}" is not found')
         return atomical_in_mempool
-    
-    # Perform a search for tickers, containers, realms, subrealms 
+
+    # Perform a search for tickers, containers, realms, subrealms
     def atomicals_search_name_template(self, db_prefix, name_type_str, parent_prefix=None, prefix=None, Reverse=False, Limit=100, Offset=0, is_verified_only=False):
         search_prefix = b''
         if prefix:
@@ -510,7 +375,7 @@ class HttpHandler(object):
             elif not is_verified_only:
                 formatted_results.append(obj)
         return {'result': formatted_results}
-    
+
     def auto_populate_container_dmint_items_fields(self, items):
         if not items or not isinstance(items, dict):
             return {}
@@ -607,7 +472,7 @@ class HttpHandler(object):
         return_struct = {
             'balances': {}
         }
-        for returned_utxo in returned_utxos: 
+        for returned_utxo in returned_utxos:
             for atomical_id_entry_compact in returned_utxo['atomicals']:
                 atomical_id_basic_info = atomicals_id_map[atomical_id_entry_compact]
                 atomical_id_compact = atomical_id_basic_info['atomical_id']
@@ -700,7 +565,7 @@ class HttpHandler(object):
                     if returned_utxo['height'] > 0:
                         return_struct['balances'][atomical_id_compact]['confirmed'] += returned_utxo['atomicals'][atomical_id_compact]
         return return_struct
-    
+
     def atomical_resolve_id(self, compact_atomical_id_or_atomical_number):
         compact_atomical_id = compact_atomical_id_or_atomical_number
         if not isinstance(compact_atomical_id_or_atomical_number, int) and is_compact_atomical_id(compact_atomical_id_or_atomical_number):
@@ -711,13 +576,13 @@ class HttpHandler(object):
                 raise RPCError(BAD_REQUEST, f'not found atomical: {compact_atomical_id_or_atomical_number}')
             compact_atomical_id = location_id_bytes_to_compact(found_atomical_id)
         return compact_atomical_id
-    
+
     async def atomical_id_get_location(self, compact_atomical_id):
         atomical_id = compact_to_location_id_bytes(compact_atomical_id)
         atomical = await self.atomical_id_get(compact_atomical_id)
         await self.db.populate_extended_location_atomical_info(atomical_id, atomical)
         return atomical
-    
+
     async def get_summary_info(self, atomical_hash_count=10):
         if atomical_hash_count and atomical_hash_count > 100000:
                 atomical_hash_count = 100000
@@ -742,7 +607,7 @@ class HttpHandler(object):
             nextblockhash = self.db.get_atomicals_block_hash(next_db_height)
             ret['atomicals_block_hashes'][next_db_height] = nextblockhash
         return ret
-    
+
     async def atomical_id_get_state(self, compact_atomical_id, Verbose=False):
         atomical_id = compact_to_location_id_bytes(compact_atomical_id)
         atomical = await self.atomical_id_get(compact_atomical_id)
@@ -750,7 +615,7 @@ class HttpHandler(object):
         self.db.populate_extended_mod_state_latest_atomical_info(atomical_id, atomical, height)
         await self.db.populate_extended_location_atomical_info(atomical_id, atomical)
         return atomical
-    
+
     async def atomical_id_get_state_history(self, compact_atomical_id):
         atomical_id = compact_to_location_id_bytes(compact_atomical_id)
         atomical = await self.atomical_id_get(compact_atomical_id)
@@ -758,7 +623,7 @@ class HttpHandler(object):
         self.db.populate_extended_mod_state_history_atomical_info(atomical_id, atomical, height)
         await self.db.populate_extended_location_atomical_info(atomical_id, atomical)
         return atomical
-    
+
     async def atomical_id_get_events(self, compact_atomical_id):
         atomical_id = compact_to_location_id_bytes(compact_atomical_id)
         atomical = await self.atomical_id_get(compact_atomical_id)
@@ -766,7 +631,7 @@ class HttpHandler(object):
         self.db.populate_extended_events_atomical_info(atomical_id, atomical, height)
         await self.db.populate_extended_location_atomical_info(atomical_id, atomical)
         return atomical
-    
+
     async def atomical_id_get_tx_history(self, compact_atomical_id):
         atomical_id = compact_to_location_id_bytes(compact_atomical_id)
         atomical = await self.atomical_id_get(compact_atomical_id)
@@ -777,7 +642,7 @@ class HttpHandler(object):
             'history': history
         }
         return atomical
-    
+
     async def hashX_listscripthash_atomicals(self, hashX, Verbose=False):
         utxos = await self.db.all_utxos(hashX)
         utxos = sorted(utxos)
@@ -896,7 +761,7 @@ class HttpHandler(object):
                     return_struct['atomicals'][atomical_id_ref]['confirmed'] += returned_utxo["atomicals"][atomical_id_ref]
 
         return return_struct
-    
+
     ############################################
     #  get method
     ############################################
@@ -910,7 +775,7 @@ class HttpHandler(object):
             await session.close()
 
         return result
-    
+
     ############################################
     #  post method
     ############################################
@@ -927,7 +792,7 @@ class HttpHandler(object):
 
     ############################################
     #  http method
-    ############################################  
+    ############################################
 
     # verified
     async def proxy(self, request):
@@ -938,7 +803,7 @@ class HttpHandler(object):
     async def health(self, request):
         result = {"success": True,"health": True}
         return web.json_response(data=result)
-    
+
     # verified
     async def atomicals_list(self, request):
         params = await self.format_params(request)
@@ -949,7 +814,7 @@ class HttpHandler(object):
         '''Return the list of atomicals order by reverse atomical number'''
         formatted_results = await self.atomicals_list_get(offset, limit, asc)
         return formatted_results
-    
+
     # verified
     async def atomicals_get(self, request):
         params = await self.format_params(request)
@@ -957,7 +822,7 @@ class HttpHandler(object):
 
         compact_atomical_id = self.atomical_resolve_id(compact_atomical_id_or_atomical_number)
         return {'global': await self.get_summary_info(), 'result': await self.atomical_id_get(compact_atomical_id)}
-    
+
     # verified
     async def scripthash_listunspent(self, request):
         '''Return the list of UTXOs of a scripthash.'''
@@ -966,7 +831,7 @@ class HttpHandler(object):
 
         hashX = scripthash_to_hashX(scripthash)
         return await self.hashX_listunspent(hashX)
-    
+
     # need verify
     async def transaction_broadcast(self, request):
         '''Broadcast a raw transaction to the network.
@@ -1001,7 +866,7 @@ class HttpHandler(object):
 
             self.logger.info(f'sent tx: {hex_hash}')
             return hex_hash
-    
+
     # verified
     async def scripthash_get_history(self, request):
         '''Return the confirmed and unconfirmed history of a scripthash.'''
@@ -1013,7 +878,7 @@ class HttpHandler(object):
 
         hashX = scripthash_to_hashX(scripthash)
         return await self.confirmed_and_unconfirmed_history(hashX)
-    
+
     # verified
     async def transaction_get(self, request):
         '''Return the serialized raw transaction given its hash
@@ -1028,9 +893,9 @@ class HttpHandler(object):
         assert_tx_hash(tx_hash)
         if verbose not in (True, False):
             raise RPCError(BAD_REQUEST, '"verbose" must be a boolean')
-        
+
         return await self.daemon_request('getrawtransaction', tx_hash, verbose)
-    
+
     # verified
     async def atomical_get_state(self, request):
         # async def atomical_get_state(self, compact_atomical_id_or_atomical_number, Verbose=False):
@@ -1040,7 +905,7 @@ class HttpHandler(object):
 
         compact_atomical_id = self.atomical_resolve_id(compact_atomical_id_or_atomical_number)
         return {'global': await self.get_summary_info(), 'result': await self.atomical_id_get_state(compact_atomical_id, Verbose)}
-    
+
     # verified
     async def scripthash_get_balance(self, request):
         '''Return the confirmed and unconfirmed balance of a scripthash.'''
@@ -1049,14 +914,14 @@ class HttpHandler(object):
 
         hashX = scripthash_to_hashX(scripthash)
         return await self.get_balance(hashX)
-    
+
     # verified
     async def atomicals_get_location(self, request):
         params = await self.format_params(request)
         compact_atomical_id_or_atomical_number = params.get(0, "")
         compact_atomical_id = self.atomical_resolve_id(compact_atomical_id_or_atomical_number)
         return {'global': await self.get_summary_info(), 'result': await self.atomical_id_get_location(compact_atomical_id)}
-    
+
     # verified
     async def atomicals_listscripthash(self, request):
         '''Return the list of Atomical UTXOs for an address'''
@@ -1066,13 +931,13 @@ class HttpHandler(object):
 
         hashX = scripthash_to_hashX(scripthash)
         return await self.hashX_listscripthash_atomicals(hashX, Verbose)
-    
+
     # verified
     async def atomicals_get_global(self, request):
         params = await self.format_params(request)
         hashes = params.get(0, 10)
         return {'global': await self.get_summary_info(hashes)}
-    
+
     async def block_header(self, request):
         '''Return a raw block header as a hexadecimal string, or as a
         dictionary with a merkle proof.'''
@@ -1112,7 +977,7 @@ class HttpHandler(object):
             last_height = start_height + count - 1
             result.update(await self._merkle_proof(cp_height, last_height))
         return result
-    
+
     async def estimatefee(self, request):
         '''The estimated transaction fee per kilobyte to be paid for a
         transaction to be included within a certain number of blocks.
@@ -1156,17 +1021,17 @@ class HttpHandler(object):
             assert blockhash is not None
             cache[(number, mode)] = (blockhash, feerate, lock)
             return feerate
-        
+
     async def headers_subscribe(self, request):
         '''Subscribe to get raw headers of new blocks.'''
         self.subscribe_headers = True
         return self.session_mgr.hsub_results
-    
+
     async def relayfee(self, request):
         '''The minimum fee a low-priority tx must pay in order to be accepted
         to the daemon's memory pool.'''
         return await self.daemon_request('relayfee')
-    
+
     async def scripthash_get_mempool(self, request):
         '''Return the mempool transactions touching a scripthash.'''
         params = await self.format_params(request)
@@ -1174,7 +1039,7 @@ class HttpHandler(object):
 
         hashX = scripthash_to_hashX(scripthash)
         return await self.unconfirmed_history(hashX)
-    
+
     async def scripthash_subscribe(self, request):
         '''Subscribe to a script hash.
 
@@ -1183,7 +1048,7 @@ class HttpHandler(object):
         scripthash = params.get(0, "")
         hashX = scripthash_to_hashX(scripthash)
         return await self.hashX_subscribe(hashX, scripthash)
-    
+
     async def transaction_merkle(self, request):
         '''Return the merkle branch to a confirmed transaction given its hash
         and height.
@@ -1203,7 +1068,7 @@ class HttpHandler(object):
 
         res = {"block_height": height, "merkle": branch, "pos": tx_pos}
         return res
-    
+
     async def transaction_id_from_pos(self, request):
         '''Return the txid and optionally a merkle proof, given
         a block height and position in the block.
@@ -1230,10 +1095,10 @@ class HttpHandler(object):
                 raise RPCError(BAD_REQUEST,
                                f'no tx at position {tx_pos:,d} in block at height {height:,d}')
             return hash_to_hex_str(tx_hash)
-        
+
     async def compact_fee_histogram(self, request):
         return await self.mempool.compact_fee_histogram()
-    
+
     async def rpc_add_peer(self, request):
         '''Add a peer.
 
@@ -1242,7 +1107,7 @@ class HttpHandler(object):
         params = await self.format_params(request)
         real_name = params.get(0, "")
         await self.peer_mgr.add_localRPC_peer(real_name)
-        
+
         res = f"peer '{real_name}' added"
         return res
 
@@ -1252,81 +1117,24 @@ class HttpHandler(object):
         features = params.get(0, None)
         self.is_peer = True
         return await self.peer_mgr.on_add_peer(features, self.remote_address())
-    
-    async def banner(self, request):
-        '''Return the server banner text.'''
-        banner = f'You are connected to an {electrumx.version} server.'
-        if self.is_tor():
-            banner_file = self.env.tor_banner_file
-        else:
-            banner_file = self.env.banner_file
-        if banner_file:
-            try:
-                with codecs.open(banner_file, 'r', 'utf-8') as f:
-                    banner = f.read()
-            except (OSError, UnicodeDecodeError) as e:
-                self.logger.error(f'reading banner file {banner_file}: {e!r}')
-            else:
-                banner = await self.replaced_banner(banner)
-        return banner
-    
+
     async def donation_address(self, request):
         '''Return the donation address as a string, empty if there is none.'''
         return self.env.donation_address
-    
+
     async def server_features_async(self, request):
         return self.server_features(self.env)
-    
+
     async def peers_subscribe(self, request):
         '''Return the server peers as a list of (ip, host, details) tuples.'''
         return self.peer_mgr.on_peers_subscribe(self.is_tor())
-    
+
     async def ping(self, request):
         '''Serves as a connection keep-alive mechanism and for the client to
         confirm the server is still responding.
         '''
         return None
-    
-    async def server_version(self, request):
-        '''Returns the server version as a string.
 
-        client_name: a string identifying the client
-        protocol_version: the protocol version spoken by the client
-        '''
-        params = await self.format_params(request)
-        client_name = params.get(0, "")
-        protocol_version = params.get(1, None)
-
-        if self.sv_seen:
-            raise RPCError(BAD_REQUEST, f'server.version already sent')
-        self.sv_seen = True
-
-        if client_name:
-            client_name = str(client_name)
-            if self.env.drop_client is not None and \
-                    self.env.drop_client.match(client_name):
-                raise ReplyAndDisconnect(RPCError(
-                    BAD_REQUEST, f'unsupported client: {client_name}'))
-            self.client = client_name[:17]
-
-        # Find the highest common protocol version.  Disconnect if
-        # that protocol version in unsupported.
-        ptuple, client_min = util.protocol_version(
-            protocol_version, self.PROTOCOL_MIN, self.PROTOCOL_MAX)
-
-        await self.crash_old_client(ptuple, self.env.coin.CRASH_CLIENT_VER)
-
-        if ptuple is None:
-            if client_min > self.PROTOCOL_MIN:
-                self.logger.info(f'client requested future protocol version '
-                                 f'{util.version_string(client_min)} '
-                                 f'- is your software out of date?')
-            raise ReplyAndDisconnect(RPCError(
-                BAD_REQUEST, f'unsupported protocol version: {protocol_version}'))
-        self.set_request_handlers(ptuple)
-
-        return electrumx.version, self.protocol_version_string()
-    
     async def transaction_broadcast_validate(self, request):
         '''Simulate a Broadcast a raw transaction to the network.
 
@@ -1341,7 +1149,7 @@ class HttpHandler(object):
             self.logger.info(f'error validating atomicals transaction: {e}')
             raise RPCError(ATOMICALS_INVALID_TX, 'the transaction was rejected by '
                            f'atomicals rules.\n\n{e}\n[{raw_tx}]')
-        
+
     async def atomicals_get_ft_balances(self, request):
         '''Return the FT balances for a scripthash address'''
         params = await self.format_params(request)
@@ -1355,7 +1163,7 @@ class HttpHandler(object):
         scripthash = params.get(0, "")
         hashX = scripthash_to_hashX(scripthash)
         return await self.hashX_nft_balances_atomicals(hashX)
-    
+
     async def atomicals_num_to_id(self, request):
         params = await self.format_params(request)
         limit = params.get(0, 10)
@@ -1367,13 +1175,13 @@ class HttpHandler(object):
         for num, id in atomicals_num_to_id_map.items():
             atomicals_num_to_id_map_reformatted[num] = location_id_bytes_to_compact(id)
         return {'global': await self.get_summary_info(), 'result': atomicals_num_to_id_map_reformatted }
-    
+
     async def atomicals_block_txs(self, request):
         params = await self.format_params(request)
         height = params.get(0, "")
         tx_list = self.session_mgr.bp.get_atomicals_block_txs(height)
         return {'global': await self.get_summary_info(), 'result': tx_list }
-    
+
     async def atomicals_dump(self, request):
         self.db.dump()
         return {'result': True}
@@ -1402,13 +1210,13 @@ class HttpHandler(object):
 
         compact_atomical_id = self.atomical_resolve_id(compact_atomical_id_or_atomical_number)
         return {'global': await self.get_summary_info(), 'result': await self.atomical_id_get_state_history(compact_atomical_id)}
-    
+
     async def atomical_get_events(self, request):
         params = await self.format_params(request)
         compact_atomical_id_or_atomical_number = params.get(0, "")
 
         compact_atomical_id = self.atomical_resolve_id(compact_atomical_id_or_atomical_number)
-        return {'global': await self.get_summary_info(), 'result': await self.atomical_id_get_events(compact_atomical_id)}    
+        return {'global': await self.get_summary_info(), 'result': await self.atomical_id_get_events(compact_atomical_id)}
 
     async def atomicals_get_tx_history(self, request):
         '''Return the history of an Atomical```
@@ -1566,7 +1374,7 @@ class HttpHandler(object):
         if Verbose:
             populate_rules_response_struct(compact_to_location_id_bytes(nearest_parent_realm_atomical_id), return_struct, Verbose)
         return {'result': return_struct}
-    
+
     async def atomicals_get_by_realm(self, request):
         params = await self.format_params(request)
         name = params.get(0, "")
@@ -1595,7 +1403,7 @@ class HttpHandler(object):
             'result': return_result
         }
         return res
-    
+
     async def atomicals_get_by_subrealm(self, request):
         params = await self.format_params(request)
         parent_compact_atomical_id_or_atomical_number = params.get(0, "")
@@ -1627,7 +1435,7 @@ class HttpHandler(object):
             'result': return_result
         }
         return res
-    
+
     async def atomicals_get_by_dmitem(self, request):
         params = await self.format_params(request)
         parent_compact_atomical_id_or_atomical_number = params.get(0, "")
@@ -1659,7 +1467,7 @@ class HttpHandler(object):
             'result': return_result
         }
         return res
-    
+
     # verified
     async def atomicals_get_by_ticker(self, request):
         params = await self.format_params(request)
@@ -1688,7 +1496,7 @@ class HttpHandler(object):
         return {
             'result': return_result
         }
-    
+
     async def atomicals_get_by_container(self, request):
         params = await self.format_params(request)
         container = params.get(0, "")
@@ -1717,7 +1525,7 @@ class HttpHandler(object):
             'result': return_result
         }
         return res
-    
+
     async def atomicals_get_by_container_item(self, request):
         params = await self.format_params(request)
         container = params.get(0, "")
@@ -1729,7 +1537,7 @@ class HttpHandler(object):
         formatted_entries = format_name_type_candidates_to_rpc(all_entries, self.session_mgr.bp.build_atomical_id_to_candidate_map(all_entries))
         if status == 'verified':
             found_atomical_id = candidate_atomical_id
-        else: 
+        else:
             self.logger.info(f'formatted_entries {formatted_entries}')
             raise RPCError(BAD_REQUEST, f'Container does not exist')
         status, candidate_atomical_id, all_entries = self.session_mgr.bp.get_effective_dmitem(found_atomical_id, item_name, height)
@@ -1744,10 +1552,10 @@ class HttpHandler(object):
             formatted_entries = []
 
         return_result = {
-            'status': status, 
-            'candidate_atomical_id': candidate_atomical_id, 
-            'atomical_id': found_item_atomical_id, 
-            'candidates': formatted_entries, 
+            'status': status,
+            'candidate_atomical_id': candidate_atomical_id,
+            'atomical_id': found_item_atomical_id,
+            'candidates': formatted_entries,
             'type': 'item'
         }
         return {
@@ -1819,12 +1627,12 @@ class HttpHandler(object):
             'result': return_result
         }
         return res
-    
+
     def auto_populate_container_regular_items_fields(self, items):
         if not items or not isinstance(items, dict):
             return {}
         for item, value in items.items():
-            provided_id = value.get('id') 
+            provided_id = value.get('id')
             value['status'] = 'verified'
             if provided_id and isinstance(provided_id, bytes) and len(provided_id) == 36:
                 value['$id'] = location_id_bytes_to_compact(provided_id)
@@ -1882,21 +1690,21 @@ class HttpHandler(object):
                 }
             }
         return res
-    
+
     async def atomicals_get_ft_info(self, request):
         params = await self.format_params(request)
         compact_atomical_id_or_atomical_number = params.get(0, "")
         compact_atomical_id = self.atomical_resolve_id(compact_atomical_id_or_atomical_number)
         return {'global': await self.get_summary_info(), 'result': await self.atomical_id_get_ft_info(compact_atomical_id)}
-    
+
     async def atomicals_get_dft_mints(self, request):
         params = await self.format_params(request)
         compact_atomical_id_or_atomical_number = params.get(0, "")
         atomical_id = compact_to_location_id_bytes(compact_atomical_id_or_atomical_number)
         Limit = params.get(1, 100)
         Offset = params.get(2, 0)
-        return {'global': await self.get_summary_info(), 'result': self.session_mgr.bp.get_distmints_by_atomical_id(atomical_id, Limit, Offset)} 
-    
+        return {'global': await self.get_summary_info(), 'result': self.session_mgr.bp.get_distmints_by_atomical_id(atomical_id, Limit, Offset)}
+
     # verified
     async def atomicals_search_tickers(self, request):
         params = await self.format_params(request)
@@ -1906,7 +1714,7 @@ class HttpHandler(object):
         Offset = params.get(3, 0)
         is_verified_only = params.get(4, True)
         return self.atomicals_search_name_template(b'tick', 'ticker', None, prefix, Reverse, Limit, Offset, is_verified_only)
-    
+
     async def atomicals_search_realms(self, request):
         params = await self.format_params(request)
         prefix = params.get(0, None)
@@ -1935,7 +1743,7 @@ class HttpHandler(object):
         Offset = params.get(3, 0)
         is_verified_only = params.get(4, True)
         return self.atomicals_search_name_template(b'co', 'collection', None, prefix, Reverse, Limit, Offset, is_verified_only)
-    
+
     async def atomicals_get_holders(self, request):
         '''Return the holder by a specific location id```
         '''
@@ -1955,7 +1763,7 @@ class HttpHandler(object):
                 max_supply = atomical.get('$max_supply', -1)
                 if max_supply < 0:
                     mint_amount = atomical.get("mint_info", {}).get("args", {}).get("mint_amount")
-                    max_supply = DFT_MINT_MAX_MAX_COUNT_DENSITY * mint_amount 
+                    max_supply = DFT_MINT_MAX_MAX_COUNT_DENSITY * mint_amount
             for holder in atomical.get("holders", [])[offset:offset+limit]:
                 percent = holder['holding'] / max_supply
                 formatted_results.append({
@@ -1970,7 +1778,7 @@ class HttpHandler(object):
                     "holding": holder["holding"]
                 })
         return formatted_results
-    
+
     # analysis the transaction detail by txid
     # might be mint-dft, dmint, transfer, burn...
     async def get_transaction_detail(self, txid, height=None, tx_num=-1):
@@ -2021,7 +1829,7 @@ class HttpHandler(object):
         }
         if operation_found_at_inputs:
             res["info"]["payload"] = operation_found_at_inputs.get("payload", {})
-        if blueprint_builder.is_mint and operation_found_at_inputs["op"] in ["dmt", "ft"]:
+        if blueprint_builder.is_mint and operation_found_at_inputs and operation_found_at_inputs["op"] in ["dmt", "ft"]:
             if operation_found_at_inputs["op"] == "dmt":
                 res["op"] = "mint-dft"
             if operation_found_at_inputs["op"] == "ft":
@@ -2053,7 +1861,7 @@ class HttpHandler(object):
                     }
             else:
                 res["op"] = f"{res['op']}-failed"
-        elif operation_found_at_inputs and operation_found_at_inputs["op"] == "nft":
+        elif operation_found_at_inputs and operation_found_at_inputs and operation_found_at_inputs["op"] == "nft":
             mint_info = operation_found_at_inputs.get("payload", {}).get("args", {})
             if mint_info.get('request_realm'):
                 res["op"] = "mint-nft-realm"
@@ -2069,7 +1877,7 @@ class HttpHandler(object):
                 expected_output_index = 0
                 location = tx_hash + util.pack_le_uint32(expected_output_index)
                 txout = tx.outputs[expected_output_index]
-                atomical_id = location_id_bytes_to_compact(atomicals_receive_at_outputs[expected_output_index][0]["atomical_id"])
+                atomical_id = location_id_bytes_to_compact(atomicals_receive_at_outputs[expected_output_index][-1]["atomical_id"])
                 res["info"] = {
                     "atomical_id": atomical_id,
                     "location_id": location_id_bytes_to_compact(location),
@@ -2199,7 +2007,7 @@ class HttpHandler(object):
                 res["op"] = "payment-subrealm"
             if entity_type == 'dmitem':
                 res["op"] = "payment-dmitem"
-
+                
         if res.get("op") and height > 0:
             self.session_mgr._tx_detail_cache[tx_hash] = res
 
@@ -2210,7 +2018,7 @@ class HttpHandler(object):
         params = await self.format_params(request)
         txid = params.get(0, "")
         return await self.get_transaction_detail(txid)
-    
+
     async def get_transaction_detail_by_height(self, height, limit, offset, op_type, reverse=True):
         res = []
         txs_list = []
@@ -2219,7 +2027,7 @@ class HttpHandler(object):
             # get operation by db method
             tx_num, _ = self.db.get_tx_num_height_from_tx_hash(hex_str_to_hash(tx))
             txs_list.append({
-                "tx_num": tx_num, 
+                "tx_num": tx_num,
                 "tx_hash": tx,
                 "height": height
             })
@@ -2231,7 +2039,7 @@ class HttpHandler(object):
                 res.append(data)
         total = len(res)
         return res[offset:offset+limit], total
-    
+
     # get the whole transaction by block height
     # return transaction detail
     async def transaction_by_height(self, request):
@@ -2244,7 +2052,7 @@ class HttpHandler(object):
 
         res, total = await self.get_transaction_detail_by_height(height, limit, offset, op_type, reverse)
         return {"result": res, "total": total, "limit": limit, "offset": offset}
-    
+
     # get transaction by atomical id
     async def transaction_by_atomical_id(self, request):
         params = await self.format_params(request)
@@ -2276,7 +2084,7 @@ class HttpHandler(object):
                 if (op_type and data["op"] == op_type) or not op_type:
                     res.append(data)
         return {"result": res, "total": total, "limit": limit, "offset": offset}
-    
+
     # get transaction by scripthash
     async def transaction_by_scripthash(self, request):
         params = await self.format_params(request)
@@ -2301,7 +2109,7 @@ class HttpHandler(object):
                 if data["op"] and (data["op"] == op_type or not op_type):
                     res.append(data)
         return {"result": res, "total": total, "limit": limit, "offset": offset}
-    
+
     # searh for global
     async def transaction_global(self, request):
         params = await self.format_params(request)
@@ -2310,7 +2118,7 @@ class HttpHandler(object):
         op_type = params.get(2, None)
         reverse = params.get(3, True)
         height = self.session_mgr.bp.height
-        
+
         res = []
         count = 0
         history_list = []
@@ -2319,7 +2127,7 @@ class HttpHandler(object):
             for tx in txs:
                 tx_num, _ = self.db.get_tx_num_height_from_tx_hash(hex_str_to_hash(tx))
                 history_list.append({
-                    "tx_num": tx_num, 
+                    "tx_num": tx_num,
                     "tx_hash": tx,
                     "height": current_height
                 })
@@ -2327,7 +2135,7 @@ class HttpHandler(object):
             if count >= offset + limit:
                 break
         history_list.sort(key=lambda x: x['tx_num'], reverse=reverse)
-        
+
         for history in history_list:
             data = await self.get_transaction_detail(history["tx_hash"], history["height"], history["tx_num"])
             if (op_type and op_type == data["op"]) or (not op_type and data["op"]):
