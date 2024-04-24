@@ -1198,6 +1198,7 @@ class HttpHandler(object):
         # atomicals_found_at_location['atomicals'].sort(key=lambda x: x['atomical_number'])
         for atomical_id in atomicals_found_at_location['atomicals']:
             atomical_basic_info = self.session_mgr.bp.get_atomicals_id_mint_info_basic_struct(atomical_id)
+            atomical_basic_info['value'] = self.db.get_uxto_atomicals_value(compact_to_location_id_bytes(compact_location_id), atomical_id)
             atomical_basic_infos.append(atomical_basic_info)
         return {
             'location_info': atomicals_found_at_location['location_info'],
