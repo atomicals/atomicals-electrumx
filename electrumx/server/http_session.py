@@ -1904,6 +1904,8 @@ class HttpHandler(object):
             res["op"] = "splat"
         elif operation_found_at_inputs and operation_found_at_inputs["op"] == "y":
             res["op"] = "split"
+        elif operation_found_at_inputs and operation_found_at_inputs["op"] == "z":
+            res["op"] = "custom-color"
         elif operation_found_at_inputs and operation_found_at_inputs["op"] == "evt":
             res["op"] = "evt"
         elif operation_found_at_inputs and operation_found_at_inputs["op"] == "mod":
