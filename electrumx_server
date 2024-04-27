@@ -25,7 +25,7 @@ load_dotenv()
 def main():
     '''Set up logging and run the server.'''
     log_fmt = Env.default('LOG_FORMAT', '%(levelname)s:%(name)s:%(message)s')
-    log_level = Env.default('LOG_LEVEL', 'INFO')
+    log_level = Env.default('LOG_LEVEL', 'INFO').upper()
     log_path = Env.default('LOG_PATH', None)
     if log_path:
         exist =os.path.exists(log_path)
