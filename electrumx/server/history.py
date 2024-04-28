@@ -17,7 +17,7 @@ from typing import TYPE_CHECKING, Type, Optional
 
 import electrumx.lib.util as util
 from electrumx.lib.hash import HASHX_LEN, hash_to_hex_str
-from electrumx.lib.util import (pack_be_uint16, pack_le_uint64,
+from electrumx.lib.util import (pack_be_uint16, pack_be_uint32, pack_le_uint64,
                                 unpack_be_uint16_from, unpack_le_uint64)
 
 if TYPE_CHECKING:
@@ -157,7 +157,7 @@ class History:
     def flush(self):
         start_time = time.monotonic()
         self.flush_count += 1
-        flush_id = pack_be_uint16(self.flush_count)
+        flush_id = pack_be_uint32(self.flush_count)
         unflushed = self.unflushed
 
         with self.db.write_batch() as batch:
