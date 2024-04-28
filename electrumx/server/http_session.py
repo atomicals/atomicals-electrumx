@@ -1166,6 +1166,12 @@ class HttpHandler(object):
             atomicals_num_to_id_map_reformatted[num] = location_id_bytes_to_compact(id)
         return {'global': await self.get_summary_info(), 'result': atomicals_num_to_id_map_reformatted }
 
+    async def atomicals_block_hash(self, request):
+        params = await self.format_params(request)
+        height = params.get(0, self.session_mgr.bp.height)
+        block_hash = self.db.get_atomicals_block_hash(height)
+        return {'result': block_hash}
+
     async def atomicals_block_txs(self, request):
         params = await self.format_params(request)
         height = params.get(0, "")
