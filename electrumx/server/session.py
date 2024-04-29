@@ -1193,14 +1193,18 @@ class SessionBase(RPCSession):
         return 0
 
     async def handle_request(self, request):
-        '''Handle an incoming request.  ElectrumX doesn't receive
+        """Handle an incoming request.  ElectrumX doesn't receive
         notifications from client sessions.
-        '''
+        """
         if isinstance(request, Request):
             handler = self.request_handlers.get(request.method)
+            method = request.method
+            args = request.args
         else:
             handler = None
-        method = 'invalid method' if handler is None else request.method
+            method = 'invalid method'
+            args = None
+        self.logger.debug(f'Session request handling: [method] {method}, [args] {args}')
 
         # If DROP_CLIENT_UNKNOWN is enabled, check if the client identified
         # by calling server.version previously. If not, disconnect the session
