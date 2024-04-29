@@ -1202,7 +1202,7 @@ class SessionBase(RPCSession):
             handler = None
             method = 'invalid method'
             args = None
-        self.logger.info(f'Session request handling: [method] {method}, [args] {args}')
+        self.logger.debug(f'Session request handling: [method] {method}, [args] {args}')
 
         # If DROP_CLIENT_UNKNOWN is enabled, check if the client identified
         # by calling server.version previously. If not, disconnect the session
