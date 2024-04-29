@@ -102,7 +102,7 @@ def request_middleware(self) -> web_middlewares:
             async def log_request():
                 method = request.path
                 params = await request.json() if request.content_length else None
-                self.logger.info(f'HTTP request handling: [method] {method}, [params]: {params}')
+                self.logger.debug(f'HTTP request handling: [method] {method}, [params]: {params}')
             asyncio.ensure_future(log_request())
 
             if not self.env.enable_rate_limit:
