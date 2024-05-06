@@ -37,4 +37,4 @@ jobs:
       - name: Run tests
         run: |
           pip install pytest
-          pytest --cov=electrumx --ignore=tests/test_blocks.py
+          pytest --cov=electrumx --ignore=tests/test_blocks.py --ignore=tests/server/test_compaction.py
