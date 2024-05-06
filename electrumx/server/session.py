@@ -274,6 +274,7 @@ class SessionManager:
                     app.router.add_get('/proxy/blockchain.atomicals.listscripthash', handler.atomicals_listscripthash)
                     app.router.add_get('/proxy/blockchain.atomicals.list', handler.atomicals_list)
                     app.router.add_get('/proxy/blockchain.atomicals.get_numbers', handler.atomicals_num_to_id)
+                    app.router.add_get('/proxy/blockchain.atomicals.get_block_hash', handler.atomicals_block_hash)
                     app.router.add_get('/proxy/blockchain.atomicals.get_block_txs', handler.atomicals_block_txs)
                     app.router.add_get('/proxy/blockchain.atomicals.dump', handler.atomicals_dump)
                     app.router.add_get('/proxy/blockchain.atomicals.at_location', handler.atomicals_at_location)
@@ -334,6 +335,7 @@ class SessionManager:
                     app.router.add_post('/proxy/blockchain.atomicals.listscripthash', handler.atomicals_listscripthash)
                     app.router.add_post('/proxy/blockchain.atomicals.list', handler.atomicals_list)
                     app.router.add_post('/proxy/blockchain.atomicals.get_numbers', handler.atomicals_num_to_id)
+                    app.router.add_post('/proxy/blockchain.atomicals.get_block_hash', handler.atomicals_block_hash)
                     app.router.add_post('/proxy/blockchain.atomicals.get_block_txs', handler.atomicals_block_txs)
                     app.router.add_post('/proxy/blockchain.atomicals.dump', handler.atomicals_dump)
                     app.router.add_post('/proxy/blockchain.atomicals.at_location', handler.atomicals_at_location)
@@ -1191,14 +1193,18 @@ class SessionBase(RPCSession):
         return 0
 
     async def handle_request(self, request):
-        '''Handle an incoming request.  ElectrumX doesn't receive
+        """Handle an incoming request.  ElectrumX doesn't receive
         notifications from client sessions.
-        '''
+        """
         if isinstance(request, Request):
             handler = self.request_handlers.get(request.method)
+            method = request.method
+            args = request.args
         else:
             handler = None
-        method = 'invalid method' if handler is None else request.method
+            method = 'invalid method'
+            args = None
+        self.logger.debug(f'Session request handling: [method] {method}, [args] {args}')
 
         # If DROP_CLIENT_UNKNOWN is enabled, check if the client identified
         # by calling server.version previously. If not, disconnect the session
@@ -1543,6 +1549,12 @@ class ElectrumX(SessionBase):
         for num, id in atomicals_num_to_id_map.items():
             atomicals_num_to_id_map_reformatted[num] = location_id_bytes_to_compact(id)
         return {'global': await self.get_summary_info(), 'result': atomicals_num_to_id_map_reformatted }
+
+    async def atomicals_block_hash(self, height):
+        if not height:
+            height = self.session_mgr.bp.height
+        block_hash = self.db.get_atomicals_block_hash(height)
+        return {'result': block_hash}
 
     async def atomicals_block_txs(self, height):
         tx_list = self.session_mgr.bp.get_atomicals_block_txs(height)
@@ -3102,6 +3114,7 @@ class ElectrumX(SessionBase):
             'blockchain.atomicals.listscripthash': self.atomicals_listscripthash,
             'blockchain.atomicals.list': self.atomicals_list,
             'blockchain.atomicals.get_numbers': self.atomicals_num_to_id,
+            'blockchain.atomicals.get_block_hash': self.atomicals_block_hash,
             'blockchain.atomicals.get_block_txs': self.atomicals_block_txs,
             'blockchain.atomicals.dump': self.atomicals_dump,
             'blockchain.atomicals.at_location': self.atomicals_at_location,

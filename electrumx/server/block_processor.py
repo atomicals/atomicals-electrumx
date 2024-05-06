@@ -94,6 +94,7 @@ ATOMICAL_ID_LEN = 36
 LOCATION_ID_LEN = 36
 TX_OUTPUT_IDX_LEN = 4
 
+
 class Prefetcher:
     '''Prefetches blocks (in the forward direction only).'''
 
@@ -248,6 +249,7 @@ class BlockProcessor:
         # Meta
         self.next_cache_check = 0
         self.touched = set()
+        self.semaphore = asyncio.Semaphore()
         self.reorg_count = 0
         self.height = -1
         self.tip = None  # type: Optional[bytes]
@@ -339,6 +341,7 @@ class BlockProcessor:
                 await self.notifications.on_block(self.touched, self.height)
             self.touched = set()
         elif hprevs[0] != chain[0]:
+            self.logger.info(f'check_and_advance_blocks reorg: {first}')
             await self.reorg_chain()
         else:
             # It is probably possible but extremely rare that what
@@ -351,42 +354,44 @@ class BlockProcessor:
             await self.prefetcher.reset_height(self.height)
 
     async def reorg_chain(self, count=None):
-        '''Handle a chain reorganisation.
+        # Use Semaphore to ensure only one reorg signal was held.
+        async with self.semaphore:
+            '''Handle a chain reorganisation.
+    
+            Count is the number of blocks to simulate a reorg, or None for
+            a real reorg.'''
+            if count is None:
+                self.logger.info('chain reorg detected')
+            else:
+                self.logger.info(f'faking a reorg of {count:,d} blocks')
+            await self.flush(True)
 
-        Count is the number of blocks to simulate a reorg, or None for
-        a real reorg.'''
-        if count is None:
-            self.logger.info('chain reorg detected')
-        else:
-            self.logger.info(f'faking a reorg of {count:,d} blocks')
-        await self.flush(True)
+            async def get_raw_blocks(last_height, hex_hashes) -> Sequence[bytes]:
+                heights = range(last_height, last_height - len(hex_hashes), -1)
+                try:
+                    blocks = [self.db.read_raw_block(height) for height in heights]
+                    self.logger.info(f'read {len(blocks)} blocks from disk')
+                    return blocks
+                except FileNotFoundError:
+                    return await self.daemon.raw_blocks(hex_hashes)
 
-        async def get_raw_blocks(last_height, hex_hashes) -> Sequence[bytes]:
-            heights = range(last_height, last_height - len(hex_hashes), -1)
-            try:
-                blocks = [self.db.read_raw_block(height) for height in heights]
-                self.logger.info(f'read {len(blocks)} blocks from disk')
-                return blocks
-            except FileNotFoundError:
-                return await self.daemon.raw_blocks(hex_hashes)
+            def flush_backup():
+                # self.touched can include other addresses which is
+                # harmless, but remove None.
+                self.touched.discard(None)
+                self.db.flush_backup(self.flush_data(), self.touched)
 
-        def flush_backup():
-            # self.touched can include other addresses which is
-            # harmless, but remove None.
-            self.touched.discard(None)
-            self.db.flush_backup(self.flush_data(), self.touched)
-
-        _start, last, hashes = await self.reorg_hashes(count)
-        # Reverse and convert to hex strings.
-        hashes = [hash_to_hex_str(hash) for hash in reversed(hashes)]
-        for hex_hashes in chunks(hashes, 50):
-            raw_blocks = await get_raw_blocks(last, hex_hashes)
-            await self.run_in_thread_with_lock(self.backup_blocks, raw_blocks)
-            await self.run_in_thread_with_lock(flush_backup)
-            last -= len(raw_blocks)
-        await self.prefetcher.reset_height(self.height)
-        self.backed_up_event.set()
-        self.backed_up_event.clear()
+            _start, last, hashes = await self.reorg_hashes(count)
+            # Reverse and convert to hex strings.
+            hashes = [hash_to_hex_str(hash) for hash in reversed(hashes)]
+            for hex_hashes in chunks(hashes, 50):
+                raw_blocks = await get_raw_blocks(last, hex_hashes)
+                await self.run_in_thread_with_lock(self.backup_blocks, raw_blocks)
+                await self.run_in_thread_with_lock(flush_backup)
+                last -= len(raw_blocks)
+            await self.prefetcher.reset_height(self.height)
+            self.backed_up_event.set()
+            self.backed_up_event.clear()
 
     async def reorg_hashes(self, count):
         '''Return a pair (start, last, hashes) of blocks to back up during a
@@ -3556,6 +3561,7 @@ class BlockProcessor:
             await self.blocks_event.wait()
             self.blocks_event.clear()
             if self.reorg_count:
+                self.logger.info(f'_process_prefetched_blocks reorg: {self.reorg_count}')
                 await self.reorg_chain(self.reorg_count)
                 self.reorg_count = 0
             else:

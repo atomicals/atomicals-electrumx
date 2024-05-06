@@ -113,12 +113,15 @@ class HttpHandler(object):
         self.MAX_CHUNK_SIZE = 2016
         self.hashX_subs = {}
 
-    async def format_params(self, request):
+    async def format_params(self, request: web.Request):
+        params: list
         if request.method == "GET":
             params = json.loads(request.query.get("params", "[]"))
-        else:
+        elif request.content_length:
             json_data = await request.json()
             params = json_data.get("params", [])
+        else:
+            params = []
         return dict(zip(range(len(params)), params))
 
     async def get_rpc_server(self):
@@ -860,11 +863,8 @@ class HttpHandler(object):
     # verified
     async def scripthash_get_history(self, request):
         '''Return the confirmed and unconfirmed history of a scripthash.'''
-        try:
-            params = await self.format_params(request)
-            scripthash = params.get(0, "")
-        except Exception as e:
-            scripthash = request
+        params = await self.format_params(request)
+        scripthash = params.get(0)
 
         hashX = scripthash_to_hashX(scripthash)
         return await self.confirmed_and_unconfirmed_history(hashX)
@@ -1165,6 +1165,12 @@ class HttpHandler(object):
         for num, id in atomicals_num_to_id_map.items():
             atomicals_num_to_id_map_reformatted[num] = location_id_bytes_to_compact(id)
         return {'global': await self.get_summary_info(), 'result': atomicals_num_to_id_map_reformatted }
+
+    async def atomicals_block_hash(self, request):
+        params = await self.format_params(request)
+        height = params.get(0, self.session_mgr.bp.height)
+        block_hash = self.db.get_atomicals_block_hash(height)
+        return {'result': block_hash}
 
     async def atomicals_block_txs(self, request):
         params = await self.format_params(request)
