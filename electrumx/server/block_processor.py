@@ -747,7 +747,7 @@ class BlockProcessor:
             self.logger.info(f'get_expected_dmitem_payment_info: parent_container_id_compact not string or compact atomical id {location_id_bytes_to_compact(found_atomical_id_for_potential_dmitem)} parent_container_id_compact={parent_container_id_compact}')
             return None, None, None, None
         # We have a validated potential parent id, now look it up to see if the parent is a valid atomical
-        found_parent_mint_info = self.get_base_mint_info_by_atomical_id(parent_container_id, with_cache=False, height=current_height)
+        found_parent_mint_info = self.get_base_mint_info_by_atomical_id(parent_container_id, height=current_height)
         if not found_parent_mint_info:
             self.logger.info(f'get_expected_dmitem_payment_info: not found_parent_mint_info found_atomical_id_for_potential_dmitem={location_id_bytes_to_compact(found_atomical_id_for_potential_dmitem)} parent_container_id_compact={parent_container_id_compact} found_atomical_mint_info_for_potential_dmitem={found_atomical_mint_info_for_potential_dmitem}')
             return None, None, None, None
@@ -2208,8 +2208,8 @@ class BlockProcessor:
     # Get the atomical details base info
     # Does not retrieve the active b'a' locations in this method because there could be many thousands (in the case of FTs)
     # Another method is provided to layer on the active location and gives the user control over whether to retrieve them
-    def get_base_mint_info_by_atomical_id(self, atomical_id, with_cache: bool = True, height: int = None):
-        init_mint_info = self.get_atomicals_id_mint_info(atomical_id, with_cache)
+    def get_base_mint_info_by_atomical_id(self, atomical_id, height: int = None):
+        init_mint_info = self.get_atomicals_id_mint_info(atomical_id, True)
         if not init_mint_info:
             return None
         atomical_number = init_mint_info['number']
