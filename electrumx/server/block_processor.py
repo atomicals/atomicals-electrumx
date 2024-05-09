@@ -2209,6 +2209,7 @@ class BlockProcessor:
     # Does not retrieve the active b'a' locations in this method because there could be many thousands (in the case of FTs)
     # Another method is provided to layer on the active location and gives the user control over whether to retrieve them
     def get_base_mint_info_by_atomical_id(self, atomical_id, height: int = None):
+        height = height if height else self.height
         init_mint_info = self.get_atomicals_id_mint_info(atomical_id, True)
         if not init_mint_info:
             return None
@@ -2348,8 +2349,7 @@ class BlockProcessor:
             atomical['$sealed'] = location_id_bytes_to_compact(sealed_location)
  
     # Populate the sealed status of an atomical
-    def populate_container_dmint_status(self, atomical, height: int = None):
-        height = height if height else self.height
+    def populate_container_dmint_status(self, atomical, height: int):
         if not atomical.get('$container'):
             return
         status = self.make_container_dmint_status_by_atomical_id_at_height(atomical['atomical_id'], height)
@@ -2396,9 +2396,9 @@ class BlockProcessor:
         return atomical_id_to_candidates_map
         
     # Populate the requested full realm name to provide context for a subrealm request
-    def populate_request_full_realm_name(self, atomical, pid, request_subrealm):
+    def populate_request_full_realm_name(self, atomical, pid, request_subrealm, height: int = None):
         # Resolve the parent realm to get the parent realm path and construct the full_realm_name
-        parent_realm = self.get_base_mint_info_by_atomical_id(pid)
+        parent_realm = self.get_base_mint_info_by_atomical_id(pid, height)
         if not parent_realm:
             atomical_id = atomical['mint_info']['id']
             raise IndexError(f'populate_request_full_realm_name: parent realm not found atomical_id={atomical_id}, parent_realm={parent_realm}')
@@ -2466,11 +2466,10 @@ class BlockProcessor:
         return applicable_rule_map
 
     # Populate the specific name or request type for containers, tickers, and realms (sub-realms excluded)
-    def populate_name_subtype_specific_fields(self, atomical, type_str, get_effective_name_func, height: int = None):
+    def populate_name_subtype_specific_fields(self, atomical, type_str, get_effective_name_func, height: int):
         request_name = atomical['mint_info'].get('$request_' + type_str)
         if not request_name:
             return None, None
-        height = height if height else self.height
         status, candidate_id, raw_candidate_entries = get_effective_name_func(request_name, height)
         atomical['$' + type_str + '_candidates'] = format_name_type_candidates_to_rpc(raw_candidate_entries, self.build_atomical_id_to_candidate_map(raw_candidate_entries))
         atomical['$request_' + type_str + '_status'] = get_name_request_candidate_status(atomical, status, candidate_id, type_str)  
@@ -2479,18 +2478,17 @@ class BlockProcessor:
         return request_name, status == 'verified' and atomical['atomical_id'] == candidate_id
 
     # Populate the specific subrealm request type information
-    def populate_subrealm_subtype_specific_fields(self, atomical):
+    def populate_subrealm_subtype_specific_fields(self, atomical, height: int):
         # Check if the effective subrealm is for the current atomical and also resolve its parent.
         request_subrealm = atomical['mint_info'].get('$request_subrealm')
         if not request_subrealm:
             return None, None
         pid_compact = atomical['mint_info']['$parent_realm']
         pid = compact_to_location_id_bytes(pid_compact)
-        height = self.height
         status, candidate_id, raw_candidate_entries = self.get_effective_subrealm(pid, request_subrealm, height)
         atomical['subtype'] = 'request_subrealm'  # Will change to 'subrealm' if it is found to be valid
         # Populate the requested full realm name
-        self.populate_request_full_realm_name(atomical, pid, request_subrealm)
+        self.populate_request_full_realm_name(atomical, pid, request_subrealm, height)
         # Build the applicable rule set mapping of atomical_id to the rule that will need to be matched and paid.
         # We use this information to display to each candidate what rule would apply to their mint
         # and how much to pay and by which block height they must submit their payment
@@ -2515,7 +2513,7 @@ class BlockProcessor:
         atomical['$request_subrealm'] = atomical['mint_info'].get('$request_subrealm')
         atomical['$parent_realm'] = pid_compact
         # Resolve the parent realm to get the parent realm path and construct the `full_realm_name`.
-        parent_realm = self.get_base_mint_info_by_atomical_id(pid)
+        parent_realm = self.get_base_mint_info_by_atomical_id(pid, height)
         if not parent_realm:
             atomical_id = atomical['mint_info']['id']
             raise IndexError(
@@ -2538,14 +2536,13 @@ class BlockProcessor:
         return request_subrealm, False
 
     # Populate the specific dmitem request type information
-    def populate_dmitem_subtype_specific_fields(self, atomical):
+    def populate_dmitem_subtype_specific_fields(self, atomical, height: int):
         # Check if the effective dmitem is for the current atomical and also resolve its parent.
         request_dmitem = atomical['mint_info'].get('$request_dmitem')
         if not request_dmitem:
             return None, None
         pid_compact = atomical['mint_info']['$parent_container']
         pid = compact_to_location_id_bytes(pid_compact)
-        height = self.height
         status, candidate_id, raw_candidate_entries = self.get_effective_dmitem(pid, request_dmitem, height)
         atomical['subtype'] = 'request_dmitem'  # Will change to 'dmitem' if it is found to be valid.
         # Build the applicable rule set mapping of atomical_id to the rule that will need to be matched and paid.
@@ -2574,7 +2571,7 @@ class BlockProcessor:
         atomical['$request_dmitem'] = atomical['mint_info'].get('$request_dmitem')
         atomical['$parent_container'] = pid_compact
         # Resolve the parent to get the parent path and construct the `parent_container_name`.
-        parent_container = self.get_base_mint_info_by_atomical_id(pid)
+        parent_container = self.get_base_mint_info_by_atomical_id(pid, height)
         if not parent_container:
             atomical_id = atomical['mint_info']['id']
             raise IndexError(
@@ -2596,7 +2593,7 @@ class BlockProcessor:
     # Populate the subtype information such as realms, subrealms, containers and tickers
     # An atomical can have a naming element if it passed all the validity checks of the assignment
     # and for that reason there is the concept of "effective" name which is based on a commit/reveal delay pattern
-    def populate_extended_atomical_subtype_info(self, atomical, height: int = None):
+    def populate_extended_atomical_subtype_info(self, atomical, height: int):
         # 
         # TOP-REALM (TLR) Type Fields
         #
@@ -2636,12 +2633,13 @@ class BlockProcessor:
         # SUBREALM type fields
         #
         # The method populates all the fields and nothing more needs to be done at this level for subrealms
-        self.populate_subrealm_subtype_specific_fields(atomical)
+        self.populate_subrealm_subtype_specific_fields(atomical, height)
         # 
         # DMITEM type fields
         #
         # The method populates all the fields and nothing more needs to be done at this level for dmitems
-        self.populate_dmitem_subtype_specific_fields(atomical)
+        self.populate_dmitem_subtype_specific_fields(atomical, height)
+
         return atomical 
 
     def is_dft_bitwork_rollover_activated(self, height):
