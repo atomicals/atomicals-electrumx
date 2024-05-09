@@ -3009,18 +3009,18 @@ class BlockProcessor:
                 # in one and the same tx as making a payment. It's not advisable to do so, but it's a valid possibility
 
                 # Check if there were any payments for subrealms in tx
-                payment_tx_hash = self.create_or_delete_subname_payment_output_if_valid(tx_hash, tx, tx_num, height, atomicals_operations_found_at_inputs, atomicals_spent_at_inputs,  b'spay', self.subrealmpay_data_cache, self.get_expected_subrealm_payment_info, False)
-                if payment_tx_hash:
+                subrealm_payment_tx_hash = self.create_or_delete_subname_payment_output_if_valid(tx_hash, tx, tx_num, height, atomicals_operations_found_at_inputs, atomicals_spent_at_inputs,  b'spay', self.subrealmpay_data_cache, self.get_expected_subrealm_payment_info, False)
+                if subrealm_payment_tx_hash:
                     self.logger.info(f'advance_txs: found valid subrealm payment create_or_delete_subname_payment_output_if_valid {hash_to_hex_str(tx_hash)}')
-                    append_hashX(double_sha256(payment_tx_hash))
+                    append_hashX(double_sha256(subrealm_payment_tx_hash))
                     self.put_op_data(tx_num, tx_hash, "payment-subrealm")
                     has_at_least_one_valid_atomicals_operation = True
 
                 # Check if there were any payments for dmitems in tx
-                payment_tx_hash = self.create_or_delete_subname_payment_output_if_valid(tx_hash, tx, tx_num, height, atomicals_operations_found_at_inputs, atomicals_spent_at_inputs,  b'dmpay', self.dmpay_data_cache, self.get_expected_dmitem_payment_info, False)
-                if payment_tx_hash:
+                dmitem_payment_tx_hash = self.create_or_delete_subname_payment_output_if_valid(tx_hash, tx, tx_num, height, atomicals_operations_found_at_inputs, atomicals_spent_at_inputs,  b'dmpay', self.dmpay_data_cache, self.get_expected_dmitem_payment_info, False)
+                if dmitem_payment_tx_hash:
                     self.logger.info(f'advance_txs: found valid dmitem payment create_or_delete_subname_payment_output_if_valid {hash_to_hex_str(tx_hash)}')
-                    append_hashX(double_sha256(payment_tx_hash))
+                    append_hashX(double_sha256(dmitem_payment_tx_hash))
                     self.put_op_data(tx_num, tx_hash, "payment-dmitem")
                     has_at_least_one_valid_atomicals_operation = True
  
