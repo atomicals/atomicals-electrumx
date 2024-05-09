@@ -658,7 +658,7 @@ class BlockProcessor:
                 assert(request_parent_realm_id_compact == parent_realm_id_compact)
                 if isinstance(parent_realm_id_compact, str) and is_compact_atomical_id(parent_realm_id_compact):
                     # We have a validated potential parent id, now look it up to see if the parent is a valid atomical
-                    found_parent_mint_info = self.get_base_mint_info_by_atomical_id(parent_realm_id)
+                    found_parent_mint_info = self.get_base_mint_info_by_atomical_id(parent_realm_id, height=current_height)
                     if found_parent_mint_info:
                         # We have found the parent atomical, which may or may not be a valid realm
                         # Do the basic check for $request_realm which indicates it succeeded the basic validity checks
@@ -747,8 +747,7 @@ class BlockProcessor:
             self.logger.info(f'get_expected_dmitem_payment_info: parent_container_id_compact not string or compact atomical id {location_id_bytes_to_compact(found_atomical_id_for_potential_dmitem)} parent_container_id_compact={parent_container_id_compact}')
             return None, None, None, None
         # We have a validated potential parent id, now look it up to see if the parent is a valid atomical
-        # found_parent_mint_info = self.get_base_mint_info_by_atomical_id(parent_container_id)
-        found_parent_mint_info = self.get_base_mint_info_by_atomical_id(parent_container_id)
+        found_parent_mint_info = self.get_base_mint_info_by_atomical_id(parent_container_id, with_cache=False, height=current_height)
         if not found_parent_mint_info:
             self.logger.info(f'get_expected_dmitem_payment_info: not found_parent_mint_info found_atomical_id_for_potential_dmitem={location_id_bytes_to_compact(found_atomical_id_for_potential_dmitem)} parent_container_id_compact={parent_container_id_compact} found_atomical_mint_info_for_potential_dmitem={found_atomical_mint_info_for_potential_dmitem}')
             return None, None, None, None
@@ -2209,8 +2208,8 @@ class BlockProcessor:
     # Get the atomical details base info
     # Does not retrieve the active b'a' locations in this method because there could be many thousands (in the case of FTs)
     # Another method is provided to layer on the active location and gives the user control over whether to retrieve them
-    def get_base_mint_info_by_atomical_id(self, atomical_id):
-        init_mint_info = self.get_atomicals_id_mint_info(atomical_id, True)
+    def get_base_mint_info_by_atomical_id(self, atomical_id, with_cache: bool = True, height: int = None):
+        init_mint_info = self.get_atomicals_id_mint_info(atomical_id, with_cache)
         if not init_mint_info:
             return None
         atomical_number = init_mint_info['number']
@@ -2329,9 +2328,9 @@ class BlockProcessor:
             atomical['$parents'] = parents
 
         # Resolve any name like details such as realms, subrealms, containers and tickers
-        self.populate_extended_atomical_subtype_info(atomical)
+        self.populate_extended_atomical_subtype_info(atomical, height)
         self.populate_sealed_status(atomical)
-        self.populate_container_dmint_status(atomical)
+        self.populate_container_dmint_status(atomical, height)
     
         return atomical
 
@@ -2349,10 +2348,11 @@ class BlockProcessor:
             atomical['$sealed'] = location_id_bytes_to_compact(sealed_location)
  
     # Populate the sealed status of an atomical
-    def populate_container_dmint_status(self, atomical):
+    def populate_container_dmint_status(self, atomical, height: int = None):
+        height = height if height else self.height
         if not atomical.get('$container'):
             return
-        status = self.make_container_dmint_status_by_atomical_id_at_height(atomical['atomical_id'], self.height)
+        status = self.make_container_dmint_status_by_atomical_id_at_height(atomical['atomical_id'], height)
         if not status:
             return
         atomical['$container_dmint_status'] = status
@@ -2466,11 +2466,11 @@ class BlockProcessor:
         return applicable_rule_map
 
     # Populate the specific name or request type for containers, tickers, and realms (sub-realms excluded)
-    def populate_name_subtype_specific_fields(self, atomical, type_str, get_effective_name_func):
+    def populate_name_subtype_specific_fields(self, atomical, type_str, get_effective_name_func, height: int = None):
         request_name = atomical['mint_info'].get('$request_' + type_str)
         if not request_name:
             return None, None
-        height = self.height
+        height = height if height else self.height
         status, candidate_id, raw_candidate_entries = get_effective_name_func(request_name, height)
         atomical['$' + type_str + '_candidates'] = format_name_type_candidates_to_rpc(raw_candidate_entries, self.build_atomical_id_to_candidate_map(raw_candidate_entries))
         atomical['$request_' + type_str + '_status'] = get_name_request_candidate_status(atomical, status, candidate_id, type_str)  
@@ -2596,11 +2596,11 @@ class BlockProcessor:
     # Populate the subtype information such as realms, subrealms, containers and tickers
     # An atomical can have a naming element if it passed all the validity checks of the assignment
     # and for that reason there is the concept of "effective" name which is based on a commit/reveal delay pattern
-    def populate_extended_atomical_subtype_info(self, atomical):
+    def populate_extended_atomical_subtype_info(self, atomical, height: int = None):
         # 
         # TOP-REALM (TLR) Type Fields
         #
-        the_name_request, is_atomical_name_verified_found = self.populate_name_subtype_specific_fields(atomical, 'realm', self.get_effective_realm)
+        the_name_request, is_atomical_name_verified_found = self.populate_name_subtype_specific_fields(atomical, 'realm', self.get_effective_realm, height)
         if is_atomical_name_verified_found:
             atomical['subtype'] = 'realm'
             atomical['$realm'] = the_name_request
@@ -2613,7 +2613,7 @@ class BlockProcessor:
         # 
         # CONTAINER Type Fields
         #
-        the_name_request, is_atomical_name_verified_found = self.populate_name_subtype_specific_fields(atomical, 'container', self.get_effective_container)
+        the_name_request, is_atomical_name_verified_found = self.populate_name_subtype_specific_fields(atomical, 'container', self.get_effective_container, height)
         if is_atomical_name_verified_found:
             atomical['subtype'] = 'container'
             atomical['$container'] = the_name_request
@@ -2625,7 +2625,7 @@ class BlockProcessor:
         # 
         # TICKER NAME FIELDS
         #
-        the_name_request, is_atomical_name_verified_found = self.populate_name_subtype_specific_fields(atomical, 'ticker', self.get_effective_ticker)
+        the_name_request, is_atomical_name_verified_found = self.populate_name_subtype_specific_fields(atomical, 'ticker', self.get_effective_ticker, height)
         if is_atomical_name_verified_found:
             atomical['$ticker'] = the_name_request
             return atomical
