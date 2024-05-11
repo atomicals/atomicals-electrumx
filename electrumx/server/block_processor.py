@@ -2208,7 +2208,7 @@ class BlockProcessor:
     # Get the atomical details base info
     # Does not retrieve the active b'a' locations in this method because there could be many thousands (in the case of FTs)
     # Another method is provided to layer on the active location and gives the user control over whether to retrieve them
-    def get_base_mint_info_by_atomical_id(self, atomical_id, height: int = None):
+    def get_base_mint_info_by_atomical_id(self, atomical_id, height: Optional[int] = None):
         height = height if height else self.height
         init_mint_info = self.get_atomicals_id_mint_info(atomical_id, True)
         if not init_mint_info:
@@ -2396,7 +2396,7 @@ class BlockProcessor:
         return atomical_id_to_candidates_map
         
     # Populate the requested full realm name to provide context for a subrealm request
-    def populate_request_full_realm_name(self, atomical, pid, request_subrealm, height: int = None):
+    def populate_request_full_realm_name(self, atomical, pid, request_subrealm, height: Optional[int] = None):
         # Resolve the parent realm to get the parent realm path and construct the full_realm_name
         parent_realm = self.get_base_mint_info_by_atomical_id(pid, height)
         if not parent_realm:
