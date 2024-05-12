@@ -25,7 +25,7 @@ from electrumx.lib.util import (class_logger, hex_to_bytes, json_deserialize,
                                 unpack_le_uint16_from)
 
 if TYPE_CHECKING:
-    from electrumx.lib.coins import Coin
+    from electrumx.lib.coins import AtomicalsCoin
 
 
 class DaemonError(Exception):
@@ -48,7 +48,7 @@ class Daemon:
 
     def __init__(
             self,
-            coin: Type['Coin'],
+            coin: Type['AtomicalsCoin'],
             url,
             *,
             max_workqueue=10,

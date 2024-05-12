@@ -13,7 +13,7 @@ from ipaddress import IPv4Address, IPv6Address
 from typing import Type
 
 from aiorpcx import Service, ServicePart
-from electrumx.lib.coins import Coin
+from electrumx.lib.coins import AtomicalsCoin
 from electrumx.lib.env_base import EnvBase
 
 
@@ -32,7 +32,7 @@ class Env(EnvBase):
     SSL_PROTOCOLS = {'ssl', 'wss'}
     KNOWN_PROTOCOLS = {'ssl', 'tcp', 'ws', 'wss', 'rpc', 'http'}
 
-    coin: Type[Coin]
+    coin: Type[AtomicalsCoin]
 
     def __init__(self, coin=None):
         super().__init__()
@@ -47,12 +47,12 @@ class Env(EnvBase):
         self.daemon_url = self.required('DAEMON_URL')
         self.daemon_proxy_url = self.default('DAEMON_PROXY_URL', None)
         if coin is not None:
-            assert issubclass(coin, Coin)
+            assert issubclass(coin, AtomicalsCoin)
             self.coin = coin
         else:
             coin_name = self.required('COIN').strip()
             network = self.default('NET', 'mainnet').strip()
-            self.coin = Coin.lookup_coin_class(coin_name, network)
+            self.coin = AtomicalsCoin.lookup_coin_class(coin_name, network)
 
         # Peer discovery
 

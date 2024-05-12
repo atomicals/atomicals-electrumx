@@ -27,7 +27,7 @@ from electrumx.lib.util_atomicals import get_mint_info_op_factory, parse_protoco
 from electrumx.lib.hash import hash_to_hex_str, HASHX_LEN, double_sha256
 
 if TYPE_CHECKING:
-    from electrumx.lib.coins import Coin
+    from electrumx.lib.coins import AtomicalsCoin
 
 
 @attr.s(slots=True)
@@ -112,7 +112,7 @@ class MemPool:
 
     def __init__(
             self,
-            coin: Type['Coin'],
+            coin: Type['AtomicalsCoin'],
             api: MemPoolAPI,
             *,
             refresh_secs=5.0,

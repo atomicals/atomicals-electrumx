@@ -78,7 +78,7 @@ from electrumx.lib.atomicals_blueprint_builder import AtomicalsTransferBlueprint
 import copy
 
 if TYPE_CHECKING:
-    from electrumx.lib.coins import Coin
+    from electrumx.lib.coins import AtomicalsCoin
     from electrumx.server.env import Env
     from electrumx.server.controller import Notifications
 
@@ -101,7 +101,7 @@ class Prefetcher:
     def __init__(
             self,
             daemon: 'Daemon',
-            coin: Type['Coin'],
+            coin: Type['AtomicalsCoin'],
             blocks_event: asyncio.Event,
             *,
             polling_delay_secs,
