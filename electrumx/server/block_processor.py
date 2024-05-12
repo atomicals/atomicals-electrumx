@@ -303,6 +303,7 @@ class BlockProcessor:
             "invalid-mint": 59,
             "burn": 70,
         }
+        self.op_list_vk = {v: k for k, v in self.op_list.items()}
 
     async def run_in_thread_with_lock(self, func, *args):
         # Run in a thread to prevent blocking.  Shielded so that
