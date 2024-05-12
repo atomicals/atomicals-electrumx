@@ -3130,54 +3130,54 @@ class BlockProcessor:
             decentralized_mints = self.get_distmints_count_by_atomical_id(height, atomical_id_of_dft_ticker, False)
             if decentralized_mints > max_mints:
                 raise IndexError(f'validate_no_dft_inflation - inflation_bug_found: atomical_id_of_dft_ticker={location_id_bytes_to_compact(atomical_id_of_dft_ticker)} decentralized_mints={decentralized_mints} max_mints={max_mints}')
-    
+
     def create_or_delete_subname_payment_output_if_valid(self, tx_hash, tx, tx_num, height, operations_found_at_inputs, atomicals_spent_at_inputs, db_prefix, subname_data_cache, get_expected_subname_payment_info, Delete=False):
         atomical_id_for_payment, payment_marker_idx, entity_type = AtomicalsTransferBlueprintBuilder.get_atomical_id_for_payment_marker_if_found(tx)
         if not atomical_id_for_payment:
-            return None 
+            return None, False
         # Make sure the payment type for the right type subrealm or dmitem is correct
         if entity_type == 'subrealm' and db_prefix != b'spay':
-            return None 
+            return tx_hash, False
         if entity_type == 'dmitem' and db_prefix != b'dmpay':
-            return None 
-        
+            return tx_hash, False
+
         # Rebuild the blueprint builder here
         blueprint_builder = AtomicalsTransferBlueprintBuilder(self.logger, atomicals_spent_at_inputs, operations_found_at_inputs, tx_hash, tx, self.get_atomicals_id_mint_info, self.is_dmint_activated(height))
         if blueprint_builder.is_split_operation():
             self.logger.warning(f'create_or_delete_subname_payment_output_if_valid: invalid payment split op found tx_hash={hash_to_hex_str(tx_hash)}')
-            return None 
-        
+            return tx_hash, False
+
         matched_price_point, parent_id, request_subname, subname_type = get_expected_subname_payment_info(atomical_id_for_payment, height)
-        
+
         # An expected payment amount might not be set if there is no valid subrealm minting rules, or something invalid was found
         if not matched_price_point:
             self.logger.warning(f'create_or_delete_subname_payment_output_if_valid: {hash_to_hex_str(tx_hash)} NOT MATCHED PRICE - create_or_delete_subrealm_payment_output_if_valid atomical_id_for_payment={location_id_bytes_to_compact(atomical_id_for_payment)}')
-            return None
-        
+            return tx_hash, False
+
         regex = matched_price_point['matched_rule']['p']
         if not is_valid_regex(regex):
             self.logger.warning(f'create_or_delete_subname_payment_output_if_valid invalid matched regex. regex={regex} atomical_id_for_payment={location_id_bytes_to_compact(atomical_id_for_payment)}')
-            return None 
-        
+            return tx_hash, False
+
         # The pattern should have already matched, sanity check
         valid_pattern = re.compile(rf"{regex}")
         if not valid_pattern.match(request_subname):
             raise IndexError(f'create_or_delete_subname_payment_output_if_valid: valid pattern failed. DeveloperError request_subname={request_subname}, regex={regex}')
- 
+
         if not blueprint_builder.are_payments_satisfied(matched_price_point['matched_rule'].get('o')):
             self.logger.warning(f'create_or_delete_subname_payment_output_if_valid: payments not satisfied. request_subname={request_subname}, regex={regex} atomical_id_for_payment={location_id_bytes_to_compact(atomical_id_for_payment)}')
-            return None 
-    
+            return tx_hash, False
+
         # Delete or create the record based on whether we are reorg rollback or creating new
         payment_outpoint = tx_hash + pack_le_uint32(payment_marker_idx)
-        not_initated_by_parent = b'00' # Used to indicate it was minted according to rules payment match
+        not_initated_by_parent = b'00'  # Used to indicate it was minted according to rules payment match
         if Delete:
             self.delete_pay_record(atomical_id_for_payment, tx_num, payment_outpoint + not_initated_by_parent, db_prefix, subname_data_cache)
         else:
             self.put_pay_record(atomical_id_for_payment, tx_num, payment_outpoint + not_initated_by_parent, db_prefix, subname_data_cache)
-                
-        return tx_hash 
-     
+
+        return tx_hash, True
+
     def backup_blocks(self, raw_blocks: Sequence[bytes]):
         '''Backup the raw blocks and flush.
 
