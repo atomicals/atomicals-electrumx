@@ -3137,9 +3137,9 @@ class BlockProcessor:
             return None, False
         # Make sure the payment type for the right type subrealm or dmitem is correct
         if entity_type == 'subrealm' and db_prefix != b'spay':
-            return tx_hash, False
+            return None, False
         if entity_type == 'dmitem' and db_prefix != b'dmpay':
-            return tx_hash, False
+            return None, False
 
         # Rebuild the blueprint builder here
         blueprint_builder = AtomicalsTransferBlueprintBuilder(self.logger, atomicals_spent_at_inputs, operations_found_at_inputs, tx_hash, tx, self.get_atomicals_id_mint_info, self.is_dmint_activated(height))
