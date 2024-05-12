@@ -2210,7 +2210,7 @@ class BlockProcessor:
     # Does not retrieve the active b'a' locations in this method because there could be many thousands (in the case of FTs)
     # Another method is provided to layer on the active location and gives the user control over whether to retrieve them
     def get_base_mint_info_by_atomical_id(self, atomical_id, height: Optional[int] = None):
-        height = height if height else self.height
+        height = height or self.height
         init_mint_info = self.get_atomicals_id_mint_info(atomical_id, True)
         if not init_mint_info:
             return None
