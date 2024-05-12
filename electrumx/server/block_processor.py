@@ -297,7 +297,7 @@ class BlockProcessor:
             "dft": 20, "dat": 21, "split": 22, "splat": 23,
             "seal": 24, "evt": 25, "mod": 26,
             "transfer": 30,
-            "payment-subrealm": 40, "payment-dmitem": 41,
+            "payment-subrealm": 40, "payment-dmitem": 41, "payment-subrealm-failed": 42, "payment-dmitem-failed": 43,
             "mint-dft-failed": 51, "mint-ft-failed": 52, "mint-nft-failed": 53, "mint-nft-realm-failed": 54,
             "mint-nft-subrealm-failed": 55, "mint-nft-container-failed": 56, "mint-nft-dmitem-failed": 57,
             "invalid-mint": 59,
@@ -2830,8 +2830,8 @@ class BlockProcessor:
             if len(atomicals_transferred_list):
                 atomicals_spent_at_inputs[txin_index] = atomicals_transferred_list
             txin_index += 1
-        return atomicals_spent_at_inputs 
-    
+        return atomicals_spent_at_inputs
+
     # Builds a map of the atomicals spent at a tx
     # It uses the spend_atomicals_utxo method but with live_run == False
     def build_atomicals_receive_at_ouutput_for_validation_only(self, tx, txid):
@@ -2852,7 +2852,7 @@ class BlockProcessor:
             is_unspendable: Callable[[bytes], bool],
             header,
             height
-    ) -> Sequence[bytes]:
+    ) -> tuple[list[bytes], list[bytes]]:
         self.tx_hashes.append(b''.join(tx_hash for tx, tx_hash in txs))
         self.atomicals_rpc_format_cache.clear()
         self.atomicals_rpc_general_cache.clear()
@@ -2875,8 +2875,8 @@ class BlockProcessor:
                 prev_atomicals_block_hash = self.get_general_data_with_cache(b'tt' + pack_le_uint32(height - 1))
                 concatenation_of_tx_hashes_with_valid_atomical_operation.append(block_header_hash + prev_atomicals_block_hash)
         # Use local vars for speed in the loops
-        undo_info = []
-        atomicals_undo_info = []
+        undo_info: list[bytes] = []
+        atomicals_undo_info: list[bytes] = []
         tx_num = self.tx_count
         atomical_num = self.atomical_count
         script_hashX = self.coin.hashX_from_script
@@ -2892,7 +2892,7 @@ class BlockProcessor:
         to_le_uint32 = pack_le_uint32
         to_le_uint64 = pack_le_uint64
         to_be_uint64 = pack_be_uint64
-        
+
         # track which dft tickers have mints to perform a sanity check at the end
         atomical_ids_which_have_valid_dft_mints = {}
         # Speed up distmint processing by caching the ticker mint request info
@@ -2912,7 +2912,7 @@ class BlockProcessor:
                 cache_value = spend_utxo(txin.prev_hash, txin.prev_idx)
                 undo_info_append(cache_value)
                 append_hashX(cache_value[:HASHX_LEN])
-                
+
                 # Only search and spend atomicals utxos if activated
                 if self.is_atomicals_activated(height):
                     # Find all the existing transferred atomicals and spend the Atomicals utxos
@@ -2929,7 +2929,7 @@ class BlockProcessor:
 
                     atomicals_undo_info_extend(reformatted_for_undo_entries)
                 txin_index = txin_index + 1
-            
+
             # Add the new UTXOs
             for idx, txout in enumerate(tx.outputs):
                 # Ignore unspendable outputs
@@ -2939,7 +2939,7 @@ class BlockProcessor:
                 hashX = self.coin.hashX_from_script(txout.pk_script)
                 append_hashX(hashX)
                 put_utxo(tx_hash + to_le_uint32(idx), hashX + tx_numb + to_le_uint64(txout.value))
-            
+
             # Only create Atomicals if the activation height is reached
             if self.is_atomicals_activated(height):
                 # Save the tx number for the current tx
@@ -2961,7 +2961,7 @@ class BlockProcessor:
                     reveal_location_txid = atomicals_operations_found_at_inputs['reveal_location_txid']
                     reveal_location_index = atomicals_operations_found_at_inputs['reveal_location_index']
                     self.logger.debug(f'advance_txs: atomicals_operations_found_at_inputs operation_found={operation_found}, operation_input_index={operation_input_index}, size_payload={size_payload}, tx_hash={hash_to_hex_str(tx_hash)}, commit_txid={hash_to_hex_str(commit_txid)}, commit_index={commit_index}, reveal_location_txid={hash_to_hex_str(reveal_location_txid)}, reveal_location_index={reveal_location_index}')
-                
+
                 # Color the outputs of any transferred NFT/FT atomicals according to the rules
                 blueprint_builder = self.color_atomicals_outputs(atomicals_operations_found_at_inputs, atomicals_spent_at_inputs, tx, tx_hash, tx_num, height)
                 for atomical_id in blueprint_builder.get_atomical_ids_spent():
@@ -2969,23 +2969,23 @@ class BlockProcessor:
                     self.logger.debug(f'advance_txs: color_atomicals_outputs atomical_ids_transferred. atomical_id={atomical_id.hex()}, tx_hash={hash_to_hex_str(tx_hash)}')
                     # Double hash the atomical_id to add it to the history to leverage the existing history db for all operations involving the atomical
                     append_hashX(double_sha256(atomical_id))
-                
+
                 # Track whether we encountered a valid operation so we can skip other steps in the processing pipeline for efficiency
                 already_found_valid_operation = False
-                
+
                 atomical_id_of_distmint = self.create_or_delete_decentralized_mint_output(atomicals_operations_found_at_inputs, tx_num, tx_hash, tx, height, distmint_ticker_cache, False)
                 if atomical_id_of_distmint:
                     dft_count += 1
-                    already_found_valid_operation = True                    
+                    already_found_valid_operation = True
                     atomical_ids_which_have_valid_dft_mints[atomical_id_of_distmint] = True
                     has_at_least_one_valid_atomicals_operation = True
                     # Double hash the atomical_id_of_distmint to add it to the history to leverage the existing history db for all operations involving the atomical
                     append_hashX(double_sha256(atomical_id_of_distmint))
                     self.logger.debug(f'advance_txs: create_or_delete_decentralized_mint_output:atomical_id_of_distmint - atomical_id={atomical_id_of_distmint.hex()}, tx_hash={hash_to_hex_str(tx_hash)}')
-                    
+
                     if dft_count % 100 == 0:
                         self.logger.info(f'height={height}, dft_count={dft_count}')
-          
+
                 # Create NFT/FT atomicals if it is defined in the tx
                 if not already_found_valid_operation:
                     created_atomical_id = self.create_or_delete_atomical(atomicals_operations_found_at_inputs, atomicals_spent_at_inputs, header, height, tx_num, atomical_num, tx, tx_hash, False)
@@ -3002,27 +3002,74 @@ class BlockProcessor:
                     if self.create_or_delete_data_location(tx_hash, atomicals_operations_found_at_inputs):
                         self.put_op_data(tx_num, tx_hash, "dat")
                         has_at_least_one_valid_atomicals_operation = True
-                        already_found_valid_operation = True 
+                        already_found_valid_operation = True
 
-                # Note: We do not skip checking for payment tx's even if already_found_valid_operation = True because there could be valid mints
-                # in one and the same tx as making a payment. It's not advisable to do so, but it's a valid possibility
+                # Note: We do not skip checking for payment tx's even if already_found_valid_operation = True
+                # because there could be valid mints in one and the same tx as making a payment.
+                # It's not advisable to do so, but it's a valid possibility.
 
                 # Check if there were any payments for subrealms in tx
-                subrealm_payment_tx_hash = self.create_or_delete_subname_payment_output_if_valid(tx_hash, tx, tx_num, height, atomicals_operations_found_at_inputs, atomicals_spent_at_inputs,  b'spay', self.subrealmpay_data_cache, self.get_expected_subrealm_payment_info, False)
+                subrealm_payment_tx_hash, verified = self.create_or_delete_subname_payment_output_if_valid(
+                    tx_hash,
+                    tx,
+                    tx_num,
+                    height,
+                    atomicals_operations_found_at_inputs,
+                    atomicals_spent_at_inputs,
+                    b'spay',
+                    self.subrealmpay_data_cache,
+                    self.get_expected_subrealm_payment_info,
+                    False
+                )
                 if subrealm_payment_tx_hash:
-                    self.logger.info(f'advance_txs: found valid subrealm payment create_or_delete_subname_payment_output_if_valid {hash_to_hex_str(tx_hash)}')
+                    if verified:
+                        self.logger.info(
+                            'advance_txs: found valid subrealm payment '
+                            'create_or_delete_subname_payment_output_if_valid '
+                            f'{hash_to_hex_str(tx_hash)}'
+                        )
+                        self.put_op_data(tx_num, tx_hash, "payment-subrealm")
+                    else:
+                        self.logger.info(
+                            'advance_txs: found invalid subrealm payment '
+                            'create_or_delete_subname_payment_output_if_valid '
+                            f'{hash_to_hex_str(tx_hash)}'
+                        )
+                        self.put_op_data(tx_num, tx_hash, "payment-subrealm-failed")
                     append_hashX(double_sha256(subrealm_payment_tx_hash))
-                    self.put_op_data(tx_num, tx_hash, "payment-subrealm")
                     has_at_least_one_valid_atomicals_operation = True
 
                 # Check if there were any payments for dmitems in tx
-                dmitem_payment_tx_hash = self.create_or_delete_subname_payment_output_if_valid(tx_hash, tx, tx_num, height, atomicals_operations_found_at_inputs, atomicals_spent_at_inputs,  b'dmpay', self.dmpay_data_cache, self.get_expected_dmitem_payment_info, False)
+                dmitem_payment_tx_hash, verified = self.create_or_delete_subname_payment_output_if_valid(
+                    tx_hash,
+                    tx,
+                    tx_num,
+                    height,
+                    atomicals_operations_found_at_inputs,
+                    atomicals_spent_at_inputs,
+                    b'dmpay',
+                    self.dmpay_data_cache,
+                    self.get_expected_dmitem_payment_info,
+                    False
+                )
                 if dmitem_payment_tx_hash:
-                    self.logger.info(f'advance_txs: found valid dmitem payment create_or_delete_subname_payment_output_if_valid {hash_to_hex_str(tx_hash)}')
+                    if verified:
+                        self.logger.info(
+                            'advance_txs: found valid dmitem payment '
+                            'create_or_delete_subname_payment_output_if_valid '
+                            f'{hash_to_hex_str(tx_hash)}'
+                        )
+                        self.put_op_data(tx_num, tx_hash, "payment-dmitem")
+                    else:
+                        self.logger.info(
+                            'advance_txs: found invalid dmitem payment '
+                            'create_or_delete_subname_payment_output_if_valid '
+                            f'{hash_to_hex_str(tx_hash)}'
+                        )
+                        self.put_op_data(tx_num, tx_hash, "payment-dmitem-failed")
                     append_hashX(double_sha256(dmitem_payment_tx_hash))
-                    self.put_op_data(tx_num, tx_hash, "payment-dmitem")
                     has_at_least_one_valid_atomicals_operation = True
- 
+
                 # Create a proof of work record if there was valid proof of work attached
                 if self.create_or_delete_pow_records(tx_hash, tx_num, height, atomicals_operations_found_at_inputs):
                     has_at_least_one_valid_atomicals_operation = True
@@ -3042,7 +3089,7 @@ class BlockProcessor:
                     put_general_data(b'rtx' + tx_hash, raw_tx)
                     del _tx
                     del _tx_hash
-                    
+
             append_hashXs(hashXs)
             update_touched(hashXs)
             tx_num += 1
@@ -3058,15 +3105,15 @@ class BlockProcessor:
         self.db.tx_counts.append(tx_num)
         self.atomical_count = atomical_num
         self.db.atomical_counts.append(atomical_num)
-            
+
         if self.is_atomicals_activated(height):
             # Save the atomicals hash for the current block
             current_height_atomicals_block_hash = self.coin.header_hash(b''.join(concatenation_of_tx_hashes_with_valid_atomical_operation))
             put_general_data(b'tt' + pack_le_uint32(height), current_height_atomicals_block_hash)
-            self.logger.info(f'height={height}, atomicals_block_hash={hash_to_hex_str(current_height_atomicals_block_hash)}')   
-       
+            self.logger.info(f'height={height}, atomicals_block_hash={hash_to_hex_str(current_height_atomicals_block_hash)}')
+
         return undo_info, atomicals_undo_info
-    
+
     # Sanity safety check method to call at end of block processing to ensure no dft token inflation
     def validate_no_dft_inflation(self, atomical_id_map, height):
         for atomical_id_of_dft_ticker, notused in atomical_id_map.items():
