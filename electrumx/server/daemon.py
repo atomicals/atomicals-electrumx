@@ -13,7 +13,7 @@ import itertools
 import time
 from calendar import timegm
 from struct import pack
-from typing import TYPE_CHECKING, Type
+from typing import TYPE_CHECKING, Type, Union
 
 import aiohttp
 from aiorpcx import JSONRPC
@@ -25,7 +25,7 @@ from electrumx.lib.util import (class_logger, hex_to_bytes, json_deserialize,
                                 unpack_le_uint16_from)
 
 if TYPE_CHECKING:
-    from electrumx.lib.coins import AtomicalsCoin
+    from electrumx.lib.coins import Coin, AtomicalsCoinMixin
 
 
 class DaemonError(Exception):
@@ -48,7 +48,7 @@ class Daemon:
 
     def __init__(
             self,
-            coin: Type['AtomicalsCoin'],
+            coin: Type[Union['Coin', 'AtomicalsCoinMixin']],
             url,
             *,
             max_workqueue=10,
@@ -307,12 +307,14 @@ class Daemon:
         '''Query the daemon for its current height.'''
         self._height = await self._send_single('getblockcount')
         return self._height
+        # return self.coin.ATOMICALS_ACTIVATION_HEIGHT - 1
 
     def cached_height(self):
         '''Return the cached daemon height.
 
         If the daemon has not been queried yet this returns None.'''
         return self._height
+        # return self.coin.ATOMICALS_ACTIVATION_HEIGHT - 1
 
 
 class DashDaemon(Daemon):

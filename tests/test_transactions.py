@@ -11,7 +11,7 @@ from binascii import unhexlify
 
 import pytest
 
-from electrumx.lib.coins import AtomicalsCoin, Namecoin
+from electrumx.lib.coins import Coin, Namecoin
 from electrumx.lib.hash import hash_to_hex_str
 from electrumx.lib.script import OpCodes, Script
 
@@ -25,7 +25,7 @@ transactions = []
 for name in os.listdir(TRANSACTION_DIR):
     try:
         name_parts = name.split("_")
-        coinFound = AtomicalsCoin.lookup_coin_class(name_parts[0], name_parts[1])
+        coinFound = Coin.lookup_coin_class(name_parts[0], name_parts[1])
         with open(os.path.join(TRANSACTION_DIR, name)) as f:
             transactions.append((coinFound, json.load(f)))
     except Exception as e:
@@ -74,4 +74,4 @@ def test_transaction(transaction_details):
                 normalized_name_op_script.append(OpCodes.OP_2DROP)
                 normalized_name_op_script.append(OpCodes.OP_DROP)
                 normalized_name_op_script.append(OpCodes.OP_RETURN)
-                assert coin.name_hashX_from_script(tx_pks) == AtomicalsCoin.hashX_from_script(normalized_name_op_script)
+                assert coin.name_hashX_from_script(tx_pks) == Coin.hashX_from_script(normalized_name_op_script)

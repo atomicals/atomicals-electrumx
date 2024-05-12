@@ -11,7 +11,7 @@
 import asyncio
 import os
 import time
-from typing import Sequence, Tuple, List, Callable, Optional, TYPE_CHECKING, Type
+from typing import Sequence, Tuple, List, Callable, Optional, TYPE_CHECKING, Type, Union
 
 from aiorpcx import run_in_thread, CancelledError
 
@@ -78,7 +78,7 @@ from electrumx.lib.atomicals_blueprint_builder import AtomicalsTransferBlueprint
 import copy
 
 if TYPE_CHECKING:
-    from electrumx.lib.coins import AtomicalsCoin
+    from electrumx.lib.coins import Coin, AtomicalsCoinMixin
     from electrumx.server.env import Env
     from electrumx.server.controller import Notifications
 
@@ -101,7 +101,7 @@ class Prefetcher:
     def __init__(
             self,
             daemon: 'Daemon',
-            coin: Type['AtomicalsCoin'],
+            coin: Type[Union['Coin', 'AtomicalsCoinMixin']],
             blocks_event: asyncio.Event,
             *,
             polling_delay_secs,

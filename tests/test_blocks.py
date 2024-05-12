@@ -30,7 +30,7 @@ from binascii import unhexlify
 
 import pytest
 
-from electrumx.lib.coins import AtomicalsCoin
+from electrumx.lib.coins import Coin
 from electrumx.lib.hash import hex_str_to_hash
 
 BLOCKS_DIR = os.path.join(
@@ -43,7 +43,7 @@ blocks = []
 for name in os.listdir(BLOCKS_DIR):
     try:
         name_parts = name.split("_")
-        coin = AtomicalsCoin.lookup_coin_class(name_parts[0], name_parts[1])
+        coin = Coin.lookup_coin_class(name_parts[0], name_parts[1])
         with open(os.path.join(BLOCKS_DIR, name)) as f:
             blocks.append((coin, json.load(f)))
     except Exception as e:
