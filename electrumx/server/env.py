@@ -10,10 +10,10 @@
 
 import re
 from ipaddress import IPv4Address, IPv6Address
-from typing import Type
+from typing import Type, Union
 
 from aiorpcx import Service, ServicePart
-from electrumx.lib.coins import Coin
+from electrumx.lib.coins import Coin, AtomicalsCoinMixin
 from electrumx.lib.env_base import EnvBase
 
 
@@ -32,7 +32,7 @@ class Env(EnvBase):
     SSL_PROTOCOLS = {'ssl', 'wss'}
     KNOWN_PROTOCOLS = {'ssl', 'tcp', 'ws', 'wss', 'rpc', 'http'}
 
-    coin: Type[Coin]
+    coin: Type[Union['Coin', 'AtomicalsCoinMixin']]
 
     def __init__(self, coin=None):
         super().__init__()
