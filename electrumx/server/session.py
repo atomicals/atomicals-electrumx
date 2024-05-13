@@ -1033,7 +1033,7 @@ class SessionManager:
 
     # Analysis the transaction detail by txid.
     # See BlockProcessor.op_list for the complete op list.
-    async def get_transaction_detail(self, txid, height=None, tx_num=-1):
+    async def get_transaction_detail(self, txid: str, height=None, tx_num=-1):
         tx_hash = hex_str_to_hash(txid)
         res = self._tx_detail_cache.get(tx_hash)
         if res:
@@ -1228,6 +1228,38 @@ class SessionManager:
 
         # Recursively encode the result.
         return auto_encode_bytes_elements(res)
+
+    async def transaction_global(
+            self,
+            limit: int = 10,
+            offset: int = 0,
+            op_type: Optional[str] = None,
+            reverse: bool = True
+    ):
+        height = self.bp.height
+        res = []
+        count = 0
+        history_list = []
+        for current_height in range(height, self.env.coin.ATOMICALS_ACTIVATION_HEIGHT, -1):
+            txs = self.db.get_atomicals_block_txs(current_height)
+            for tx in txs:
+                tx_num, _ = self.db.get_tx_num_height_from_tx_hash(hex_str_to_hash(tx))
+                history_list.append({
+                    "tx_num": tx_num,
+                    "tx_hash": tx,
+                    "height": current_height
+                })
+                count += 1
+            if count >= offset + limit:
+                break
+        history_list.sort(key=lambda x: x['tx_num'], reverse=reverse)
+
+        for history in history_list:
+            data = await self.get_transaction_detail(history["tx_hash"], history["height"], history["tx_num"])
+            if (op_type and op_type == data["op"]) or (not op_type and data["op"]):
+                res.append(data)
+        total = len(res)
+        return {"result": res[offset:offset+limit], "total": total, "limit": limit, "offset": offset}
 
     async def _notify_sessions(self, height, touched):
         '''Notify sessions about height changes and touched addresses.'''
@@ -3110,6 +3142,7 @@ class ElectrumX(SessionBase):
             'blockchain.atomicals.find_containers': self.atomicals_search_containers,
             'blockchain.atomicals.get_holders': self.atomicals_get_holders,
             'blockchain.atomicals.transaction': self.atomicals_transaction,
+            'blockchain.atomicals.transaction_global': self.session_mgr.transaction_global,
             'blockchain.atomicals.transaction_by_height': self.transaction_by_height,
             'blockchain.atomicals.transaction_by_atomical_id': self.transaction_by_atomical_id,
             'blockchain.atomicals.transaction_by_scripthash': self.transaction_by_scripthash,

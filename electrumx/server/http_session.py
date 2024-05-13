@@ -1878,28 +1878,4 @@ class HttpHandler(object):
         offset = params.get(1, 0)
         op_type = params.get(2, None)
         reverse = params.get(3, True)
-        height = self.session_mgr.bp.height
-
-        res = []
-        count = 0
-        history_list = []
-        for current_height in range(height, self.coin.ATOMICALS_ACTIVATION_HEIGHT, -1):
-            txs = self.db.get_atomicals_block_txs(current_height)
-            for tx in txs:
-                tx_num, _ = self.db.get_tx_num_height_from_tx_hash(hex_str_to_hash(tx))
-                history_list.append({
-                    "tx_num": tx_num,
-                    "tx_hash": tx,
-                    "height": current_height
-                })
-                count += 1
-            if count >= offset + limit:
-                break
-        history_list.sort(key=lambda x: x['tx_num'], reverse=reverse)
-
-        for history in history_list:
-            data = await self.session_mgr.get_transaction_detail(history["tx_hash"], history["height"], history["tx_num"])
-            if (op_type and op_type == data["op"]) or (not op_type and data["op"]):
-                res.append(data)
-        total = len(res)
-        return {"result": res[offset:offset+limit], "total": total, "limit": limit, "offset": offset}
+        return await self.session_mgr.transaction_global(limit, offset, op_type, reverse)
