@@ -1226,7 +1226,7 @@ class DB:
         op_key = b'op' + pack_le_uint64(tx_num)
         op_data = self.utxo_db.get(op_key)
         if not op_data:
-            tx_hash, tx_height = self.fs_tx_hash(tx_num)
+            # tx_hash, tx_height = self.fs_tx_hash(tx_num)
             # self.logger.error(f'get_op {hash_to_hex_str(tx_hash)} tx_num not found')
             return None
         op_res = []

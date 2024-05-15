@@ -97,8 +97,14 @@ def success_resp(data) -> web.Response:
 
 def request_middleware(self) -> web_middlewares:
     async def factory(app: web.Application, handler):
-        async def middleware_handler(request):
-            self.logger.info('Request {} comming'.format(request))
+        async def middleware_handler(request: web.Request):
+            # Log request details as a future.
+            async def log_request():
+                method = request.path
+                params = await request.json() if request.content_length else None
+                self.logger.debug(f'HTTP request handling: [method] {method}, [params]: {params}')
+            asyncio.ensure_future(log_request())
+
             if not self.env.enable_rate_limit:
                 response = await handler(request)
                 if isinstance(response, web.Response):
