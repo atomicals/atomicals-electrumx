@@ -1310,6 +1310,42 @@ def auto_encode_bytes_elements(state):
     return state
 
 
+# Auto-detect any bytes keys and values and encoded it.
+def auto_encode_bytes_items(state):
+    if isinstance(state, bytes):
+        return {
+            '$b': state.hex(),
+            '$len': sys.getsizeof(state),
+            '$auto': True
+        }
+
+    if isinstance(state, CBORTag):
+        dumped_bytes = dumps(state)
+        return auto_encode_bytes_elements(dumped_bytes)
+
+    if isinstance(state, list):
+        reformatted_list = []
+        for item in state:
+            reformatted_list.append(auto_encode_bytes_elements(item))
+        return reformatted_list
+
+    cloned_state = {}
+    try:
+        if isinstance(state, dict):
+            items = state.items()
+        else:
+            items = state.__dict__.items()
+    except AttributeError:
+        return state
+    for key, value in items:
+        if isinstance(key, bytes):
+            cloned_state[key.hex()] = auto_encode_bytes_items(value)
+        else:
+            cloned_state[auto_encode_bytes_items(key)] = auto_encode_bytes_items(value)
+
+    return cloned_state
+
+
 # Base atomical commit to reveal delay allowed
 def is_within_acceptable_blocks_for_general_reveal(commit_height, reveal_location_height):
     return commit_height >= reveal_location_height - MINT_GENERAL_COMMIT_REVEAL_DELAY_BLOCKS

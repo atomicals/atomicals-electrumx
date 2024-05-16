@@ -283,6 +283,14 @@ class Coin:
         return n
 
 
+class AtomicalsCoinMixin:
+    ATOMICALS_ACTIVATION_HEIGHT: int
+    ATOMICALS_ACTIVATION_HEIGHT_DMINT: int
+    ATOMICALS_ACTIVATION_HEIGHT_COMMITZ: int
+    ATOMICALS_ACTIVATION_HEIGHT_DENSITY: int
+    ATOMICALS_ACTIVATION_HEIGHT_DFT_BITWORK_ROLLOVER: int
+
+
 class AuxPowMixin:
     STATIC_BLOCK_HEADERS = False
     DESERIALIZER = lib_tx.DeserializerAuxPow
@@ -629,7 +637,7 @@ class BitcoinCash(BitcoinMixin, Coin):
         return False
 
 
-class Bitcoin(BitcoinMixin, Coin):
+class Bitcoin(BitcoinMixin, AtomicalsCoinMixin, Coin):
     NAME = "Bitcoin"
     DESERIALIZER = lib_tx.DeserializerSegWit
     MEMPOOL_HISTOGRAM_REFRESH_SECS = 120
@@ -667,7 +675,7 @@ class Bitcoin(BitcoinMixin, Coin):
     ATOMICALS_ACTIVATION_HEIGHT_COMMITZ = 822800
     ATOMICALS_ACTIVATION_HEIGHT_DENSITY = 828128
     ATOMICALS_ACTIVATION_HEIGHT_DFT_BITWORK_ROLLOVER = 828628
-    ATOMICALS_ACTIVATION_SPLIT = 840000
+    ATOMICALS_ACTIVATION_SPLIT = 845000
 
     @classmethod
     def warn_old_client_on_tx_broadcast(cls, client_ver):
@@ -914,7 +922,7 @@ class BitcoinSVRegtest(BitcoinSVTestnet):
     GENESIS_ACTIVATION = 10_000
 
 
-class BitcoinTestnet(BitcoinTestnetMixin, Coin):
+class BitcoinTestnet(BitcoinTestnetMixin, AtomicalsCoinMixin, Coin):
     '''Bitcoin Testnet for Core bitcoind >= 0.13.1.'''
     NAME = "Bitcoin"
     DESERIALIZER = lib_tx.DeserializerSegWit
