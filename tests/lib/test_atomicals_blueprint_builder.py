@@ -6,6 +6,7 @@ from electrumx.lib.hash import HASHX_LEN, hex_str_to_hash, hash_to_hex_str
 from electrumx.lib.tx import Tx, TxInput, TxOutput
 
 from electrumx.lib.util_atomicals import (
+    compact_to_location_id_bytes,
     location_id_bytes_to_compact,
     parse_protocols_operations_from_witness_array
 )
@@ -899,3 +900,84 @@ def test_y_split_nft_and_ft():
     assert(ft_output_blueprint.outputs[2]["atomicals"][ft_atomical_id].atomical_value == 1000)
     assert(ft_output_blueprint.fts_burned != {})
     assert(blueprint_builder.get_are_fts_burned() == True)
+
+def test_custom_colored_ft_normal():
+    raw_tx_str = '0100000000010213ac24b68388e0e32f3b19e95764c67d03b151d1f524eb07bc6e4f2790a3b7f00000000000ffffffff2423c79220c41bd904699aada54868e5c5aecb15168971964c6f5950a7b1d6860000000000ffffffff03e80300000000000022512011b6ce99eab0d8873d787e99e68a351358228893cdf1049ac48aae51391598abe80300000000000022512011b6ce99eab0d8873d787e99e68a351358228893cdf1049ac48aae51391598abe80300000000000022512011b6ce99eab0d8873d787e99e68a351358228893cdf1049ac48aae51391598ab03401aaa5ca0d475dcec02867f28f687494a639b3b43aff0a776c68d94f8cd3e987bb08a3463d8ab937f18f5dadfc916337b2df98cdd700b8514c6fdaff7f5ddffc975201764381bc0b54064cc55a0dda055c5e9875e5cdd7a7c1452d9b93d6015546170ac00630461746f6d017948a178423935323765666134333236323633366438663539313766633736336662646430393333336534623338376166643664346564376139303561313237623237623469301903e86821c01764381bc0b54064cc55a0dda055c5e9875e5cdd7a7c1452d9b93d60155461700140101db7c999f69c7f551d6800341a75ae659e8c100d1bb116b0935afc9ac3aec69bb97eed3ea72fa75912401400aa53f85f8a862f0f672620f31c5e704d8b4d5c00000000'
+    raw_tx = bytes.fromhex(raw_tx_str)
+    subject_atomical_id = b'\x13Jv:\xb1\xad\x9a\xaf\x8a#[7\xa9s\xc0\xcc\xb2\xca\xe1"\x05Y\xc8s\x87\x11\xcc\x90W\xe2\x88\x88\x00\x00\x00\x00'
+    subject_atomical_id1 = b"\xb4'{\x12Z\x90z\xed\xd4\xd6\xaf\x87\xb3\xe43\x93\xd0\xbd?v\xfc\x17Y\x8fmcb2\xa4\xef'\x95\x00\x00\x00\x00"
+    tx, tx_hash = coin.DESERIALIZER(raw_tx, 0).read_tx_and_hash()
+    # print(hash_to_hex_str(subject_atomical_id))
+    # print(hash_to_hex_str(subject_atomical_id1))
+    operation_found_at_inputs = parse_protocols_operations_from_witness_array(tx, tx_hash, True)
+    # z means costom color
+    operation_found_at_inputs["op"] = "z"
+    operation_found_at_inputs["payload"] = {
+        "9527efa43262636d8f5917fc763fbdd09333e4b387afd6d4ed7a905a127b27b4i0": {
+            "0": 200,
+            "1": 300,
+        },
+        "8888e25790cc118773c8590522e1cab2ccc073a9375b238aaf9aadb13a764a13i0": {
+            "2": 8000,
+            "4": 8000,
+        }
+    }
+    atomicals_spent_at_inputs = {
+        1: [
+            {'atomical_id': subject_atomical_id1, 'location_id': b'not_used', 'data': b'not_used', 'data_value': {'sat_value': 1000, 'atomical_value': 1000}},
+            {'atomical_id': subject_atomical_id, 'location_id': b'not_used', 'data': b'not_used', 'data_value': {'sat_value': 1000, 'atomical_value': 1000}}
+        ]
+    }
+    def mock_mint_fetcher(self, atomical_id):
+        return {
+            'atomical_id': atomical_id,
+            'type': 'FT'
+        }
+    blueprint_builder = AtomicalsTransferBlueprintBuilder(MockLogger(), atomicals_spent_at_inputs, operation_found_at_inputs, tx_hash, tx, mock_mint_fetcher, True, True)
+    nft_output_blueprint = blueprint_builder.get_nft_output_blueprint()
+    assert(len(nft_output_blueprint.outputs) == 0)
+    ft_output_blueprint = blueprint_builder.get_ft_output_blueprint()
+    assert(ft_output_blueprint.cleanly_assigned == False)
+    assert(len(ft_output_blueprint.outputs) == 3)
+    assert(ft_output_blueprint.fts_burned != {})
+    assert(blueprint_builder.get_are_fts_burned() == True)
+
+    operation_found_at_inputs["payload"] = {
+        "9527efa43262636d8f5917fc763fbdd09333e4b387afd6d4ed7a905a127b27b4i0": {
+            "1": 1000,
+        },
+        "8888e25790cc118773c8590522e1cab2ccc073a9375b238aaf9aadb13a764a13i0": {
+            "2": 1000,
+        }
+    }
+    blueprint_builder = AtomicalsTransferBlueprintBuilder(MockLogger(), atomicals_spent_at_inputs, operation_found_at_inputs, tx_hash, tx, mock_mint_fetcher, True, True)
+    nft_output_blueprint = blueprint_builder.get_nft_output_blueprint()
+    assert(len(nft_output_blueprint.outputs) == 0)
+    ft_output_blueprint = blueprint_builder.get_ft_output_blueprint()
+    assert(ft_output_blueprint.cleanly_assigned == True)
+    assert(len(ft_output_blueprint.outputs) == 2)
+    assert(ft_output_blueprint.fts_burned == {})
+    assert(blueprint_builder.get_are_fts_burned() == False)
+
+def test_custom_colored_ft_normal():
+    raw_tx_str = '0100000000010258f654e38dee561d45847f45d856ad8cb2d7eafd574521d10ad28b30f44a9e020000000000ffffffffbf6b35d1973a17fc67188ff19731341dafad28a2aac9371c5286c955a6e16c450000000000ffffffff022202000000000000225120d9b4878e9915c8c37149942b02102ed86e462e47f6749424852dc4af89551f212202000000000000225120d9b4878e9915c8c37149942b02102ed86e462e47f6749424852dc4af89551f210340a4334065f27cb80fbf39bd28e634ca9b4e4d7c9b90ed6d575edd9856a664b4352d62e4af96ad11e8aabde952994d8fcb5dd2233ca54100f42045fe63bee9819c7d20c145f972a018b8c401ffd9181a1299a319aee1d55bf2d3393bcd659f06830a78ac00630461746f6d017a4c4fa17842363738376633396235643266633032306562306638653638636439323566323937303635633563383263383664313735636365316139626561613431313233396930a2613018c8613119015a6821c0c145f972a018b8c401ffd9181a1299a319aee1d55bf2d3393bcd659f06830a7801407e04393dddd9e6f899b581a64d26be40b9c148bf1696d99a962dd5257af023ad651efdd4d850819f5eb44e5c281ffb458d59382032248eecf39eb86d4d5dfcb300000000'
+    raw_tx = bytes.fromhex(raw_tx_str)
+    subject_atomical_id = b'9\x12A\xaa\xbe\xa9\xe1\xccu\xd1\x86,\xc8\xc5ep)_\x92\xcdh\x8e\x0f\xeb \xc0/]\x9b\xf3\x87g\x00\x00\x00\x00'
+    tx, tx_hash = coin.DESERIALIZER(raw_tx, 0).read_tx_and_hash()
+    operation_found_at_inputs = parse_protocols_operations_from_witness_array(tx, tx_hash, True)
+    atomicals_spent_at_inputs = {
+        0: [{'atomical_id': subject_atomical_id, 'location_id': b'not_used', 'data': b'not_used', 'data_value': {'sat_value': 546, 'atomical_value': 546}}]
+    }
+    def mock_mint_fetcher(self, atomical_id):
+        return {
+            'atomical_id': atomical_id,
+            'type': 'FT'
+        }
+    blueprint_builder = AtomicalsTransferBlueprintBuilder(MockLogger(), atomicals_spent_at_inputs, operation_found_at_inputs, tx_hash, tx, mock_mint_fetcher, True, True)
+    nft_output_blueprint = blueprint_builder.get_nft_output_blueprint()
+    assert(len(nft_output_blueprint.outputs) == 0)
+    ft_output_blueprint = blueprint_builder.get_ft_output_blueprint()
+    assert(ft_output_blueprint.cleanly_assigned == False)
+    assert(len(ft_output_blueprint.outputs) == 2)
+    assert(ft_output_blueprint.fts_burned == {})
+    assert(blueprint_builder.get_are_fts_burned() == False)

@@ -1785,7 +1785,7 @@ class HttpHandler(object):
                     "holding": holder["holding"]
                 })
         return formatted_results
-
+    
     async def atomicals_transaction(self, request):
         params = await self.format_params(request)
         txid = params.get(0, "")

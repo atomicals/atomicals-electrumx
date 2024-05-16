@@ -1,4 +1,5 @@
 from electrumx.lib.util_atomicals import (
+    is_custom_colored_operation,
     is_splat_operation,
     is_split_operation,
     is_mint_operation,
@@ -325,8 +326,41 @@ class AtomicalsTransferBlueprintBuilder:
       should_split_ft_atomicals = is_split_operation(operations_found_at_inputs)
       if should_split_ft_atomicals:
           return AtomicalsTransferBlueprintBuilder.color_ft_atomicals_split(ft_atomicals, operations_found_at_inputs, tx, is_split_activated)
+      
+      should_custom_colored_ft_atomicals = is_custom_colored_operation(operations_found_at_inputs)
+      if should_custom_colored_ft_atomicals:
+          return AtomicalsTransferBlueprintBuilder.custom_color_ft_atomicals(ft_atomicals, operations_found_at_inputs, tx)
       # Normal assignment in all cases including fall through of failure to provide a target exponent in the above resubstantiation
       return AtomicalsTransferBlueprintBuilder.color_ft_atomicals_regular(ft_atomicals, tx, sort_fifo, is_split_activated)
+  
+  @classmethod
+  def custom_color_ft_atomicals(cls, ft_atomicals, operations_found_at_inputs, tx):
+    output_colored_map = {}
+    fts_burned = {}
+    cleanly_assigned = True
+    for atomical_id, atomical_info in sorted(ft_atomicals.items()):
+      remaining_value = atomical_info.total_atomical_value
+      for out_idx, txout in enumerate(tx.outputs):
+        expected_output_index = out_idx
+        compact_atomical_id = location_id_bytes_to_compact(atomical_id)
+        expected_value = operations_found_at_inputs["payload"].get(compact_atomical_id, {}).get(str(expected_output_index), 0)
+        if expected_value <= 0 or remaining_value <= 0:
+            continue
+        # if expected_value > txout.value
+        # only can assigned txout's value
+        # expected_value will equal to txout.value
+        if expected_value > txout.value:
+            expected_value = txout.value
+        # set cleanly_assigned
+        if expected_value < txout.value:
+            cleanly_assigned = False
+        output_colored_map[expected_output_index] = output_colored_map.get(expected_output_index) or {'atomicals': {}}
+        output_colored_map[expected_output_index]['atomicals'][atomical_id] = AtomicalColoredOutputFt(txout.value, expected_value, atomical_info)
+        remaining_value -= expected_value
+      if remaining_value > 0:
+        cleanly_assigned = False
+        fts_burned[atomical_id] = remaining_value
+    return AtomicalFtOutputBlueprintAssignmentSummary(output_colored_map, fts_burned, cleanly_assigned, None)
 
   @classmethod
   def color_ft_atomicals_split(cls, ft_atomicals, operations_found_at_inputs, tx, is_split_activated):

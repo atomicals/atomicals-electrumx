@@ -1069,7 +1069,8 @@ def parse_operation_from_script(script, n):
             atom_op_decoded = 'x'  # extract - move atomical to 0'th output
         elif atom_op == "0179":
             atom_op_decoded = 'y'  # split - 
-
+        elif atom_op == "017a":
+            atom_op_decoded = 'z'
         if atom_op_decoded:
             return atom_op_decoded, parse_atomicals_data_definition_operation(script, n + one_letter_op_len)
     
@@ -1547,6 +1548,9 @@ def is_splat_operation(operations_found_at_inputs):
 
 def is_split_operation(operations_found_at_inputs):
     return operations_found_at_inputs and operations_found_at_inputs.get('op') == 'y' and operations_found_at_inputs.get('input_index') == 0
+
+def is_custom_colored_operation(operations_found_at_inputs):
+    return operations_found_at_inputs and operations_found_at_inputs.get('op') == 'z' and operations_found_at_inputs.get('input_index') == 0
 
 def is_seal_operation(operations_found_at_inputs):
     return operations_found_at_inputs and operations_found_at_inputs.get('op') == 'sl' and operations_found_at_inputs.get('input_index') == 0
