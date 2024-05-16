@@ -195,7 +195,7 @@ class HttpHandler(object):
             hashX = self.address_to_hashX(address)
             list_utxo = await self.hashX_listunspent(hashX)
             for utxo in list_utxo:
-                tx_detail = await self.transaction_get(utxo["tx_hash"], True)
+                tx_detail = await self.transaction_get(utxo["tx_hash"])
                 list_tx.append(await self.wallet_unspent(address, utxo, tx_detail))
         return web.json_response(list_tx)
 
@@ -406,7 +406,6 @@ class HttpHandler(object):
             formatted_results.append(obj)
         return {'result': formatted_results}
 
-
     async def hashX_listunspent(self, hashX):
         '''Return the list of UTXOs of a script hash, including mempool
         effects.'''
@@ -420,15 +419,15 @@ class HttpHandler(object):
             if (utxo.tx_hash, utxo.tx_pos) in spends:
                 continue
             atomicals = self.db.get_atomicals_by_utxo(utxo, True)
-            atomicals_basic_infos = []
+            atomicals_basic_infos = {}
             for atomical_id in atomicals:
-                # This call is efficient in that it's cached underneath
-                # For now we only show the atomical id because it can always be fetched separately and it will be more efficient
-                atomical_basic_info = await self.session_mgr.bp.get_base_mint_info_rpc_format_by_atomical_id(atomical_id)
+                # This call is efficient in that it's cached underneath.
+                # Now we only show the atomical id and its corresponding value
+                # because it can always be fetched separately which is more efficient.
                 # Todo need to combine mempool atomicals
                 atomical_id_compact = location_id_bytes_to_compact(atomical_id)
-                atomicals_basic_infos.append(atomical_id_compact)
-
+                location = utxo.tx_hash + util.pack_le_uint32(utxo.tx_pos)
+                atomicals_basic_infos[atomical_id_compact] = self.db.get_uxto_atomicals_value(location, atomical_id)
             returned_utxos.append({
                 'txid': hash_to_hex_str(utxo.tx_hash),
                 'tx_hash': hash_to_hex_str(utxo.tx_hash),
@@ -453,21 +452,25 @@ class HttpHandler(object):
             if (utxo.tx_hash, utxo.tx_pos) in spends:
                 continue
             atomicals = self.db.get_atomicals_by_utxo(utxo, True)
-            atomicals_basic_infos = []
+            atomicals_basic_infos = {}
             for atomical_id in atomicals:
-                # This call is efficient in that it's cached underneath
-                # For now we only show the atomical id because it can always be fetched separately and it will be more efficient
-                atomical_basic_info = await self.session_mgr.bp.get_base_mint_info_rpc_format_by_atomical_id(atomical_id)
+                # This call is efficient in that it's cached underneath.
+                # Now we only show the atomical id and its corresponding value
+                # because it can always be fetched separately which is more efficient.
+                atomical_basic_info = await self.session_mgr.bp.get_base_mint_info_rpc_format_by_atomical_id(atomical_id) 
                 atomical_id_compact = location_id_bytes_to_compact(atomical_id)
                 atomicals_id_map[atomical_id_compact] = atomical_basic_info
-                atomicals_basic_infos.append(atomical_id_compact)
+                location = utxo.tx_hash + util.pack_le_uint32(utxo.tx_pos)
+                atomicals_basic_infos[atomical_id_compact] = self.db.get_uxto_atomicals_value(location, atomical_id)
             if len(atomicals) > 0:
-                returned_utxos.append({'txid': hash_to_hex_str(utxo.tx_hash),
-                'index': utxo.tx_pos,
-                'vout': utxo.tx_pos,
-                'height': utxo.height,
-                'value': utxo.value,
-                'atomicals': atomicals_basic_infos})
+                returned_utxos.append({
+                    'txid': hash_to_hex_str(utxo.tx_hash),
+                    'index': utxo.tx_pos,
+                    'vout': utxo.tx_pos,
+                    'height': utxo.height,
+                    'value': utxo.value,
+                    'atomicals': atomicals_basic_infos
+                })
         # Aggregate balances
         return_struct = {
             'balances': {}
@@ -478,17 +481,16 @@ class HttpHandler(object):
                 atomical_id_compact = atomical_id_basic_info['atomical_id']
                 assert(atomical_id_compact == atomical_id_entry_compact)
                 if atomical_id_basic_info.get('type') == 'FT':
-                    if return_struct['balances'].get(atomical_id_compact) == None:
+                    if return_struct['balances'].get(atomical_id_compact) is None:
                         return_struct['balances'][atomical_id_compact] = {}
                         return_struct['balances'][atomical_id_compact]['id'] = atomical_id_compact
                         return_struct['balances'][atomical_id_compact]['ticker'] = atomical_id_basic_info.get('$ticker')
                         return_struct['balances'][atomical_id_compact]['confirmed'] = 0
                     if returned_utxo['height'] > 0:
-                        return_struct['balances'][atomical_id_compact]['confirmed'] += returned_utxo['value']
+                        return_struct['balances'][atomical_id_compact]['confirmed'] += returned_utxo['atomicals'][atomical_id_compact]
         return return_struct
 
     async def hashX_nft_balances_atomicals(self, hashX):
-        Verbose = False
         utxos = await self.db.all_utxos(hashX)
         utxos = sorted(utxos)
         # Comment out the utxos for now and add it in later
@@ -500,21 +502,25 @@ class HttpHandler(object):
             if (utxo.tx_hash, utxo.tx_pos) in spends:
                 continue
             atomicals = self.db.get_atomicals_by_utxo(utxo, True)
-            atomicals_basic_infos = []
+            atomicals_basic_infos = {}
             for atomical_id in atomicals:
-                # This call is efficient in that it's cached underneath
-                # For now we only show the atomical id because it can always be fetched separately and it will be more efficient
-                atomical_basic_info = await self.session_mgr.bp.get_base_mint_info_rpc_format_by_atomical_id(atomical_id)
+                # This call is efficient in that it's cached underneath.
+                # Now we only show the atomical id and its corresponding value
+                # because it can always be fetched separately which is more efficient.
+                atomical_basic_info = await self.session_mgr.bp.get_base_mint_info_rpc_format_by_atomical_id(atomical_id) 
                 atomical_id_compact = location_id_bytes_to_compact(atomical_id)
                 atomicals_id_map[atomical_id_compact] = atomical_basic_info
-                atomicals_basic_infos.append(atomical_id_compact)
+                location = utxo.tx_hash + util.pack_le_uint32(utxo.tx_pos)
+                atomicals_basic_infos[atomical_id_compact] = self.db.get_uxto_atomicals_value(location, atomical_id)
             if len(atomicals) > 0:
-                returned_utxos.append({'txid': hash_to_hex_str(utxo.tx_hash),
-                'index': utxo.tx_pos,
-                'vout': utxo.tx_pos,
-                'height': utxo.height,
-                'value': utxo.value,
-                'atomicals': atomicals_basic_infos})
+                returned_utxos.append({
+                    'txid': hash_to_hex_str(utxo.tx_hash),
+                    'index': utxo.tx_pos,
+                    'vout': utxo.tx_pos,
+                    'height': utxo.height,
+                    'value': utxo.value,
+                    'atomicals': atomicals_basic_infos
+                })
         # Aggregate balances
         return_struct = {
             'balances': {}
@@ -525,7 +531,7 @@ class HttpHandler(object):
                 atomical_id_compact = atomical_id_basic_info['atomical_id']
                 assert(atomical_id_compact == atomical_id_entry_compact)
                 if atomical_id_basic_info.get('type') == 'NFT':
-                    if return_struct['balances'].get(atomical_id_compact) == None:
+                    if return_struct['balances'].get(atomical_id_compact) is None:
                         return_struct['balances'][atomical_id_compact] = {}
                         return_struct['balances'][atomical_id_compact]['id'] = atomical_id_compact
                         return_struct['balances'][atomical_id_compact]['confirmed'] = 0
@@ -560,7 +566,7 @@ class HttpHandler(object):
                     if atomical_id_basic_info.get('$parents'):
                         return_struct['balances'][atomical_id_compact]['parents'] = atomical_id_basic_info.get('$parents')
                     if returned_utxo['height'] > 0:
-                        return_struct['balances'][atomical_id_compact]['confirmed'] += returned_utxo['value']
+                        return_struct['balances'][atomical_id_compact]['confirmed'] += returned_utxo['atomicals'][atomical_id_compact]
         return return_struct
 
     def atomical_resolve_id(self, compact_atomical_id_or_atomical_number):
@@ -645,28 +651,32 @@ class HttpHandler(object):
         utxos = sorted(utxos)
         # Comment out the utxos for now and add it in later
         # utxos.extend(await self.mempool.unordered_UTXOs(hashX))
-        spends = [] # await self.mempool.potential_spends(hashX)
+        spends = []  # await self.mempool.potential_spends(hashX)
         returned_utxos = []
         atomicals_id_map = {}
         for utxo in utxos:
             if (utxo.tx_hash, utxo.tx_pos) in spends:
                 continue
             atomicals = self.db.get_atomicals_by_utxo(utxo, True)
-            atomicals_basic_infos = []
+            atomicals_basic_infos = {}
             for atomical_id in atomicals:
-                # This call is efficient in that it's cached underneath
-                # For now we only show the atomical id because it can always be fetched separately and it will be more efficient
+                # This call is efficient in that it's cached underneath.
+                # Now we only show the atomical id and its corresponding value
+                # because it can always be fetched separately which is more efficient.
                 atomical_basic_info = await self.session_mgr.bp.get_base_mint_info_rpc_format_by_atomical_id(atomical_id)
                 atomical_id_compact = location_id_bytes_to_compact(atomical_id)
                 atomicals_id_map[atomical_id_compact] = atomical_basic_info
-                atomicals_basic_infos.append(atomical_id_compact)
+                location = utxo.tx_hash + util.pack_le_uint32(utxo.tx_pos)
+                atomicals_basic_infos[atomical_id_compact] = self.db.get_uxto_atomicals_value(location, atomical_id)
             if Verbose or len(atomicals) > 0:
-                returned_utxos.append({'txid': hash_to_hex_str(utxo.tx_hash),
-                'index': utxo.tx_pos,
-                'vout': utxo.tx_pos,
-                'height': utxo.height,
-                'value': utxo.value,
-                'atomicals': atomicals_basic_infos})
+                returned_utxos.append({
+                    'txid': hash_to_hex_str(utxo.tx_hash),
+                    'index': utxo.tx_pos,
+                    'vout': utxo.tx_pos,
+                    'height': utxo.height,
+                    'value': utxo.value,
+                    'atomicals': atomicals_basic_infos
+                })
 
         # Aggregate balances
         return_struct = {
@@ -679,7 +689,7 @@ class HttpHandler(object):
             for atomical_id_entry_compact in returned_utxo['atomicals']:
                 atomical_id_basic_info = atomicals_id_map[atomical_id_entry_compact]
                 atomical_id_ref = atomical_id_basic_info['atomical_id']
-                if return_struct['atomicals'].get(atomical_id_ref) == None:
+                if return_struct['atomicals'].get(atomical_id_ref) is None:
                     return_struct['atomicals'][atomical_id_ref] = {
                         'atomical_id': atomical_id_ref,
                         'atomical_number': atomical_id_basic_info['atomical_number'],
@@ -749,9 +759,9 @@ class HttpHandler(object):
                         return_struct['atomicals'][atomical_id_ref]['request_ticker'] = atomical_id_basic_info.get('$request_ticker')
 
                 if returned_utxo['height'] <= 0:
-                    return_struct['atomicals'][atomical_id_ref]['unconfirmed'] += returned_utxo['value']
+                    return_struct['atomicals'][atomical_id_ref]['unconfirmed'] += returned_utxo["atomicals"][atomical_id_ref]
                 else:
-                    return_struct['atomicals'][atomical_id_ref]['confirmed'] += returned_utxo['value']
+                    return_struct['atomicals'][atomical_id_ref]['confirmed'] += returned_utxo["atomicals"][atomical_id_ref]
 
         return return_struct
 
@@ -1194,6 +1204,7 @@ class HttpHandler(object):
         # atomicals_found_at_location['atomicals'].sort(key=lambda x: x['atomical_number'])
         for atomical_id in atomicals_found_at_location['atomicals']:
             atomical_basic_info = self.session_mgr.bp.get_atomicals_id_mint_info_basic_struct(atomical_id)
+            atomical_basic_info['value'] = self.db.get_uxto_atomicals_value(compact_to_location_id_bytes(compact_location_id), atomical_id)
             atomical_basic_infos.append(atomical_basic_info)
         return {
             'location_info': atomicals_found_at_location['location_info'],

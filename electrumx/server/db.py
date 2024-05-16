@@ -27,7 +27,7 @@ from electrumx.lib.util import (
     formatted_time, pack_be_uint16, pack_be_uint32, pack_le_uint64, pack_be_uint64, pack_le_uint32,
     unpack_le_uint32, unpack_be_uint32, unpack_le_uint64, unpack_be_uint64, unpack_le_uint16_from, unpack_le_uint32_from
 )
-from electrumx.lib.util_atomicals import auto_encode_bytes_elements, pad_bytes64, get_tx_hash_index_from_location_id, location_id_bytes_to_compact, calculate_latest_state_from_mod_history
+from electrumx.lib.util_atomicals import auto_encode_bytes_elements, expand_spend_utxo_data, pad_bytes64, get_tx_hash_index_from_location_id, location_id_bytes_to_compact, calculate_latest_state_from_mod_history
 from electrumx.server.storage import db_class, Storage
 from electrumx.server.history import History, TXNUM_LEN
 from electrumx.lib.script import SCRIPTHASH_LEN
@@ -59,7 +59,7 @@ class FlushData:
     block_tx_hashes = attr.ib()
     # The following are flushed to the UTXO DB if undo_infos is not None
     undo_infos = attr.ib()  # type: List[Tuple[Sequence[bytes], int]]
-    adds = attr.ib()  # type: Dict[bytes, bytes]  # txid+out_idx -> hashX+tx_num+value_sats
+    adds = attr.ib()  # type: Dict[bytes, bytes]  # txid+out_idx -> hashX+tx_num+sat_value
     deletes = attr.ib()  # type: List[bytes]  # b'h' db keys, and b'u' db keys, and Atomicals and related keys
     tip = attr.ib()
     
@@ -93,7 +93,7 @@ class FlushData:
     # dmpay_adds maps atomical_id to tx_num ints, which then map onto payment_outpoints
     dmpay_adds = attr.ib()           # type: Dict[bytes, Dict[int, bytes]
     # distmint_adds tracks the b'gi' which is the initial distributed mint location tracked to determine if any more mints are allowed
-    # It maps atomical_id (of the dft deploy token mint) to location_ids and then the details of the scripthash+value_sats of the mint        
+    # It maps atomical_id (of the dft deploy token mint) to location_ids and then the details of the scripthash+sat_value of the mint
     distmint_adds = attr.ib()           # type: Dict[bytes, Dict[bytes, bytes]
     # state_adds is for evt, mod state updates
     # It maps atomical_id to the data of the state update      
@@ -144,7 +144,7 @@ class DB:
         # "some outpoint created a UTXO at address"
         # ---
         # Key: b'U' + block_height
-        # Value: byte-concat list of (hashX + tx_num + value_sats)
+        # Value: byte-concat list of (hashX + tx_num + sat_value)
         # "undo data: list of UTXOs spent at block height"
         # ---
         #
@@ -153,15 +153,15 @@ class DB:
         # Atomicals specific index below:
         # ------------------------------------------
         # Key: b'i' + location(tx_hash + txout_idx) + atomical_id(tx_hash + txout_idx)
-        # Value: hashX + scripthash + value_sats + tx_num
+        # Value: hashX + scripthash + sat_value + tx_num
         # "map location to all the Atomicals which are located there. Permanently stored for every location even if spent."
         # ---
         # Key: b'a' + atomical_id(tx_hash + txout_idx) + location(tx_hash + txout_idx)
-        # Value: hashX + scripthash + value_sats + tx_num
+        # Value: hashX + scripthash + sat_value + tx_num
         # "map atomical to an unspent location. Used to located the NFT/FT Atomical unspent UTXOs"
         # ---
         # Key: b'L' + block_height
-        # Value: byte-concat list of (tx_hash + txout_idx + atomical_id(mint_tx_hash + mint_txout_idx) + hashX + scripthash + value_sats)
+        # Value: byte-concat list of (tx_hash + txout_idx + atomical_id(mint_tx_hash + mint_txout_idx) + hashX + scripthash + sat_value)
         # "undo data: list of atomicals UTXOs spent at block height"
         # ---
         # Key: b'md' + atomical_id
@@ -603,14 +603,14 @@ class DB:
         # New UTXOs
         batch_put = batch.put
         for key, value in flush_data.adds.items():
-            # key: txid+out_idx, value: hashX+tx_num+value_sats
+            # key: txid+out_idx, value: hashX+tx_num+sat_value
             hashX = value[:HASHX_LEN]
             txout_idx = key[-4:]
             tx_num = value[HASHX_LEN: HASHX_LEN+TXNUM_LEN]
-            value_sats = value[-8:]
+            sat_value = value[-8:]
             suffix = txout_idx + tx_num
             batch_put(b'h' + key[:COMP_TXID_LEN] + suffix, hashX)
-            batch_put(b'u' + hashX + suffix, value_sats)
+            batch_put(b'u' + hashX + suffix, sat_value)
         flush_data.adds.clear()
         
         # New atomicals location UTXOs
@@ -621,13 +621,13 @@ class DB:
                 value = value_with_tombstone['value']
                 hashX = value[:HASHX_LEN]
                 scripthash = value[HASHX_LEN : HASHX_LEN + SCRIPTHASH_LEN]
-                value_sats = value[HASHX_LEN + SCRIPTHASH_LEN : HASHX_LEN + SCRIPTHASH_LEN + 8]
-                exponent = value[HASHX_LEN + SCRIPTHASH_LEN + 8: HASHX_LEN + SCRIPTHASH_LEN + 8 + 2]
-                tx_numb = value[-TXNUM_LEN:]  
-                batch_put(b'i' + location_key + atomical_id, hashX + scripthash + value_sats + exponent + tx_numb) 
+                sat_value = value[HASHX_LEN + SCRIPTHASH_LEN : HASHX_LEN + SCRIPTHASH_LEN + 8]
+                atomical_value = value[HASHX_LEN + SCRIPTHASH_LEN + 8: HASHX_LEN + SCRIPTHASH_LEN + 8 + 8]
+                tx_numb = value[-TXNUM_LEN:]
+                batch_put(b'i' + location_key + atomical_id, hashX + scripthash + sat_value + atomical_value + tx_numb)
                 # Add the active b'a' atomicals location if it was not deleted
                 if not value_with_tombstone.get('deleted', False):
-                    batch_put(b'a' + atomical_id + location_key, hashX + scripthash + value_sats + exponent + tx_numb) 
+                    batch_put(b'a' + atomical_id + location_key, hashX + scripthash + sat_value + atomical_value + tx_numb)
         flush_data.atomicals_adds.clear()
  
         # Distributed mint data adds
@@ -635,7 +635,7 @@ class DB:
         batch_put = batch.put
         for atomical_id_key, location_map in flush_data.distmint_adds.items():
             for location_id, value in location_map.items():
-                # the value is the format of: scripthash + value_sats
+                # the value is the format of: scripthash + sat_value
                 batch_put(b'gi' + atomical_id_key + location_id, value)
         flush_data.distmint_adds.clear()
 
@@ -1307,7 +1307,7 @@ class DB:
         for location_key, location_result_value in self.utxo_db.iterator(prefix=atomicals_at_location_prefix):
             atomicals_at_location.append(location_key[ 1 + ATOMICAL_ID_LEN : 1 + ATOMICAL_ID_LEN + ATOMICAL_ID_LEN])
             # extract the location information, it should be the same for all
-            # batch_put(b'i' + location_key + atomical_id, hashX + scripthash + value_sats)
+            # batch_put(b'i' + location_key + atomical_id, hashX + scripthash + sat_value)
             curr_scripthash = location_result_value[ HASHX_LEN : HASHX_LEN + SCRIPTHASH_LEN ]
             if last_scripthash and last_scripthash != curr_scripthash:
                     raise IndexError(f'get_atomicals_by_location_extended_info_long_form curr_scripthash exception mismatch at location tx {hash_to_hex_str(tx_hash)}')
@@ -1347,6 +1347,16 @@ class DB:
             return self.get_atomicals_by_location_long_form(location)
         else:
             return self.get_atomicals_by_location(location)
+
+    def get_uxto_atomicals_value(self, location, atomical_id):
+        data_value = None
+        location_id_prefix = b'i' + location + atomical_id
+        for _, atomical_i_db_value in self.utxo_db.iterator(prefix=location_id_prefix):
+            data_value = expand_spend_utxo_data(atomical_i_db_value)
+        if data_value:
+            return data_value['atomical_value']
+        return 0
+
 
     # Get atomicals hash by height
     def get_atomicals_block_hash(self, height):

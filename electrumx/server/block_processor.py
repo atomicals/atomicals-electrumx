@@ -548,10 +548,10 @@ class BlockProcessor:
         # Build a structure of organizing into NFT and FTs
         # Note: We do not validate anything with NFTs, just FTs
         # Build the "blueprint" for how to assign all atomicals
-        blueprint_builder = AtomicalsTransferBlueprintBuilder(self.logger, atomicals_spent_at_inputs, operations_found_at_inputs, tx_hash, tx, self.get_atomicals_id_mint_info, True)
+        blueprint_builder = AtomicalsTransferBlueprintBuilder(self.logger, atomicals_spent_at_inputs, operations_found_at_inputs, tx_hash, tx, self.get_atomicals_id_mint_info, True, self.is_split_activated(self.height))
         ft_output_blueprint = blueprint_builder.get_ft_output_blueprint() 
         # Log that there were tokens burned due to not being cleanly assigned
-        if blueprint_builder.get_are_fts_burned() or not blueprint_builder.cleanly_assigned:
+        if blueprint_builder.get_are_fts_burned():
             encoded_atomicals_spent_at_inputs = encode_atomical_ids_hex(atomicals_spent_at_inputs)
             encoded_ft_output_blueprint = auto_encode_bytes_items(encode_atomical_ids_hex(ft_output_blueprint))
             outputs = encoded_ft_output_blueprint['outputs']
@@ -913,7 +913,7 @@ class BlockProcessor:
                     'atomical_id': key,
                     'location_id': location_id,
                     'data': value,
-                    'data_ex': expand_spend_utxo_data(value)
+                    'data_value': expand_spend_utxo_data(value)
                 })
                 if live_run:
                     value_with_tombstone['found_in_cache'] = True
@@ -946,7 +946,7 @@ class BlockProcessor:
                 'atomical_id': atomical_id,
                 'location_id': location_id,
                 'data': atomical_i_db_value,
-                'data_ex': expand_spend_utxo_data(atomical_i_db_value)
+                'data_value': expand_spend_utxo_data(atomical_i_db_value)  # expand spend uxto data for token value
             })
             
             # Return all of the atomicals spent at the address
@@ -1077,22 +1077,28 @@ class BlockProcessor:
     def validate_and_create_nft_mint_utxo(self, mint_info, txout, height, tx_hash):
         if not mint_info or not isinstance(mint_info, dict):
             return False
-        value_sats = pack_le_uint64(mint_info['reveal_location_value'])
+        sat_value = pack_le_uint64(mint_info['reveal_location_value'])
+        # Minted value is definitely equals to the sat value.
+        atomical_value = sat_value
         # Save the initial location to have the atomical located there
         tx_numb = pack_le_uint64(mint_info['reveal_location_tx_num'])[:TXNUM_LEN]
-        self.put_atomicals_utxo(mint_info['reveal_location'], mint_info['id'], mint_info['reveal_location_hashX'] + mint_info['reveal_location_scripthash'] + value_sats + pack_le_uint16(0) + tx_numb)
+        put_bytes: bytes = mint_info['reveal_location_hashX'] + mint_info['reveal_location_scripthash'] + sat_value + atomical_value + tx_numb
+        self.put_atomicals_utxo(mint_info['reveal_location'], mint_info['id'], put_bytes)
         atomical_id = mint_info['id']
         self.logger.debug(f'validate_and_create_nft_mint_utxo: atomical_id={location_id_bytes_to_compact(atomical_id)}, tx_hash={hash_to_hex_str(tx_hash)}, mint_info={mint_info}')
         return True
-    
+
     # Validate the parameters for a FT
     def validate_and_create_ft_mint_utxo(self, mint_info, tx_hash):
         self.logger.debug(f'validate_and_create_ft_mint_utxo: tx_hash={hash_to_hex_str(tx_hash)}')
-        value_sats = pack_le_uint64(mint_info['reveal_location_value'])
+        sat_value = pack_le_uint64(mint_info['reveal_location_value'])
+        # Minted value is definitely equals to the sat value.
+        atomical_value = sat_value
         # Save the initial location to have the atomical located there
         if mint_info['subtype'] != 'decentralized':
             tx_numb = pack_le_uint64(mint_info['reveal_location_tx_num'])[:TXNUM_LEN]
-            self.put_atomicals_utxo(mint_info['reveal_location'], mint_info['id'], mint_info['reveal_location_hashX'] + mint_info['reveal_location_scripthash'] + value_sats + pack_le_uint16(0) + tx_numb)
+            put_bytes: bytes = mint_info['reveal_location_hashX'] + mint_info['reveal_location_scripthash'] + sat_value + atomical_value + tx_numb
+            self.put_atomicals_utxo(mint_info['reveal_location'], mint_info['id'], put_bytes)
         subtype = mint_info['subtype']
         atomical_id = mint_info['id']
         self.logger.debug(f'validate_and_create_ft_mint_utxo: subtype={subtype}, atomical_id={location_id_bytes_to_compact(atomical_id)}, tx_hash={hash_to_hex_str(tx_hash)}')
@@ -1659,26 +1665,27 @@ class BlockProcessor:
         if is_event_operation(operations_found_at_inputs):
             # Only allow an event to be posted to the first FT in the list, sorted
             output_idx_le = pack_le_uint32(0) # Always save to 0th location
-            location = tx_hash + output_idx_le
-            txout = tx.outputs[0]
-            scripthash = double_sha256(txout.pk_script)
-            hashX = self.coin.hashX_from_script(txout.pk_script)
-            value_sats = pack_le_uint64(txout.value)
+            # location = tx_hash + output_idx_le
+            # txout = tx.outputs[0]
+            # scripthash = double_sha256(txout.pk_script)
+            # hashX = self.coin.hashX_from_script(txout.pk_script)
+            # sat_value = pack_le_uint64(txout.value)
             self.put_or_delete_state_updates(operations_found_at_inputs, atomical_id, tx_num, tx_hash, output_idx_le, height, 1, False)
 
-    def build_put_atomicals_utxo(self, atomical_id, tx_hash, tx, tx_num, out_idx, exponent):
+    def build_put_atomicals_utxo(self, atomical_id, tx_hash, tx, tx_num, out_idx, atomical_value):
         output_idx_le = pack_le_uint32(out_idx)
         location = tx_hash + output_idx_le
         txout = tx.outputs[out_idx]
         scripthash = double_sha256(txout.pk_script)
         hashX = self.coin.hashX_from_script(txout.pk_script)
-        value_sats = pack_le_uint64(txout.value)
+        sat_value = pack_le_uint64(txout.value)
+        atomical_value = pack_le_uint64(atomical_value)
         put_general_data = self.general_data_cache.__setitem__
         put_general_data(b'po' + location, txout.pk_script)
         tx_numb = pack_le_uint64(tx_num)[:TXNUM_LEN]
-        self.put_atomicals_utxo(location, atomical_id, hashX + scripthash + value_sats + pack_le_uint16(exponent) + tx_numb)
-    
- 
+        self.put_atomicals_utxo(location, atomical_id, hashX + scripthash + sat_value + atomical_value + tx_numb)
+
+
     def put_nft_outputs_by_blueprint(self, nft_blueprint, operations_found_at_inputs, tx_hash, tx, tx_num, height):
         put_general_data = self.general_data_cache.__setitem__
         self.logger.debug(f'nft_blueprint={nft_blueprint}')
@@ -1688,7 +1695,9 @@ class BlockProcessor:
             txout = tx.outputs[output_idx]
             scripthash = double_sha256(txout.pk_script)
             hashX = self.coin.hashX_from_script(txout.pk_script)
-            value_sats = pack_le_uint64(txout.value)
+            sat_value = pack_le_uint64(txout.value)
+            # NFT value is definitely equals to the sat value.
+            atomical_value = sat_value
             put_general_data(b'po' + location, txout.pk_script)
             for atomical_id, atomical_info in value_info['atomicals'].items():
                 # Only allow state or event updates if it is not immutable
@@ -1712,14 +1721,15 @@ class BlockProcessor:
                     continue
                 # Only advance the UTXO if it was not sealed
                 tx_numb = pack_le_uint64(tx_num)[:TXNUM_LEN]
-                self.put_atomicals_utxo(location, atomical_id, hashX + scripthash + value_sats + pack_le_uint16(0) + tx_numb)
+                put_bytes: bytes = hashX + scripthash + sat_value + atomical_value + tx_numb
+                self.put_atomicals_utxo(location, atomical_id, put_bytes)
     
     def put_ft_outputs_by_blueprint(self, ft_blueprint, operations_found_at_inputs, tx_hash, tx, tx_num, height):
         for output_idx, value_info in ft_blueprint.outputs.items():
             for atomical_id, atomical_transfer_info in value_info['atomicals'].items():
-                exponent = atomical_transfer_info.exponent
+                atomical_value = atomical_transfer_info.atomical_value
                 self.logger.debug(f'atomical_transfer_info={atomical_transfer_info}')
-                self.build_put_atomicals_utxo(atomical_id, tx_hash, tx, tx_num, output_idx, exponent)
+                self.build_put_atomicals_utxo(atomical_id, tx_hash, tx, tx_num, output_idx, atomical_value)
             # Only allow an event to be posted to the first FT in the list, sorted
             if ft_blueprint.first_atomical_id:
                 if operations_found_at_inputs:
@@ -1734,7 +1744,7 @@ class BlockProcessor:
     # Apply the rules to color the outputs of the atomicals
     def color_atomicals_outputs(self, operations_found_at_inputs, atomicals_spent_at_inputs, tx, tx_hash, tx_num, height):
         # Build the "blueprint" for how to assign all atomicals
-        blueprint_builder = AtomicalsTransferBlueprintBuilder(self.logger, atomicals_spent_at_inputs, operations_found_at_inputs, tx_hash, tx, self.get_atomicals_id_mint_info, self.is_dmint_activated(height))
+        blueprint_builder = AtomicalsTransferBlueprintBuilder(self.logger, atomicals_spent_at_inputs, operations_found_at_inputs, tx_hash, tx, self.get_atomicals_id_mint_info, self.is_dmint_activated(height), self.is_split_activated(height))
         
         nft_output_blueprint = blueprint_builder.get_nft_output_blueprint()
         if nft_output_blueprint and len(nft_output_blueprint.outputs):
@@ -2703,7 +2713,9 @@ class BlockProcessor:
         txout = tx.outputs[expected_output_index]
         scripthash = double_sha256(txout.pk_script)
         hashX = self.coin.hashX_from_script(txout.pk_script)
-        value_sats = pack_le_uint64(txout.value)
+        sat_value = pack_le_uint64(txout.value)
+        # Minted value is definitely equals to the sat value.
+        atomical_value = sat_value
         # Mint is valid and active if the value is what is expected
         if mint_amount == txout.value:
             # Count the number of existing b'gi' entries and ensure it is strictly less than max_mints
@@ -2787,8 +2799,9 @@ class BlockProcessor:
                     put_general_data = self.general_data_cache.__setitem__
                     put_general_data(the_key, txout.pk_script)
                     tx_numb = pack_le_uint64(tx_num)[:TXNUM_LEN]
-                    self.put_atomicals_utxo(location, dmt_mint_atomical_id, hashX + scripthash + value_sats + pack_le_uint16(0) + tx_numb)
-                    self.put_decentralized_mint_data(dmt_mint_atomical_id, location, scripthash + value_sats)
+                    put_bytes: bytes = hashX + scripthash + sat_value + atomical_value + tx_numb
+                    self.put_atomicals_utxo(location, dmt_mint_atomical_id, put_bytes)
+                    self.put_decentralized_mint_data(dmt_mint_atomical_id, location, scripthash + sat_value)
                     self.logger.debug(f'create_or_delete_decentralized_mint_outputs found valid request in {hash_to_hex_str(tx_hash)} for {ticker}. Granting and creating decentralized mint...')
                     self.put_op_data(tx_num, tx_hash, "mint-dft")
                     return dmt_mint_atomical_id
@@ -2814,7 +2827,14 @@ class BlockProcessor:
     def is_density_activated(self, height): 
         if height >= self.coin.ATOMICALS_ACTIVATION_HEIGHT_DENSITY:
             return True 
-        return False 
+        return False
+    
+    def is_split_activated(self, height):
+        if height >= self.coin.ATOMICALS_ACTIVATION_SPLIT:
+            return True
+        if height <= 0:
+            return True
+        return False
     
     # Builds a map of the atomicals spent at a tx
     # It uses the spend_atomicals_utxo method but with live_run == False
@@ -3142,7 +3162,7 @@ class BlockProcessor:
             return None, False
 
         # Rebuild the blueprint builder here
-        blueprint_builder = AtomicalsTransferBlueprintBuilder(self.logger, atomicals_spent_at_inputs, operations_found_at_inputs, tx_hash, tx, self.get_atomicals_id_mint_info, self.is_dmint_activated(height))
+        blueprint_builder = AtomicalsTransferBlueprintBuilder(self.logger, atomicals_spent_at_inputs, operations_found_at_inputs, tx_hash, tx, self.get_atomicals_id_mint_info, self.is_dmint_activated(height), self.is_split_activated(height))
         if blueprint_builder.is_split_operation():
             self.logger.warning(f'create_or_delete_subname_payment_output_if_valid: invalid payment split op found tx_hash={hash_to_hex_str(tx_hash)}')
             return tx_hash, False
@@ -3553,7 +3573,7 @@ class BlockProcessor:
     '''
 
     def spend_utxo(self, tx_hash: bytes, tx_idx: int) -> bytes:
-        '''Spend a UTXO and return (hashX + tx_num + value_sats).
+        '''Spend a UTXO and return (hashX + tx_num + sat_value).
 
         If the UTXO is not in the cache it must be on disk.  We store
         all UTXOs so not finding one indicates a logic error or DB
