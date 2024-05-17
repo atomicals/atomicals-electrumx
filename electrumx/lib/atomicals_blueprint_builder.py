@@ -23,7 +23,7 @@ class FtColoringSummary:
     self.cleanly_assigned = cleanly_assigned
     self.fts_burned = fts_burned
     self.atomicals_list = atomicals_list
-  
+
   def __repr__(self):
     return f'FtColoringSummary cleanly_assigned: {self.cleanly_assigned}, fts_burned: {self.fts_burned}, atomicals_list: {self.atomicals_list}'
 
@@ -32,7 +32,7 @@ class ExpectedOutputSet:
   def __init__(self, expected_outputs, expected_values):
       self.expected_outputs = expected_outputs
       self.expected_values = expected_values
-    
+
   def __repr__(self):
      return f'ExpectedOutputSet expected_outputs: {self.expected_outputs}, expected_values: {self.expected_values}'
 
@@ -690,7 +690,15 @@ class AtomicalsTransferBlueprintBuilder:
         input_value = ft_info['atomical_value']
         if sum_out_value and sum_out_value > input_value:
             atomical_id_compact = location_id_bytes_to_compact(atomical_id)
-            raise AtomicalsTransferBlueprintBuilderError(f'validate_ft_transfer_has_no_inflation: Fatal error the output sum of outputs is greater than input sum for Atomical: atomical_id={atomical_id_compact} input_value={input_value} sum_out_value={sum_out_value} ft_atomicals={ft_atomicals}')
+            raise AtomicalsTransferBlueprintBuilderError(
+                'validate_ft_transfer_has_no_inflation: '
+                'Fatal error the output sum of outputs is greater than input sum for Atomical: '
+                f'atomical_id={atomical_id_compact} '
+                f'input_value={input_value} '
+                f'sum_out_value={sum_out_value} '
+                f'{hash_to_hex_str(self.tx_hash)} '
+                f'ft_atomicals={ft_atomicals}'
+            )
   
   def is_split_operation(self):
     return is_split_operation(self.operations_found_at_inputs)

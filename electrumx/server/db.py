@@ -41,6 +41,7 @@ if TYPE_CHECKING:
 ATOMICAL_ID_LEN = 36
 TX_HASH_LEN = 32
 
+
 @dataclass(order=True)
 class UTXO:
     __slots__ = 'tx_num', 'tx_pos', 'tx_hash', 'height', 'value'
@@ -50,8 +51,8 @@ class UTXO:
     height: int      # block height
     value: int       # in satoshis
 
-@attr.s(slots=True)
 
+@attr.s(slots=True)
 class FlushData:
     height = attr.ib()
     tx_count = attr.ib() 
@@ -72,12 +73,12 @@ class FlushData:
     # atomicals_adds is used to track atomicals locations and unspent utxos with the b'i' and b'a' indexes
     # It uses a field 'deleted' to indicate whether to write the b'a' (active unspent utxo) or not - because it may have been spent before the cache flushed
     # Maps location_id to atomical_ids and the value/deleted entry
-    atomicals_adds = attr.ib()          # type: Dict[bytes, Dict[bytes, { value: bytes, deleted: Boolean}] ] 
+    atomicals_adds = attr.ib()          # type: Dict[bytes, Dict[bytes, { value: bytes, deleted: bool }] ]
     # general_adds is a general purpose storage for key-value, used for the majority of atomicals data
     general_adds = attr.ib()            # type: List[Tuple[Sequence[bytes], Sequence[bytes]]]
     # realm_adds map realm names to tx_num ints, which then map onto an atomical_id
     # The purpose is to track the earliest appearance of a realm name claim request in the order of the commit tx number
-    realm_adds = attr.ib()              # type: Dict[bytes, Dict[int, bytes]
+    realm_adds = attr.ib()              # type: Dict[bytes, Dict[int, bytes]]
     # container_adds map container names to tx_num ints, which then map onto an atomical_id
     # The purpose is to track the earliest appearance of a container name claim request in the order of the commit tx number
     container_adds = attr.ib()          # type: List[Tuple[Sequence[bytes], Sequence[bytes]]]
@@ -85,23 +86,25 @@ class FlushData:
     # The purpose is to track the earliest appearance of a ticker name claim request in the order of the commit tx number
     ticker_adds = attr.ib()             # type: List[Tuple[Sequence[bytes], Sequence[bytes]]]
     # subrealm_adds maps parent_realm_id + subrealm name to tx_num ints, which then map onto an atomical_id
-    subrealm_adds = attr.ib()           # type: Dict[bytes, Dict[int, bytes]
+    subrealm_adds = attr.ib()           # type: Dict[bytes, Dict[int, bytes]]
     # subrealmpay_adds maps atomical_id to tx_num ints, which then map onto payment_outpoints
-    subrealmpay_adds = attr.ib()           # type: Dict[bytes, Dict[int, bytes]
+    subrealmpay_adds = attr.ib()           # type: Dict[bytes, Dict[int, bytes]]
     # dmitem_adds maps parent_realm_id + dmitem name to tx_num ints, which then map onto an atomical_id
-    dmitem_adds = attr.ib()           # type: Dict[bytes, Dict[int, bytes]
+    dmitem_adds = attr.ib()           # type: Dict[bytes, Dict[int, bytes]]
     # dmpay_adds maps atomical_id to tx_num ints, which then map onto payment_outpoints
-    dmpay_adds = attr.ib()           # type: Dict[bytes, Dict[int, bytes]
+    dmpay_adds = attr.ib()           # type: Dict[bytes, Dict[int, bytes]]
     # distmint_adds tracks the b'gi' which is the initial distributed mint location tracked to determine if any more mints are allowed
     # It maps atomical_id (of the dft deploy token mint) to location_ids and then the details of the scripthash+sat_value of the mint
     distmint_adds = attr.ib()           # type: Dict[bytes, Dict[bytes, bytes]
     # state_adds is for evt, mod state updates
     # It maps atomical_id to the data of the state update      
-    state_adds = attr.ib()           # type: Dict[bytes, Dict[bytes, bytes]
+    state_adds = attr.ib()           # type: Dict[bytes, Dict[bytes, bytes]]
     # op_adds is for record tx operation of one tx
-    op_adds = attr.ib()   # type: Dict[bytes, Dict[bytes]
-    
+    op_adds = attr.ib()   # type: Dict[bytes, Dict[bytes]]
+
+
 COMP_TXID_LEN = 4
+
 
 class DB:
     '''Simple wrapper of the backend database for querying.
@@ -262,7 +265,7 @@ class DB:
         # Value: paylaod_bytes of the operation found
         # "maps pow reveal prefix to height  to non atomicals operation data"
 
-        self.utxo_db = None
+        self.utxo_db: Optional[Storage] = None
         self.utxo_flush_count = 0
         self.fs_height = -1
         self.fs_tx_count = 0
@@ -270,7 +273,7 @@ class DB:
         self.db_height = -1
         self.db_tx_count = 0
         self.db_atomical_count = 0
-        self.db_tip = None  # type: Optional[bytes]
+        self.db_tip: Optional[bytes] = None
         self.tx_counts = None
         self.atomical_counts = None
         self.last_flush = time.time()

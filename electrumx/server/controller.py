@@ -9,12 +9,12 @@ from asyncio import Event
 
 from aiorpcx import _version as aiorpcx_version
 
-import electrumx
 from electrumx.lib.server_base import ServerBase
 from electrumx.lib.util import version_string, OldTaskGroup
 from electrumx.server.db import DB
+from electrumx.server.session.session_manager import SessionManager
 from electrumx.server.mempool import MemPool, MemPoolAPI
-from electrumx.server.session import SessionManager
+from electrumx.version import electrumx_version
 
 
 class Notifications:
@@ -87,7 +87,7 @@ class Controller(ServerBase):
 
         env = self.env
         min_str, max_str = env.coin.SESSIONCLS.protocol_min_max_strings()
-        self.logger.info(f'software version: {electrumx.version}')
+        self.logger.info(f'software version: {electrumx_version}')
         self.logger.info(f'aiorpcX version: {version_string(aiorpcx_version)}')
         self.logger.info(f'supported protocol versions: {min_str}-{max_str}')
         self.logger.info(f'event loop policy: {env.loop_policy}')
@@ -116,8 +116,7 @@ class Controller(ServerBase):
                 refresh_secs=env.daemon_poll_interval_mempool_msec/1000,
             )
 
-            session_mgr = SessionManager(env, db, bp, daemon, mempool,
-                                         shutdown_event)
+            session_mgr = SessionManager(env, db, bp, daemon, mempool, shutdown_event)
 
             # Test daemon authentication, and also ensure it has a cached
             # height.  Do this before entering the task group.

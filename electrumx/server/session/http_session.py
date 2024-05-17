@@ -1,83 +1,23 @@
 # -*- coding: utf-8 -*-
 
 import asyncio
-import codecs
 import datetime
 import json
-import time
-import aiorpcx
-from aiohttp import request, web
-from aiorpcx import RPCError, ReplyAndDisconnect
-from functools import reduce
 from decimal import Decimal
-import electrumx
-from electrumx.lib.atomicals_blueprint_builder import AtomicalsTransferBlueprintBuilder
-from electrumx.lib.hash import HASHX_LEN, double_sha256, hash_to_hex_str, hex_str_to_hash, sha256
+from typing import Optional
+
+import aiorpcx
+from aiohttp import web
+from aiorpcx import RPCError
+
 import electrumx.lib.util as util
 from electrumx.lib.script2addr import get_address_from_output_script
-from electrumx.lib.util_atomicals import DFT_MINT_MAX_MAX_COUNT_DENSITY, DMINT_PATH, MINT_SUBNAME_RULES_BECOME_EFFECTIVE_IN_BLOCKS, SUBREALM_MINT_PATH, AtomicalsValidationError, auto_encode_bytes_elements, calculate_latest_state_from_mod_history, compact_to_location_id_bytes, format_name_type_candidates_to_rpc, format_name_type_candidates_to_rpc_for_subname, is_compact_atomical_id, location_id_bytes_to_compact, parse_protocols_operations_from_witness_array, validate_merkle_proof_dmint, validate_rules_data
-from electrumx.server.daemon import DaemonError
-
-
-BAD_REQUEST = 1
-DAEMON_ERROR = 2
-MAX_TX_QUERY = 50
-ATOMICALS_INVALID_TX = 800422
-
-def scripthash_to_hashX(scripthash):
-    try:
-        bin_hash = hex_str_to_hash(scripthash)
-        if len(bin_hash) == 32:
-            return bin_hash[:HASHX_LEN]
-    except (ValueError, TypeError):
-        pass
-    raise RPCError(BAD_REQUEST, f'{scripthash} is not a valid script hash')
-
-
-def assert_atomical_id(value):
-    '''Raise an RPCError if the value is not a valid atomical id
-    If it is valid, return it as 32-byte binary hash.
-    '''
-    try:
-        if value == None or value == "":
-            raise RPCError(BAD_REQUEST, f'atomical_id required')
-        index_of_i = value.find("i")
-        if index_of_i != 64:
-            raise RPCError(BAD_REQUEST, f'{value} should be an atomical_id')
-        raw_hash = hex_str_to_hash(value[ : 64])
-        if len(raw_hash) == 32:
-            return raw_hash
-    except (ValueError, TypeError):
-        pass
-
-    raise RPCError(BAD_REQUEST, f'{value} should be an atomical_id')
-
-
-def assert_tx_hash(value):
-    '''Raise an RPCError if the value is not a valid hexadecimal transaction hash.
-
-    If it is valid, return it as 32-byte binary hash.
-    '''
-    try:
-        raw_hash = hex_str_to_hash(value)
-        if len(raw_hash) == 32:
-            return raw_hash
-    except (ValueError, TypeError):
-        pass
-    raise RPCError(BAD_REQUEST, f'{value} should be a transaction hash')
-
-
-def non_negative_integer(value):
-    '''Return param value it is or can be converted to a non-negative
-    integer, otherwise raise an RPCError.'''
-    try:
-        value = int(value)
-        if value >= 0:
-            return value
-    except (ValueError, TypeError):
-        pass
-    raise RPCError(BAD_REQUEST,
-                   f'{value} should be a non-negative integer')
+from electrumx.lib.util_atomicals import *
+from electrumx.server.session import BAD_REQUEST
+from electrumx.server.session.session_base import assert_tx_hash, scripthash_to_hashX, non_negative_integer, \
+    assert_atomical_id
+from electrumx.server.session.shared_session import SharedSession
+from electrumx.version import electrumx_version
 
 
 class DecimalEncoder(json.JSONEncoder):
@@ -87,8 +27,19 @@ class DecimalEncoder(json.JSONEncoder):
         return super(DecimalEncoder, self).default(o)
 
 
-class HttpHandler(object):
+async def format_params(request: web.Request):
+    params: list
+    if request.method == "GET":
+        params = json.loads(request.query.get("params", "[]"))
+    elif request.content_length:
+        json_data = await request.json()
+        params = json_data.get("params", [])
+    else:
+        params = []
+    return dict(zip(range(len(params)), params))
 
+
+class HttpHandler(object):
     PROTOCOL_MIN = (1, 4)
     PROTOCOL_MAX = (1, 4, 3)
 
@@ -105,33 +56,19 @@ class HttpHandler(object):
         self.coin = self.env.coin
         self.client = 'unknown'
         self.anon_logs = self.env.anon_logs
-        self.txs_sent = 0
         self.log_me = False
         self.daemon_request = self.session_mgr.daemon_request
         self.mempool_statuses = {}
         self.sv_seen = False
         self.MAX_CHUNK_SIZE = 2016
         self.hashX_subs = {}
-
-    async def format_params(self, request: web.Request):
-        params: list
-        if request.method == "GET":
-            params = json.loads(request.query.get("params", "[]"))
-        elif request.content_length:
-            json_data = await request.json()
-            params = json_data.get("params", [])
-        else:
-            params = []
-        return dict(zip(range(len(params)), params))
+        # Use the sharing session to manage handlers.
+        self.ss = SharedSession(self.session_mgr, self.logger)
 
     async def get_rpc_server(self):
         for service in self.env.services:
             if service.protocol == 'tcp':
                 return service
-
-    def remote_address(self):
-        '''Returns a NetAddress or None if not connected.'''
-        return self.transport.remote_address()
 
     @classmethod
     def protocol_min_max_strings(cls):
@@ -140,7 +77,7 @@ class HttpHandler(object):
 
     @classmethod
     def server_features(cls, env):
-        '''Return the server features dictionary.'''
+        """Return the server features dictionary."""
         hosts_dict = {}
         for service in env.report_services:
             port_dict = hosts_dict.setdefault(str(service.host), {})
@@ -151,24 +88,13 @@ class HttpHandler(object):
         return {
             'hosts': hosts_dict,
             'pruning': None,
-            'server_version': electrumx.version,
+            'server_version': electrumx_version,
             'protocol_min': min_str,
             'protocol_max': max_str,
             'genesis_hash': env.coin.GENESIS_HASH,
             'hash_function': 'sha256',
             'services': [str(service) for service in env.report_services],
         }
-
-    def is_tor(self):
-        '''Try to detect if the connection is to a tor hidden service we are
-        running.'''
-        proxy_address = self.peer_mgr.proxy_address()
-        if not proxy_address:
-            return False
-        remote_addr = self.remote_address()
-        if not remote_addr:
-            return False
-        return remote_addr.host == proxy_address.host
 
     async def _merkle_proof(self, cp_height, height):
         max_height = self.db.db_height
@@ -214,10 +140,10 @@ class HttpHandler(object):
         return web.json_response(res)
 
     async def address_status(self, hashX):
-        '''Returns an address status.
+        """Returns an address status.
 
         Status is a hex string, but must be None if there is no history.
-        '''
+        """
         # Note history is ordered and mempool unordered in electrum-server
         # For mempool, height is -1 if it has unconfirmed inputs, otherwise 0
         db_history, cost = await self.session_mgr.limited_history(hashX)
@@ -259,12 +185,12 @@ class HttpHandler(object):
         raise RPCError(BAD_REQUEST, f'{address} is not a valid address')
 
     async def address_get_balance(self, address):
-        '''Return the confirmed and unconfirmed balance of an address.'''
+        """Return the confirmed and unconfirmed balance of an address."""
         hashX = self.address_to_hashX(address)
         return await self.get_balance(hashX)
 
     async def address_get_history(self, address):
-        '''Return the confirmed and unconfirmed history of an address.'''
+        """Return the confirmed and unconfirmed history of an address."""
         hashX = self.address_to_hashX(address)
         return await self.confirmed_and_unconfirmed_history(hashX)
 
@@ -297,10 +223,10 @@ class HttpHandler(object):
         return conf + await self.unconfirmed_history(hashX)
 
     async def mempool_get(self, verbose=False):
-        '''Returns all transaction ids in memory pool as a json array of string transaction ids
+        """Returns all transaction ids in memory pool as a json array of string transaction ids
 
         verbose: True for a json object, false for array of transaction ids
-        '''
+        """
         if verbose not in (True, False):
             raise RPCError(BAD_REQUEST, f'"verbose" must be a boolean')
 
@@ -318,15 +244,13 @@ class HttpHandler(object):
             raise RPCError(BAD_REQUEST, f'"{compact_atomical_id}" is not found')
         return atomical_in_mempool
 
-
     async def atomicals_list_get(self, limit, offset, asc):
         atomicals = await self.db.get_atomicals_list(limit, offset, asc)
         atomicals_populated = []
         for atomical_id in atomicals:
             atomical = await self.atomical_id_get(location_id_bytes_to_compact(atomical_id))
             atomicals_populated.append(atomical)
-        return {'global': await self.get_summary_info(), 'result': atomicals_populated }
-
+        return {'global': await self.get_summary_info(), 'result': atomicals_populated}
 
     async def atomical_id_get_ft_info(self, compact_atomical_id):
         atomical_id = compact_to_location_id_bytes(compact_atomical_id)
@@ -349,30 +273,35 @@ class HttpHandler(object):
         return atomical_in_mempool
 
     # Perform a search for tickers, containers, realms, subrealms
-    def atomicals_search_name_template(self, db_prefix, name_type_str, parent_prefix=None, prefix=None, Reverse=False, Limit=100, Offset=0, is_verified_only=False):
+    def atomicals_search_name_template(self, db_prefix, name_type_str, parent_prefix=None, prefix=None, reverse=False,
+                                       limit=100, offset=0, is_verified_only=False):
         search_prefix = b''
         if prefix:
             search_prefix = prefix.encode()
 
-        db_entries = self.db.get_name_entries_template_limited(db_prefix, parent_prefix, search_prefix, Reverse, Limit, Offset)
+        db_entries = self.db.get_name_entries_template_limited(db_prefix, parent_prefix, search_prefix, reverse, limit,
+                                                               offset)
         formatted_results = []
         for item in db_entries:
+            status = None
             if name_type_str == "ticker":
-                status, _, _ = self.session_mgr.bp.get_effective_name_template(b'tick', item['name'], self.session_mgr.bp.height, self.session_mgr.bp.ticker_data_cache)
+                status, _, _ = self.session_mgr.bp.get_effective_name_template(b'tick', item['name'],
+                                                                               self.session_mgr.bp.height,
+                                                                               self.session_mgr.bp.ticker_data_cache)
             elif name_type_str == "realm":
-                status, _, _ = self.session_mgr.bp.get_effective_name_template(b'rlm', item['name'], self.session_mgr.bp.height, self.session_mgr.bp.realm_data_cache)
+                status, _, _ = self.session_mgr.bp.get_effective_name_template(b'rlm', item['name'],
+                                                                               self.session_mgr.bp.height,
+                                                                               self.session_mgr.bp.realm_data_cache)
             elif name_type_str == "collection":
-                status, _, _ = self.session_mgr.bp.get_effective_name_template(b'co', item['name'], self.session_mgr.bp.height, self.session_mgr.bp.container_data_cache)
+                status, _, _ = self.session_mgr.bp.get_effective_name_template(b'co', item['name'],
+                                                                               self.session_mgr.bp.height,
+                                                                               self.session_mgr.bp.container_data_cache)
             elif name_type_str == "subrealm":
-                status, _, _ = self.session_mgr.bp.get_effective_subrealm(parent_prefix, item['name'], self.session_mgr.bp.height)
+                status, _, _ = self.session_mgr.bp.get_effective_subrealm(parent_prefix, item['name'],
+                                                                          self.session_mgr.bp.height)
 
-            obj = {
-                'atomical_id': location_id_bytes_to_compact(item['atomical_id']),
-                'tx_num': item['tx_num']
-            }
-            obj[name_type_str] = item['name']
-            obj[name_type_str + '_hex'] = item.get('name_hex')
-            obj['status'] = status
+            obj = {'atomical_id': location_id_bytes_to_compact(item['atomical_id']), 'tx_num': item['tx_num'],
+                   name_type_str: item['name'], name_type_str + '_hex': item.get('name_hex'), 'status': status}
             if is_verified_only and status == "verified":
                 formatted_results.append(obj)
             elif not is_verified_only:
@@ -398,17 +327,17 @@ class HttpHandler(object):
             atomical_id = location_id_bytes_to_compact(item['atomical_id'])
             atomical_data = await self.atomical_id_get_ft_info(atomical_id)
             obj = {
-                'atomical_id': (atomical_id),
+                'atomical_id': atomical_id,
                 'tx_num': item['tx_num'],
                 'atomical_data': atomical_data,
+                name_type_str: item['name']
             }
-            obj[name_type_str] = item['name']
             formatted_results.append(obj)
         return {'result': formatted_results}
 
     async def hashX_listunspent(self, hashX):
-        '''Return the list of UTXOs of a script hash, including mempool
-        effects.'''
+        """Return the list of UTXOs of a script hash, including mempool
+        effects."""
         utxos = await self.db.all_utxos(hashX)
         utxos = sorted(utxos)
         utxos.extend(await self.mempool.unordered_UTXOs(hashX))
@@ -445,7 +374,7 @@ class HttpHandler(object):
         utxos = sorted(utxos)
         # Comment out the utxos for now and add it in later
         # utxos.extend(await self.mempool.unordered_UTXOs(hashX))
-        spends = [] # await self.mempool.potential_spends(hashX)
+        spends = []  # await self.mempool.potential_spends(hashX)
         returned_utxos = []
         atomicals_id_map = {}
         for utxo in utxos:
@@ -457,7 +386,7 @@ class HttpHandler(object):
                 # This call is efficient in that it's cached underneath.
                 # Now we only show the atomical id and its corresponding value
                 # because it can always be fetched separately which is more efficient.
-                atomical_basic_info = await self.session_mgr.bp.get_base_mint_info_rpc_format_by_atomical_id(atomical_id) 
+                atomical_basic_info = await self.session_mgr.bp.get_base_mint_info_rpc_format_by_atomical_id(atomical_id)
                 atomical_id_compact = location_id_bytes_to_compact(atomical_id)
                 atomicals_id_map[atomical_id_compact] = atomical_basic_info
                 location = utxo.tx_hash + util.pack_le_uint32(utxo.tx_pos)
@@ -479,7 +408,7 @@ class HttpHandler(object):
             for atomical_id_entry_compact in returned_utxo['atomicals']:
                 atomical_id_basic_info = atomicals_id_map[atomical_id_entry_compact]
                 atomical_id_compact = atomical_id_basic_info['atomical_id']
-                assert(atomical_id_compact == atomical_id_entry_compact)
+                assert (atomical_id_compact == atomical_id_entry_compact)
                 if atomical_id_basic_info.get('type') == 'FT':
                     if return_struct['balances'].get(atomical_id_compact) is None:
                         return_struct['balances'][atomical_id_compact] = {}
@@ -495,7 +424,7 @@ class HttpHandler(object):
         utxos = sorted(utxos)
         # Comment out the utxos for now and add it in later
         # utxos.extend(await self.mempool.unordered_UTXOs(hashX))
-        spends = [] # await self.mempool.potential_spends(hashX)
+        spends = []  # await self.mempool.potential_spends(hashX)
         returned_utxos = []
         atomicals_id_map = {}
         for utxo in utxos:
@@ -507,7 +436,7 @@ class HttpHandler(object):
                 # This call is efficient in that it's cached underneath.
                 # Now we only show the atomical id and its corresponding value
                 # because it can always be fetched separately which is more efficient.
-                atomical_basic_info = await self.session_mgr.bp.get_base_mint_info_rpc_format_by_atomical_id(atomical_id) 
+                atomical_basic_info = await self.session_mgr.bp.get_base_mint_info_rpc_format_by_atomical_id(atomical_id)
                 atomical_id_compact = location_id_bytes_to_compact(atomical_id)
                 atomicals_id_map[atomical_id_compact] = atomical_basic_info
                 location = utxo.tx_hash + util.pack_le_uint32(utxo.tx_pos)
@@ -529,49 +458,63 @@ class HttpHandler(object):
             for atomical_id_entry_compact in returned_utxo['atomicals']:
                 atomical_id_basic_info = atomicals_id_map[atomical_id_entry_compact]
                 atomical_id_compact = atomical_id_basic_info['atomical_id']
-                assert(atomical_id_compact == atomical_id_entry_compact)
+                assert (atomical_id_compact == atomical_id_entry_compact)
                 if atomical_id_basic_info.get('type') == 'NFT':
                     if return_struct['balances'].get(atomical_id_compact) is None:
                         return_struct['balances'][atomical_id_compact] = {}
                         return_struct['balances'][atomical_id_compact]['id'] = atomical_id_compact
                         return_struct['balances'][atomical_id_compact]['confirmed'] = 0
                     if atomical_id_basic_info.get('subtype'):
-                        return_struct['balances'][atomical_id_compact]['subtype'] = atomical_id_basic_info.get('subtype')
+                        return_struct['balances'][atomical_id_compact]['subtype'] = atomical_id_basic_info.get(
+                            'subtype')
                     if atomical_id_basic_info.get('$request_container'):
-                        return_struct['balances'][atomical_id_compact]['request_container'] = atomical_id_basic_info.get('$request_container')
+                        return_struct['balances'][atomical_id_compact][
+                            'request_container'] = atomical_id_basic_info.get('$request_container')
                     if atomical_id_basic_info.get('$container'):
-                        return_struct['balances'][atomical_id_compact]['container'] = atomical_id_basic_info.get('$container')
+                        return_struct['balances'][atomical_id_compact]['container'] = atomical_id_basic_info.get(
+                            '$container')
                     if atomical_id_basic_info.get('$dmitem'):
                         return_struct['balances'][atomical_id_compact]['dmitem'] = atomical_id_basic_info.get('$dmitem')
                     if atomical_id_basic_info.get('$request_dmitem'):
-                        return_struct['balances'][atomical_id_compact]['request_dmitem'] = atomical_id_basic_info.get('$request_dmitem')
+                        return_struct['balances'][atomical_id_compact]['request_dmitem'] = atomical_id_basic_info.get(
+                            '$request_dmitem')
                     if atomical_id_basic_info.get('$realm'):
                         return_struct['balances'][atomical_id_compact]['realm'] = atomical_id_basic_info.get('$realm')
                     if atomical_id_basic_info.get('$request_realm'):
-                        return_struct['balances'][atomical_id_compact]['request_realm'] = atomical_id_basic_info.get('$request_realm')
+                        return_struct['balances'][atomical_id_compact]['request_realm'] = atomical_id_basic_info.get(
+                            '$request_realm')
                     if atomical_id_basic_info.get('$subrealm'):
-                        return_struct['balances'][atomical_id_compact]['subrealm'] = atomical_id_basic_info.get('$subrealm')
+                        return_struct['balances'][atomical_id_compact]['subrealm'] = atomical_id_basic_info.get(
+                            '$subrealm')
                     if atomical_id_basic_info.get('$request_subrealm'):
-                        return_struct['balances'][atomical_id_compact]['request_subrealm'] = atomical_id_basic_info.get('$request_subrealm')
+                        return_struct['balances'][atomical_id_compact]['request_subrealm'] = atomical_id_basic_info.get(
+                            '$request_subrealm')
                     if atomical_id_basic_info.get('$full_realm_name'):
-                        return_struct['balances'][atomical_id_compact]['full_realm_name'] = atomical_id_basic_info.get('$full_realm_name')
+                        return_struct['balances'][atomical_id_compact]['full_realm_name'] = atomical_id_basic_info.get(
+                            '$full_realm_name')
                     if atomical_id_basic_info.get('$parent_container'):
-                        return_struct['balances'][atomical_id_compact]['parent_container'] = atomical_id_basic_info.get('$parent_container')
+                        return_struct['balances'][atomical_id_compact]['parent_container'] = atomical_id_basic_info.get(
+                            '$parent_container')
                     if atomical_id_basic_info.get('$parent_realm'):
-                        return_struct['balances'][atomical_id_compact]['parent_realm'] = atomical_id_basic_info.get('$parent_realm')
+                        return_struct['balances'][atomical_id_compact]['parent_realm'] = atomical_id_basic_info.get(
+                            '$parent_realm')
                     if atomical_id_basic_info.get('$parent_container_name'):
-                        return_struct['balances'][atomical_id_compact]['parent_container_name'] = atomical_id_basic_info.get('$parent_container_name')
+                        return_struct['balances'][atomical_id_compact][
+                            'parent_container_name'] = atomical_id_basic_info.get('$parent_container_name')
                     if atomical_id_basic_info.get('$bitwork'):
-                        return_struct['balances'][atomical_id_compact]['bitwork'] = atomical_id_basic_info.get('$bitwork')
+                        return_struct['balances'][atomical_id_compact]['bitwork'] = atomical_id_basic_info.get(
+                            '$bitwork')
                     if atomical_id_basic_info.get('$parents'):
-                        return_struct['balances'][atomical_id_compact]['parents'] = atomical_id_basic_info.get('$parents')
+                        return_struct['balances'][atomical_id_compact]['parents'] = atomical_id_basic_info.get(
+                            '$parents')
                     if returned_utxo['height'] > 0:
                         return_struct['balances'][atomical_id_compact]['confirmed'] += returned_utxo['atomicals'][atomical_id_compact]
         return return_struct
 
     def atomical_resolve_id(self, compact_atomical_id_or_atomical_number):
         compact_atomical_id = compact_atomical_id_or_atomical_number
-        if not isinstance(compact_atomical_id_or_atomical_number, int) and is_compact_atomical_id(compact_atomical_id_or_atomical_number):
+        if not isinstance(compact_atomical_id_or_atomical_number, int) and is_compact_atomical_id(
+                compact_atomical_id_or_atomical_number):
             assert_atomical_id(compact_atomical_id)
         else:
             found_atomical_id = self.db.get_atomical_id_by_atomical_number(compact_atomical_id_or_atomical_number)
@@ -588,7 +531,7 @@ class HttpHandler(object):
 
     async def get_summary_info(self, atomical_hash_count=10):
         if atomical_hash_count and atomical_hash_count > 100000:
-                atomical_hash_count = 100000
+            atomical_hash_count = 100000
 
         db_height = self.db.db_height
         last_block_hash = self.db.get_atomicals_block_hash(db_height)
@@ -700,63 +643,98 @@ class HttpHandler(object):
                     }
                     if atomical_id_basic_info.get('$realm'):
                         return_struct['atomicals'][atomical_id_ref]['subtype'] = atomical_id_basic_info.get('subtype')
-                        return_struct['atomicals'][atomical_id_ref]['request_realm_status'] = atomical_id_basic_info.get('$request_realm_status')
-                        return_struct['atomicals'][atomical_id_ref]['request_realm'] = atomical_id_basic_info.get('$request_realm')
+                        return_struct['atomicals'][atomical_id_ref][
+                            'request_realm_status'] = atomical_id_basic_info.get('$request_realm_status')
+                        return_struct['atomicals'][atomical_id_ref]['request_realm'] = atomical_id_basic_info.get(
+                            '$request_realm')
                         return_struct['atomicals'][atomical_id_ref]['realm'] = atomical_id_basic_info.get('$realm')
-                        return_struct['atomicals'][atomical_id_ref]['full_realm_name'] = atomical_id_basic_info.get('$full_realm_name')
+                        return_struct['atomicals'][atomical_id_ref]['full_realm_name'] = atomical_id_basic_info.get(
+                            '$full_realm_name')
                     elif atomical_id_basic_info.get('$subrealm'):
                         return_struct['atomicals'][atomical_id_ref]['subtype'] = atomical_id_basic_info.get('subtype')
-                        return_struct['atomicals'][atomical_id_ref]['request_subrealm_status'] = atomical_id_basic_info.get('$request_subrealm_status')
-                        return_struct['atomicals'][atomical_id_ref]['request_subrealm'] = atomical_id_basic_info.get('$request_subrealm')
-                        return_struct['atomicals'][atomical_id_ref]['parent_realm'] = atomical_id_basic_info.get('$parent_realm')
-                        return_struct['atomicals'][atomical_id_ref]['subrealm'] = atomical_id_basic_info.get('$subrealm')
-                        return_struct['atomicals'][atomical_id_ref]['full_realm_name'] = atomical_id_basic_info.get('$full_realm_name')
+                        return_struct['atomicals'][atomical_id_ref][
+                            'request_subrealm_status'] = atomical_id_basic_info.get('$request_subrealm_status')
+                        return_struct['atomicals'][atomical_id_ref]['request_subrealm'] = atomical_id_basic_info.get(
+                            '$request_subrealm')
+                        return_struct['atomicals'][atomical_id_ref]['parent_realm'] = atomical_id_basic_info.get(
+                            '$parent_realm')
+                        return_struct['atomicals'][atomical_id_ref]['subrealm'] = atomical_id_basic_info.get(
+                            '$subrealm')
+                        return_struct['atomicals'][atomical_id_ref]['full_realm_name'] = atomical_id_basic_info.get(
+                            '$full_realm_name')
                     elif atomical_id_basic_info.get('$dmitem'):
                         return_struct['atomicals'][atomical_id_ref]['subtype'] = atomical_id_basic_info.get('subtype')
-                        return_struct['atomicals'][atomical_id_ref]['request_dmitem_status'] = atomical_id_basic_info.get('$request_dmitem_status')
-                        return_struct['atomicals'][atomical_id_ref]['request_dmitem'] = atomical_id_basic_info.get('$request_dmitem')
-                        return_struct['atomicals'][atomical_id_ref]['parent_container'] = atomical_id_basic_info.get('$parent_container')
+                        return_struct['atomicals'][atomical_id_ref][
+                            'request_dmitem_status'] = atomical_id_basic_info.get('$request_dmitem_status')
+                        return_struct['atomicals'][atomical_id_ref]['request_dmitem'] = atomical_id_basic_info.get(
+                            '$request_dmitem')
+                        return_struct['atomicals'][atomical_id_ref]['parent_container'] = atomical_id_basic_info.get(
+                            '$parent_container')
                         return_struct['atomicals'][atomical_id_ref]['dmitem'] = atomical_id_basic_info.get('$dmitem')
                     elif atomical_id_basic_info.get('$ticker'):
                         return_struct['atomicals'][atomical_id_ref]['subtype'] = atomical_id_basic_info.get('subtype')
-                        return_struct['atomicals'][atomical_id_ref]['ticker_candidates'] = atomical_id_basic_info.get('$ticker_candidates')
-                        return_struct['atomicals'][atomical_id_ref]['request_ticker_status'] =  atomical_id_basic_info.get('$request_ticker_status')
-                        return_struct['atomicals'][atomical_id_ref]['request_ticker'] = atomical_id_basic_info.get('$request_ticker')
+                        return_struct['atomicals'][atomical_id_ref]['ticker_candidates'] = atomical_id_basic_info.get(
+                            '$ticker_candidates')
+                        return_struct['atomicals'][atomical_id_ref][
+                            'request_ticker_status'] = atomical_id_basic_info.get('$request_ticker_status')
+                        return_struct['atomicals'][atomical_id_ref]['request_ticker'] = atomical_id_basic_info.get(
+                            '$request_ticker')
                         return_struct['atomicals'][atomical_id_ref]['ticker'] = atomical_id_basic_info.get('$ticker')
                     elif atomical_id_basic_info.get('$container'):
                         return_struct['atomicals'][atomical_id_ref]['subtype'] = atomical_id_basic_info.get('subtype')
-                        return_struct['atomicals'][atomical_id_ref]['request_container_status'] = atomical_id_basic_info.get('$request_container_status')
-                        return_struct['atomicals'][atomical_id_ref]['container'] = atomical_id_basic_info.get('$container')
-                        return_struct['atomicals'][atomical_id_ref]['request_container'] = atomical_id_basic_info.get('$request_container')
+                        return_struct['atomicals'][atomical_id_ref][
+                            'request_container_status'] = atomical_id_basic_info.get('$request_container_status')
+                        return_struct['atomicals'][atomical_id_ref]['container'] = atomical_id_basic_info.get(
+                            '$container')
+                        return_struct['atomicals'][atomical_id_ref]['request_container'] = atomical_id_basic_info.get(
+                            '$request_container')
                     # Label them as candidates if they were candidates
                     elif atomical_id_basic_info.get('subtype') == 'request_realm':
                         return_struct['atomicals'][atomical_id_ref]['subtype'] = atomical_id_basic_info.get('subtype')
-                        return_struct['atomicals'][atomical_id_ref]['request_realm_status'] = atomical_id_basic_info.get('$request_realm_status')
-                        return_struct['atomicals'][atomical_id_ref]['request_realm'] = atomical_id_basic_info.get('$request_realm')
-                        return_struct['atomicals'][atomical_id_ref]['realm_candidates'] = atomical_id_basic_info.get('$realm_candidates')
+                        return_struct['atomicals'][atomical_id_ref][
+                            'request_realm_status'] = atomical_id_basic_info.get('$request_realm_status')
+                        return_struct['atomicals'][atomical_id_ref]['request_realm'] = atomical_id_basic_info.get(
+                            '$request_realm')
+                        return_struct['atomicals'][atomical_id_ref]['realm_candidates'] = atomical_id_basic_info.get(
+                            '$realm_candidates')
                     elif atomical_id_basic_info.get('subtype') == 'request_subrealm':
                         return_struct['atomicals'][atomical_id_ref]['subtype'] = atomical_id_basic_info.get('subtype')
-                        return_struct['atomicals'][atomical_id_ref]['subrealm_candidates'] = atomical_id_basic_info.get('$subrealm_candidates')
-                        return_struct['atomicals'][atomical_id_ref]['request_subrealm_status'] = atomical_id_basic_info.get('$request_subrealm_status')
-                        return_struct['atomicals'][atomical_id_ref]['request_full_realm_name'] = atomical_id_basic_info.get('$request_full_realm_name')
-                        return_struct['atomicals'][atomical_id_ref]['request_subrealm'] = atomical_id_basic_info.get('$request_subrealm')
-                        return_struct['atomicals'][atomical_id_ref]['parent_realm'] = atomical_id_basic_info.get('$parent_realm')
+                        return_struct['atomicals'][atomical_id_ref]['subrealm_candidates'] = atomical_id_basic_info.get(
+                            '$subrealm_candidates')
+                        return_struct['atomicals'][atomical_id_ref][
+                            'request_subrealm_status'] = atomical_id_basic_info.get('$request_subrealm_status')
+                        return_struct['atomicals'][atomical_id_ref][
+                            'request_full_realm_name'] = atomical_id_basic_info.get('$request_full_realm_name')
+                        return_struct['atomicals'][atomical_id_ref]['request_subrealm'] = atomical_id_basic_info.get(
+                            '$request_subrealm')
+                        return_struct['atomicals'][atomical_id_ref]['parent_realm'] = atomical_id_basic_info.get(
+                            '$parent_realm')
                     elif atomical_id_basic_info.get('subtype') == 'request_dmitem':
                         return_struct['atomicals'][atomical_id_ref]['subtype'] = atomical_id_basic_info.get('subtype')
-                        return_struct['atomicals'][atomical_id_ref]['dmitem_candidates'] = atomical_id_basic_info.get('$dmitem_candidates')
-                        return_struct['atomicals'][atomical_id_ref]['request_dmitem_status'] = atomical_id_basic_info.get('$request_dmitem_status')
-                        return_struct['atomicals'][atomical_id_ref]['request_dmitem'] = atomical_id_basic_info.get('$request_dmitem')
-                        return_struct['atomicals'][atomical_id_ref]['parent_container'] = atomical_id_basic_info.get('$parent_container')
+                        return_struct['atomicals'][atomical_id_ref]['dmitem_candidates'] = atomical_id_basic_info.get(
+                            '$dmitem_candidates')
+                        return_struct['atomicals'][atomical_id_ref][
+                            'request_dmitem_status'] = atomical_id_basic_info.get('$request_dmitem_status')
+                        return_struct['atomicals'][atomical_id_ref]['request_dmitem'] = atomical_id_basic_info.get(
+                            '$request_dmitem')
+                        return_struct['atomicals'][atomical_id_ref]['parent_container'] = atomical_id_basic_info.get(
+                            '$parent_container')
                     elif atomical_id_basic_info.get('subtype') == 'request_container':
                         return_struct['atomicals'][atomical_id_ref]['subtype'] = atomical_id_basic_info.get('subtype')
-                        return_struct['atomicals'][atomical_id_ref]['container_candidates'] = atomical_id_basic_info.get('$container_candidates')
-                        return_struct['atomicals'][atomical_id_ref]['request_container_status'] = atomical_id_basic_info.get('$request_container_status')
-                        return_struct['atomicals'][atomical_id_ref]['request_container'] = atomical_id_basic_info.get('$request_container')
+                        return_struct['atomicals'][atomical_id_ref][
+                            'container_candidates'] = atomical_id_basic_info.get('$container_candidates')
+                        return_struct['atomicals'][atomical_id_ref][
+                            'request_container_status'] = atomical_id_basic_info.get('$request_container_status')
+                        return_struct['atomicals'][atomical_id_ref]['request_container'] = atomical_id_basic_info.get(
+                            '$request_container')
                     elif atomical_id_basic_info.get('$request_ticker_status'):
                         return_struct['atomicals'][atomical_id_ref]['subtype'] = atomical_id_basic_info.get('subtype')
-                        return_struct['atomicals'][atomical_id_ref]['ticker_candidates'] = atomical_id_basic_info.get('$ticker_candidates')
-                        return_struct['atomicals'][atomical_id_ref]['request_ticker_status'] =  atomical_id_basic_info.get('$request_ticker_status')
-                        return_struct['atomicals'][atomical_id_ref]['request_ticker'] = atomical_id_basic_info.get('$request_ticker')
+                        return_struct['atomicals'][atomical_id_ref]['ticker_candidates'] = atomical_id_basic_info.get(
+                            '$ticker_candidates')
+                        return_struct['atomicals'][atomical_id_ref][
+                            'request_ticker_status'] = atomical_id_basic_info.get('$request_ticker_status')
+                        return_struct['atomicals'][atomical_id_ref]['request_ticker'] = atomical_id_basic_info.get(
+                            '$request_ticker')
 
                 if returned_utxo['height'] <= 0:
                     return_struct['atomicals'][atomical_id_ref]['unconfirmed'] += returned_utxo["atomicals"][atomical_id_ref]
@@ -799,28 +777,33 @@ class HttpHandler(object):
 
     # verified
     async def proxy(self, request):
-        result = {"success":True,"info":{"note":"Atomicals ElectrumX Digital Object Proxy Online","usageInfo":{"note":"The service offers both POST and GET requests for proxying requests to ElectrumX. To handle larger broadcast transaction payloads use the POST method instead of GET.","POST":"POST /proxy/:method with string encoded array in the field \\\"params\\\" in the request body. ","GET":"GET /proxy/:method?params=[\\\"value1\\\"] with string encoded array in the query argument \\\"params\\\" in the URL."},"healthCheck":"GET /proxy/health","github":"https://github.com/atomicals/electrumx-proxy","license":"MIT"}}
+        result = {"success": True, "info": {"note": "Atomicals ElectrumX Digital Object Proxy Online", "usageInfo": {
+            "note": "The service offers both POST and GET requests for proxying requests to ElectrumX. To handle larger broadcast transaction payloads use the POST method instead of GET.",
+            "POST": "POST /proxy/:method with string encoded array in the field \\\"params\\\" in the request body. ",
+            "GET": "GET /proxy/:method?params=[\\\"value1\\\"] with string encoded array in the query argument \\\"params\\\" in the URL."},
+                                            "healthCheck": "GET /proxy/health",
+                                            "github": "https://github.com/atomicals/electrumx-proxy", "license": "MIT"}}
         return web.json_response(data=result)
 
     # verified
     async def health(self, request):
-        result = {"success": True,"health": True}
+        result = {"success": True, "health": True}
         return web.json_response(data=result)
 
     # verified
     async def atomicals_list(self, request):
-        params = await self.format_params(request)
+        params = await format_params(request)
         offset = params.get(0, 100)
         limit = params.get(1, 0)
         asc = params.get(2, True)
 
-        '''Return the list of atomicals order by reverse atomical number'''
+        """Return the list of atomicals order by reverse atomical number"""
         formatted_results = await self.atomicals_list_get(offset, limit, asc)
         return formatted_results
 
     # verified
     async def atomicals_get(self, request):
-        params = await self.format_params(request)
+        params = await format_params(request)
         compact_atomical_id_or_atomical_number = params.get(0, "")
 
         compact_atomical_id = self.atomical_resolve_id(compact_atomical_id_or_atomical_number)
@@ -828,8 +811,8 @@ class HttpHandler(object):
 
     # verified
     async def scripthash_listunspent(self, request):
-        '''Return the list of UTXOs of a scripthash.'''
-        params = await self.format_params(request)
+        """Return the list of UTXOs of a scripthash."""
+        params = await format_params(request)
         scripthash = params.get(0, "")
 
         hashX = scripthash_to_hashX(scripthash)
@@ -837,43 +820,16 @@ class HttpHandler(object):
 
     # need verify
     async def transaction_broadcast(self, request):
-        '''Broadcast a raw transaction to the network.
-        raw_tx: the raw transaction as a hexadecimal string'''
-        params = await self.format_params(request)
+        """Broadcast a raw transaction to the network.
+        raw_tx: the raw transaction as a hexadecimal string"""
+        params = await format_params(request)
         raw_tx = params.get(0, "")
-
-        # self.bump_cost(0.25 + len(raw_tx) / 5000)
-        # This returns errors as JSON RPC errors, as is natural
-        try:
-            hex_hash = await self.session_mgr.broadcast_transaction_validated(raw_tx, True)
-        except DaemonError as e:
-            error, = e.args
-            message = error['message']
-            self.logger.info(f'error sending transaction: {message}')
-            raise RPCError(BAD_REQUEST, 'the transaction was rejected by '
-                           f'network rules.\n\n{message}\n[{raw_tx}]')
-        except AtomicalsValidationError as e:
-            self.logger.info(f'error validating atomicals transaction: {e}')
-            raise RPCError(ATOMICALS_INVALID_TX, 'the transaction was rejected by '
-                           f'atomicals rules.\n\n{e}\n[{raw_tx}]')
-
-        else:
-            self.txs_sent += 1
-            client_ver = util.protocol_tuple(self.client)
-            if client_ver != (0, ):
-                msg = self.coin.warn_old_client_on_tx_broadcast(client_ver)
-                if msg:
-                    self.logger.info(f'sent tx: {hex_hash}. and warned user to upgrade their '
-                                     f'client from {self.client}')
-                    return msg
-
-            self.logger.info(f'sent tx: {hex_hash}')
-            return hex_hash
+        return await self.ss.transaction_broadcast(raw_tx)
 
     # verified
     async def scripthash_get_history(self, request):
-        '''Return the confirmed and unconfirmed history of a scripthash.'''
-        params = await self.format_params(request)
+        """Return the confirmed and unconfirmed history of a scripthash."""
+        params = await format_params(request)
         scripthash = params.get(0)
 
         hashX = scripthash_to_hashX(scripthash)
@@ -881,12 +837,12 @@ class HttpHandler(object):
 
     # verified
     async def transaction_get(self, request):
-        '''Return the serialized raw transaction given its hash
+        """Return the serialized raw transaction given its hash
 
         tx_hash: the transaction hash as a hexadecimal string
         verbose: passed on to the daemon
-        '''
-        params = await self.format_params(request)
+        """
+        params = await format_params(request)
         tx_hash = params.get(0, "")
         verbose = params.get(1, False)
 
@@ -899,17 +855,18 @@ class HttpHandler(object):
     # verified
     async def atomical_get_state(self, request):
         # async def atomical_get_state(self, compact_atomical_id_or_atomical_number, Verbose=False):
-        params = await self.format_params(request)
+        params = await format_params(request)
         compact_atomical_id_or_atomical_number = params.get(0, "")
         Verbose = params.get(0, False)
 
         compact_atomical_id = self.atomical_resolve_id(compact_atomical_id_or_atomical_number)
-        return {'global': await self.get_summary_info(), 'result': await self.atomical_id_get_state(compact_atomical_id, Verbose)}
+        return {'global': await self.get_summary_info(),
+                'result': await self.atomical_id_get_state(compact_atomical_id, Verbose)}
 
     # verified
     async def scripthash_get_balance(self, request):
-        '''Return the confirmed and unconfirmed balance of a scripthash.'''
-        params = await self.format_params(request)
+        """Return the confirmed and unconfirmed balance of a scripthash."""
+        params = await format_params(request)
         scripthash = params.get(0, "")
 
         hashX = scripthash_to_hashX(scripthash)
@@ -917,15 +874,16 @@ class HttpHandler(object):
 
     # verified
     async def atomicals_get_location(self, request):
-        params = await self.format_params(request)
+        params = await format_params(request)
         compact_atomical_id_or_atomical_number = params.get(0, "")
         compact_atomical_id = self.atomical_resolve_id(compact_atomical_id_or_atomical_number)
-        return {'global': await self.get_summary_info(), 'result': await self.atomical_id_get_location(compact_atomical_id)}
+        return {'global': await self.get_summary_info(),
+                'result': await self.atomical_id_get_location(compact_atomical_id)}
 
     # verified
     async def atomicals_listscripthash(self, request):
-        '''Return the list of Atomical UTXOs for an address'''
-        params = await self.format_params(request)
+        """Return the list of Atomical UTXOs for an address"""
+        params = await format_params(request)
         scripthash = params.get(0, "")
         Verbose = params.get(1, False)
 
@@ -934,14 +892,14 @@ class HttpHandler(object):
 
     # verified
     async def atomicals_get_global(self, request):
-        params = await self.format_params(request)
+        params = await format_params(request)
         hashes = params.get(0, 10)
         return {'global': await self.get_summary_info(hashes)}
 
     async def block_header(self, request):
-        '''Return a raw block header as a hexadecimal string, or as a
-        dictionary with a merkle proof.'''
-        params = await self.format_params(request)
+        """Return a raw block header as a hexadecimal string, or as a
+        dictionary with a merkle proof."""
+        params = await format_params(request)
         height = params.get(0, 0)
         cp_height = params.get(1, 0)
         height = non_negative_integer(height)
@@ -954,13 +912,13 @@ class HttpHandler(object):
         return result
 
     async def block_headers(self, request):
-        '''Return count concatenated block headers as hex for the main chain;
+        """Return count concatenated block headers as hex for the main chain;
         starting at start_height.
 
         start_height and count must be non-negative integers.  At most
         MAX_CHUNK_SIZE headers will be returned.
-        '''
-        params = await self.format_params(request)
+        """
+        params = await format_params(request)
         start_height = params.get(0, 0)
         count = params.get(1, 0)
         cp_height = params.get(2, 0)
@@ -979,13 +937,13 @@ class HttpHandler(object):
         return result
 
     async def estimatefee(self, request):
-        '''The estimated transaction fee per kilobyte to be paid for a
+        """The estimated transaction fee per kilobyte to be paid for a
         transaction to be included within a certain number of blocks.
 
         number: the number of blocks
         mode: CONSERVATIVE or ECONOMICAL estimation mode
-        '''
-        params = await self.format_params(request)
+        """
+        params = await format_params(request)
         number = params.get(0, 0)
         mode = params.get(1, None)
 
@@ -1023,40 +981,40 @@ class HttpHandler(object):
             return feerate
 
     async def headers_subscribe(self, request):
-        '''Subscribe to get raw headers of new blocks.'''
+        """Subscribe to get raw headers of new blocks."""
         self.subscribe_headers = True
         return self.session_mgr.hsub_results
 
     async def relayfee(self, request):
-        '''The minimum fee a low-priority tx must pay in order to be accepted
-        to the daemon's memory pool.'''
+        """The minimum fee a low-priority tx must pay in order to be accepted
+        to the daemon's memory pool."""
         return await self.daemon_request('relayfee')
 
     async def scripthash_get_mempool(self, request):
-        '''Return the mempool transactions touching a scripthash.'''
-        params = await self.format_params(request)
+        """Return the mempool transactions touching a scripthash."""
+        params = await format_params(request)
         scripthash = params.get(0, "")
 
         hashX = scripthash_to_hashX(scripthash)
         return await self.unconfirmed_history(hashX)
 
     async def scripthash_subscribe(self, request):
-        '''Subscribe to a script hash.
+        """Subscribe to a script hash.
 
-        scripthash: the SHA256 hash of the script to subscribe to'''
-        params = await self.format_params(request)
+        scripthash: the SHA256 hash of the script to subscribe to"""
+        params = await format_params(request)
         scripthash = params.get(0, "")
         hashX = scripthash_to_hashX(scripthash)
         return await self.hashX_subscribe(hashX, scripthash)
 
     async def transaction_merkle(self, request):
-        '''Return the merkle branch to a confirmed transaction given its hash
+        """Return the merkle branch to a confirmed transaction given its hash
         and height.
 
         tx_hash: the transaction hash as a hexadecimal string
         height: the height of the block it is in
-        '''
-        params = await self.format_params(request)
+        """
+        params = await format_params(request)
         tx_hash = params.get(0, "")
         height = params.get(1, "")
 
@@ -1070,10 +1028,10 @@ class HttpHandler(object):
         return res
 
     async def transaction_id_from_pos(self, request):
-        '''Return the txid and optionally a merkle proof, given
+        """Return the txid and optionally a merkle proof, given
         a block height and position in the block.
-        '''
-        params = await self.format_params(request)
+        """
+        params = await format_params(request)
         height = params.get(0, 0)
         tx_pos = params.get(1, 0)
         merkle = params.get(2, False)
@@ -1100,72 +1058,58 @@ class HttpHandler(object):
         return await self.mempool.compact_fee_histogram()
 
     async def rpc_add_peer(self, request):
-        '''Add a peer.
+        """Add a peer.
 
         real_name: "bch.electrumx.cash t50001 s50002" for example
-        '''
-        params = await self.format_params(request)
+        """
+        params = await format_params(request)
         real_name = params.get(0, "")
         await self.peer_mgr.add_localRPC_peer(real_name)
 
         res = f"peer '{real_name}' added"
         return res
 
-    async def add_peer(self, request):
-        '''Add a peer (but only if the peer resolves to the source).'''
-        params = await self.format_params(request)
-        features = params.get(0, None)
-        self.is_peer = True
-        return await self.peer_mgr.on_add_peer(features, self.remote_address())
-
     async def donation_address(self, request):
-        '''Return the donation address as a string, empty if there is none.'''
+        """Return the donation address as a string, empty if there is none."""
         return self.env.donation_address
 
     async def server_features_async(self, request):
         return self.server_features(self.env)
 
     async def peers_subscribe(self, request):
-        '''Return the server peers as a list of (ip, host, details) tuples.'''
-        return self.peer_mgr.on_peers_subscribe(self.is_tor())
+        """Return the server peers as a list of (ip, host, details) tuples."""
+        return self.peer_mgr.on_peers_subscribe(False)
 
     async def ping(self, request):
-        '''Serves as a connection keep-alive mechanism and for the client to
+        """Serves as a connection keep-alive mechanism and for the client to
         confirm the server is still responding.
-        '''
+        """
         return None
 
     async def transaction_broadcast_validate(self, request):
-        '''Simulate a Broadcast a raw transaction to the network.
+        """Simulate a Broadcast a raw transaction to the network.
 
-        raw_tx: the raw transaction as a hexadecimal string to validate for Atomicals FT rules'''
-        params = await self.format_params(request)
+        raw_tx: the raw transaction as a hexadecimal string to validate for Atomicals FT rules"""
+        params = await format_params(request)
         raw_tx = params.get(0, "")
-        # This returns errors as JSON RPC errors, as is natural
-        try:
-            hex_hash = await self.session_mgr.broadcast_transaction_validated(raw_tx, False)
-            return hex_hash
-        except AtomicalsValidationError as e:
-            self.logger.info(f'error validating atomicals transaction: {e}')
-            raise RPCError(ATOMICALS_INVALID_TX, 'the transaction was rejected by '
-                           f'atomicals rules.\n\n{e}\n[{raw_tx}]')
+        return await self.ss.transaction_broadcast_validate(raw_tx)
 
     async def atomicals_get_ft_balances(self, request):
-        '''Return the FT balances for a scripthash address'''
-        params = await self.format_params(request)
+        """Return the FT balances for a scripthash address"""
+        params = await format_params(request)
         scripthash = params.get(0, "")
         hashX = scripthash_to_hashX(scripthash)
         return await self.hashX_ft_balances_atomicals(hashX)
 
     async def atomicals_get_nft_balances(self, request):
-        '''Return the NFT balances for a scripthash address'''
-        params = await self.format_params(request)
+        """Return the NFT balances for a scripthash address"""
+        params = await format_params(request)
         scripthash = params.get(0, "")
         hashX = scripthash_to_hashX(scripthash)
         return await self.hashX_nft_balances_atomicals(hashX)
 
     async def atomicals_num_to_id(self, request):
-        params = await self.format_params(request)
+        params = await format_params(request)
         limit = params.get(0, 10)
         offset = params.get(1, 0)
         asc = params.get(2, False)
@@ -1174,32 +1118,33 @@ class HttpHandler(object):
         atomicals_num_to_id_map_reformatted = {}
         for num, id in atomicals_num_to_id_map.items():
             atomicals_num_to_id_map_reformatted[num] = location_id_bytes_to_compact(id)
-        return {'global': await self.get_summary_info(), 'result': atomicals_num_to_id_map_reformatted }
+        return {'global': await self.get_summary_info(), 'result': atomicals_num_to_id_map_reformatted}
 
     async def atomicals_block_hash(self, request):
-        params = await self.format_params(request)
+        params = await format_params(request)
         height = params.get(0, self.session_mgr.bp.height)
         block_hash = self.db.get_atomicals_block_hash(height)
         return {'result': block_hash}
 
     async def atomicals_block_txs(self, request):
-        params = await self.format_params(request)
+        params = await format_params(request)
         height = params.get(0, "")
         tx_list = self.session_mgr.bp.get_atomicals_block_txs(height)
-        return {'global': await self.get_summary_info(), 'result': tx_list }
+        return {'global': await self.get_summary_info(), 'result': tx_list}
 
     async def atomicals_dump(self, request):
         self.db.dump()
         return {'result': True}
 
     async def atomicals_at_location(self, request):
-        '''Return the Atomicals at a specific location id```
-        '''
-        params = await self.format_params(request)
+        """Return the Atomicals at a specific location id```
+        """
+        params = await format_params(request)
         compact_location_id = params.get(0, "")
 
         atomical_basic_infos = []
-        atomicals_found_at_location = self.db.get_atomicals_by_location_extended_info_long_form(compact_to_location_id_bytes(compact_location_id))
+        atomicals_found_at_location = self.db.get_atomicals_by_location_extended_info_long_form(
+            compact_to_location_id_bytes(compact_location_id))
         # atomicals_found_at_location['atomicals']
         # atomicals_found_at_location['atomicals'].sort(key=lambda x: x['atomical_number'])
         for atomical_id in atomicals_found_at_location['atomicals']:
@@ -1212,37 +1157,42 @@ class HttpHandler(object):
         }
 
     async def atomical_get_state_history(self, request):
-        params = await self.format_params(request)
+        params = await format_params(request)
         compact_atomical_id_or_atomical_number = params.get(0, "")
 
         compact_atomical_id = self.atomical_resolve_id(compact_atomical_id_or_atomical_number)
-        return {'global': await self.get_summary_info(), 'result': await self.atomical_id_get_state_history(compact_atomical_id)}
+        return {'global': await self.get_summary_info(),
+                'result': await self.atomical_id_get_state_history(compact_atomical_id)}
 
     async def atomical_get_events(self, request):
-        params = await self.format_params(request)
+        params = await format_params(request)
         compact_atomical_id_or_atomical_number = params.get(0, "")
 
         compact_atomical_id = self.atomical_resolve_id(compact_atomical_id_or_atomical_number)
-        return {'global': await self.get_summary_info(), 'result': await self.atomical_id_get_events(compact_atomical_id)}
+        return {'global': await self.get_summary_info(),
+                'result': await self.atomical_id_get_events(compact_atomical_id)}
 
     async def atomicals_get_tx_history(self, request):
-        '''Return the history of an Atomical```
+        """Return the history of an Atomical```
         atomical_id: the mint transaction hash + 'i'<index> of the atomical id
         verbose: to determine whether to print extended information
-        '''
-        params = await self.format_params(request)
+        """
+        params = await format_params(request)
         compact_atomical_id_or_atomical_number = params.get(0, "")
 
         compact_atomical_id = compact_atomical_id_or_atomical_number
-        if isinstance(compact_atomical_id_or_atomical_number, int) != True and is_compact_atomical_id(compact_atomical_id_or_atomical_number):
+        if isinstance(compact_atomical_id_or_atomical_number, int) != True and is_compact_atomical_id(
+                compact_atomical_id_or_atomical_number):
             assert_atomical_id(compact_atomical_id)
         else:
-            compact_atomical_id = location_id_bytes_to_compact(self.db.get_atomical_id_by_atomical_number(compact_atomical_id_or_atomical_number))
-        return {'global': await self.get_summary_info(), 'result': await self.atomical_id_get_tx_history(compact_atomical_id)}
+            compact_atomical_id = location_id_bytes_to_compact(
+                self.db.get_atomical_id_by_atomical_number(compact_atomical_id_or_atomical_number))
+        return {'global': await self.get_summary_info(),
+                'result': await self.atomical_id_get_tx_history(compact_atomical_id)}
 
     # Get a summary view of a realm and if it's allowing mints and what parts already existed of a subrealm
     async def atomicals_get_realm_info(self, request):
-        params = await self.format_params(request)
+        params = await format_params(request)
         full_name = params.get(0, "")
         Verbose = params.get(1, False)
 
@@ -1259,10 +1209,12 @@ class HttpHandler(object):
         height = self.session_mgr.bp.height
         for name_part in split_names:
             if level == 0:
-                realm_status, last_found_realm, latest_all_entries_candidates = self.session_mgr.bp.get_effective_realm(name_part, height)
+                realm_status, last_found_realm, latest_all_entries_candidates = self.session_mgr.bp.get_effective_realm(
+                    name_part, height)
             else:
                 self.logger.info(f'atomicals_get_realm_info {last_found_realm} {name_part}')
-                realm_status, last_found_realm, latest_all_entries_candidates = self.session_mgr.bp.get_effective_subrealm(last_found_realm, name_part, height)
+                realm_status, last_found_realm, latest_all_entries_candidates = self.session_mgr.bp.get_effective_subrealm(
+                    last_found_realm, name_part, height)
             # stops when it does not found the realm component
             if realm_status != 'verified':
                 break
@@ -1283,23 +1235,26 @@ class HttpHandler(object):
                 is_first_name_part = False
             else:
                 joined_name += '.'
-            joined_name +=  name_element['name_part']
+            joined_name += name_element['name_part']
         # Nothing was found
         realms_path_len = len(realms_path)
         if realms_path_len == 0:
             return {'result': {
-                    'atomical_id': None,
-                    'top_level_realm_atomical_id': None,
-                    'top_level_realm_name': None,
-                    'nearest_parent_realm_atomical_id': None,
-                    'nearest_parent_realm_name': None,
-                    'request_full_realm_name': full_name,
-                    'found_full_realm_name': None,
-                    'missing_name_parts': full_name,
-                    'candidates': format_name_type_candidates_to_rpc(latest_all_entries_candidates, self.session_mgr.bp.build_atomical_id_to_candidate_map(latest_all_entries_candidates)) }
-                }
+                'atomical_id': None,
+                'top_level_realm_atomical_id': None,
+                'top_level_realm_name': None,
+                'nearest_parent_realm_atomical_id': None,
+                'nearest_parent_realm_name': None,
+                'request_full_realm_name': full_name,
+                'found_full_realm_name': None,
+                'missing_name_parts': full_name,
+                'candidates': format_name_type_candidates_to_rpc(latest_all_entries_candidates,
+                                                                 self.session_mgr.bp.build_atomical_id_to_candidate_map(
+                                                                     latest_all_entries_candidates))}
+            }
         # Populate the subrealm minting rules for a parent atomical
         that = self
+
         def populate_rules_response_struct(parent_atomical_id, struct_to_populate, Verbose):
             current_height = that.session_mgr.bp.height
             subrealm_mint_mod_history = that.session_mgr.bp.get_mod_history(parent_atomical_id, current_height)
@@ -1313,7 +1268,9 @@ class HttpHandler(object):
             }
             if current_height_rules_list and len(current_height_rules_list) > 0:
                 nearest_parent_realm_subrealm_mint_allowed = True
-            struct_to_populate['nearest_parent_realm_subrealm_mint_allowed'] = nearest_parent_realm_subrealm_mint_allowed
+            struct_to_populate[
+                'nearest_parent_realm_subrealm_mint_allowed'] = nearest_parent_realm_subrealm_mint_allowed
+
         #
         #
         #
@@ -1333,7 +1290,10 @@ class HttpHandler(object):
                 nearest_parent_realm_atomical_id = top_level_realm
                 nearest_parent_realm_name = top_level_realm_name
             final_subrealm_name = split_names[-1]
-            applicable_rule_map = self.session_mgr.bp.build_applicable_rule_map(latest_all_entries_candidates, compact_to_location_id_bytes(nearest_parent_realm_atomical_id), final_subrealm_name)
+            applicable_rule_map = self.session_mgr.bp.build_applicable_rule_map(latest_all_entries_candidates,
+                                                                                compact_to_location_id_bytes(
+                                                                                    nearest_parent_realm_atomical_id),
+                                                                                final_subrealm_name)
             return_struct = {
                 'atomical_id': realms_path[-1]['atomical_id'],
                 'top_level_realm_atomical_id': top_level_realm,
@@ -1343,9 +1303,12 @@ class HttpHandler(object):
                 'request_full_realm_name': full_name,
                 'found_full_realm_name': joined_name,
                 'missing_name_parts': None,
-                'candidates': format_name_type_candidates_to_rpc(latest_all_entries_candidates, self.session_mgr.bp.build_atomical_id_to_candidate_map(latest_all_entries_candidates))
+                'candidates': format_name_type_candidates_to_rpc(latest_all_entries_candidates,
+                                                                 self.session_mgr.bp.build_atomical_id_to_candidate_map(
+                                                                     latest_all_entries_candidates))
             }
-            populate_rules_response_struct(compact_to_location_id_bytes(nearest_parent_realm_atomical_id), return_struct, Verbose)
+            populate_rules_response_struct(compact_to_location_id_bytes(nearest_parent_realm_atomical_id),
+                                           return_struct, Verbose)
             return {'result': return_struct}
 
         # The number of realms and components do not match, that is because at least the top level realm or intermediate subrealm was found
@@ -1363,9 +1326,12 @@ class HttpHandler(object):
             nearest_parent_realm_atomical_id = top_level_realm
             nearest_parent_realm_name = top_level_realm_name
 
-        missing_name_parts = '.'.join(split_names[ len(realms_path):])
+        missing_name_parts = '.'.join(split_names[len(realms_path):])
         final_subrealm_name = split_names[-1]
-        applicable_rule_map = self.session_mgr.bp.build_applicable_rule_map(latest_all_entries_candidates, compact_to_location_id_bytes(nearest_parent_realm_atomical_id), final_subrealm_name)
+        applicable_rule_map = self.session_mgr.bp.build_applicable_rule_map(latest_all_entries_candidates,
+                                                                            compact_to_location_id_bytes(
+                                                                                nearest_parent_realm_atomical_id),
+                                                                            final_subrealm_name)
         return_struct = {
             'atomical_id': None,
             'top_level_realm_atomical_id': top_level_realm,
@@ -1376,19 +1342,24 @@ class HttpHandler(object):
             'found_full_realm_name': joined_name,
             'missing_name_parts': missing_name_parts,
             'final_subrealm_name': final_subrealm_name,
-            'candidates': format_name_type_candidates_to_rpc_for_subname(latest_all_entries_candidates, self.session_mgr.bp.build_atomical_id_to_candidate_map(latest_all_entries_candidates))
+            'candidates': format_name_type_candidates_to_rpc_for_subname(latest_all_entries_candidates,
+                                                                         self.session_mgr.bp.build_atomical_id_to_candidate_map(
+                                                                             latest_all_entries_candidates))
         }
         if Verbose:
-            populate_rules_response_struct(compact_to_location_id_bytes(nearest_parent_realm_atomical_id), return_struct, Verbose)
+            populate_rules_response_struct(compact_to_location_id_bytes(nearest_parent_realm_atomical_id),
+                                           return_struct, Verbose)
         return {'result': return_struct}
 
     async def atomicals_get_by_realm(self, request):
-        params = await self.format_params(request)
+        params = await format_params(request)
         name = params.get(0, "")
 
         height = self.session_mgr.bp.height
         status, candidate_atomical_id, all_entries = self.session_mgr.bp.get_effective_realm(name, height)
-        formatted_entries = format_name_type_candidates_to_rpc(all_entries, self.session_mgr.bp.build_atomical_id_to_candidate_map(all_entries))
+        formatted_entries = format_name_type_candidates_to_rpc(all_entries,
+                                                               self.session_mgr.bp.build_atomical_id_to_candidate_map(
+                                                                   all_entries))
 
         if candidate_atomical_id:
             candidate_atomical_id = location_id_bytes_to_compact(candidate_atomical_id)
@@ -1412,15 +1383,18 @@ class HttpHandler(object):
         return res
 
     async def atomicals_get_by_subrealm(self, request):
-        params = await self.format_params(request)
+        params = await format_params(request)
         parent_compact_atomical_id_or_atomical_number = params.get(0, "")
         name = params.get(1, "")
 
         height = self.session_mgr.bp.height
         compact_atomical_id_parent = self.atomical_resolve_id(parent_compact_atomical_id_or_atomical_number)
         atomical_id_parent = compact_to_location_id_bytes(compact_atomical_id_parent)
-        status, candidate_atomical_id, all_entries = self.session_mgr.bp.get_effective_subrealm(atomical_id_parent, name, height)
-        formatted_entries = format_name_type_candidates_to_rpc(all_entries, self.session_mgr.bp.build_atomical_id_to_candidate_map(all_entries))
+        status, candidate_atomical_id, all_entries = self.session_mgr.bp.get_effective_subrealm(atomical_id_parent,
+                                                                                                name, height)
+        formatted_entries = format_name_type_candidates_to_rpc(all_entries,
+                                                               self.session_mgr.bp.build_atomical_id_to_candidate_map(
+                                                                   all_entries))
 
         if candidate_atomical_id:
             candidate_atomical_id = location_id_bytes_to_compact(candidate_atomical_id)
@@ -1444,15 +1418,18 @@ class HttpHandler(object):
         return res
 
     async def atomicals_get_by_dmitem(self, request):
-        params = await self.format_params(request)
+        params = await format_params(request)
         parent_compact_atomical_id_or_atomical_number = params.get(0, "")
         name = params.get(1, "")
 
         height = self.session_mgr.bp.height
         compact_atomical_id_parent = self.atomical_resolve_id(parent_compact_atomical_id_or_atomical_number)
         atomical_id_parent = compact_to_location_id_bytes(compact_atomical_id_parent)
-        status, candidate_atomical_id, all_entries = self.session_mgr.bp.get_effective_dmitem(atomical_id_parent, name, height)
-        formatted_entries = format_name_type_candidates_to_rpc(all_entries, self.session_mgr.bp.build_atomical_id_to_candidate_map(all_entries))
+        status, candidate_atomical_id, all_entries = self.session_mgr.bp.get_effective_dmitem(atomical_id_parent, name,
+                                                                                              height)
+        formatted_entries = format_name_type_candidates_to_rpc(all_entries,
+                                                               self.session_mgr.bp.build_atomical_id_to_candidate_map(
+                                                                   all_entries))
 
         if candidate_atomical_id:
             candidate_atomical_id = location_id_bytes_to_compact(candidate_atomical_id)
@@ -1477,12 +1454,14 @@ class HttpHandler(object):
 
     # verified
     async def atomicals_get_by_ticker(self, request):
-        params = await self.format_params(request)
+        params = await format_params(request)
         ticker = params.get(0, "")
 
         height = self.session_mgr.bp.height
         status, candidate_atomical_id, all_entries = self.session_mgr.bp.get_effective_ticker(ticker, height)
-        formatted_entries = format_name_type_candidates_to_rpc(all_entries, self.session_mgr.bp.build_atomical_id_to_candidate_map(all_entries))
+        formatted_entries = format_name_type_candidates_to_rpc(all_entries,
+                                                               self.session_mgr.bp.build_atomical_id_to_candidate_map(
+                                                                   all_entries))
 
         if candidate_atomical_id:
             candidate_atomical_id = location_id_bytes_to_compact(candidate_atomical_id)
@@ -1505,12 +1484,14 @@ class HttpHandler(object):
         }
 
     async def atomicals_get_by_container(self, request):
-        params = await self.format_params(request)
+        params = await format_params(request)
         container = params.get(0, "")
 
         height = self.session_mgr.bp.height
         status, candidate_atomical_id, all_entries = self.session_mgr.bp.get_effective_container(container, height)
-        formatted_entries = format_name_type_candidates_to_rpc(all_entries, self.session_mgr.bp.build_atomical_id_to_candidate_map(all_entries))
+        formatted_entries = format_name_type_candidates_to_rpc(all_entries,
+                                                               self.session_mgr.bp.build_atomical_id_to_candidate_map(
+                                                                   all_entries))
 
         if candidate_atomical_id:
             candidate_atomical_id = location_id_bytes_to_compact(candidate_atomical_id)
@@ -1534,22 +1515,27 @@ class HttpHandler(object):
         return res
 
     async def atomicals_get_by_container_item(self, request):
-        params = await self.format_params(request)
+        params = await format_params(request)
         container = params.get(0, "")
         item_name = params.get(1, "")
 
         height = self.session_mgr.bp.height
         status, candidate_atomical_id, all_entries = self.session_mgr.bp.get_effective_container(container, height)
         found_atomical_id = None
-        formatted_entries = format_name_type_candidates_to_rpc(all_entries, self.session_mgr.bp.build_atomical_id_to_candidate_map(all_entries))
+        formatted_entries = format_name_type_candidates_to_rpc(all_entries,
+                                                               self.session_mgr.bp.build_atomical_id_to_candidate_map(
+                                                                   all_entries))
         if status == 'verified':
             found_atomical_id = candidate_atomical_id
         else:
             self.logger.info(f'formatted_entries {formatted_entries}')
             raise RPCError(BAD_REQUEST, f'Container does not exist')
-        status, candidate_atomical_id, all_entries = self.session_mgr.bp.get_effective_dmitem(found_atomical_id, item_name, height)
+        status, candidate_atomical_id, all_entries = self.session_mgr.bp.get_effective_dmitem(found_atomical_id,
+                                                                                              item_name, height)
         found_item_atomical_id = None
-        formatted_entries = format_name_type_candidates_to_rpc(all_entries, self.session_mgr.bp.build_atomical_id_to_candidate_map(all_entries))
+        formatted_entries = format_name_type_candidates_to_rpc(all_entries,
+                                                               self.session_mgr.bp.build_atomical_id_to_candidate_map(
+                                                                   all_entries))
 
         if candidate_atomical_id:
             candidate_atomical_id = location_id_bytes_to_compact(candidate_atomical_id)
@@ -1570,7 +1556,7 @@ class HttpHandler(object):
         }
 
     async def atomicals_get_by_container_item_validation(self, request):
-        params = await self.format_params(request)
+        params = await format_params(request)
         container = params.get(0, "")
         item_name = params.get(1, "")
         bitworkc = params.get(2, "")
@@ -1583,7 +1569,9 @@ class HttpHandler(object):
         height = self.session_mgr.bp.height
         status, candidate_atomical_id, all_entries = self.session_mgr.bp.get_effective_container(container, height)
         found_parent_atomical_id = None
-        formatted_entries = format_name_type_candidates_to_rpc(all_entries, self.session_mgr.bp.build_atomical_id_to_candidate_map(all_entries))
+        formatted_entries = format_name_type_candidates_to_rpc(all_entries,
+                                                               self.session_mgr.bp.build_atomical_id_to_candidate_map(
+                                                                   all_entries))
         if status == 'verified':
             found_parent_atomical_id = candidate_atomical_id
         else:
@@ -1601,9 +1589,12 @@ class HttpHandler(object):
                 raise RPCError(BAD_REQUEST, f'Container dmint status is invalid')
 
         dmint = container_dmint_status.get('dmint')
-        status, candidate_atomical_id, all_entries = self.session_mgr.bp.get_effective_dmitem(found_parent_atomical_id, item_name, height)
+        status, candidate_atomical_id, all_entries = self.session_mgr.bp.get_effective_dmitem(found_parent_atomical_id,
+                                                                                              item_name, height)
         found_item_atomical_id = None
-        formatted_entries = format_name_type_candidates_to_rpc(all_entries, self.session_mgr.bp.build_atomical_id_to_candidate_map(all_entries))
+        formatted_entries = format_name_type_candidates_to_rpc(all_entries,
+                                                               self.session_mgr.bp.build_atomical_id_to_candidate_map(
+                                                                   all_entries))
         if candidate_atomical_id:
             candidate_atomical_id = location_id_bytes_to_compact(candidate_atomical_id)
         if status == 'verified':
@@ -1613,8 +1604,12 @@ class HttpHandler(object):
         if not proof or not isinstance(proof, list) or len(proof) == 0:
             raise RPCError(BAD_REQUEST, f'Proof must be provided')
 
-        applicable_rule, state_at_height = self.session_mgr.bp.get_applicable_rule_by_height(found_parent_atomical_id, item_name, height - MINT_SUBNAME_RULES_BECOME_EFFECTIVE_IN_BLOCKS, DMINT_PATH)
-        proof_valid, target_vector, target_hash = validate_merkle_proof_dmint(dmint['merkle'], item_name, bitworkc, bitworkr, main_name, main_hash, proof)
+        applicable_rule, state_at_height = self.session_mgr.bp.get_applicable_rule_by_height(found_parent_atomical_id,
+                                                                                             item_name,
+                                                                                             height - MINT_SUBNAME_RULES_BECOME_EFFECTIVE_IN_BLOCKS,
+                                                                                             DMINT_PATH)
+        proof_valid, target_vector, target_hash = validate_merkle_proof_dmint(dmint['merkle'], item_name, bitworkc,
+                                                                              bitworkr, main_name, main_hash, proof)
         if applicable_rule and applicable_rule.get('matched_rule'):
             applicable_rule = applicable_rule.get('matched_rule')
 
@@ -1646,12 +1641,13 @@ class HttpHandler(object):
         return auto_encode_bytes_elements(items)
 
     async def atomicals_get_container_items(self, request):
-        params = await self.format_params(request)
+        params = await format_params(request)
         container = params.get(0, "")
         limit = params.get(1, 10)
         offset = params.get(2, 0)
 
-        status, candidate_atomical_id, all_entries = self.session_mgr.bp.get_effective_container(container, self.session_mgr.bp.height)
+        status, candidate_atomical_id, all_entries = self.session_mgr.bp.get_effective_container(container,
+                                                                                                 self.session_mgr.bp.height)
         found_atomical_id = None
         if status == 'verified':
             found_atomical_id = candidate_atomical_id
@@ -1699,40 +1695,44 @@ class HttpHandler(object):
         return res
 
     async def atomicals_get_ft_info(self, request):
-        params = await self.format_params(request)
+        params = await format_params(request)
         compact_atomical_id_or_atomical_number = params.get(0, "")
         compact_atomical_id = self.atomical_resolve_id(compact_atomical_id_or_atomical_number)
-        return {'global': await self.get_summary_info(), 'result': await self.atomical_id_get_ft_info(compact_atomical_id)}
+        return {'global': await self.get_summary_info(),
+                'result': await self.atomical_id_get_ft_info(compact_atomical_id)}
 
     async def atomicals_get_dft_mints(self, request):
-        params = await self.format_params(request)
+        params = await format_params(request)
         compact_atomical_id_or_atomical_number = params.get(0, "")
         atomical_id = compact_to_location_id_bytes(compact_atomical_id_or_atomical_number)
         Limit = params.get(1, 100)
         Offset = params.get(2, 0)
-        return {'global': await self.get_summary_info(), 'result': self.session_mgr.bp.get_distmints_by_atomical_id(atomical_id, Limit, Offset)}
+        return {'global': await self.get_summary_info(),
+                'result': self.session_mgr.bp.get_distmints_by_atomical_id(atomical_id, Limit, Offset)}
 
     # verified
     async def atomicals_search_tickers(self, request):
-        params = await self.format_params(request)
+        params = await format_params(request)
         prefix = params.get(0, None)
         Reverse = params.get(1, False)
         Limit = params.get(2, 100)
         Offset = params.get(3, 0)
         is_verified_only = params.get(4, True)
-        return self.atomicals_search_name_template(b'tick', 'ticker', None, prefix, Reverse, Limit, Offset, is_verified_only)
+        return self.atomicals_search_name_template(b'tick', 'ticker', None, prefix, Reverse, Limit, Offset,
+                                                   is_verified_only)
 
     async def atomicals_search_realms(self, request):
-        params = await self.format_params(request)
+        params = await format_params(request)
         prefix = params.get(0, None)
         Reverse = params.get(1, False)
         Limit = params.get(2, 100)
         Offset = params.get(3, 0)
         is_verified_only = params.get(4, True)
-        return self.atomicals_search_name_template(b'rlm', 'realm', None, prefix, Reverse, Limit, Offset, is_verified_only)
+        return self.atomicals_search_name_template(b'rlm', 'realm', None, prefix, Reverse, Limit, Offset,
+                                                   is_verified_only)
 
     async def atomicals_search_subrealms(self, request):
-        params = await self.format_params(request)
+        params = await format_params(request)
         parent_realm_id_compact = params.get(0, "")
         prefix = params.get(1, None)
         Reverse = params.get(2, False)
@@ -1740,21 +1740,23 @@ class HttpHandler(object):
         Offset = params.get(4, 0)
         is_verified_only = params.get(5, True)
         parent_realm_id_long_form = compact_to_location_id_bytes(parent_realm_id_compact)
-        return self.atomicals_search_name_template(b'srlm', 'subrealm', parent_realm_id_long_form, prefix, Reverse, Limit, Offset, is_verified_only)
+        return self.atomicals_search_name_template(b'srlm', 'subrealm', parent_realm_id_long_form, prefix, Reverse,
+                                                   Limit, Offset, is_verified_only)
 
     async def atomicals_search_containers(self, request):
-        params = await self.format_params(request)
+        params = await format_params(request)
         prefix = params.get(0, None)
         Reverse = params.get(1, False)
         Limit = params.get(2, 100)
         Offset = params.get(3, 0)
         is_verified_only = params.get(4, True)
-        return self.atomicals_search_name_template(b'co', 'collection', None, prefix, Reverse, Limit, Offset, is_verified_only)
+        return self.atomicals_search_name_template(b'co', 'collection', None, prefix, Reverse, Limit, Offset,
+                                                   is_verified_only)
 
     async def atomicals_get_holders(self, request):
-        '''Return the holder by a specific location id```
-        '''
-        params = await self.format_params(request)
+        """Return the holder by a specific location id```
+        """
+        params = await format_params(request)
         compact_atomical_id = params.get(0, "")
         limit = params.get(1, 50)
         offset = params.get(2, 0)
@@ -1771,7 +1773,7 @@ class HttpHandler(object):
                 if max_supply < 0:
                     mint_amount = atomical.get("mint_info", {}).get("args", {}).get("mint_amount")
                     max_supply = DFT_MINT_MAX_MAX_COUNT_DENSITY * mint_amount
-            for holder in atomical.get("holders", [])[offset:offset+limit]:
+            for holder in atomical.get("holders", [])[offset:offset + limit]:
                 percent = holder['holding'] / max_supply
                 formatted_results.append({
                     "percent": percent,
@@ -1779,7 +1781,7 @@ class HttpHandler(object):
                     "holding": holder["holding"]
                 })
         elif atomical["type"] == "NFT":
-            for holder in atomical.get("holders", [])[offset:offset+limit]:
+            for holder in atomical.get("holders", [])[offset:offset + limit]:
                 formatted_results.append({
                     "address": get_address_from_output_script(bytes.fromhex(holder['script'])),
                     "holding": holder["holding"]
@@ -1787,11 +1789,11 @@ class HttpHandler(object):
         return formatted_results
     
     async def atomicals_transaction(self, request):
-        params = await self.format_params(request)
+        params = await format_params(request)
         txid = params.get(0, "")
         return await self.session_mgr.get_transaction_detail(txid)
 
-    async def get_transaction_detail_by_height(self, height, limit, offset, op_type, reverse=True):
+    async def get_transaction_detail_by_height(self, height, limit, offset, op_type: Optional[str] = None, reverse=True):
         res = []
         txs_list = []
         txs = self.db.get_atomicals_block_txs(height)
@@ -1803,19 +1805,18 @@ class HttpHandler(object):
                 "tx_hash": tx,
                 "height": height
             })
-
         txs_list.sort(key=lambda x: x['tx_num'], reverse=reverse)
         for tx in txs_list:
             data = await self.session_mgr.get_transaction_detail(tx["tx_hash"], height, tx["tx_num"])
             if (op_type and op_type == data["op"]) or (not op_type and data["op"]):
                 res.append(data)
         total = len(res)
-        return res[offset:offset+limit], total
+        return res[offset:offset + limit], total
 
     # get the whole transaction by block height
     # return transaction detail
     async def transaction_by_height(self, request):
-        params = await self.format_params(request)
+        params = await format_params(request)
         height = params.get(0, "")
         limit = params.get(1, 10)
         offset = params.get(2, 0)
@@ -1827,7 +1828,7 @@ class HttpHandler(object):
 
     # get transaction by atomical id
     async def transaction_by_atomical_id(self, request):
-        params = await self.format_params(request)
+        params = await format_params(request)
         compact_atomical_id_or_atomical_number = params.get(0, "")
         limit = params.get(1, 10)
         offset = params.get(2, 0)
@@ -1836,10 +1837,12 @@ class HttpHandler(object):
 
         res = []
         compact_atomical_id = compact_atomical_id_or_atomical_number
-        if isinstance(compact_atomical_id_or_atomical_number, int) != True and is_compact_atomical_id(compact_atomical_id_or_atomical_number):
+        if isinstance(compact_atomical_id_or_atomical_number, int) != True and is_compact_atomical_id(
+                compact_atomical_id_or_atomical_number):
             assert_atomical_id(compact_atomical_id)
         else:
-            compact_atomical_id = location_id_bytes_to_compact(self.db.get_atomical_id_by_atomical_number(compact_atomical_id_or_atomical_number))
+            compact_atomical_id = location_id_bytes_to_compact(
+                self.db.get_atomical_id_by_atomical_number(compact_atomical_id_or_atomical_number))
         atomical_id = compact_to_location_id_bytes(compact_atomical_id)
         hashX = double_sha256(atomical_id)
 
@@ -1859,7 +1862,7 @@ class HttpHandler(object):
 
     # get transaction by scripthash
     async def transaction_by_scripthash(self, request):
-        params = await self.format_params(request)
+        params = await format_params(request)
         scripthash = params.get(0, "")
         limit = params.get(1, 10)
         offset = params.get(2, 0)
@@ -1882,9 +1885,9 @@ class HttpHandler(object):
                     res.append(data)
         return {"result": res, "total": total, "limit": limit, "offset": offset}
 
-    # searh for global
+    # searah for global
     async def transaction_global(self, request):
-        params = await self.format_params(request)
+        params = await format_params(request)
         limit = params.get(0, 10)
         offset = params.get(1, 0)
         op_type = params.get(2, None)

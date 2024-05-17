@@ -9,23 +9,19 @@
 '''Block prefetcher and chain processor.'''
 
 import asyncio
-import os
 import time
 from typing import Sequence, Tuple, List, Callable, Optional, TYPE_CHECKING, Type, Union
 
 from aiorpcx import run_in_thread, CancelledError
 
-import electrumx
-from electrumx.server.daemon import DaemonError, Daemon
+from electrumx.lib.atomicals_blueprint_builder import AtomicalsTransferBlueprintBuilder
 from electrumx.lib.hash import hash_to_hex_str, HASHX_LEN, double_sha256
 from electrumx.lib.script import SCRIPTHASH_LEN, is_unspendable_legacy, is_unspendable_genesis
-from electrumx.lib.util import (
-    chunks, class_logger, pack_le_uint32, unpack_le_uint32, pack_le_uint64, unpack_le_uint64, pack_be_uint64, unpack_be_uint64, OldTaskGroup, pack_byte, pack_le_uint16, unpack_le_uint16_from
-)
-import math
 from electrumx.lib.tx import Tx
-from electrumx.server.db import FlushData, COMP_TXID_LEN, DB
-from electrumx.server.history import TXNUM_LEN
+from electrumx.lib.util import (
+    chunks, class_logger, pack_le_uint32, unpack_le_uint32, pack_le_uint64, unpack_le_uint64, pack_be_uint64,
+    OldTaskGroup, pack_le_uint16
+)
 from electrumx.lib.util_atomicals import (
     is_within_acceptable_blocks_for_general_reveal,
     auto_encode_bytes_elements,
@@ -35,29 +31,27 @@ from electrumx.lib.util_atomicals import (
     get_subname_request_candidate_status,
     is_within_acceptable_blocks_for_name_reveal,
     compact_to_location_id_bytes,
-    is_proof_of_work_prefix_match,
     format_name_type_candidates_to_rpc_for_subname,
     format_name_type_candidates_to_rpc,
-    pad_bytes_n, 
-    has_requested_proof_of_work, 
-    is_valid_container_string_name, 
+    pad_bytes_n,
+    has_requested_proof_of_work,
+    is_valid_container_string_name,
     calculate_expected_bitwork,
     expand_spend_utxo_data,
-    encode_tx_hash_hex,
     SUBREALM_MINT_PATH,
     DMINT_PATH,
     MINT_SUBNAME_RULES_BECOME_EFFECTIVE_IN_BLOCKS,
-    MINT_REALM_CONTAINER_TICKER_COMMIT_REVEAL_DELAY_BLOCKS, 
-    MINT_SUBNAME_COMMIT_PAYMENT_DELAY_BLOCKS, 
-    is_valid_dmt_op_format, 
-    is_compact_atomical_id, 
+    MINT_REALM_CONTAINER_TICKER_COMMIT_REVEAL_DELAY_BLOCKS,
+    MINT_SUBNAME_COMMIT_PAYMENT_DELAY_BLOCKS,
+    is_valid_dmt_op_format,
+    is_compact_atomical_id,
     is_valid_regex,
-    unpack_mint_info, 
-    parse_protocols_operations_from_witness_array, 
-    location_id_bytes_to_compact, 
-    is_valid_subrealm_string_name, 
-    is_valid_realm_string_name, 
-    is_valid_ticker_string, 
+    unpack_mint_info,
+    parse_protocols_operations_from_witness_array,
+    location_id_bytes_to_compact,
+    is_valid_subrealm_string_name,
+    is_valid_realm_string_name,
+    is_valid_ticker_string,
     get_mint_info_op_factory,
     convert_db_mint_info_to_rpc_mint_info_format,
     calculate_latest_state_from_mod_history,
@@ -72,21 +66,19 @@ from electrumx.lib.util_atomicals import (
     is_txid_valid_for_perpetual_bitwork,
     auto_encode_bytes_items
 )
-
-from electrumx.lib.atomicals_blueprint_builder import AtomicalsTransferBlueprintBuilder
-
-import copy
+from electrumx.server.daemon import DaemonError, Daemon
+from electrumx.server.db import FlushData, COMP_TXID_LEN, DB
+from electrumx.server.history import TXNUM_LEN
+from electrumx.version import electrumx_version
 
 if TYPE_CHECKING:
     from electrumx.lib.coins import Coin, AtomicalsCoinMixin
     from electrumx.server.env import Env
     from electrumx.server.controller import Notifications
 
-from cbor2 import dumps, loads, CBORDecodeError
-import pickle
+from cbor2 import dumps, loads
 import pylru
-import regex 
-import sys 
+import sys
 import re 
 
 TX_HASH_LEN = 32
@@ -184,7 +176,7 @@ class Prefetcher:
                 first = self.fetched_height + 1
                 # Try and catch up all blocks but limit to room in cache.
                 cache_room = max(self.min_cache_size // self.ave_size, 1)
-                count = min(daemon_height - self.fetched_height, cache_room)
+                count: int = min(daemon_height - self.fetched_height, cache_room)
                 # Don't make too large a request
                 count = min(self.coin.max_fetch_blocks(first), max(count, 0))
                 if not count:
@@ -193,8 +185,7 @@ class Prefetcher:
 
                 hex_hashes = await daemon.block_hex_hashes(first, count)
                 if self.caught_up:
-                    self.logger.info(f'new block height {first + count-1:,d} '
-                                     f'hash {hex_hashes[-1]}')
+                    self.logger.info(f'new block height {first + count - 1:,d} hash {hex_hashes[-1]}')
                 blocks = await daemon.raw_blocks(hex_hashes)
 
                 assert count == len(blocks)
@@ -934,9 +925,14 @@ class BlockProcessor:
             found_at_least_one = False
             for atomical_a_db_key, atomical_a_db_value in self.db.utxo_db.iterator(prefix=prefix):
                 found_at_least_one = True
-            # For live_run == True we must throw an exception since the b'a' record should always be there when we are spending
-            if live_run and found_at_least_one == False: 
-                raise IndexError(f'Did not find expected at least one entry for atomicals table for atomical: {location_id_bytes_to_compact(atomical_id)} at location {location_id_bytes_to_compact(location_id)}')
+            # For live_run == True we must throw an exception since the b'a' record
+            # should always be there when we are spending
+            if live_run and not found_at_least_one:
+                raise IndexError(
+                    'Did not find expected at least one entry for atomicals table for atomical: '
+                    f'{location_id_bytes_to_compact(atomical_id)} at location '
+                    f'{location_id_bytes_to_compact(location_id)}'
+                )
             # Only do the db delete if this was a live run
             if live_run:
                 self.delete_general_data(b'a' + atomical_id + location_id)
@@ -965,14 +961,20 @@ class BlockProcessor:
         if state_map:
             cached_value = state_map.pop(db_key_suffix, None)
             if cached_value != expected_entry_value:
-                raise IndexError(f'IndexError: delete_state_data cache data does not match expected value {expected_entry_value} {db_value}')
+                raise IndexError(
+                    'IndexError: delete_state_data cache data does not match expected value'
+                    f'{expected_entry_value} {cached_value}'
+                )
             # return  intentionally fall through to catch in db just in case
 
         db_delete_key = db_key_prefix + db_key_suffix
         db_value = self.db.utxo_db.get(db_delete_key)
         if db_value:
             if db_value != expected_entry_value: 
-                raise IndexError(f'IndexError: delete_state_data db data does not match expected atomical id {expected_entry_value} {db_value}')
+                raise IndexError(
+                    'IndexError: delete_state_data db data does not match expected atomical id'
+                    f'{expected_entry_value} {db_value}'
+                )
             self.delete_general_data(db_delete_key)
         return cached_value or db_value
     
@@ -1055,17 +1057,25 @@ class BlockProcessor:
         return cached_value or db_value
 
     # Delete the distributed mint data that is used to track how many mints were made
-    def delete_decentralized_mint_data(self, atomical_id, location_id) -> bytes:
+    def delete_decentralized_mint_data(self, atomical_id, location_id):
         cache_map = self.distmint_data_cache.get(atomical_id, None)
-        if cache_map != None:
+        if cache_map is not None:
             cache_map.pop(location_id, None)
-            self.logger.info(f'delete_decentralized_mint_data: distmint_data_cache. location_id={location_id_bytes_to_compact(location_id)}, atomical_id={location_id_bytes_to_compact(atomical_id)}')
+            self.logger.info(
+                'delete_decentralized_mint_data: distmint_data_cache. '
+                f'location_id={location_id_bytes_to_compact(location_id)}, '
+                f'atomical_id={location_id_bytes_to_compact(atomical_id)}'
+            )
         gi_key = b'gi' + atomical_id + location_id
         gi_value = self.db.utxo_db.get(gi_key)
         if gi_value:
             # not do the i entry beuse it's deleted elsewhere 
             self.delete_general_data(gi_key)
-            self.logger.info(f'delete_decentralized_mint_data: db_deletes:. location_id={location_id_bytes_to_compact(location_id)}, atomical_id={location_id_bytes_to_compact(atomical_id)}')
+            self.logger.info(
+                'delete_decentralized_mint_data: db_deletes:. '
+                f'location_id={location_id_bytes_to_compact(location_id)}, '
+                f'atomical_id={location_id_bytes_to_compact(atomical_id)}'
+            )
 
     def log_subrealm_request(self, method, msg, status, subrealm, parent_realm_atomical_id, height):
         self.logger.info(f'{method} - {msg}, status={status} subrealm={subrealm}, parent_realm_atomical_id={parent_realm_atomical_id.hex()}, height={height}')
@@ -3581,7 +3591,7 @@ class BlockProcessor:
         '''
         # Fast track is it being in the cache
         idx_packed = pack_le_uint32(tx_idx)
-        cache_value = self.utxo_cache.pop(tx_hash + idx_packed, None)
+        cache_value: bytes | None = self.utxo_cache.pop(tx_hash + idx_packed, None)
         if cache_value:
             return cache_value
 
@@ -3641,8 +3651,7 @@ class BlockProcessor:
         self.db.first_sync = False
         await self.flush(True)
         if first_sync:
-            self.logger.info(f'{electrumx.version} synced to '
-                             f'height {self.height:,d}')
+            self.logger.info(f'{electrumx_version} synced to height {self.height:,d}')
         # Reopen for serving
         await self.db.open_for_serving()
 
@@ -3703,8 +3712,14 @@ class DecredBlockProcessor(BlockProcessor):
 
 class NameIndexBlockProcessor(BlockProcessor):
 
-    def advance_txs(self, txs, is_unspendable):
-        result = super().advance_txs(txs, is_unspendable)
+    def advance_txs(
+            self,
+            txs: Sequence[Tuple[Tx, bytes]],
+            is_unspendable: Callable[[bytes], bool],
+            header,
+            height
+    ):
+        result = super().advance_txs(txs, is_unspendable, header, height)
 
         tx_num = self.tx_count - len(txs)
         script_name_hashX = self.coin.name_hashX_from_script
@@ -3734,7 +3749,13 @@ class NameIndexBlockProcessor(BlockProcessor):
 
 class LTORBlockProcessor(BlockProcessor):
 
-    def advance_txs(self, txs, is_unspendable):
+    def advance_txs(
+            self,
+            txs: Sequence[Tuple[Tx, bytes]],
+            is_unspendable: Callable[[bytes], bool],
+            header,
+            height
+    ):
         self.tx_hashes.append(b''.join(tx_hash for tx, tx_hash in txs))
 
         # Use local vars for speed in the loops
