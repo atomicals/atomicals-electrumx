@@ -479,7 +479,7 @@ def test_spends_ft_single_split():
             'type': 'FT'
         }
     
-    # before is_split_activated
+    # before is_custom_coloring_activated
     # input[0] = 11001 ft
     # output[0] 11000 ft
     # burn 1 ft
@@ -493,7 +493,7 @@ def test_spends_ft_single_split():
     assert(ft_output_blueprint.first_atomical_id == subject_atomical_id)
     assert(blueprint_builder.get_are_fts_burned() == True)
 
-    # after is_split_activated
+    # after is_custom_coloring_activated
     # input[0] = 11001 ft
     # output[0] 11000 ft
     # burn 1 ft
@@ -629,7 +629,7 @@ def test_spends_ft_split_one_token():
             'type': 'FT'
         }
     
-    # before is_split_activated
+    # before is_custom_coloring_activated
     # input[0] = 900 ft
     # input[1] = 555 ft
     # output[0] = 1454 ft
@@ -642,7 +642,7 @@ def test_spends_ft_split_one_token():
     assert(ft_output_blueprint.first_atomical_id == subject_atomical_id)
     assert(blueprint_builder.get_are_fts_burned() == True)
 
-    # after is_split_activated
+    # after is_custom_coloring_activated
     # input[0] = 900 ft
     # input[1] = 555 ft
     # output[0] = 1454 ft
@@ -656,7 +656,7 @@ def test_spends_ft_split_one_token():
     assert(ft_output_blueprint.first_atomical_id == subject_atomical_id)
     assert(blueprint_builder.get_are_fts_burned() == False)
 
-    # before is_split_activated
+    # before is_custom_coloring_activated
     # input[0] = 900 ft
     # input[1] = 553 ft
     # burn 1453 ft
@@ -674,7 +674,7 @@ def test_spends_ft_split_one_token():
     assert(blueprint_builder.fts_burned == {b"A\x03\x8f'\xe7\x85`l\xa0\xcc\x1e\xfd\x8e:\xa9\x12\xa1\\r\xd0o5\x9a\xeb\x05$=\xab+p\xa8V\x00\x00\x00\x01": 1453})
     assert(blueprint_builder.get_are_fts_burned() == True)
 
-    # after is_split_activated
+    # after is_custom_coloring_activated
     # input[0] = 900 ft
     # input[1] = 553 ft
     # ouput[0] 1453 ft partlly colored
@@ -714,7 +714,7 @@ def test_ft_y_split_ft_normal():
             'atomical_id': atomical_id,
             'type': 'FT'
         }
-    # before is_split_activated
+    # before is_custom_coloring_activated
     blueprint_builder = AtomicalsTransferBlueprintBuilder(MockLogger(), atomicals_spent_at_inputs, operation_found_at_inputs, tx_hash, tx, mock_mint_fetcher, True, False)
     nft_output_blueprint = blueprint_builder.get_nft_output_blueprint()
     assert(len(nft_output_blueprint.outputs) == 0)
@@ -723,7 +723,7 @@ def test_ft_y_split_ft_normal():
     assert(ft_output_blueprint.fts_burned == {})
     assert(blueprint_builder.get_are_fts_burned() == False)
 
-    # before is_split_activated
+    # before is_custom_coloring_activated
     # it will be burned
     # input[1] = 1100 ft and 1000 ft1
     # output[0] = 1000 ft
@@ -743,7 +743,7 @@ def test_ft_y_split_ft_normal():
     assert(ft_output_blueprint.fts_burned != {})
     assert(blueprint_builder.get_are_fts_burned() == True)
 
-    # after is_split_activated
+    # after is_custom_coloring_activated
     # no burned, partlly colored
     # input[1] = 1100 ft and 1000 ft1
     # output[0] = 1000 ft
@@ -757,7 +757,7 @@ def test_ft_y_split_ft_normal():
     assert(ft_output_blueprint.fts_burned == {})
     assert(blueprint_builder.get_are_fts_burned() == False)
 
-    # after is_split_activated and set atomical_value > utxo value
+    # after is_custom_coloring_activated and set atomical_value > utxo value
     # in this case skip value in operation_found_at_inputs match the atomical_value
     # skip subject_atomical_id for 1000 in operation_found_at_inputs
     # input[1] = 1000 ft and 1100 ft1
@@ -778,7 +778,7 @@ def test_ft_y_split_ft_normal():
     assert(ft_output_blueprint.fts_burned == {})
     assert(blueprint_builder.get_are_fts_burned() == False)
 
-    # after is_split_activated and set atomical_value > utxo value
+    # after is_custom_coloring_activated and set atomical_value > utxo value
     # in this case skip value in operation_found_at_inputs *not match* the atomical_value
     # try to split, but will not cause burn.
     # input[1] = 1100 ft and 1100 ft1
@@ -799,7 +799,7 @@ def test_ft_y_split_ft_normal():
     assert(ft_output_blueprint.fts_burned == {})
     assert(blueprint_builder.get_are_fts_burned() == False)
     
-    # after is_split_activated and set atomical_value > all utxo value
+    # after is_custom_coloring_activated and set atomical_value > all utxo value
     # in this case skip value in operation_found_at_inputs match the atomical_value
     # it will be burn
     # input[1] = 1000 ft and 2100 ft1
@@ -863,8 +863,8 @@ def test_y_split_nft_and_ft():
     assert(ft_output_blueprint.fts_burned == {})
     assert(blueprint_builder.get_are_fts_burned() == False)
 
-    # before is_split_activated
-    # set is_split_activated = False
+    # before is_custom_coloring_activated
+    # set is_custom_coloring_activated = False
     # it will be burned, because not cleanly_assigned for output[2], and output[1] will colored 1000
     # input[1] = 1000 nft and 1100 ft
     # output[0] = 1000 nft
@@ -880,7 +880,7 @@ def test_y_split_nft_and_ft():
 
     # if atomical_value > utxo value
     # it will be burned
-    # set is_split_activated = True
+    # set is_custom_coloring_activated = True
     # input[1] = 1000 nft and 2100 ft
     # output[0] = 1000 nft
     # output[1] = 1000 ft
