@@ -1,3 +1,5 @@
+from typing import Type, TYPE_CHECKING, Union
+
 from aiorpcx import RPCError
 from logging import LoggerAdapter
 
@@ -5,13 +7,25 @@ from electrumx.lib import util
 from electrumx.lib.util_atomicals import AtomicalsValidationError
 from electrumx.server.daemon import DaemonError
 from electrumx.server.session import ATOMICALS_INVALID_TX, BAD_REQUEST
+from electrumx.server.session.session_manager import SessionManager
+
+if TYPE_CHECKING:
+    from electrumx.lib.coins import AtomicalsCoinMixin, Coin
 
 
 class SharedSession:
-    def __init__(self, session_mgr: 'SessionManager', logger: LoggerAdapter):
+    def __init__(
+            self,
+            logger: LoggerAdapter,
+            coin: Type[Union['Coin', 'AtomicalsCoinMixin']],
+            session_mgr: SessionManager,
+            client: str,
+    ):
         self.session_mgr = session_mgr
         self.logger = logger
-        self.txs_sent = 0
+        self.txs_sent: int = 0
+        self.client: str = client
+        self.coin = coin
 
     async def transaction_broadcast_validate(self, raw_tx: str = ""):
         """Simulate a Broadcast a raw transaction to the network.
@@ -35,7 +49,6 @@ class SharedSession:
         # This returns errors as JSON RPC errors, as is natural.
         try:
             hex_hash = await self.session_mgr.broadcast_transaction_validated(raw_tx, True)
-            hex_hash = await self.session_mgr.broadcast_transaction(raw_tx)
         except DaemonError as e:
             error, = e.args
             message = error['message']
@@ -50,6 +63,28 @@ class SharedSession:
                 ATOMICALS_INVALID_TX,
                 f'the transaction was rejected by atomicals rules.\n\n{e}\n[{raw_tx}]'
             )
+        else:
+            self.txs_sent += 1
+            client_ver = util.protocol_tuple(self.client)
+            if client_ver != (0, ):
+                msg = self.coin.warn_old_client_on_tx_broadcast(client_ver)
+                if msg:
+                    self.logger.info(f'sent tx: {hex_hash}. and warned user to upgrade their '
+                                     f'client from {self.client}')
+                    return msg
+
+            self.logger.info(f'sent tx: {hex_hash}')
+            return hex_hash
+
+    async def transaction_broadcast_force(self, raw_tx: str):
+        try:
+            hex_hash = await self.session_mgr.broadcast_transaction(raw_tx)
+        except DaemonError as e:
+            error, = e.args
+            message = error['message']
+            self.logger.info(f'error sending transaction: {message}')
+            raise RPCError(BAD_REQUEST, 'the transaction was rejected by '
+                                        f'network rules.\n\n{message}\n[{raw_tx}]')
         else:
             self.txs_sent += 1
             client_ver = util.protocol_tuple(self.client)

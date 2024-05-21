@@ -17,24 +17,23 @@ from electrumx.lib.script2addr import *
 from electrumx.lib.text import sessions_lines
 from electrumx.lib.util import OldTaskGroup
 from electrumx.lib.util_atomicals import *
-from electrumx.server.block_processor import BlockProcessor
-from electrumx.server.daemon import DaemonError, Daemon
-from electrumx.server.db import DB
-from electrumx.server.env import Env
 from electrumx.server.history import TXNUM_LEN
 from electrumx.server.http_middleware import *
 from electrumx.server.mempool import MemPool
 from electrumx.server.session import BAD_REQUEST, DAEMON_ERROR
-from electrumx.server.session.http_session import HttpHandler
-from electrumx.server.session.session_base import LocalRPC, SessionBase, non_negative_integer
+from electrumx.server.session.util import non_negative_integer
 from electrumx.server.peers import PeerManager
 
-from typing import TYPE_CHECKING
+from typing import TYPE_CHECKING, Type
 
 from electrumx.version import electrumx_version
 
 if TYPE_CHECKING:
-    pass
+    from electrumx.server.block_processor import BlockProcessor
+    from electrumx.server.daemon import DaemonError, Daemon
+    from electrumx.server.db import DB
+    from electrumx.server.env import Env
+    from electrumx.server.session.http_session import HttpHandler
 
 
 @attr.s(slots=True)
@@ -149,6 +148,7 @@ class SessionManager:
                     app.router.add_get('/proxy/blockchain.scripthash.listunspent', handler.scripthash_listunspent)
                     app.router.add_get('/proxy/blockchain.scripthash.subscribe', handler.scripthash_subscribe)
                     app.router.add_get('/proxy/blockchain.transaction.broadcast', handler.transaction_broadcast)
+                    app.router.add_get('/proxy/blockchain.transaction.broadcast_force', handler.transaction_broadcast_force)
                     app.router.add_get('/proxy/blockchain.transaction.get', handler.transaction_get)
                     app.router.add_get('/proxy/blockchain.transaction.get_merkle', handler.transaction_merkle)
                     app.router.add_get('/proxy/blockchain.transaction.id_from_pos', handler.transaction_id_from_pos)
@@ -300,7 +300,7 @@ class SessionManager:
                 else:
                     sslc = None
                 if service.protocol == 'rpc':
-                    session_class = LocalRPC
+                    session_class = Type['LocalRPC']
                 else:
                     session_class = self.env.coin.SESSIONCLS
                 if service.protocol in ('ws', 'wss'):
@@ -568,44 +568,6 @@ class SessionManager:
         result.extend(f'unknown: {item}' for item in refs.unknown)
 
         await self._disconnect_sessions(sessions, 'local RPC request to disconnect')
-        return result
-
-    async def rpc_log(self, session_ids):
-        """Toggle logging of sesssions.
-
-        session_ids: array of session or group IDs, or 'all', 'none', 'new'
-        """
-        refs = self._session_references(session_ids, {'all', 'none', 'new'})
-        result = []
-
-        def add_result(text, value):
-            result.append(f'logging {text}' if value else f'not logging {text}')
-
-        if 'all' in refs.specials:
-            for session in self.sessions:
-                session.log_me = True
-            SessionBase.log_new = True
-            result.append('logging all sessions')
-        if 'none' in refs.specials:
-            for session in self.sessions:
-                session.log_me = False
-            SessionBase.log_new = False
-            result.append('logging no sessions')
-        if 'new' in refs.specials:
-            SessionBase.log_new = not SessionBase.log_new
-            add_result('new sessions', SessionBase.log_new)
-
-        sessions = refs.sessions
-        for session in sessions:
-            session.log_me = not session.log_me
-            add_result(f'session {session.session_id}', session.log_me)
-        for group in refs.groups:
-            for session in group.sessions.difference(sessions):
-                sessions.add(session)
-                session.log_me = not session.log_me
-                add_result(f'session {session.session_id}', session.log_me)
-
-        result.extend(f'unknown: {item}' for item in refs.unknown)
         return result
 
     async def rpc_daemon_url(self, daemon_url):
@@ -903,7 +865,7 @@ class SessionManager:
         self.txs_sent += 1
         return hex_hash
 
-    async def broadcast_transaction_validated(self, raw_tx, live_run):
+    async def broadcast_transaction_validated(self, raw_tx: str, live_run: bool):
         self.bp.validate_ft_rules_raw_tx(raw_tx)
         if live_run:
             hex_hash = await self.daemon.broadcast_transaction(raw_tx)

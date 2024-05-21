@@ -2,13 +2,15 @@ import asyncio
 import codecs
 import datetime
 
-from aiorpcx import timeout_after, TaskTimeout
+from typing import Tuple
+from aiorpcx import timeout_after, TaskTimeout, ReplyAndDisconnect
 
 from electrumx.lib import util
 from electrumx.lib.script2addr import get_address_from_output_script
 from electrumx.lib.util_atomicals import *
 from electrumx.server.daemon import DaemonError
-from electrumx.server.session.session_base import *
+from electrumx.server.session.session_base import SessionBase
+from electrumx.server.session.util import *
 from electrumx.version import electrumx_version, electrumx_version_short
 
 
@@ -1660,7 +1662,7 @@ class ElectrumX(SessionBase):
 
     async def transaction_broadcast_validate(self, raw_tx):
         self.bump_cost(0.25 + len(raw_tx) / 5000)
-        return await self.ss.transaction_broadcast_validate()
+        return await self.ss.transaction_broadcast_validate(raw_tx)
 
     async def transaction_broadcast(self, raw_tx):
         """Broadcast a raw transaction to the network.
@@ -1673,27 +1675,7 @@ class ElectrumX(SessionBase):
         """Broadcast a raw transaction to the network. Force even if invalid FT transfer
         raw_tx: the raw transaction as a hexadecimal string"""
         self.bump_cost(0.25 + len(raw_tx) / 5000)
-        # This returns errors as JSON RPC errors, as is natural
-        try:
-            hex_hash = await self.session_mgr.broadcast_transaction(raw_tx)
-        except DaemonError as e:
-            error, = e.args
-            message = error['message']
-            self.logger.info(f'error sending transaction: {message}')
-            raise RPCError(BAD_REQUEST, 'the transaction was rejected by '
-                                        f'network rules.\n\n{message}\n[{raw_tx}]')
-        else:
-            self.txs_sent += 1
-            client_ver = util.protocol_tuple(self.client)
-            if client_ver != (0,):
-                msg = self.coin.warn_old_client_on_tx_broadcast(client_ver)
-                if msg:
-                    self.logger.info(f'sent tx: {hex_hash}. and warned user to upgrade their '
-                                     f'client from {self.client}')
-                    return msg
-
-            self.logger.info(f'sent tx: {hex_hash}')
-            return hex_hash
+        return await self.ss.transaction_broadcast_force(raw_tx)
 
     async def transaction_get(self, tx_hash, verbose=False):
         """Return the serialized raw transaction given its hash

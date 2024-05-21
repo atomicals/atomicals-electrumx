@@ -9,10 +9,10 @@
 
 
 import re
-from ipaddress import IPv4Address, IPv6Address
-from typing import Type, Union
-
+from typing import Type, Union, TYPE_CHECKING
 from aiorpcx import Service, ServicePart
+from ipaddress import IPv4Address, IPv6Address
+
 from electrumx.lib.coins import Coin, AtomicalsCoinMixin
 from electrumx.lib.env_base import EnvBase
 

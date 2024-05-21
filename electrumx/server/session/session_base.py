@@ -1,70 +1,18 @@
-from typing import Optional, Tuple, Callable, Dict
+from typing import Optional, Tuple, Callable, Dict, TYPE_CHECKING
 
 import electrumx.lib.util as util
 import itertools
 
 from aiorpcx import Request, RPCSession, JSONRPCConnection, JSONRPCAutoDetect, NewlineFramer, ReplyAndDisconnect, \
-    handler_invocation, RPCError
+    handler_invocation
 
-from electrumx.lib.hash import hex_str_to_hash, HASHX_LEN
-from electrumx.server.db import DB
-from electrumx.server.mempool import MemPool
-from electrumx.server.peers import PeerManager
 from electrumx.server.session import BAD_REQUEST
 from electrumx.server.session.shared_session import SharedSession
 
-
-def scripthash_to_hashX(scripthash):
-    try:
-        bin_hash = hex_str_to_hash(scripthash)
-        if len(bin_hash) == 32:
-            return bin_hash[:HASHX_LEN]
-    except (ValueError, TypeError):
-        pass
-    raise RPCError(BAD_REQUEST, f'{scripthash} is not a valid script hash')
-
-
-def non_negative_integer(value):
-    """Return param value it is or can be converted to a non-negative
-    integer, otherwise raise an RPCError."""
-    try:
-        value = int(value)
-        if value >= 0:
-            return value
-    except (ValueError, TypeError):
-        pass
-    raise RPCError(BAD_REQUEST, f'{value} should be a non-negative integer')
-
-
-def assert_tx_hash(value):
-    """Raise an RPCError if the value is not a valid hexadecimal transaction hash.
-
-    If it is valid, return it as 32-byte binary hash."""
-    try:
-        raw_hash = hex_str_to_hash(value)
-        if len(raw_hash) == 32:
-            return raw_hash
-    except (ValueError, TypeError):
-        pass
-    raise RPCError(BAD_REQUEST, f'{value} should be a transaction hash')
-
-
-def assert_atomical_id(value):
-    """Raise an RPCError if the value is not a valid atomical id
-    If it is valid, return it as 32-byte binary hash."""
-    try:
-        if value is None or value == "":
-            raise RPCError(BAD_REQUEST, f'atomical_id required')
-        index_of_i = value.find("i")
-        if index_of_i != 64:
-            raise RPCError(BAD_REQUEST, f'{value} should be an atomical_id')
-        raw_hash = hex_str_to_hash(value[: 64])
-        if len(raw_hash) == 32:
-            return raw_hash
-    except (ValueError, TypeError):
-        pass
-
-    raise RPCError(BAD_REQUEST, f'{value} should be an atomical_id')
+if TYPE_CHECKING:
+    from electrumx.server.db import DB
+    from electrumx.server.mempool import MemPool
+    from electrumx.server.peers import PeerManager
 
 
 class SessionBase(RPCSession):
@@ -76,7 +24,6 @@ class SessionBase(RPCSession):
 
     MAX_CHUNK_SIZE = 2016
     session_counter = itertools.count()
-    log_new = False
 
     def __init__(
             self,
@@ -99,7 +46,7 @@ class SessionBase(RPCSession):
         self.client = 'unknown'
         self.anon_logs = self.env.anon_logs
         self.txs_sent = 0
-        self.log_me = SessionBase.log_new
+        self.log_me = False
         self.session_id = None
         self.daemon_request = self.session_mgr.daemon_request
         self.session_id = next(self.session_counter)
@@ -113,7 +60,12 @@ class SessionBase(RPCSession):
         self.protocol_tuple: Optional[Tuple[int, ...]] = None
         self.request_handlers: Optional[Dict[str, Callable]] = None
         # Use the sharing session to manage handlers.
-        self.ss = SharedSession(self.session_mgr, self.logger)
+        self.ss = SharedSession(
+            self.logger,
+            self.coin,
+            self.session_mgr,
+            self.client,
+        )
 
     async def notify(self, touched, height_changed):
         pass
@@ -182,7 +134,7 @@ class SessionBase(RPCSession):
 class LocalRPC(SessionBase):
     """A local TCP RPC server session."""
 
-    processing_timeout = 10**9  # disable timeouts
+    processing_timeout = 10 ** 9  # disable timeouts
 
     def __init__(self, *args, **kwargs):
         super().__init__(*args, **kwargs)

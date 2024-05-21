@@ -63,7 +63,12 @@ class HttpHandler(object):
         self.MAX_CHUNK_SIZE = 2016
         self.hashX_subs = {}
         # Use the sharing session to manage handlers.
-        self.ss = SharedSession(self.session_mgr, self.logger)
+        self.ss = SharedSession(
+            self.logger,
+            self.coin,
+            self.session_mgr,
+            self.client,
+        )
 
     async def get_rpc_server(self):
         for service in self.env.services:
@@ -777,12 +782,23 @@ class HttpHandler(object):
 
     # verified
     async def proxy(self, request):
-        result = {"success": True, "info": {"note": "Atomicals ElectrumX Digital Object Proxy Online", "usageInfo": {
-            "note": "The service offers both POST and GET requests for proxying requests to ElectrumX. To handle larger broadcast transaction payloads use the POST method instead of GET.",
-            "POST": "POST /proxy/:method with string encoded array in the field \\\"params\\\" in the request body. ",
-            "GET": "GET /proxy/:method?params=[\\\"value1\\\"] with string encoded array in the query argument \\\"params\\\" in the URL."},
-                                            "healthCheck": "GET /proxy/health",
-                                            "github": "https://github.com/atomicals/electrumx-proxy", "license": "MIT"}}
+        result = {
+            "success": True,
+            "info": {
+                "note": "Atomicals ElectrumX Digital Object Proxy Online",
+                "usageInfo": {
+                    "note": "The service offers both POST and GET requests for proxying requests to ElectrumX. "
+                            "To handle larger broadcast transaction payloads use the POST method instead of GET.",
+                    "POST": "POST /proxy/:method with string encoded array "
+                            "in the field \\\"params\\\" in the request body. ",
+                    "GET": "GET /proxy/:method?params=[\\\"value1\\\"] with string encoded array "
+                           "in the query argument \\\"params\\\" in the URL."
+                },
+                "healthCheck": "GET /proxy/health",
+                "github": "https://github.com/atomicals/electrumx-proxy",
+                "license": "MIT"
+            }
+        }
         return web.json_response(data=result)
 
     # verified
@@ -817,14 +833,6 @@ class HttpHandler(object):
 
         hashX = scripthash_to_hashX(scripthash)
         return await self.hashX_listunspent(hashX)
-
-    # need verify
-    async def transaction_broadcast(self, request):
-        """Broadcast a raw transaction to the network.
-        raw_tx: the raw transaction as a hexadecimal string"""
-        params = await format_params(request)
-        raw_tx = params.get(0, "")
-        return await self.ss.transaction_broadcast(raw_tx)
 
     # verified
     async def scripthash_get_history(self, request):
@@ -1093,6 +1101,22 @@ class HttpHandler(object):
         params = await format_params(request)
         raw_tx = params.get(0, "")
         return await self.ss.transaction_broadcast_validate(raw_tx)
+
+    # need verify
+    async def transaction_broadcast(self, request):
+        """Broadcast a raw transaction to the network.
+        raw_tx: the raw transaction as a hexadecimal string"""
+        params = await format_params(request)
+        raw_tx = params.get(0, "")
+        return await self.ss.transaction_broadcast(raw_tx)
+
+    # need verify
+    async def transaction_broadcast_force(self, request):
+        """Broadcast a raw transaction to the network.
+        raw_tx: the raw transaction as a hexadecimal string"""
+        params = await format_params(request)
+        raw_tx = params.get(0, "")
+        return await self.ss.transaction_broadcast_force(raw_tx)
 
     async def atomicals_get_ft_balances(self, request):
         """Return the FT balances for a scripthash address"""
