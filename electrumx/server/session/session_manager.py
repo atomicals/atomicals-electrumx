@@ -954,7 +954,8 @@ class SessionManager:
             tx_hash,
             tx,
             self.bp.get_atomicals_id_mint_info,
-            True
+            self.bp.is_dmint_activated(height),
+            self.bp.is_custom_coloring_activated(height),
         )
         is_burned = blueprint_builder.are_fts_burned
         is_cleanly_assigned = blueprint_builder.cleanly_assigned
@@ -1063,7 +1064,7 @@ class SessionManager:
                         "atomical_id": compact_atomical_id,
                         "type": "FT",
                         "index": k,
-                        "value": output_ft.satvalue
+                        "value": output_ft.sat_value
                     }
                     if k not in res["transfers"]["outputs"]:
                         res["transfers"]["outputs"][k] = [ft_data]
@@ -1109,8 +1110,7 @@ class SessionManager:
                     else:
                         res["transfers"]["outputs"][k].append(nft_data)
 
-        atomical_id_for_payment, payment_marker_idx, _ = AtomicalsTransferBlueprintBuilder.get_atomical_id_for_payment_marker_if_found(
-            tx)
+        atomical_id_for_payment, payment_marker_idx, _ = AtomicalsTransferBlueprintBuilder.get_atomical_id_for_payment_marker_if_found(tx)
         if atomical_id_for_payment:
             res["info"]["payment"] = {
                 "atomical_id": location_id_bytes_to_compact(atomical_id_for_payment),
