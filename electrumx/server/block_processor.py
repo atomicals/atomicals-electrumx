@@ -2882,7 +2882,7 @@ class BlockProcessor:
             is_unspendable: Callable[[bytes], bool],
             header,
             height
-    ) -> tuple[list[bytes], list[bytes]]:
+    ) -> Tuple[list[bytes], list[bytes]]:
         self.tx_hashes.append(b''.join(tx_hash for tx, tx_hash in txs))
         self.atomicals_rpc_format_cache.clear()
         self.atomicals_rpc_general_cache.clear()
