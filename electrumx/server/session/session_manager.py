@@ -17,10 +17,12 @@ from electrumx.lib.script2addr import *
 from electrumx.lib.text import sessions_lines
 from electrumx.lib.util import OldTaskGroup
 from electrumx.lib.util_atomicals import *
+from electrumx.server.daemon import DaemonError, Daemon
 from electrumx.server.history import TXNUM_LEN
 from electrumx.server.http_middleware import *
 from electrumx.server.mempool import MemPool
 from electrumx.server.session import BAD_REQUEST, DAEMON_ERROR
+from electrumx.server.session.http_session import HttpHandler
 from electrumx.server.session.util import non_negative_integer
 from electrumx.server.peers import PeerManager
 
@@ -30,10 +32,8 @@ from electrumx.version import electrumx_version
 
 if TYPE_CHECKING:
     from electrumx.server.block_processor import BlockProcessor
-    from electrumx.server.daemon import DaemonError, Daemon
     from electrumx.server.db import DB
     from electrumx.server.env import Env
-    from electrumx.server.session.http_session import HttpHandler
 
 
 @attr.s(slots=True)

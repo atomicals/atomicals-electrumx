@@ -8,15 +8,12 @@ from typing import Optional
 
 import aiorpcx
 from aiohttp import web
-from aiorpcx import RPCError
 
 import electrumx.lib.util as util
 from electrumx.lib.script2addr import get_address_from_output_script
 from electrumx.lib.util_atomicals import *
-from electrumx.server.session import BAD_REQUEST
-from electrumx.server.session.session_base import assert_tx_hash, scripthash_to_hashX, non_negative_integer, \
-    assert_atomical_id
 from electrumx.server.session.shared_session import SharedSession
+from electrumx.server.session.util import *
 from electrumx.version import electrumx_version
 
 

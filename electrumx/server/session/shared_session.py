@@ -7,10 +7,10 @@ from electrumx.lib import util
 from electrumx.lib.util_atomicals import AtomicalsValidationError
 from electrumx.server.daemon import DaemonError
 from electrumx.server.session import ATOMICALS_INVALID_TX, BAD_REQUEST
-from electrumx.server.session.session_manager import SessionManager
 
 if TYPE_CHECKING:
     from electrumx.lib.coins import AtomicalsCoinMixin, Coin
+    from electrumx.server.session.session_manager import SessionManager
 
 
 class SharedSession:
@@ -18,7 +18,7 @@ class SharedSession:
             self,
             logger: LoggerAdapter,
             coin: Type[Union['Coin', 'AtomicalsCoinMixin']],
-            session_mgr: SessionManager,
+            session_mgr: Type['SessionManager'],
             client: str,
     ):
         self.session_mgr = session_mgr
