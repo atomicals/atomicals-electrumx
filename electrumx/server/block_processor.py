@@ -295,7 +295,7 @@ class BlockProcessor:
             "mint-dft": 1, "mint-ft": 2, "mint-nft": 3, "mint-nft-realm": 4,
             "mint-nft-subrealm": 5, "mint-nft-container": 6, "mint-nft-dmitem": 7,
             "dft": 20, "dat": 21, "split": 22, "splat": 23,
-            "seal": 24, "evt": 25, "mod": 26,
+            "seal": 24, "evt": 25, "mod": 26, "custom-color": 27,
             "transfer": 30,
             "payment-subrealm": 40, "payment-dmitem": 41, "payment-subrealm-failed": 42, "payment-dmitem-failed": 43,
             "mint-dft-failed": 51, "mint-ft-failed": 52, "mint-nft-failed": 53, "mint-nft-realm-failed": 54,
@@ -1711,6 +1711,8 @@ class BlockProcessor:
                             self.put_op_data(tx_num, tx_hash, "splat")
                         if operations_found_at_inputs["op"] == "y":
                             self.put_op_data(tx_num, tx_hash, "split")
+                        if operations_found_at_inputs["op"] == "z":
+                            self.put_op_data(tx_num, tx_hash, "custom-color")
                     self.put_or_delete_state_updates(operations_found_at_inputs, atomical_id, tx_num, tx_hash, output_idx_le, height, 0, False)
                     self.put_or_delete_state_updates(operations_found_at_inputs, atomical_id, tx_num, tx_hash, output_idx_le, height, 1, False)
                 # Only allow NFTs to be sealed.
@@ -1737,6 +1739,8 @@ class BlockProcessor:
                         self.put_op_data(tx_num, tx_hash, "splat")
                     if operations_found_at_inputs["op"] == "y":
                         self.put_op_data(tx_num, tx_hash, "split")
+                    if operations_found_at_inputs["op"] == "z":
+                        self.put_op_data(tx_num, tx_hash, "custom-color")
                     else:
                         self.put_op_data(tx_num, tx_hash, operations_found_at_inputs["op"])
                 self.put_or_delete_event_updates_if_found(operations_found_at_inputs, ft_blueprint.first_atomical_id, tx_num, tx_hash, tx, height)
