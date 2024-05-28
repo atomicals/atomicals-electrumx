@@ -8,7 +8,7 @@ from electrumx.lib import util
 from electrumx.server.daemon import DaemonError
 from electrumx.server.session.session_base import SessionBase
 from electrumx.server.session.util import *
-from electrumx.version import electrumx_version, electrumx_version_short
+from electrumx.version import electrumx_version, electrumx_version_short, get_server_info
 
 
 class ElectrumX(SessionBase):
@@ -124,6 +124,13 @@ class ElectrumX(SessionBase):
     def set_request_handlers(self, protocols):
         self.protocol_tuple: Tuple[int, ...] = protocols
         handlers = {
+            # 'server.banner': self.banner,
+            'server.donation_address': self.ss.donation_address,
+            'server.features': self.server_features_async,
+            'server.info': get_server_info,
+            # 'server.peers.subscribe': self.peers_subscribe,
+            # 'server.ping': self.ss.ping,
+            # 'server.version': self.server_version,
             'blockchain.headers.subscribe': self.ss.headers_subscribe,
             'blockchain.block.header': self.ss.block_header,
             'blockchain.block.headers': self.ss.block_headers,
@@ -140,12 +147,6 @@ class ElectrumX(SessionBase):
             'blockchain.transaction.get_merkle': self.ss.transaction_merkle,
             'blockchain.transaction.id_from_pos': self.ss.transaction_id_from_pos,
             'mempool.get_fee_histogram': self.ss.compact_fee_histogram,
-            # 'server.banner': self.banner,
-            'server.donation_address': self.ss.donation_address,
-            'server.features': self.server_features_async,
-            # 'server.peers.subscribe': self.peers_subscribe,
-            # 'server.ping': self.ss.ping,
-            # 'server.version': self.server_version,
             # The Atomicals era has begun #
             'blockchain.atomicals.validate': self.ss.transaction_broadcast_validate,
             'blockchain.atomicals.get_ft_balances_scripthash': self.ss.atomicals_get_ft_balances,

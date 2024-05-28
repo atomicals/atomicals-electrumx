@@ -2,6 +2,7 @@
 
 import json
 from decimal import Decimal
+from typing import Awaitable
 
 import aiorpcx
 from aiohttp import web
@@ -10,7 +11,7 @@ import electrumx.lib.util as util
 from electrumx.server.http_middleware import success_resp, error_resp
 from electrumx.server.session.shared_session import SharedSession
 from electrumx.server.session.util import *
-from electrumx.version import electrumx_version
+from electrumx.version import electrumx_version, get_server_info
 
 
 class DecimalEncoder(json.JSONEncoder):
@@ -30,7 +31,9 @@ async def formatted_request(request, call):
     else:
         params = []
     try:
-        result = await call(*params)
+        result = call(*params)
+        if isinstance(result, Awaitable):
+            result = await result
         return success_resp(result)
     except Exception as e:
         return error_resp(500, e)
@@ -68,6 +71,13 @@ class HttpHandler(object):
     async def add_endpoints(self, router, protocols):
         handlers = {
             'health': self.health,
+            # 'server.banner': self.ss.banner,
+            'server.donation_address': self.ss.donation_address,
+            'server.features': self.server_features_async,
+            'server.info': get_server_info,
+            # 'server.peers.subscribe': self.ss.peers_subscribe,
+            # 'server.ping': self.ss.ping,
+            # 'server.version': self.server_version,
             'blockchain.headers.subscribe': self.ss.headers_subscribe,
             'blockchain.block.header': self.ss.block_header,
             'blockchain.block.headers': self.ss.block_headers,
@@ -84,12 +94,6 @@ class HttpHandler(object):
             'blockchain.transaction.get_merkle': self.ss.transaction_merkle,
             'blockchain.transaction.id_from_pos': self.ss.transaction_id_from_pos,
             'mempool.get_fee_histogram': self.ss.compact_fee_histogram,
-            # 'server.banner': self.ss.banner,
-            'server.donation_address': self.ss.donation_address,
-            'server.features': self.server_features_async,
-            # 'server.peers.subscribe': self.ss.peers_subscribe,
-            # 'server.ping': self.ss.ping,
-            # 'server.version': self.server_version,
             # The Atomicals era has begun #
             'blockchain.atomicals.validate': self.ss.transaction_broadcast_validate,
             'blockchain.atomicals.get_ft_balances_scripthash': self.ss.atomicals_get_ft_balances,

@@ -49,6 +49,18 @@ class SharedSession(object):
 
     ################################################################################################################
 
+    async def donation_address(self):
+        """Return the donation address as a string, empty if there is none."""
+        self.bump_cost(0.1)
+        return self.env.donation_address
+
+    async def ping(self):
+        """Serves as a connection keep-alive mechanism and for the client to
+        confirm the server is still responding.
+        """
+        self.bump_cost(0.1)
+        return None
+
     async def block_header(self, height, cp_height=0):
         """Return a raw block header as a hexadecimal string, or as a
         dictionary with a merkle proof."""
@@ -180,18 +192,6 @@ class SharedSession(object):
     async def compact_fee_histogram(self):
         self.bump_cost(1.0)
         return await self.mempool.compact_fee_histogram()
-
-    async def donation_address(self):
-        """Return the donation address as a string, empty if there is none."""
-        self.bump_cost(0.1)
-        return self.env.donation_address
-
-    async def ping(self):
-        """Serves as a connection keep-alive mechanism and for the client to
-        confirm the server is still responding.
-        """
-        self.bump_cost(0.1)
-        return None
 
     async def atomicals_get_ft_balances(self, scripthash):
         """Return the FT balances for a scripthash address"""
