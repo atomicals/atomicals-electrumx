@@ -47,6 +47,8 @@ def main():
         logger.setLevel(env.log_level)
         controller = Controller(env)
         asyncio.run(controller.run())
+    except KeyboardInterrupt:
+        logger.info('ElectrumX server terminated (normally) before initialized')
     except Exception:
         logger.exception('ElectrumX server terminated abnormally')
     else:
