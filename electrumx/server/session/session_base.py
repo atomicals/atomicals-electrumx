@@ -22,7 +22,6 @@ class SessionBase(RPCSession):
     sessions.
     """
 
-    MAX_CHUNK_SIZE = 2016
     session_counter = itertools.count()
 
     def __init__(
@@ -64,7 +63,9 @@ class SessionBase(RPCSession):
             self.logger,
             self.coin,
             self.session_mgr,
+            self.peer_mgr,
             self.client,
+            maybe_bump_cost=self.bump_cost
         )
 
     async def notify(self, touched, height_changed):

@@ -3,6 +3,10 @@ from aiorpcx import RPCError
 from electrumx.lib.hash import hex_str_to_hash, HASHX_LEN
 from electrumx.server.session import BAD_REQUEST
 
+SESSION_BASE_MAX_CHUNK_SIZE = 2016
+SESSION_PROTOCOL_MIN = (1, 4)
+SESSION_PROTOCOL_MAX = (1, 4, 3)
+
 
 def scripthash_to_hashX(scripthash):
     try:
