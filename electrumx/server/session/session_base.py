@@ -1,4 +1,4 @@
-from typing import Optional, Tuple, Callable, Dict, TYPE_CHECKING
+from typing import TYPE_CHECKING, Awaitable, Dict, Optional, Tuple
 
 import electrumx.lib.util as util
 import itertools
@@ -57,7 +57,7 @@ class SessionBase(RPCSession):
         self.session_mgr.add_session(self)
         self.recalc_concurrency()  # must be called after session_mgr.add_session
         self.protocol_tuple: Optional[Tuple[int, ...]] = None
-        self.request_handlers: Optional[Dict[str, Callable]] = None
+        self.request_handlers: Optional[Dict[str, Awaitable]] = None
         # Use the sharing session to manage handlers.
         self.ss = SharedSession(
             self.logger,
@@ -129,7 +129,10 @@ class SessionBase(RPCSession):
 
         self.session_mgr.method_counts[method] += 1
         coro = handler_invocation(handler, request)()
-        return await coro
+        if isinstance(coro, Awaitable):
+            return await coro
+        else:
+            return coro
 
 
 class LocalRPC(SessionBase):

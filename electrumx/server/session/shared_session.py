@@ -19,7 +19,7 @@ if TYPE_CHECKING:
     from electrumx.server.session.session_manager import SessionManager
 
 
-class SharedSession:
+class SharedSession(object):
     def __init__(
             self,
             logger: LoggerAdapter,

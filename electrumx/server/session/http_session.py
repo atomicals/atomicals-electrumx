@@ -2,12 +2,12 @@
 
 import json
 from decimal import Decimal
-from typing import Any, Awaitable, Callable
 
 import aiorpcx
 from aiohttp import web
 
 import electrumx.lib.util as util
+from electrumx.server.http_middleware import success_resp, error_resp
 from electrumx.server.session.shared_session import SharedSession
 from electrumx.server.session.util import *
 from electrumx.version import electrumx_version
@@ -20,7 +20,7 @@ class DecimalEncoder(json.JSONEncoder):
         return super(DecimalEncoder, self).default(o)
 
 
-async def formatted_request(request, call: Callable[[Any], Awaitable["web.StreamResponse"]]):
+async def formatted_request(request, call):
     params: list
     if request.method == "GET":
         params = json.loads(request.query.get("params", "[]"))
@@ -29,7 +29,11 @@ async def formatted_request(request, call: Callable[[Any], Awaitable["web.Stream
         params = json_data.get("params", [])
     else:
         params = []
-    return await call(*params)
+    try:
+        result = await call(*params)
+        return success_resp(result)
+    except Exception as e:
+        return error_resp(500, e)
 
 
 class HttpHandler(object):
