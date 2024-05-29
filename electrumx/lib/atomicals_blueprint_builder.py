@@ -1,18 +1,7 @@
-from electrumx.lib.hash import hash_to_hex_str
+from typing import Tuple
+
 from electrumx.lib.script import is_unspendable_legacy, is_unspendable_genesis
-from electrumx.lib.util_atomicals import (
-    is_custom_colored_operation,
-    is_splat_operation,
-    is_split_operation,
-    is_mint_operation,
-    location_id_bytes_to_compact,
-    is_op_return_subrealm_payment_marker_atomical_id,
-    is_op_return_dmitem_payment_marker_atomical_id,
-    compact_to_location_id_bytes,
-    is_compact_atomical_id,
-    is_integer_num,
-    SUBNAME_MIN_PAYMENT_DUST_LIMIT
-)
+from electrumx.lib.util_atomicals import *
 
 
 class FtColoringSummary:
@@ -21,6 +10,12 @@ class FtColoringSummary:
         self.cleanly_assigned = cleanly_assigned
         self.fts_burned = fts_burned
         self.atomicals_list = atomicals_list
+
+    def __iter__(self):
+        yield 'atomical_id_to_expected_outs_map', self.atomical_id_to_expected_outs_map
+        yield 'cleanly_assigned', self.cleanly_assigned
+        yield 'fts_burned', self.fts_burned
+        yield 'atomicals_list', self.atomicals_list
 
     def __repr__(self):
         return (
@@ -37,6 +32,10 @@ class ExpectedOutputSet:
     def __init__(self, expected_outputs, expected_values):
         self.expected_outputs = expected_outputs
         self.expected_values = expected_values
+
+    def __iter__(self):
+        yield 'expected_outputs', self.expected_outputs
+        yield 'expected_values', self.expected_values
 
     def __repr__(self):
         return (
@@ -165,6 +164,11 @@ class AtomicalInputItem:
         self.sat_value = sat_value
         self.atomical_value = atomical_value
 
+    def __iter__(self):
+        yield 'txin_index', self.txin_index
+        yield 'sat_value', self.sat_value
+        yield 'atomical_value', self.atomical_value
+
 
 class AtomicalInputSummary:
     """Summarize a set of inputs for a transaction"""
@@ -176,6 +180,14 @@ class AtomicalInputSummary:
         self.total_atomical_value = 0
         self.input_indexes = []
         self.mint_info = mint_info
+
+    def __iter__(self):
+        yield 'atomical_id', self.atomical_id
+        yield 'type', self.type
+        yield 'total_sat_value', self.total_sat_value
+        yield 'total_atomical_value', self.total_atomical_value
+        yield 'input_indexes', self.input_indexes
+        yield 'mint_info', self.mint_info
 
     def apply_input(self, tx_in_index, sat_value, atomical_value):
         self.total_sat_value += sat_value
@@ -195,10 +207,18 @@ class AtomicalColoredOutputFt:
     def __repr__(self):
         return f'atomical colored output ft sat_value: {self.sat_value}, atomical_value: {self.atomical_value}'
 
+    def __iter__(self):
+        yield 'sat_value', self.sat_value
+        yield 'atomical_value', self.atomical_value
+        yield 'input_summary_info', self.input_summary_info
+
 
 class AtomicalColoredOutputNft:
     def __init__(self, input_summary_info: AtomicalInputSummary):
         self.input_summary_info = input_summary_info
+
+    def __iter__(self):
+        yield 'input_summary_info', self.input_summary_info
 
 
 class AtomicalFtOutputBlueprintAssignmentSummary:
@@ -208,10 +228,48 @@ class AtomicalFtOutputBlueprintAssignmentSummary:
         self.cleanly_assigned = cleanly_assigned
         self.first_atomical_id = first_atomical_id
 
+    def __iter__(self):
+        yield 'outputs', self.outputs
+        yield 'fts_burned', self.fts_burned
+        yield 'cleanly_assigned', self.cleanly_assigned
+        yield 'first_atomical_id', self.first_atomical_id
+
 
 class AtomicalNftOutputBlueprintAssignmentSummary:
     def __init__(self, outputs):
         self.outputs = outputs
+
+    def __iter__(self):
+        yield 'outputs', self.outputs
+
+
+class AtomicalsValidation(object):
+    def __init__(
+            self,
+            raw_tx: str,
+            tx_hash: bytes,
+            operation_found_at_inputs: dict,
+            atomicals_spent_at_inputs: dict,
+            ft_output_blueprint: dict,
+    ):
+        self.raw_tx: str = raw_tx
+        self.tx_hash: bytes = tx_hash
+        self.operation_found_at_inputs = operation_found_at_inputs
+        self.atomicals_spent_at_inputs = atomicals_spent_at_inputs
+        self.ft_output_blueprint = ft_output_blueprint
+
+        self.tx_id = hash_to_hex_str(tx_hash)
+
+    def __iter__(self):
+        yield 'raw_tx', self.raw_tx
+        yield 'tx_id', self.tx_id
+        yield 'operation_found_at_inputs', self.operation_found_at_inputs
+        yield 'atomicals_spent_at_inputs', self.atomicals_spent_at_inputs
+        yield 'ft_output_blueprint', self.ft_output_blueprint
+
+
+class AtomicalsValidationError(Exception):
+    """Raised when Atomicals Validation Error"""
 
 
 def order_ft_inputs(ft_atomicals, sort_by_fifo):
@@ -410,7 +468,7 @@ class AtomicalsTransferBlueprintBuilder:
             atomicals_spent_at_inputs,
             operations_found_at_inputs,
             sort_fifo
-    ):
+    ) -> AtomicalNftOutputBlueprintAssignmentSummary:
         if not nft_atomicals or len(nft_atomicals) == 0:
             return AtomicalNftOutputBlueprintAssignmentSummary({})
         should_splat_nft_atomicals = is_splat_operation(operations_found_at_inputs)
@@ -438,7 +496,7 @@ class AtomicalsTransferBlueprintBuilder:
             operations_found_at_inputs,
             sort_fifo,
             is_custom_coloring_activated
-    ):
+    ) -> AtomicalFtOutputBlueprintAssignmentSummary:
         if not ft_atomicals or len(ft_atomicals) == 0:
             return AtomicalFtOutputBlueprintAssignmentSummary({}, {}, True, None)
         # Split apart multiple NFT/FT from a UTXO
@@ -659,7 +717,7 @@ class AtomicalsTransferBlueprintBuilder:
             operations_found_at_inputs,
             sort_fifo,
             is_custom_coloring_activated
-    ):
+    ) -> Tuple[AtomicalNftOutputBlueprintAssignmentSummary, AtomicalFtOutputBlueprintAssignmentSummary]:
         nft_blueprint = AtomicalsTransferBlueprintBuilder.calculate_output_blueprint_nfts(
             get_atomicals_id_mint_info,
             tx,
