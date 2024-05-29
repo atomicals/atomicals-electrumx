@@ -25,27 +25,20 @@
 # WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE.
 # and warranty status of this software.
 
-'''Miscellaneous atomicals utility classes and functions.'''
+"""Miscellaneous atomicals utility classes and functions."""
 
-from array import array
-from electrumx.lib.script import OpCodes, ScriptError, Script, is_unspendable_legacy, is_unspendable_genesis, SCRIPTHASH_LEN
-from electrumx.lib.util import pack_le_uint64, unpack_le_uint16_from, unpack_le_uint64, unpack_le_uint32, unpack_le_uint32_from, pack_le_uint16, pack_le_uint32, unpack_le_uint64_from
-from electrumx.lib.hash import hash_to_hex_str, hex_str_to_hash, double_sha256, HASHX_LEN
-import re
-import os
-import sys
-import base64
-import krock32
-import pickle
 import math
-from electrumx.lib.hash import sha256, double_sha256
-from cbor2 import dumps, loads, CBORDecodeError, CBORTag
-from collections.abc import Mapping
-from functools import reduce
+import re
+
+import krock32
+from cbor2 import dumps, loads, CBORTag
 from merkletools import MerkleTools
 
-class AtomicalsValidationError(Exception):
-    '''Raised when Atomicals Validation Error'''
+from electrumx.lib.hash import hash_to_hex_str, hex_str_to_hash, HASHX_LEN
+from electrumx.lib.hash import sha256, double_sha256
+from electrumx.lib.script import OpCodes, ScriptError, SCRIPTHASH_LEN
+from electrumx.lib.util import *
+
 
 # The maximum height difference between the commit and reveal transactions of any Atomical mint
 # This is used to limit the amount of cache we would need in future optimizations.
@@ -99,6 +92,7 @@ DFT_MINT_HEIGHT_MIN = 0
 # This value would never change, it's added in case someone accidentally tries to use a unixtime
 DFT_MINT_HEIGHT_MAX = 10000000 # 10 million blocks
 
+
 def pad_bytes_n(val, n):
     padlen = n
     if len(val) > padlen:
@@ -108,14 +102,17 @@ def pad_bytes_n(val, n):
     new_val = new_val + bytes(extra_bytes_needed)
     return new_val
 
+
 def pad_bytes64(val):
     return pad_bytes_n(val, 64)
+
 
 # Atomical NFT/FT mint information is stored in the b'mi' index and is pickle encoded dictionary
 def unpack_mint_info(mint_info_value):
     if not mint_info_value:
         raise IndexError(f'unpack_mint_info mint_info_value is null. Index error.')
     return loads(mint_info_value)
+
 
 # recursively check to ensure that a dict does not contain (bytes, bytearray) types
 # this is used to 'sanitize' a dictionary for intended to be serialized to JSON
@@ -132,10 +129,12 @@ def is_sanitized_dict_whitelist_only(d: dict, allow_bytes=False):
             return False
     return True
 
+
 def is_integer_num(n):
     if isinstance(n, int):
         return True
     return False
+
 
 # Check whether the value is hex string
 def is_hex_string(value):
@@ -148,6 +147,7 @@ def is_hex_string(value):
         pass
     return False
 
+
 # Check whether the value is hex string
 def is_hex_string_regex(value):
     if not isinstance(value, str):
@@ -156,6 +156,7 @@ def is_hex_string_regex(value):
     if m.match(value):
         return True
     return False
+
 
 # Check whether the value is a 36 byte hex string
 def is_atomical_id_long_form_string(value):
@@ -171,6 +172,7 @@ def is_atomical_id_long_form_string(value):
     except (ValueError, TypeError):
         pass
     return False
+
 
 # Check whether the value is a 36 byte sequence
 def is_atomical_id_long_form_bytes(value):
@@ -200,10 +202,11 @@ def is_compact_atomical_id(value):
         return True
     return False
 
+
 # Convert the compact string form to the expanded 36 byte sequence
 def compact_to_location_id_bytes(value):
-    '''Convert the 36 byte atomical_id to the compact form with the "i" at the end
-    '''
+    """Convert the 36 byte atomical_id to the compact form with the "i" at the end
+    """
     if not value:
         raise TypeError(f'value in compact_to_location_id_bytes is not set')
 
@@ -326,6 +329,7 @@ def is_proof_of_work_prefix_match(tx_hash, powprefix, powprefix_ext):
         txid = hash_to_hex_str(tx_hash)
         return txid.startswith(powprefix)
 
+
 # Parse a bitwork stirng such as '123af.15'
 def is_valid_bitwork_string(bitwork):
     if not bitwork:
@@ -354,8 +358,10 @@ def is_valid_bitwork_string(bitwork):
         }
     return None, None
 
+
 def is_bitwork_const(bitwork_val):
     return bitwork_val == 'any'
+
 
 # check whether an Atomicals operation contains a proof of work argument
 def has_requested_proof_of_work(operations_found_at_inputs):
@@ -382,7 +388,7 @@ def has_requested_proof_of_work(operations_found_at_inputs):
             # The proof of work was invalid, therefore the current request is fundamentally invalid too
             return True, None
 
-     # Proof of work was requested on the reveal
+    # Proof of work was requested on the reveal
     if request_pow_reveal:
         valid_str, bitwork_parts = is_valid_bitwork_string(request_pow_reveal)
         if valid_str and is_proof_of_work_prefix_match(operations_found_at_inputs['reveal_location_txid'], bitwork_parts['prefix'], bitwork_parts['ext']):
@@ -397,6 +403,7 @@ def has_requested_proof_of_work(operations_found_at_inputs):
         'pow_commit': pow_commit,
         'pow_reveal': pow_reveal
     }
+
 
 # Return whether the provided parent atomical id was spent in the inputs
 # Used to enforce the '$parents' check for those Atomicals which requested a parent to be
@@ -422,11 +429,13 @@ def get_if_parent_spent_in_same_tx(parent_atomical_id_compact, expected_minimum_
     else:
         return False
 
+
 # Get the mint information structure if it's a valid mint event type
 def get_mint_info_op_factory(coin, tx, tx_hash, op_found_struct, atomicals_spent_at_inputs, height, logger):
     script_hashX = coin.hashX_from_script
     if not op_found_struct:
         return None, None
+
     # Builds the base mint information that's common to all minted Atomicals
     def build_base_mint_info(commit_txid, commit_index, reveal_location_txid, reveal_location_index):
         # The first output is always imprinted
@@ -948,7 +957,7 @@ def is_valid_realm_string_name(realm_name):
         return True
     return False
 
-# A valid subrealm string must begin with a-z0-9 and have up to 63 characters after it 
+# A valid subrealm string must begin with a-z0-9 and have up to 63 characters after it
 # Including a-z0-9 and hyphen's "-"
 def is_valid_subrealm_string_name(subrealm_name):
     if not is_valid_namebase_string_name(subrealm_name):
@@ -959,7 +968,7 @@ def is_valid_subrealm_string_name(subrealm_name):
         return True
     return False
 
-# A valid container string must begin with a-z0-9 and have up to 63 characters after it 
+# A valid container string must begin with a-z0-9 and have up to 63 characters after it
 # Including a-z0-9 and hyphen's "-"
 def is_valid_container_string_name(container_name):
     if not is_valid_namebase_string_name(container_name):
@@ -1005,7 +1014,7 @@ def parse_push_data(op, n, script):
 # Parses all of the push datas in a script and then concats/accumulates the bytes together
 # It allows the encoding of a multi-push binary data across many pushes
 def parse_atomicals_data_definition_operation(script, n):
-    '''Extract the payload definitions'''
+    """Extract the payload definitions"""
     accumulated_encoded_bytes = b''
     try:
         script_entry_len = len(script)
@@ -1025,7 +1034,7 @@ def parse_atomicals_data_definition_operation(script, n):
 
 # Parses the valid operations in an Atomicals script
 def parse_operation_from_script(script, n):
-    '''Parse an operation'''
+    """Parse an operation"""
     # Check for each protocol operation
     script_len = len(script)
     atom_op_decoded = None
@@ -1124,6 +1133,7 @@ def is_op_return_subrealm_payment_marker_atomical_id(script):
     # Return the potential atomical id that the payment marker is associated with
     return script[start_index+5+2+1:start_index+5+2+1+36]
 
+
 # Check for a payment marker and return the potential atomical id being indicate that is paid in current tx
 def is_op_return_dmitem_payment_marker_atomical_id(script):
     if not script:
@@ -1162,7 +1172,7 @@ def is_op_return_dmitem_payment_marker_atomical_id(script):
 # Parses and detects valid Atomicals protocol operations in a witness script
 # Stops when it finds the first operation in the first input
 def parse_protocols_operations_from_witness_for_input(txinwitness):
-    '''Detect and parse all operations across the witness input arrays from a tx'''
+    """Detect and parse all operations across the witness input arrays from a tx"""
     atomical_operation_type_map = {}
     for script in txinwitness:
         n = 0
@@ -1194,9 +1204,10 @@ def parse_protocols_operations_from_witness_for_input(txinwitness):
                 break
     return None, None
 
+
 # Parses and detects the witness script array and detects the Atomicals operations
-def parse_protocols_operations_from_witness_array(tx, tx_hash, allow_args_bytes):
-    '''Detect and parse all operations of atomicals across the witness input arrays (inputs 0 and 1) from a tx'''
+def parse_protocols_operations_from_witness_array(tx, tx_hash, allow_args_bytes) -> dict | None:
+    """Detect and parse all operations of atomicals across the witness input arrays (inputs 0 and 1) from a tx"""
     if not hasattr(tx, 'witness'):
         return {}
     txin_idx = 0
@@ -1243,7 +1254,8 @@ def parse_protocols_operations_from_witness_array(tx, tx_hash, allow_args_bytes)
                 'reveal_location_index': 0 # Always assume the first output is the first location
             }
         txin_idx = txin_idx + 1
-    return None
+    return {}
+
 
 def encode_atomical_ids_hex(state):
     if isinstance(state, bytes):
@@ -1544,23 +1556,30 @@ def validate_rules(namespace_data):
     # If we got this far, it means there is a valid rule as of the requested height, return the information
     return validated_rules_list
 
-def is_splat_operation(operations_found_at_inputs):
-    return operations_found_at_inputs and operations_found_at_inputs.get('op') == 'x' and operations_found_at_inputs.get('input_index') == 0
 
-def is_split_operation(operations_found_at_inputs):
-    return operations_found_at_inputs and operations_found_at_inputs.get('op') == 'y' and operations_found_at_inputs.get('input_index') == 0
+def is_splat_operation(op: dict):
+    return op.get('op') == 'x' and op.get('input_index') == 0
 
-def is_custom_colored_operation(operations_found_at_inputs):
-    return operations_found_at_inputs and operations_found_at_inputs.get('op') == 'z' and operations_found_at_inputs.get('input_index') == 0
 
-def is_seal_operation(operations_found_at_inputs):
-    return operations_found_at_inputs and operations_found_at_inputs.get('op') == 'sl' and operations_found_at_inputs.get('input_index') == 0
+def is_split_operation(op: dict):
+    return op.get('op') == 'y' and op.get('input_index') == 0
 
-def is_event_operation(operations_found_at_inputs):
-    return operations_found_at_inputs and operations_found_at_inputs.get('op') == 'evt' and operations_found_at_inputs.get('input_index') == 0
 
-def is_mint_operation(operations_found_at_inputs):
-    return operations_found_at_inputs and operations_found_at_inputs.get('op') in ['dmt', 'nft', 'ft', 'dft'] and operations_found_at_inputs.get('input_index') == 0
+def is_custom_colored_operation(op: dict):
+    return op.get('op') == 'z' and op.get('input_index') == 0
+
+
+def is_seal_operation(op: dict):
+    return op.get('op') == 'sl' and op.get('input_index') == 0
+
+
+def is_event_operation(op: dict):
+    return op.get('op') == 'evt' and op.get('input_index') == 0
+
+
+def is_mint_operation(op: dict):
+    return op.get('op') in ['dmt', 'nft', 'ft', 'dft'] and op.get('input_index') == 0
+
 
 # Get the candidate name request status for tickers, containers and realms (not subrealms though)
 # Base Status Values:

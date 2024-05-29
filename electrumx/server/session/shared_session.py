@@ -6,6 +6,7 @@ from logging import LoggerAdapter
 from typing import TYPE_CHECKING, Callable, Union, Optional
 
 from electrumx.lib import util
+from electrumx.lib.atomicals_blueprint_builder import AtomicalsValidationError
 from electrumx.lib.script2addr import get_address_from_output_script
 from electrumx.lib.util_atomicals import *
 from electrumx.server.daemon import DaemonError
@@ -1000,6 +1001,10 @@ class SharedSession(object):
 
             self.logger.info(f'sent tx: {hex_hash}')
             return hex_hash
+
+    async def transaction_validate(self, raw_tx: str):
+        result = self.bp.validate_ft_rules_raw_tx(raw_tx, raise_if_burned=False)
+        return {"result": dict(result)}
 
     async def transaction_get(self, tx_hash, verbose=False):
         """Return the serialized raw transaction given its hash
