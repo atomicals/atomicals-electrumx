@@ -965,6 +965,36 @@ class BitcoinTestnet(BitcoinTestnetMixin, AtomicalsCoinMixin, Coin):
         return False
 
 
+class BitcoinTestnet4(BitcoinTestnetMixin, AtomicalsCoinMixin, Coin):
+    NAME = "Bitcoin"
+    NET = "testnet4"
+    DESERIALIZER = lib_tx.DeserializerSegWit
+    CRASH_CLIENT_VER = (3, 2, 3)
+    PEERS = [
+    ]
+    GENESIS_HASH = ('00000000da84f2bafbbc53dee25a72ae'
+                    '507ff4914b867c565be350b0da8bf043')
+    RPC_PORT = 48332
+
+    ATOMICALS_ACTIVATION_HEIGHT = 27000
+    ATOMICALS_ACTIVATION_HEIGHT_DMINT = 27000
+    ATOMICALS_ACTIVATION_HEIGHT_COMMITZ = 27000
+    ATOMICALS_ACTIVATION_HEIGHT_DENSITY = 27000
+    ATOMICALS_ACTIVATION_HEIGHT_DFT_BITWORK_ROLLOVER = 27000
+    ATOMICALS_ACTIVATION_HEIGHT_CUSTOM_COLORING = 27000
+
+    @classmethod
+    def warn_old_client_on_tx_broadcast(cls, client_ver):
+        if client_ver < (3, 3, 3):
+            return ('<br/><br/>'
+                    'Your transaction was successfully broadcast.<br/><br/>'
+                    'However, you are using a VULNERABLE version of Electrum.<br/>'
+                    'Download the new version from the usual place:<br/>'
+                    'https://electrum.org/'
+                    '<br/><br/>')
+        return False
+
+
 class BitcoinSegwitTestnet(BitcoinTestnet):
     NAME = "BitcoinSegwit"  # support legacy name
 
