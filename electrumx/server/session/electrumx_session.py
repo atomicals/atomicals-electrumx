@@ -82,8 +82,8 @@ class ElectrumX(SessionBase):
         except TaskTimeout:
             self.logger.warning('timeout notifying client, closing...')
             await self.close(force_after=1.0)
-        except Exception:
-            self.logger.exception('unexpected exception notifying client')
+        except Exception as e:
+            self.logger.exception(f'Unexpected exception notifying client: {e}')
 
     async def _notify_inner(self, touched, height_changed):
         """Notify the client about changes to touched addresses (from mempool

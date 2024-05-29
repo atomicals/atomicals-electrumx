@@ -73,15 +73,16 @@ class Notifications:
 
 
 class Controller(ServerBase):
-    '''Manages server initialisation and stutdown.
+    """Manages server initialisation and stutdown.
 
     Servers are started once the mempool is synced after the block
     processor first catches up with the daemon.
-    '''
+    """
+
     async def serve(self, shutdown_event):
-        '''Start the RPC server and wait for the mempool to synchronize.  Then
-        start serving external clients.
-        '''
+        """Start the RPC server and wait for the mempool to synchronize.
+        
+        Thenstart serving external clients."""
         if not (0, 22, 0) <= aiorpcx_version < (0, 23):
             raise RuntimeError('aiorpcX version 0.22.x is required')
 
@@ -104,6 +105,7 @@ class Controller(ServerBase):
             # Set notifications up to implement the MemPoolAPI
             def get_db_height():
                 return db.db_height
+
             notifications.height = daemon.height
             notifications.db_height = get_db_height
             notifications.cached_height = daemon.cached_height
@@ -112,8 +114,9 @@ class Controller(ServerBase):
             notifications.lookup_utxos = db.lookup_utxos
             MemPoolAPI.register(Notifications)
             mempool = MemPool(
-                env.coin, notifications,
-                refresh_secs=env.daemon_poll_interval_mempool_msec/1000,
+                env.coin,
+                notifications,
+                refresh_secs=env.daemon_poll_interval_mempool_msec / 1000,
             )
 
             session_mgr = SessionManager(env, db, bp, daemon, mempool, shutdown_event)

@@ -8,7 +8,7 @@ SESSION_PROTOCOL_MIN = (1, 4)
 SESSION_PROTOCOL_MAX = (1, 4, 3)
 
 
-def scripthash_to_hashX(scripthash):
+def scripthash_to_hash_x(scripthash):
     try:
         bin_hash = hex_str_to_hash(scripthash)
         if len(bin_hash) == 32:

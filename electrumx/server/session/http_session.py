@@ -39,7 +39,7 @@ async def formatted_request(request, call):
         return error_resp(500, e)
 
 
-class HttpHandler(object):
+class HttpSession(object):
     def __init__(self, session_mgr, db, mempool, peer_mgr, kind):
         # self.transport = transport
         self.logger = util.class_logger(__name__, self.__class__.__name__)

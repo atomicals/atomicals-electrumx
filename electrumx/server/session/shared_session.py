@@ -11,7 +11,7 @@ from electrumx.lib.util_atomicals import *
 from electrumx.server.daemon import DaemonError
 from electrumx.server.session import ATOMICALS_INVALID_TX, BAD_REQUEST
 from electrumx.server.session.util import assert_atomical_id, non_negative_integer, SESSION_BASE_MAX_CHUNK_SIZE, \
-    scripthash_to_hashX, assert_tx_hash
+    scripthash_to_hash_x, assert_tx_hash
 
 if TYPE_CHECKING:
     from electrumx.lib.coins import AtomicalsCoinMixin, Coin
@@ -158,35 +158,35 @@ class SharedSession(object):
 
     async def scripthash_get_balance(self, scripthash):
         """Return the confirmed and unconfirmed balance of a scripthash."""
-        hash_x = scripthash_to_hashX(scripthash)
+        hash_x = scripthash_to_hash_x(scripthash)
         return await self.get_balance(hash_x)
 
     async def scripthash_get_history(self, scripthash):
         """Return the confirmed and unconfirmed history of a scripthash."""
-        hash_x = scripthash_to_hashX(scripthash)
+        hash_x = scripthash_to_hash_x(scripthash)
         return await self._confirmed_and_unconfirmed_history(hash_x)
 
     async def scripthash_get_mempool(self, scripthash):
         """Return the mempool transactions touching a scripthash."""
-        hash_x = scripthash_to_hashX(scripthash)
+        hash_x = scripthash_to_hash_x(scripthash)
         return await self._unconfirmed_history(hash_x)
 
     async def scripthash_list_unspent(self, scripthash):
         """Return the list of UTXOs of a scripthash."""
-        hash_x = scripthash_to_hashX(scripthash)
+        hash_x = scripthash_to_hash_x(scripthash)
         return await self._hash_x_list_unspent(hash_x)
 
     async def scripthash_subscribe(self, scripthash):
         """Subscribe to a script hash.
 
         scripthash: the SHA256 hash of the script to subscribe to"""
-        hash_x = scripthash_to_hashX(scripthash)
+        hash_x = scripthash_to_hash_x(scripthash)
         return await self._hash_x_subscribe(hash_x, scripthash)
 
     async def scripthash_unsubscribe(self, scripthash):
         """Unsubscribe from a script hash."""
         self.bump_cost(0.1)
-        hash_x = scripthash_to_hashX(scripthash)
+        hash_x = scripthash_to_hash_x(scripthash)
         return self.unsubscribe_hash_x(hash_x) is not None
 
     async def compact_fee_histogram(self):
@@ -195,17 +195,17 @@ class SharedSession(object):
 
     async def atomicals_get_ft_balances(self, scripthash):
         """Return the FT balances for a scripthash address"""
-        hash_x = scripthash_to_hashX(scripthash)
+        hash_x = scripthash_to_hash_x(scripthash)
         return await self._hash_x_ft_balances_atomicals(hash_x)
 
     async def atomicals_get_nft_balances(self, scripthash):
         """Return the NFT balances for a scripthash address"""
-        hash_x = scripthash_to_hashX(scripthash)
+        hash_x = scripthash_to_hash_x(scripthash)
         return await self._hash_x_nft_balances_atomicals(hash_x)
 
     async def atomicals_list_scripthash(self, scripthash, verbose=False):
         """Return the list of Atomical UTXOs for an address"""
-        hash_x = scripthash_to_hashX(scripthash)
+        hash_x = scripthash_to_hash_x(scripthash)
         return await self._hash_x_list_scripthash_atomicals(hash_x, verbose)
 
     async def atomicals_list(self, limit, offset, asc):
@@ -904,7 +904,7 @@ class SharedSession(object):
 
     # get transaction by scripthash
     async def transaction_by_scripthash(self, scripthash, limit=10, offset=0, op_type=None, reverse=True):
-        hash_x = scripthash_to_hashX(scripthash)
+        hash_x = scripthash_to_hash_x(scripthash)
         res = []
         if op_type:
             op = self.session_mgr.bp.op_list.get(op_type, None)

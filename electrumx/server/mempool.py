@@ -5,7 +5,7 @@
 # See the file "LICENCE" for information about the copyright
 # and warranty status of this software.
 
-'''Mempool handling.'''
+"""Mempool handling."""
 
 import itertools
 import time
@@ -22,7 +22,8 @@ from electrumx.lib.hash import hash_to_hex_str, hex_str_to_hash
 from electrumx.lib.tx import SkipTxDeserialize
 from electrumx.lib.util import class_logger, chunks, OldTaskGroup, pack_le_uint32, unpack_le_uint32
 from electrumx.server.db import UTXO
-from electrumx.lib.util_atomicals import get_mint_info_op_factory, parse_protocols_operations_from_witness_array, location_id_bytes_to_compact
+from electrumx.lib.util_atomicals import get_mint_info_op_factory, parse_protocols_operations_from_witness_array, \
+    location_id_bytes_to_compact
 
 from electrumx.lib.hash import hash_to_hex_str, HASHX_LEN, double_sha256
 
@@ -52,52 +53,52 @@ class DBSyncError(Exception):
 
 
 class MemPoolAPI(ABC):
-    '''A concrete instance of this class is passed to the MemPool object
-    and used by it to query DB and blockchain state.'''
+    """A concrete instance of this class is passed to the MemPool object
+    and used by it to query DB and blockchain state."""
 
     @abstractmethod
     async def height(self):
-        '''Query bitcoind for its height.'''
+        """Query bitcoind for its height."""
 
     @abstractmethod
     def cached_height(self):
-        '''Return the height of bitcoind the last time it was queried,
+        """Return the height of bitcoind the last time it was queried,
         for any reason, without actually querying it.
-        '''
+        """
 
     @abstractmethod
     def db_height(self):
-        '''Return the height flushed to the on-disk DB.'''
+        """Return the height flushed to the on-disk DB."""
 
     @abstractmethod
     async def mempool_hashes(self):
-        '''Query bitcoind for the hashes of all transactions in its
-        mempool, returned as a list.'''
+        """Query bitcoind for the hashes of all transactions in its
+        mempool, returned as a list."""
 
     @abstractmethod
     async def raw_transactions(self, hex_hashes):
-        '''Query bitcoind for the serialized raw transactions with the given
+        """Query bitcoind for the serialized raw transactions with the given
         hashes.  Missing transactions are returned as None.
 
-        hex_hashes is an iterable of hexadecimal hash strings.'''
+        hex_hashes is an iterable of hexadecimal hash strings."""
 
     @abstractmethod
     async def lookup_utxos(self, prevouts):
-        '''Return a list of (hashX, value) pairs each prevout if unspent,
+        """Return a list of (hashX, value) pairs each prevout if unspent,
         otherwise return None if spent or not found.
 
         prevouts - an iterable of (hash, index) pairs
-        '''
+        """
 
     @abstractmethod
     async def on_mempool(self, touched, height):
-        '''Called each time the mempool is synchronized.  touched is a set of
+        """Called each time the mempool is synchronized.  touched is a set of
         hashXs touched since the previous call.  height is the
-        daemon's height at the time the mempool was obtained.'''
+        daemon's height at the time the mempool was obtained."""
 
 
 class MemPool:
-    '''Representation of the daemon's mempool.
+    """Representation of the daemon's mempool.
 
         coin - a coin class from coins.py
         api - an object implementing MemPoolAPI
@@ -108,7 +109,7 @@ class MemPool:
 
        tx:     tx_hash -> MemPoolTx
        hashXs: hashX   -> set of all hashes of txs touching the hashX
-    '''
+    """
 
     def __init__(
             self,
@@ -132,7 +133,7 @@ class MemPool:
         self.lock = Lock()
 
     async def _logging(self, synchronized_event):
-        '''Print regular logs of mempool stats.'''
+        """Print regular logs of mempool stats."""
         self.logger.info('beginning processing of daemon mempool.  '
                          'This can take some time...')
         start = time.monotonic()
@@ -175,12 +176,12 @@ class MemPool:
     def _compress_histogram(
             cls, histogram: Dict[float, int], *, bin_size: int
     ) -> Sequence[Tuple[float, int]]:
-        '''Calculate and return a compact fee histogram as needed for
+        """Calculate and return a compact fee histogram as needed for
         "mempool.get_fee_histogram" protocol request.
 
         histogram: feerate (sat/vbyte) -> total size in bytes of txs that pay approx feerate
         bin_size: ~minimum vsize of a bucket of txs in the result (e.g. 100 kb)
-        '''
+        """
         # Now compact it.  For efficiency, get_fees returns a
         # compact histogram with variable bin size.  The compact
         # histogram is an array of (fee_rate, vsize) values.
@@ -210,12 +211,12 @@ class MemPool:
         return compact
 
     def _accept_transactions(self, tx_map, utxo_map, touched):
-        '''Accept transactions in tx_map to the mempool if all their inputs
+        """Accept transactions in tx_map to the mempool if all their inputs
         can be found in the existing mempool or a utxo_map from the
         DB.
 
         Returns an (unprocessed tx_map, unspent utxo_map) pair.
-        '''
+        """
         hashXs = self.hashXs
         txs = self.txs
 
@@ -254,16 +255,16 @@ class MemPool:
         return deferred, {prevout: utxo_map[prevout] for prevout in unspent}
 
     def _accept_atomicals_updates(self, atomicals_map):
-        '''Process any atomicals updates in the mempool
-        '''
+        """Process any atomicals updates in the mempool
+        """
         for atomical_id, datafields in atomicals_map.items():
-            tx_hash = atomical_id[ : 32 ]
-            if self.atomicals_mints.get(tx_hash) == None:
-                self.atomicals_mints[tx_hash] = {}   
-            self.atomicals_mints[tx_hash][atomical_id] = datafields 
+            tx_hash = atomical_id[: 32]
+            if self.atomicals_mints.get(tx_hash) is None:
+                self.atomicals_mints[tx_hash] = {}
+            self.atomicals_mints[tx_hash][atomical_id] = datafields
 
     async def _refresh_hashes(self, synchronized_event):
-        '''Refresh our view of the daemon's mempool.'''
+        """Refresh our view of the daemon's mempool."""
         # Touched accumulates between calls to on_mempool and each
         # call transfers ownership
         touched = set()
@@ -298,7 +299,7 @@ class MemPool:
         # First handle txs that have disappeared
         for tx_hash in (set(txs) - all_hashes):
             tx = txs.pop(tx_hash)
-            if self.atomicals_mints.get(tx_hash) != None:
+            if self.atomicals_mints.get(tx_hash) is not None:
                 self.atomicals_mints.pop(tx_hash)
             tx_hashXs = {hashX for hashX, value in tx.in_pairs}
             tx_hashXs.update(hashX for hashX, value in tx.out_pairs)
@@ -337,31 +338,37 @@ class MemPool:
         return touched
 
     async def _fetch_and_accept(self, hashes, all_hashes, touched):
-        '''Fetch a list of mempool transactions.'''
+        """Fetch a list of mempool transactions."""
         hex_hashes_iter = (hash_to_hex_str(hash) for hash in hashes)
         raw_txs = await self.api.raw_transactions(hex_hashes_iter)
         script_hashX = self.coin.hashX_from_script
 
-        def deserialize_txs():    # This function is pure
+        def deserialize_txs():  # This function is pure
             to_hashX = self.coin.hashX_from_script
             deserializer = self.coin.DESERIALIZER
             txs = {}
             atomicals_updates_map = {}
-            def create_or_delete_atomical_from_definition(operation_found_at_inputs, tx, tx_hash, atomicals_updates_map):
+
+            def create_or_delete_atomical_from_definition(operation_found_at_inputs, tx, tx_hash,
+                                                          atomicals_updates_map):
                 if not operation_found_at_inputs:
-                    return 
+                    return
                 op = operation_found_at_inputs['op']
-                self.logger.info(f'atomicals_op={op} txid={hash_to_hex_str(tx_hash)}') 
-                valid_create_op_type, mint_info = get_mint_info_op_factory(self.coin, tx, tx_hash, operation_found_at_inputs, None, 0, self.logger)
+                self.logger.info(f'atomicals_op={op} txid={hash_to_hex_str(tx_hash)}')
+                valid_create_op_type, mint_info = get_mint_info_op_factory(self.coin, tx, tx_hash,
+                                                                           operation_found_at_inputs, None, 0,
+                                                                           self.logger)
                 if valid_create_op_type:
                     atomical_id = mint_info['id']
-                    self.logger.info(f'atomicals_mint_type={valid_create_op_type}, txid={hash_to_hex_str(tx_hash)}, atomical_id={location_id_bytes_to_compact(atomical_id)}') 
+                    self.logger.info(
+                        f'atomicals_mint_type={valid_create_op_type}, txid={hash_to_hex_str(tx_hash)}, atomical_id={location_id_bytes_to_compact(atomical_id)}')
                     atomicals_updates_map[atomical_id] = {
-                        'atomical_id':  location_id_bytes_to_compact(atomical_id),
+                        'atomical_id': location_id_bytes_to_compact(atomical_id),
                         'atomical_number': -1,
                         'type': mint_info['type'],
                         'confirmed': False
                     }
+
             for hash, raw_tx in zip(hashes, raw_txs):
                 # The daemon may have evicted the tx from its
                 # mempool or it may have gotten in a block
@@ -371,10 +378,12 @@ class MemPool:
                     tx, tx_size = deserializer(raw_tx).read_tx_and_vsize()
                     try:
                         operations_found_at_inputs = parse_protocols_operations_from_witness_array(tx, hash, True)
-                        create_or_delete_atomical_from_definition(operations_found_at_inputs, tx, hash, atomicals_updates_map)
+                        create_or_delete_atomical_from_definition(operations_found_at_inputs, tx, hash,
+                                                                  atomicals_updates_map)
                     except Exception as ex:
-                        self.logger.error(f'skipping atomicals parsing due to error in mempool {hash_to_hex_str(hash)}: {ex}')
-      
+                        self.logger.error(
+                            f'skipping atomicals parsing due to error in mempool {hash_to_hex_str(hash)}: {ex}')
+
                 except SkipTxDeserialize as ex:
                     self.logger.debug(f'skipping tx {hash_to_hex_str(hash)}: {ex}')
                     continue
@@ -411,17 +420,17 @@ class MemPool:
     #
 
     async def keep_synchronized(self, synchronized_event):
-        '''Keep the mempool synchronized with the daemon.'''
+        """Keep the mempool synchronized with the daemon."""
         async with OldTaskGroup() as group:
             await group.spawn(self._refresh_hashes(synchronized_event))
             await group.spawn(self._refresh_histogram(synchronized_event))
             await group.spawn(self._logging(synchronized_event))
 
     async def balance_delta(self, hashX):
-        '''Return the unconfirmed amount in the mempool for hashX.
+        """Return the unconfirmed amount in the mempool for hashX.
 
         Can be positive or negative.
-        '''
+        """
         value = 0
         if hashX in self.hashXs:
             for hash in self.hashXs[hashX]:
@@ -431,16 +440,16 @@ class MemPool:
         return value
 
     async def compact_fee_histogram(self):
-        '''Return a compact fee histogram of the current mempool.'''
+        """Return a compact fee histogram of the current mempool."""
         return self.cached_compact_histogram
 
     async def potential_spends(self, hashX):
-        '''Return a set of (prev_hash, prev_idx) pairs from mempool
+        """Return a set of (prev_hash, prev_idx) pairs from mempool
         transactions that touch hashX.
 
         None, some or all of these may be spends of the hashX, but all
         actual spends of it (in the DB or mempool) will be included.
-        '''
+        """
         result = set()
         for tx_hash in self.hashXs.get(hashX, ()):
             tx = self.txs[tx_hash]
@@ -448,20 +457,20 @@ class MemPool:
         return result
 
     async def potential_atomicals_spends(self, hashX):
-        '''stub out and return empty
-        '''
+        """stub out and return empty
+        """
         return []
 
     async def get_atomical_mint(self, atomical_id):
-        '''Check if there was an atomical minted in the mempool
-        '''
-        tx_hash = atomical_id[ : 32 ]
-        if self.atomicals_mints.get(tx_hash) != None:
+        """Check if there was an atomical minted in the mempool
+        """
+        tx_hash = atomical_id[: 32]
+        if self.atomicals_mints.get(tx_hash) is not None:
             return self.atomicals_mints[tx_hash][atomical_id]
         return None
 
     async def transaction_summaries(self, hashX):
-        '''Return a list of MemPoolTxSummary objects for the hashX.'''
+        """Return a list of MemPoolTxSummary objects for the hashX."""
         result = []
         for tx_hash in self.hashXs.get(hashX, ()):
             tx = self.txs[tx_hash]
@@ -470,12 +479,12 @@ class MemPool:
         return result
 
     async def unordered_UTXOs(self, hashX):
-        '''Return an unordered list of UTXO named tuples from mempool
+        """Return an unordered list of UTXO named tuples from mempool
         transactions that pay to hashX.
 
         This does not consider if any other mempool transactions spend
         the outputs.
-        '''
+        """
         utxos = []
         for tx_hash in self.hashXs.get(hashX, ()):
             tx = self.txs.get(tx_hash)
@@ -486,13 +495,12 @@ class MemPool:
 
     # Todo, stubbed out for now
     async def unordered_atomicals_UTXOs(self, hashX):
-        '''Return an unordered list of Atomicals UTXO named tuples from mempool
+        """Return an unordered list of Atomicals UTXO named tuples from mempool
         transactions that pay to hashX.
 
         This does not consider if any other mempool transactions spend
         the outputs.
-        '''
+        """
         atomicals_utxos = []
         # todo
         return atomicals_utxos
-

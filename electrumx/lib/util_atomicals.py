@@ -414,7 +414,7 @@ def get_if_parent_spent_in_same_tx(parent_atomical_id_compact, expected_minimum_
             input_value = unpack_le_uint64(atomical_entry['value'][ HASHX_LEN + SCRIPTHASH_LEN : HASHX_LEN + SCRIPTHASH_LEN + 8])
             id_to_total_value_map[atomical_id] += input_value
     total_sum = id_to_total_value_map.get(parent_atomical_id)
-    if total_sum == None:
+    if total_sum is None:
         return False
 
     if total_sum >= expected_minimum_total_value:
@@ -744,7 +744,7 @@ def get_mint_info_op_factory(coin, tx, tx_hash, op_found_struct, atomicals_spent
             return None, None
 
         dft_mode = mint_info['args'].get('md')
-        if dft_mode != 1 and dft_mode != 0 and dft_mode != None:
+        if dft_mode != 1 and dft_mode != 0 and dft_mode is not None:
             logger.warning(f'DFT init has invalid md {hash_to_hex_str(tx_hash)}, {dft_mode}. Skipping...')
             return None, None
 
@@ -771,7 +771,7 @@ def get_mint_info_op_factory(coin, tx, tx_hash, op_found_struct, atomicals_spent
                 return None, None
 
             # Do not require mint bitworkc if there is no mint bitworkc increment
-            if bci == None:
+            if bci is None:
                 pass
             elif not isinstance(bci, int) or bci < 0 or bci > 64:
                 logger.warning(f'DFT init has invalid bci {hash_to_hex_str(tx_hash)}, {bci}. Skipping...')
@@ -783,7 +783,7 @@ def get_mint_info_op_factory(coin, tx, tx_hash, op_found_struct, atomicals_spent
                     return None, None
 
             # Do not require mint bitworkr if there is no mint bitworkr increment
-            if bri == None:
+            if bri is None:
                 pass
             elif not isinstance(bri, int) or bri < 0 or bri > 64:
                 logger.warning(f'DFT init has invalid bri {hash_to_hex_str(tx_hash)}, {bri}. Skipping...')
@@ -808,7 +808,7 @@ def get_mint_info_op_factory(coin, tx, tx_hash, op_found_struct, atomicals_spent
                 return None, None
 
             max_mints_global = mint_info['args'].get('maxg')
-            if max_mints_global != None:
+            if max_mints_global is not None:
                 if not isinstance(max_mints_global, int) or max_mints_global < DFT_MINT_MAX_MIN_COUNT or max_mints_global > DFT_MINT_MAX_MAX_COUNT_DENSITY:
                     logger.warning(f'DFT init has invalid maxg {hash_to_hex_str(tx_hash)}, {max_mints_global}. Skipping...')
                     return None, None
@@ -1185,7 +1185,7 @@ def parse_protocols_operations_from_witness_for_input(txinwitness):
                             found_operation_definition = True
                             # Parse to ensure it is in the right format
                             operation_type, payload = parse_operation_from_script(script, n + 5)
-                            if operation_type != None:
+                            if operation_type is not None:
                                 return operation_type, payload
                             break
                 if found_operation_definition:
