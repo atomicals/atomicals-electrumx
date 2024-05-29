@@ -48,9 +48,9 @@ import electrumx.lib.tx_dash as lib_tx_dash
 import electrumx.lib.tx_axe as lib_tx_axe
 import electrumx.server.block_processor as block_proc
 import electrumx.server.daemon as daemon
-from electrumx.server.session import (ElectrumX, DashElectrumX,
-                                      SmartCashElectrumX, AuxPoWElectrumX,
-                                      NameIndexElectrumX, NameIndexAuxPoWElectrumX)
+from electrumx.server.session.electrumx_session import (ElectrumX, DashElectrumX,
+                                                        SmartCashElectrumX, AuxPoWElectrumX,
+                                                        NameIndexElectrumX, NameIndexAuxPoWElectrumX)
 
 
 @dataclass
@@ -65,8 +65,19 @@ class CoinError(Exception):
     '''Exception raised for coin-related errors.'''
 
 
-class Coin:
-    '''Base class of coin hierarchy.'''
+class CoinHeaderHashMixin:
+    @classmethod
+    def header_hash(cls, header):
+        """Given a header return hash"""
+        return double_sha256(header)
+
+
+class CoinShortNameMixin:
+    SHORTNAME: str
+
+
+class Coin(CoinHeaderHashMixin, CoinShortNameMixin):
+    """Base class of coin hierarchy."""
 
     REORG_LIMIT = 200
     # Not sure if these are coin-specific
@@ -226,11 +237,6 @@ class Coin:
         return cls.ENCODE_CHECK(payload)
 
     @classmethod
-    def header_hash(cls, header):
-        '''Given a header return hash'''
-        return double_sha256(header)
-
-    @classmethod
     def header_prevhash(cls, header):
         '''Given a header return previous hash'''
         return header[4:36]
@@ -329,7 +335,7 @@ class EquihashMixin:
         return deserializer.read_header(cls.BASIC_HEADER_SIZE)
 
 
-class ScryptMixin:
+class ScryptMixin(CoinHeaderHashMixin):
 
     DESERIALIZER = lib_tx.DeserializerTxTime
     HEADER_HASH = None
@@ -358,7 +364,7 @@ class KomodoMixin:
     DESERIALIZER = lib_tx.DeserializerZcash
 
 
-class BitcoinMixin:
+class BitcoinMixin(CoinShortNameMixin):
     SHORTNAME = "BTC"
     NET = "mainnet"
     XPUB_VERBYTES = bytes.fromhex("0488b21e")
@@ -847,7 +853,7 @@ class Emercoin(NameMixin, Coin):
         return super().hashX_from_script(address_script)
 
 
-class BitcoinTestnetMixin:
+class BitcoinTestnetMixin(CoinShortNameMixin):
     SHORTNAME = "XTN"
     NET = "testnet"
     XPUB_VERBYTES = bytes.fromhex("043587cf")

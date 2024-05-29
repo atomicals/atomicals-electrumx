@@ -7,33 +7,34 @@
 # See the file "LICENCE" for information about the copyright
 # and warranty status of this software.
 
-'''Script to query the database for debugging purposes.
+"""Script to query the database for debugging purposes.
 
 Not currently documented; might become easier to use in future.
-'''
+"""
 
 import argparse
 import asyncio
 
-from electrumx import Env
-from electrumx.server.db import DB
 from electrumx.lib.hash import hash_to_hex_str, Base58Error
+from electrumx.server.db import DB
+from electrumx.server.env import Env
+from electrumx.server.history import History
 
 
-async def print_stats(hist_db, utxo_db):
-    count = 0
-    for key in utxo_db.iterator(prefix=b'u', include_value=False):
-        count += 1
-    print(f'UTXO count: {utxos}')
+async def print_stats(hist_db: History, utxo_db):
+    utxo_count = 0
+    for _ in utxo_db.iterator(prefix=b'u', include_value=False):
+        utxo_count += 1
+    print(f'UTXO count: {utxo_count}')
 
-    count = 0
-    for key in utxo_db.iterator(prefix=b'h', include_value=False):
-        count += 1
-    print(f'HashX count: {count}')
+    hash_count = 0
+    for _ in utxo_db.iterator(prefix=b'h', include_value=False):
+        hash_count += 1
+    print(f'HashX count: {hash_count}')
 
     hist = 0
     hist_len = 0
-    for key, value in hist_db.iterator(prefix=b'H'):
+    for key, value in hist_db.db.iterator(prefix=b'H'):
         hist += 1
         hist_len += len(value) // 4
     print(f'History rows {hist:,d} entries {hist_len:,d}')
@@ -64,7 +65,7 @@ async def query(args):
     await db.open_for_serving()
 
     if not args.scripts:
-        await print_stats(db.hist_db, db.utxo_db)
+        await print_stats(db.history, db.utxo_db)
         return
     limit = args.limit
     for arg in args.scripts:
@@ -97,15 +98,16 @@ def main():
     parser = argparse.ArgumentParser(
         'query.py',
         description='Invoke with COIN and DB_DIRECTORY set in the '
-        'environment as they would be invoking electrumx_server'
+                    'environment as they would be invoking electrumx_server'
     )
     parser.add_argument('-l', '--limit', metavar='limit', type=int,
                         default=10, help=f'maximum number of entries to '
-                        f'return (default: {default_limit})')
+                                         f'return (default: {default_limit})')
     parser.add_argument('scripts', nargs='*', default=[], type=str,
                         help='hex scripts to query')
     args = parser.parse_args()
     asyncio.run(query(args))
+
 
 if __name__ == '__main__':
     main()

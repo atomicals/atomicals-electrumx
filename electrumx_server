@@ -16,8 +16,9 @@ import sys
 import logging.handlers
 
 from dotenv import load_dotenv
-from electrumx import Controller, Env
 from electrumx.lib.util import CompactFormatter, make_logger
+from electrumx.server.controller import Controller
+from electrumx.server.env import Env
 
 load_dotenv()
 
@@ -46,6 +47,8 @@ def main():
         logger.setLevel(env.log_level)
         controller = Controller(env)
         asyncio.run(controller.run())
+    except KeyboardInterrupt:
+        logger.info('ElectrumX server terminated (normally) before initialized')
     except Exception:
         logger.exception('ElectrumX server terminated abnormally')
     else:

@@ -37,7 +37,7 @@ def test_empty_spends():
  
     ft_output_blueprint = blueprint_builder.get_ft_output_blueprint()
     assert(len(ft_output_blueprint.outputs) == 0)
-    assert(ft_output_blueprint.first_atomical_id == None)
+    assert(ft_output_blueprint.first_atomical_id is None)
     assert(blueprint_builder.are_fts_burned == False)
  
     # Log that there were tokens burned due to not being cleanly assigned

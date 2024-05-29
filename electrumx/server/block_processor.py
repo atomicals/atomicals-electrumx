@@ -6,26 +6,22 @@
 # See the file "LICENCE" for information about the copyright
 # and warranty status of this software.
 
-'''Block prefetcher and chain processor.'''
+"""Block prefetcher and chain processor."""
 
 import asyncio
-import os
 import time
 from typing import Sequence, Tuple, List, Callable, Optional, TYPE_CHECKING, Type, Union
 
 from aiorpcx import run_in_thread, CancelledError
 
-import electrumx
-from electrumx.server.daemon import DaemonError, Daemon
+from electrumx.lib.atomicals_blueprint_builder import AtomicalsTransferBlueprintBuilder
 from electrumx.lib.hash import hash_to_hex_str, HASHX_LEN, double_sha256
 from electrumx.lib.script import SCRIPTHASH_LEN, is_unspendable_legacy, is_unspendable_genesis
-from electrumx.lib.util import (
-    chunks, class_logger, pack_le_uint32, unpack_le_uint32, pack_le_uint64, unpack_le_uint64, pack_be_uint64, unpack_be_uint64, OldTaskGroup, pack_byte, pack_le_uint16, unpack_le_uint16_from
-)
-import math
 from electrumx.lib.tx import Tx
-from electrumx.server.db import FlushData, COMP_TXID_LEN, DB
-from electrumx.server.history import TXNUM_LEN
+from electrumx.lib.util import (
+    chunks, class_logger, pack_le_uint32, unpack_le_uint32, pack_le_uint64, unpack_le_uint64, pack_be_uint64,
+    OldTaskGroup, pack_le_uint16
+)
 from electrumx.lib.util_atomicals import (
     is_within_acceptable_blocks_for_general_reveal,
     auto_encode_bytes_elements,
@@ -35,29 +31,27 @@ from electrumx.lib.util_atomicals import (
     get_subname_request_candidate_status,
     is_within_acceptable_blocks_for_name_reveal,
     compact_to_location_id_bytes,
-    is_proof_of_work_prefix_match,
     format_name_type_candidates_to_rpc_for_subname,
     format_name_type_candidates_to_rpc,
-    pad_bytes_n, 
-    has_requested_proof_of_work, 
-    is_valid_container_string_name, 
+    pad_bytes_n,
+    has_requested_proof_of_work,
+    is_valid_container_string_name,
     calculate_expected_bitwork,
     expand_spend_utxo_data,
-    encode_tx_hash_hex,
     SUBREALM_MINT_PATH,
     DMINT_PATH,
     MINT_SUBNAME_RULES_BECOME_EFFECTIVE_IN_BLOCKS,
-    MINT_REALM_CONTAINER_TICKER_COMMIT_REVEAL_DELAY_BLOCKS, 
-    MINT_SUBNAME_COMMIT_PAYMENT_DELAY_BLOCKS, 
-    is_valid_dmt_op_format, 
-    is_compact_atomical_id, 
+    MINT_REALM_CONTAINER_TICKER_COMMIT_REVEAL_DELAY_BLOCKS,
+    MINT_SUBNAME_COMMIT_PAYMENT_DELAY_BLOCKS,
+    is_valid_dmt_op_format,
+    is_compact_atomical_id,
     is_valid_regex,
-    unpack_mint_info, 
-    parse_protocols_operations_from_witness_array, 
-    location_id_bytes_to_compact, 
-    is_valid_subrealm_string_name, 
-    is_valid_realm_string_name, 
-    is_valid_ticker_string, 
+    unpack_mint_info,
+    parse_protocols_operations_from_witness_array,
+    location_id_bytes_to_compact,
+    is_valid_subrealm_string_name,
+    is_valid_realm_string_name,
+    is_valid_ticker_string,
     get_mint_info_op_factory,
     convert_db_mint_info_to_rpc_mint_info_format,
     calculate_latest_state_from_mod_history,
@@ -72,21 +66,19 @@ from electrumx.lib.util_atomicals import (
     is_txid_valid_for_perpetual_bitwork,
     auto_encode_bytes_items
 )
-
-from electrumx.lib.atomicals_blueprint_builder import AtomicalsTransferBlueprintBuilder
-
-import copy
+from electrumx.server.daemon import DaemonError, Daemon
+from electrumx.server.db import FlushData, COMP_TXID_LEN, DB
+from electrumx.server.history import TXNUM_LEN
+from electrumx.version import electrumx_version
 
 if TYPE_CHECKING:
     from electrumx.lib.coins import Coin, AtomicalsCoinMixin
     from electrumx.server.env import Env
     from electrumx.server.controller import Notifications
 
-from cbor2 import dumps, loads, CBORDecodeError
-import pickle
+from cbor2 import dumps, loads
 import pylru
-import regex 
-import sys 
+import sys
 import re 
 
 TX_HASH_LEN = 32
@@ -96,7 +88,7 @@ TX_OUTPUT_IDX_LEN = 4
 
 
 class Prefetcher:
-    '''Prefetches blocks (in the forward direction only).'''
+    """Prefetches blocks (in the forward direction only)."""
 
     def __init__(
             self,
@@ -125,7 +117,7 @@ class Prefetcher:
         self.polling_delay = polling_delay_secs
 
     async def main_loop(self, bp_height):
-        '''Loop forever polling for more blocks.'''
+        """Loop forever polling for more blocks."""
         await self.reset_height(bp_height)
         while True:
             try:
@@ -142,7 +134,7 @@ class Prefetcher:
                 self.logger.exception(f'ignoring unexpected exception')
 
     def get_prefetched_blocks(self):
-        '''Called by block processor when it is processing queued blocks.'''
+        """Called by block processor when it is processing queued blocks."""
         blocks = self.blocks
         self.blocks = []
         self.cache_size = 0
@@ -150,12 +142,12 @@ class Prefetcher:
         return blocks
 
     async def reset_height(self, height):
-        '''Reset to prefetch blocks from the block processor's height.
+        """Reset to prefetch blocks from the block processor's height.
 
         Used in blockchain reorganisations.  This coroutine can be
         called asynchronously to the _prefetch_blocks coroutine so we
         must synchronize with a semaphore.
-        '''
+        """
         async with self.semaphore:
             self.blocks.clear()
             self.cache_size = 0
@@ -173,10 +165,10 @@ class Prefetcher:
             self.logger.info(f'caught up to daemon height {daemon_height:,d}')
 
     async def _prefetch_blocks(self):
-        '''Prefetch some blocks and put them on the queue.
+        """Prefetch some blocks and put them on the queue.
 
         Repeats until the queue is full or caught up.
-        '''
+        """
         daemon = self.daemon
         daemon_height = await daemon.height()
         async with self.semaphore:
@@ -184,7 +176,7 @@ class Prefetcher:
                 first = self.fetched_height + 1
                 # Try and catch up all blocks but limit to room in cache.
                 cache_room = max(self.min_cache_size // self.ave_size, 1)
-                count = min(daemon_height - self.fetched_height, cache_room)
+                count: int = min(daemon_height - self.fetched_height, cache_room)
                 # Don't make too large a request
                 count = min(self.coin.max_fetch_blocks(first), max(count, 0))
                 if not count:
@@ -193,8 +185,7 @@ class Prefetcher:
 
                 hex_hashes = await daemon.block_hex_hashes(first, count)
                 if self.caught_up:
-                    self.logger.info(f'new block height {first + count-1:,d} '
-                                     f'hash {hex_hashes[-1]}')
+                    self.logger.info(f'new block height {first + count - 1:,d} hash {hex_hashes[-1]}')
                 blocks = await daemon.raw_blocks(hex_hashes)
 
                 assert count == len(blocks)
@@ -220,16 +211,17 @@ class Prefetcher:
         self.refill_event.clear()
         return True
 
+
 class ChainError(Exception):
-    '''Raised on error processing blocks.'''
+    """Raised on error processing blocks."""
 
 
 class BlockProcessor:
-    '''Process blocks and update the DB state to match.
+    """Process blocks and update the DB state to match.
 
     Employ a prefetcher to prefetch blocks in batches for processing.
     Coordinate backing up in case of chain reorganisations.
-    '''
+    """
 
     def __init__(self, env: 'Env', db: DB, daemon: Daemon, notifications: 'Notifications'):
         self.env = env
@@ -295,7 +287,7 @@ class BlockProcessor:
             "mint-dft": 1, "mint-ft": 2, "mint-nft": 3, "mint-nft-realm": 4,
             "mint-nft-subrealm": 5, "mint-nft-container": 6, "mint-nft-dmitem": 7,
             "dft": 20, "dat": 21, "split": 22, "splat": 23,
-            "seal": 24, "evt": 25, "mod": 26,
+            "seal": 24, "evt": 25, "mod": 26, "custom-color": 27,
             "transfer": 30,
             "payment-subrealm": 40, "payment-dmitem": 41, "payment-subrealm-failed": 42, "payment-dmitem-failed": 43,
             "mint-dft-failed": 51, "mint-ft-failed": 52, "mint-nft-failed": 53, "mint-nft-realm-failed": 54,
@@ -317,9 +309,9 @@ class BlockProcessor:
         return await asyncio.shield(run_in_thread_locked())
 
     async def check_and_advance_blocks(self, raw_blocks):
-        '''Process the list of raw blocks passed.  Detects and handles
+        """Process the list of raw blocks passed.  Detects and handles
         reorgs.
-        '''
+        """
         if not raw_blocks:
             return
         first = self.height + 1
@@ -357,10 +349,10 @@ class BlockProcessor:
     async def reorg_chain(self, count=None):
         # Use Semaphore to ensure only one reorg signal was held.
         async with self.semaphore:
-            '''Handle a chain reorganisation.
+            """Handle a chain reorganisation.
     
             Count is the number of blocks to simulate a reorg, or None for
-            a real reorg.'''
+            a real reorg."""
             if count is None:
                 self.logger.info('chain reorg detected')
             else:
@@ -395,12 +387,12 @@ class BlockProcessor:
             self.backed_up_event.clear()
 
     async def reorg_hashes(self, count):
-        '''Return a pair (start, last, hashes) of blocks to back up during a
+        """Return a pair (start, last, hashes) of blocks to back up during a
         reorg.
 
         The hashes are returned in order of increasing height.  Start
         is the height of the first hash, last of the last.
-        '''
+        """
         start, count = await self.calc_reorg_range(count)
         last = start + count - 1
         s = '' if count == 1 else 's'
@@ -410,11 +402,11 @@ class BlockProcessor:
         return start, last, await self.db.fs_block_hashes(start, count)
 
     async def calc_reorg_range(self, count):
-        '''Calculate the reorg range'''
+        """Calculate the reorg range"""
 
         def diff_pos(hashes1, hashes2):
-            '''Returns the index of the first difference in the hash lists.
-            If both lists match returns their length.'''
+            """Returns the index of the first difference in the hash lists.
+            If both lists match returns their length."""
             for n, (hash1, hash2) in enumerate(zip(hashes1, hashes2)):
                 if hash1 != hash2:
                     return n
@@ -453,7 +445,7 @@ class BlockProcessor:
 
     # - Flushing
     def flush_data(self):
-        '''The data for a flush.  The lock must be taken.'''
+        """The data for a flush.  The lock must be taken."""
         assert self.state_lock.locked()
         return FlushData(self.height, self.tx_count, self.headers,
                          self.tx_hashes, self.undo_infos, self.utxo_cache,
@@ -482,7 +474,7 @@ class BlockProcessor:
             self.next_cache_check = time.monotonic() + 30
 
     def check_cache_size(self):
-        '''Flush a cache if it gets too big.'''
+        """Flush a cache if it gets too big."""
         # Good average estimates based on traversal of subobjects and
         # requesting size from Python (see deep_getsizeof).
         one_MB = 1000*1000
@@ -507,10 +499,10 @@ class BlockProcessor:
         return None
 
     def advance_blocks(self, blocks):
-        '''Synchronously advance the blocks.
+        """Synchronously advance the blocks.
 
         It is already verified they correctly connect onto our tip.
-        '''
+        """
         min_height = self.db.min_undo_height(self.daemon.cached_height())
         height = self.height
         genesis_activation = self.coin.GENESIS_ACTIVATION
@@ -823,7 +815,7 @@ class BlockProcessor:
     # Mints are only stored if they are less than the max_mints amount
     def put_decentralized_mint_data(self, atomical_id, location_id, value): 
         self.logger.debug(f'put_decentralized_mint_data: atomical_id={atomical_id.hex()}, location_id={location_id.hex()}, value={value.hex()}')
-        if self.distmint_data_cache.get(atomical_id) == None: 
+        if self.distmint_data_cache.get(atomical_id) is None: 
             self.distmint_data_cache[atomical_id] = {}
         self.distmint_data_cache[atomical_id][location_id] = value
 
@@ -864,7 +856,7 @@ class BlockProcessor:
         # Count the number of mints in the cache and add it to the number of mints in the db below
         cache_count = 0
         location_map_for_atomical = self.distmint_data_cache.get(atomical_id, None)
-        if location_map_for_atomical != None:
+        if location_map_for_atomical is not None:
             cache_count = len(location_map_for_atomical)
         
         def lookup_db_count(atomical_id):
@@ -899,7 +891,7 @@ class BlockProcessor:
 
     # Spend all of the atomicals at a location
     def spend_atomicals_utxo(self, tx_hash: bytes, tx_idx: int, live_run) -> bytes:
-        '''Spend the atomicals entry for UTXO and return atomicals[].'''
+        """Spend the atomicals entry for UTXO and return atomicals[]."""
         idx_packed = pack_le_uint32(tx_idx)
         location_id = tx_hash + idx_packed
         cache_map = self.atomicals_utxo_cache.get(location_id)
@@ -934,9 +926,14 @@ class BlockProcessor:
             found_at_least_one = False
             for atomical_a_db_key, atomical_a_db_value in self.db.utxo_db.iterator(prefix=prefix):
                 found_at_least_one = True
-            # For live_run == True we must throw an exception since the b'a' record should always be there when we are spending
-            if live_run and found_at_least_one == False: 
-                raise IndexError(f'Did not find expected at least one entry for atomicals table for atomical: {location_id_bytes_to_compact(atomical_id)} at location {location_id_bytes_to_compact(location_id)}')
+            # For live_run == True we must throw an exception since the b'a' record
+            # should always be there when we are spending
+            if live_run and not found_at_least_one:
+                raise IndexError(
+                    'Did not find expected at least one entry for atomicals table for atomical: '
+                    f'{location_id_bytes_to_compact(atomical_id)} at location '
+                    f'{location_id_bytes_to_compact(location_id)}'
+                )
             # Only do the db delete if this was a live run
             if live_run:
                 self.delete_general_data(b'a' + atomical_id + location_id)
@@ -965,14 +962,20 @@ class BlockProcessor:
         if state_map:
             cached_value = state_map.pop(db_key_suffix, None)
             if cached_value != expected_entry_value:
-                raise IndexError(f'IndexError: delete_state_data cache data does not match expected value {expected_entry_value} {db_value}')
+                raise IndexError(
+                    'IndexError: delete_state_data cache data does not match expected value'
+                    f'{expected_entry_value} {cached_value}'
+                )
             # return  intentionally fall through to catch in db just in case
 
         db_delete_key = db_key_prefix + db_key_suffix
         db_value = self.db.utxo_db.get(db_delete_key)
         if db_value:
             if db_value != expected_entry_value: 
-                raise IndexError(f'IndexError: delete_state_data db data does not match expected atomical id {expected_entry_value} {db_value}')
+                raise IndexError(
+                    'IndexError: delete_state_data db data does not match expected atomical id'
+                    f'{expected_entry_value} {db_value}'
+                )
             self.delete_general_data(db_delete_key)
         return cached_value or db_value
     
@@ -1055,17 +1058,25 @@ class BlockProcessor:
         return cached_value or db_value
 
     # Delete the distributed mint data that is used to track how many mints were made
-    def delete_decentralized_mint_data(self, atomical_id, location_id) -> bytes:
+    def delete_decentralized_mint_data(self, atomical_id, location_id):
         cache_map = self.distmint_data_cache.get(atomical_id, None)
-        if cache_map != None:
+        if cache_map is not None:
             cache_map.pop(location_id, None)
-            self.logger.info(f'delete_decentralized_mint_data: distmint_data_cache. location_id={location_id_bytes_to_compact(location_id)}, atomical_id={location_id_bytes_to_compact(atomical_id)}')
+            self.logger.info(
+                'delete_decentralized_mint_data: distmint_data_cache. '
+                f'location_id={location_id_bytes_to_compact(location_id)}, '
+                f'atomical_id={location_id_bytes_to_compact(atomical_id)}'
+            )
         gi_key = b'gi' + atomical_id + location_id
         gi_value = self.db.utxo_db.get(gi_key)
         if gi_value:
             # not do the i entry beuse it's deleted elsewhere 
             self.delete_general_data(gi_key)
-            self.logger.info(f'delete_decentralized_mint_data: db_deletes:. location_id={location_id_bytes_to_compact(location_id)}, atomical_id={location_id_bytes_to_compact(atomical_id)}')
+            self.logger.info(
+                'delete_decentralized_mint_data: db_deletes:. '
+                f'location_id={location_id_bytes_to_compact(location_id)}, '
+                f'atomical_id={location_id_bytes_to_compact(atomical_id)}'
+            )
 
     def log_subrealm_request(self, method, msg, status, subrealm, parent_realm_atomical_id, height):
         self.logger.info(f'{method} - {msg}, status={status} subrealm={subrealm}, parent_realm_atomical_id={parent_realm_atomical_id.hex()}, height={height}')
@@ -2068,7 +2079,7 @@ class BlockProcessor:
             decoded_object = loads(db_mint_value)
             unpacked_data_summary = auto_encode_bytes_elements(decoded_object)
             atomical['mint_data'] = {}
-            if unpacked_data_summary != None:
+            if unpacked_data_summary is not None:
                 atomical['mint_data']['fields'] = unpacked_data_summary
             else: 
                 atomical['mint_data']['fields'] = {}
@@ -2872,7 +2883,7 @@ class BlockProcessor:
             is_unspendable: Callable[[bytes], bool],
             header,
             height
-    ) -> tuple[list[bytes], list[bytes]]:
+    ) -> Tuple[list[bytes], list[bytes]]:
         self.tx_hashes.append(b''.join(tx_hash for tx, tx_hash in txs))
         self.atomicals_rpc_format_cache.clear()
         self.atomicals_rpc_general_cache.clear()
@@ -3199,11 +3210,11 @@ class BlockProcessor:
         return tx_hash, True
 
     def backup_blocks(self, raw_blocks: Sequence[bytes]):
-        '''Backup the raw blocks and flush.
+        """Backup the raw blocks and flush.
 
         The blocks should be in order of decreasing height, starting at.
         self.height.  A flush is performed once the blocks are backed up.
-        '''
+        """
         self.db.assert_flushed(self.flush_data())
         assert self.height >= len(raw_blocks)
         genesis_activation = self.coin.GENESIS_ACTIVATION
@@ -3403,7 +3414,7 @@ class BlockProcessor:
             atomicals_value = atomicals_undo_item[ATOMICAL_ID_LEN + ATOMICAL_ID_LEN :]
             # There can be many atomicals at the same location
             # Group them by the location
-            if atomicals_undo_info_map.get(atomicals_location, None) == None:
+            if atomicals_undo_info_map.get(atomicals_location, None) is None:
                 atomicals_undo_info_map[atomicals_location] = []
             atomicals_undo_info_map[atomicals_location].append({ 
                 'location_id': atomicals_location,
@@ -3494,7 +3505,7 @@ class BlockProcessor:
                 touched.add(hashX)
                 # Restore the atomicals utxos in the undo information
                 potential_atomicals_list_to_restore = atomicals_undo_info_map.get(txin.prev_hash + pack_le_uint32(txin.prev_idx))
-                if potential_atomicals_list_to_restore != None:
+                if potential_atomicals_list_to_restore is not None:
                     for atomical_to_restore in potential_atomicals_list_to_restore:
                         atomical_id = atomical_to_restore['atomical_id']
                         location_id = atomical_to_restore['location_id']
@@ -3518,7 +3529,7 @@ class BlockProcessor:
         # Sanity checks...
         assert(atomical_num == self.atomical_count)
 
-    '''An in-memory UTXO cache, representing all changes to UTXO state
+    """An in-memory UTXO cache, representing all changes to UTXO state
     since the last DB flush.
 
     We want to store millions of these in memory for optimal
@@ -3570,18 +3581,18 @@ class BlockProcessor:
     looking up a UTXO the prefix space of the compressed hash needs to
     be searched and resolved if necessary with the tx_num.  The
     collision rate is low (<0.1%).
-    '''
+    """
 
     def spend_utxo(self, tx_hash: bytes, tx_idx: int) -> bytes:
-        '''Spend a UTXO and return (hashX + tx_num + sat_value).
+        """Spend a UTXO and return (hashX + tx_num + sat_value).
 
         If the UTXO is not in the cache it must be on disk.  We store
         all UTXOs so not finding one indicates a logic error or DB
         corruption.
-        '''
+        """
         # Fast track is it being in the cache
         idx_packed = pack_le_uint32(tx_idx)
-        cache_value = self.utxo_cache.pop(tx_hash + idx_packed, None)
+        cache_value: bytes | None = self.utxo_cache.pop(tx_hash + idx_packed, None)
         if cache_value:
             return cache_value
 
@@ -3618,7 +3629,7 @@ class BlockProcessor:
                          f'found in "h" table')
 
     async def _process_prefetched_blocks(self):
-        '''Loop forever processing blocks as they arrive.'''
+        """Loop forever processing blocks as they arrive."""
         while True:
             if self.height == self.daemon.cached_height():
                 if not self._caught_up_event.is_set():
@@ -3641,8 +3652,7 @@ class BlockProcessor:
         self.db.first_sync = False
         await self.flush(True)
         if first_sync:
-            self.logger.info(f'{electrumx.version} synced to '
-                             f'height {self.height:,d}')
+            self.logger.info(f'{electrumx_version} synced to height {self.height:,d}')
         # Reopen for serving
         await self.db.open_for_serving()
 
@@ -3656,7 +3666,7 @@ class BlockProcessor:
     # --- External API
 
     async def fetch_and_process_blocks(self, caught_up_event):
-        '''Fetch, process and index blocks from the daemon.
+        """Fetch, process and index blocks from the daemon.
 
         Sets caught_up_event when first caught up.  Flushes to disk
         and shuts down cleanly if cancelled.
@@ -3666,7 +3676,7 @@ class BlockProcessor:
         processed but not written to disk, it should write those to
         disk before exiting, as otherwise a significant amount of work
         could be lost.
-        '''
+        """
         self._caught_up_event = caught_up_event
         await self._first_open_dbs()
         try:
@@ -3680,10 +3690,10 @@ class BlockProcessor:
             await self.flush(True)
 
     def force_chain_reorg(self, count):
-        '''Force a reorg of the given number of blocks.
+        """Force a reorg of the given number of blocks.
 
         Returns True if a reorg is queued, false if not caught up.
-        '''
+        """
         if self._caught_up_event.is_set():
             self.reorg_count = count
             self.blocks_event.set()
@@ -3703,8 +3713,14 @@ class DecredBlockProcessor(BlockProcessor):
 
 class NameIndexBlockProcessor(BlockProcessor):
 
-    def advance_txs(self, txs, is_unspendable):
-        result = super().advance_txs(txs, is_unspendable)
+    def advance_txs(
+            self,
+            txs: Sequence[Tuple[Tx, bytes]],
+            is_unspendable: Callable[[bytes], bool],
+            header,
+            height
+    ):
+        result = super().advance_txs(txs, is_unspendable, header, height)
 
         tx_num = self.tx_count - len(txs)
         script_name_hashX = self.coin.name_hashX_from_script
@@ -3734,7 +3750,13 @@ class NameIndexBlockProcessor(BlockProcessor):
 
 class LTORBlockProcessor(BlockProcessor):
 
-    def advance_txs(self, txs, is_unspendable):
+    def advance_txs(
+            self,
+            txs: Sequence[Tuple[Tx, bytes]],
+            is_unspendable: Callable[[bytes], bool],
+            header,
+            height
+    ):
         self.tx_hashes.append(b''.join(tx_hash for tx, tx_hash in txs))
 
         # Use local vars for speed in the loops

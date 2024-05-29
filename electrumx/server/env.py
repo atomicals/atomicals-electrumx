@@ -5,14 +5,14 @@
 # See the file "LICENCE" for information about the copyright
 # and warranty status of this software.
 
-'''Class for handling environment configuration and defaults.'''
+"""Class for handling environment configuration and defaults."""
 
 
 import re
-from ipaddress import IPv4Address, IPv6Address
 from typing import Type, Union
-
 from aiorpcx import Service, ServicePart
+from ipaddress import IPv4Address, IPv6Address
+
 from electrumx.lib.coins import Coin, AtomicalsCoinMixin
 from electrumx.lib.env_base import EnvBase
 
@@ -22,10 +22,10 @@ class ServiceError(Exception):
 
 
 class Env(EnvBase):
-    '''Wraps environment configuration. Optionally, accepts a Coin class
+    """Wraps environment configuration. Optionally, accepts a Coin class
        as first argument to have ElectrumX serve custom coins not part of
        the standard distribution.
-    '''
+    """
 
     # Peer discovery
     PD_OFF, PD_SELF, PD_ON = ('OFF', 'SELF', 'ON')
@@ -106,9 +106,9 @@ class Env(EnvBase):
         self.report_services = self.services_to_report()
 
     def sane_max_sessions(self):
-        '''Return the maximum number of sessions to permit.  Normally this
-        is MAX_SESSIONS.  However, to prevent open file exhaustion, ajdust
-        downwards if running with a small open file rlimit.'''
+        """Return the maximum number of sessions to permit.  Normally this
+        is MAX_SESSIONS.  However, to prevent open file exhaustion, adjust
+        downwards if running with a small open file rlimit."""
         env_value = self.integer('MAX_SESSIONS', 1000)
         # No resource module on Windows
         try:
