@@ -48,9 +48,9 @@ import electrumx.lib.tx_dash as lib_tx_dash
 import electrumx.lib.tx_axe as lib_tx_axe
 import electrumx.server.block_processor as block_proc
 import electrumx.server.daemon as daemon
-from electrumx.server.session import (ElectrumX, DashElectrumX,
-                                      SmartCashElectrumX, AuxPoWElectrumX,
-                                      NameIndexElectrumX, NameIndexAuxPoWElectrumX)
+from electrumx.server.session.electrumx_session import (ElectrumX, DashElectrumX,
+                                                        SmartCashElectrumX, AuxPoWElectrumX,
+                                                        NameIndexElectrumX, NameIndexAuxPoWElectrumX)
 
 
 @dataclass
@@ -65,8 +65,19 @@ class CoinError(Exception):
     '''Exception raised for coin-related errors.'''
 
 
-class Coin:
-    '''Base class of coin hierarchy.'''
+class CoinHeaderHashMixin:
+    @classmethod
+    def header_hash(cls, header):
+        """Given a header return hash"""
+        return double_sha256(header)
+
+
+class CoinShortNameMixin:
+    SHORTNAME: str
+
+
+class Coin(CoinHeaderHashMixin, CoinShortNameMixin):
+    """Base class of coin hierarchy."""
 
     REORG_LIMIT = 200
     # Not sure if these are coin-specific
@@ -226,11 +237,6 @@ class Coin:
         return cls.ENCODE_CHECK(payload)
 
     @classmethod
-    def header_hash(cls, header):
-        '''Given a header return hash'''
-        return double_sha256(header)
-
-    @classmethod
     def header_prevhash(cls, header):
         '''Given a header return previous hash'''
         return header[4:36]
@@ -329,7 +335,7 @@ class EquihashMixin:
         return deserializer.read_header(cls.BASIC_HEADER_SIZE)
 
 
-class ScryptMixin:
+class ScryptMixin(CoinHeaderHashMixin):
 
     DESERIALIZER = lib_tx.DeserializerTxTime
     HEADER_HASH = None
@@ -358,7 +364,7 @@ class KomodoMixin:
     DESERIALIZER = lib_tx.DeserializerZcash
 
 
-class BitcoinMixin:
+class BitcoinMixin(CoinShortNameMixin):
     SHORTNAME = "BTC"
     NET = "mainnet"
     XPUB_VERBYTES = bytes.fromhex("0488b21e")
@@ -847,7 +853,7 @@ class Emercoin(NameMixin, Coin):
         return super().hashX_from_script(address_script)
 
 
-class BitcoinTestnetMixin:
+class BitcoinTestnetMixin(CoinShortNameMixin):
     SHORTNAME = "XTN"
     NET = "testnet"
     XPUB_VERBYTES = bytes.fromhex("043587cf")
@@ -946,6 +952,36 @@ class BitcoinTestnet(BitcoinTestnetMixin, AtomicalsCoinMixin, Coin):
     ATOMICALS_ACTIVATION_HEIGHT_DENSITY = 2572729
     ATOMICALS_ACTIVATION_HEIGHT_DFT_BITWORK_ROLLOVER = 2576412
     ATOMICALS_ACTIVATION_HEIGHT_CUSTOM_COLORING = 2584936
+
+    @classmethod
+    def warn_old_client_on_tx_broadcast(cls, client_ver):
+        if client_ver < (3, 3, 3):
+            return ('<br/><br/>'
+                    'Your transaction was successfully broadcast.<br/><br/>'
+                    'However, you are using a VULNERABLE version of Electrum.<br/>'
+                    'Download the new version from the usual place:<br/>'
+                    'https://electrum.org/'
+                    '<br/><br/>')
+        return False
+
+
+class BitcoinTestnet4(BitcoinTestnetMixin, AtomicalsCoinMixin, Coin):
+    NAME = "Bitcoin"
+    NET = "testnet4"
+    DESERIALIZER = lib_tx.DeserializerSegWit
+    CRASH_CLIENT_VER = (3, 2, 3)
+    PEERS = [
+    ]
+    GENESIS_HASH = ('00000000da84f2bafbbc53dee25a72ae'
+                    '507ff4914b867c565be350b0da8bf043')
+    RPC_PORT = 48332
+
+    ATOMICALS_ACTIVATION_HEIGHT = 27000
+    ATOMICALS_ACTIVATION_HEIGHT_DMINT = 27000
+    ATOMICALS_ACTIVATION_HEIGHT_COMMITZ = 27000
+    ATOMICALS_ACTIVATION_HEIGHT_DENSITY = 27000
+    ATOMICALS_ACTIVATION_HEIGHT_DFT_BITWORK_ROLLOVER = 27000
+    ATOMICALS_ACTIVATION_HEIGHT_CUSTOM_COLORING = 27000
 
     @classmethod
     def warn_old_client_on_tx_broadcast(cls, client_ver):
