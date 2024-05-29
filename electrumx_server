@@ -7,7 +7,7 @@
 # See the file "LICENCE" for information about the copyright
 # and warranty status of this software.
 
-'''Script to kick off the server.'''
+"""Script to kick off the server."""
 
 import asyncio
 import logging
@@ -24,12 +24,12 @@ load_dotenv()
 
 
 def main():
-    '''Set up logging and run the server.'''
+    """Set up logging and run the server."""
     log_fmt = Env.default('LOG_FORMAT', '%(levelname)s:%(name)s:%(message)s')
     log_level = Env.default('LOG_LEVEL', 'INFO').upper()
     log_path = Env.default('LOG_PATH', None)
     if log_path:
-        exist =os.path.exists(log_path)
+        exist = os.path.exists(log_path)
         if not exist:
             os.makedirs(log_path)
         handler = logging.handlers.WatchedFileHandler(log_path + "/electrumx.log")
@@ -48,9 +48,9 @@ def main():
         controller = Controller(env)
         asyncio.run(controller.run())
     except KeyboardInterrupt:
-        logger.info('ElectrumX server terminated (normally) before initialized')
-    except Exception:
-        logger.exception('ElectrumX server terminated abnormally')
+        logger.info('ElectrumX server terminated by keyboard interrupt')
+    except Exception as e:
+        logger.exception(f'ElectrumX server terminated abnormally: {e}')
     else:
         logger.info('ElectrumX server terminated normally')
 
