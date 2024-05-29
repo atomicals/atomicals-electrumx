@@ -326,10 +326,13 @@ class AtomicalsTransferBlueprintBuilder:
         if len(compact_atomical_id_data.keys()) > 1:
           expected_output_index = 0
         else:
-          if str(out_idx) in compact_atomical_id_data.keys():
-            expected_output_index = out_idx
-          else:
-             continue
+          # if out_idx not in payload keys, skip
+          if str(out_idx) not in compact_atomical_id_data.keys():
+            continue
+          # if payload value <= 0, this nft will burn
+          if compact_atomical_id_data.get(str(out_idx), 0) <= 0:
+            continue
+          expected_output_index = out_idx
         output_colored_map[expected_output_index] = output_colored_map.get(expected_output_index) or {'atomicals': {}}
         output_colored_map[expected_output_index]['atomicals'][atomical_id] = atomical_info
     return AtomicalNftOutputBlueprintAssignmentSummary(output_colored_map)
@@ -376,6 +379,7 @@ class AtomicalsTransferBlueprintBuilder:
         expected_output_index = out_idx
         compact_atomical_id = location_id_bytes_to_compact(atomical_id)
         expected_value = operations_found_at_inputs["payload"].get(compact_atomical_id, {}).get(str(expected_output_index), 0)
+        # if expected_value <= 0, ft will burn
         if expected_value <= 0 or remaining_value <= 0:
             continue
         # if expected_value > txout.value
