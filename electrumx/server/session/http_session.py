@@ -21,24 +21,6 @@ class DecimalEncoder(json.JSONEncoder):
         return super(DecimalEncoder, self).default(o)
 
 
-async def formatted_request(request, call):
-    params: list
-    if request.method == "GET":
-        params = json.loads(request.query.get("params", "[]"))
-    elif request.content_length:
-        json_data = await request.json()
-        params = json_data.get("params", [])
-    else:
-        params = []
-    try:
-        result = call(*params)
-        if isinstance(result, Awaitable):
-            result = await result
-        return success_resp(result)
-    except Exception as e:
-        return error_resp(500, e)
-
-
 class HttpSession(object):
     def __init__(self, session_mgr, db, mempool, peer_mgr, kind):
         # self.transport = transport
@@ -67,6 +49,29 @@ class HttpSession(object):
             self.peer_mgr,
             self.client,
         )
+
+    async def formatted_request(self, request: web.Request, call):
+        params: list
+        if request.method == "GET":
+            params = json.loads(request.query.get("params", "[]"))
+        elif request.content_length:
+            json_data = await request.json()
+            params = json_data.get("params", [])
+        else:
+            params = []
+        try:
+            result = call(*params)
+            if isinstance(result, Awaitable):
+                result = await result
+            return success_resp(result)
+        except Exception as e:
+            method = request.method
+            path = request.url
+            self.logger.error(
+                f'Exception during formatting request: {method} {path}, '
+                f'exception: {e}'
+            )
+            return error_resp(500, e)
 
     async def add_endpoints(self, router, protocols):
         handlers = {
@@ -139,8 +144,8 @@ class HttpSession(object):
             handlers['blockchain.scripthash.unsubscribe'] = self.ss.scripthash_unsubscribe
         for m, h in handlers.items():
             method = f'/proxy/{m}'
-            router.add_get(method, lambda r, handler=h: formatted_request(r, handler))
-            router.add_post(method, lambda r, handler=h: formatted_request(r, handler))
+            router.add_get(method, lambda r, handler=h: self.formatted_request(r, handler))
+            router.add_post(method, lambda r, handler=h: self.formatted_request(r, handler))
 
         # Fallback proxy recognition
         router.add_get('/proxy', self.proxy)
