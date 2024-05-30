@@ -51,6 +51,7 @@ class HttpSession(object):
         )
 
     async def formatted_request(self, request: web.Request, call):
+        method = request.path
         params: list
         if request.method == "GET":
             params = json.loads(request.query.get("params", "[]"))
@@ -59,6 +60,7 @@ class HttpSession(object):
             params = json_data.get("params", [])
         else:
             params = []
+        self.logger.debug(f'HTTP request handling: [method] {method}, [params]: {params}')
         try:
             result = call(*params)
             if isinstance(result, Awaitable):
