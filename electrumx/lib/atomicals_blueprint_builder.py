@@ -4,7 +4,7 @@ from electrumx.lib.script import is_unspendable_legacy, is_unspendable_genesis
 from electrumx.lib.util_atomicals import *
 
 
-class FtColoringSummary:
+class FtColoringSummary(IterableReprMixin):
     def __init__(self, atomical_id_to_expected_outs_map, fts_burned, cleanly_assigned, atomicals_list):
         self.atomical_id_to_expected_outs_map = atomical_id_to_expected_outs_map
         self.cleanly_assigned = cleanly_assigned
@@ -17,16 +17,8 @@ class FtColoringSummary:
         yield 'fts_burned', self.fts_burned
         yield 'atomicals_list', self.atomicals_list
 
-    def __repr__(self):
-        return (
-            f'FtColoringSummary '
-            f'cleanly_assigned: {self.cleanly_assigned}, '
-            f'fts_burned: {self.fts_burned}, '
-            f'atomicals_list: {self.atomicals_list}'
-        )
 
-
-class ExpectedOutputSet:
+class ExpectedOutputSet(IterableReprMixin):
     """Store the expected output indexes to be colored and the exponent for the outputs to apply"""
 
     def __init__(self, expected_outputs, expected_values):
@@ -36,13 +28,6 @@ class ExpectedOutputSet:
     def __iter__(self):
         yield 'expected_outputs', self.expected_outputs
         yield 'expected_values', self.expected_values
-
-    def __repr__(self):
-        return (
-            f'ExpectedOutputSet '
-            f'expected_outputs: {self.expected_outputs}, '
-            f'expected_values: {self.expected_values}'
-        )
 
 
 def build_reverse_output_to_atomical_id_exponent_map(atomical_id_to_output_index_map):
@@ -156,7 +141,7 @@ class AtomicalsTransferBlueprintBuilderError(Exception):
     """Raised when Atomicals Blueprint builder has an error"""
 
 
-class AtomicalInputItem:
+class AtomicalInputItem(IterableReprMixin):
     """An input item struct"""
 
     def __init__(self, txin_index, sat_value: int, atomical_value: int):
@@ -170,7 +155,7 @@ class AtomicalInputItem:
         yield 'atomical_value', self.atomical_value
 
 
-class AtomicalInputSummary:
+class AtomicalInputSummary(IterableReprMixin):
     """Summarize a set of inputs for a transaction"""
 
     def __init__(self, atomical_id, atomical_type, mint_info):
@@ -198,14 +183,11 @@ class AtomicalInputSummary:
         self.input_indexes.append(AtomicalInputItem(tx_in_index, sat_value, atomical_value))
 
 
-class AtomicalColoredOutputFt:
+class AtomicalColoredOutputFt(IterableReprMixin):
     def __init__(self, sat_value: int, atomical_value: int, input_summary_info: AtomicalInputSummary):
         self.sat_value = sat_value
         self.atomical_value = atomical_value
         self.input_summary_info = input_summary_info
-
-    def __repr__(self):
-        return f'atomical colored output ft sat_value: {self.sat_value}, atomical_value: {self.atomical_value}'
 
     def __iter__(self):
         yield 'sat_value', self.sat_value
@@ -213,7 +195,7 @@ class AtomicalColoredOutputFt:
         yield 'input_summary_info', self.input_summary_info
 
 
-class AtomicalColoredOutputNft:
+class AtomicalColoredOutputNft(IterableReprMixin):
     def __init__(self, input_summary_info: AtomicalInputSummary):
         self.input_summary_info = input_summary_info
 
@@ -221,7 +203,7 @@ class AtomicalColoredOutputNft:
         yield 'input_summary_info', self.input_summary_info
 
 
-class AtomicalFtOutputBlueprintAssignmentSummary:
+class AtomicalFtOutputBlueprintAssignmentSummary(IterableReprMixin):
     def __init__(self, outputs, fts_burned, cleanly_assigned, first_atomical_id):
         self.outputs = outputs
         self.fts_burned = fts_burned
@@ -235,7 +217,7 @@ class AtomicalFtOutputBlueprintAssignmentSummary:
         yield 'first_atomical_id', self.first_atomical_id
 
 
-class AtomicalNftOutputBlueprintAssignmentSummary:
+class AtomicalNftOutputBlueprintAssignmentSummary(IterableReprMixin):
     def __init__(self, outputs):
         self.outputs = outputs
 
@@ -243,7 +225,7 @@ class AtomicalNftOutputBlueprintAssignmentSummary:
         yield 'outputs', self.outputs
 
 
-class AtomicalsValidation(object):
+class AtomicalsValidation(IterableReprMixin):
     def __init__(
             self,
             raw_tx: str,
