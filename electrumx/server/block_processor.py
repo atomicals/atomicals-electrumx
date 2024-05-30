@@ -6,15 +6,14 @@
 # See the file "LICENCE" for information about the copyright
 # and warranty status of this software.
 
-"""Block prefetcher and chain processor."""
-
+import asyncio
 import time
-from typing import Sequence, Tuple, List, Callable, Optional, TYPE_CHECKING, Type, Union
+from typing import Sequence, Tuple, List, Callable, Optional, TYPE_CHECKING, Type, Union, Dict
 
 from aiorpcx import run_in_thread, CancelledError
 
 from electrumx.lib.atomicals_blueprint_builder import AtomicalsTransferBlueprintBuilder, AtomicalsValidation, \
-    AtomicalsValidationError
+    AtomicalsValidationError, AtomicalsTransactionDecode
 from electrumx.lib.script import is_unspendable_legacy, is_unspendable_genesis
 from electrumx.lib.tx import Tx
 from electrumx.lib.util_atomicals import *
@@ -38,6 +37,8 @@ ATOMICAL_ID_LEN = 36
 LOCATION_ID_LEN = 36
 TX_OUTPUT_IDX_LEN = 4
 
+
+# Block prefetcher and chain processor.
 
 class Prefetcher:
     """Prefetches blocks (in the forward direction only)."""
@@ -524,6 +525,66 @@ class BlockProcessor:
             encode_atomical_ids_hex(atomicals_spent_at_inputs),
             auto_encode_bytes_items(encode_atomical_ids_hex(ft_output_blueprint)),
         )
+
+    # Helper method to decode the transaction and returns formatted structure.
+    def transaction_decode_blueprint(self, raw_tx) -> dict:
+        # Deserialize the transaction
+        tx, tx_hash = self.coin.DESERIALIZER(bytes.fromhex(raw_tx), 0).read_tx_and_hash()
+        # Determine if there are any other operations at the transfer
+        operations_found_at_inputs = parse_protocols_operations_from_witness_array(tx, tx_hash, True)
+        # Build the map of the atomicals potential spent at the tx
+        atomicals_spent_at_inputs: Dict[int: List] = self.build_atomicals_spent_at_inputs_for_validation_only(tx)
+        # Build a structure of organizing into NFT and FTs
+        # Note: We do not validate anything with NFTs, just FTs
+        # Build the "blueprint" for how to assign all atomicals
+        blueprint_builder = AtomicalsTransferBlueprintBuilder(
+            self.logger,
+            atomicals_spent_at_inputs,
+            operations_found_at_inputs,
+            tx_hash,
+            tx,
+            self.get_atomicals_id_mint_info,
+            True,
+            self.is_custom_coloring_activated(self.height)
+        )
+        ft_output_blueprint = blueprint_builder.get_ft_output_blueprint()
+        nft_output_blueprint = blueprint_builder.get_nft_output_blueprint()
+        # Log that there were tokens burned due to not being cleanly assigned
+        encoded_spent_at_inputs = encode_atomical_ids_hex(atomicals_spent_at_inputs)
+        encoded_ft_output_blueprint = auto_encode_bytes_items(encode_atomical_ids_hex(ft_output_blueprint))
+        encoded_nft_output_blueprint = auto_encode_bytes_items(encode_atomical_ids_hex(nft_output_blueprint))
+        ret = {
+            'op': [operations_found_at_inputs.get('op') or 'transfer'],
+            'burned': encoded_ft_output_blueprint['fts_burned'],
+        }
+        if operations_found_at_inputs.get('payload'):
+            ret['op_payload'] = operations_found_at_inputs['payload']
+        atomicals = []
+        inputs = {}
+        outputs = {}
+        for k, v in encoded_spent_at_inputs.items():
+            for item in v:
+                atomical_id = item['atomical_id']
+                atomicals.append(atomical_id)
+                if not inputs.get(k):
+                    inputs[k] = {}
+                inputs[k][atomical_id] = item['data_value']['sat_value']
+        for k, v in encoded_ft_output_blueprint['outputs'].items():
+            for atomical_id, item in v['atomicals'].items():
+                if not outputs.get(k):
+                    outputs[k] = {}
+                outputs[k][atomical_id] = item['sat_value']
+        if not encoded_nft_output_blueprint.get('outputs'):
+            encoded_nft_output_blueprint['outputs'] = {}
+        for k, v in encoded_nft_output_blueprint['outputs'].items():
+            for atomical_id, item in v['atomicals'].items():
+                if not outputs.get(k):
+                    outputs[k] = {}
+                outputs[k][atomical_id] = item['sat_value']
+        ret['atomicals'] = atomicals
+        ret['inputs'] = inputs
+        ret['outputs'] = outputs
+        return ret
 
     # Query general data including the cache
     def get_general_data_with_cache(self, key):

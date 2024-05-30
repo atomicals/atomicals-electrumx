@@ -228,30 +228,55 @@ class AtomicalNftOutputBlueprintAssignmentSummary(IterableReprMixin):
 class AtomicalsValidation(IterableReprMixin):
     def __init__(
             self,
-            raw_tx: str,
             tx_hash: bytes,
             operation_found_at_inputs: dict,
             atomicals_spent_at_inputs: dict,
             ft_output_blueprint: dict,
+            nft_output_blueprint: dict,
     ):
-        self.raw_tx: str = raw_tx
         self.tx_hash: bytes = tx_hash
         self.operation_found_at_inputs = operation_found_at_inputs
         self.atomicals_spent_at_inputs = atomicals_spent_at_inputs
         self.ft_output_blueprint = ft_output_blueprint
+        self.nft_output_blueprint = nft_output_blueprint
 
         self.tx_id = hash_to_hex_str(tx_hash)
 
     def __iter__(self):
-        yield 'raw_tx', self.raw_tx
         yield 'tx_id', self.tx_id
         yield 'operation_found_at_inputs', self.operation_found_at_inputs
         yield 'atomicals_spent_at_inputs', self.atomicals_spent_at_inputs
         yield 'ft_output_blueprint', self.ft_output_blueprint
+        yield 'nft_output_blueprint', self.nft_output_blueprint
 
 
 class AtomicalsValidationError(Exception):
     """Raised when Atomicals Validation Error"""
+
+
+class AtomicalsTransactionDecode(IterableReprMixin):
+    def __init__(
+            self,
+            tx_hash: bytes,
+            operation_found_at_inputs: dict,
+            atomicals_spent_at_inputs: dict,
+            ft_output_blueprint: dict,
+            nft_output_blueprint: dict,
+    ):
+        self.tx_hash: bytes = tx_hash
+        self.operation_found_at_inputs = operation_found_at_inputs
+        self.atomicals_spent_at_inputs = atomicals_spent_at_inputs
+        self.ft_output_blueprint = ft_output_blueprint
+        self.nft_output_blueprint = nft_output_blueprint
+
+        self.tx_id = hash_to_hex_str(tx_hash)
+
+    def __iter__(self):
+        yield 'tx_id', self.tx_id
+        yield 'operation_found_at_inputs', self.operation_found_at_inputs
+        yield 'atomicals_spent_at_inputs', self.atomicals_spent_at_inputs
+        yield 'ft_output_blueprint', self.ft_output_blueprint
+        yield 'nft_output_blueprint', self.nft_output_blueprint
 
 
 def order_ft_inputs(ft_atomicals, sort_by_fifo):
@@ -307,9 +332,15 @@ class AtomicalsTransferBlueprintBuilder:
         self.nft_atomicals = nft_atomicals
         self.ft_atomicals = ft_atomicals
         nft_output_blueprint, ft_output_blueprint = AtomicalsTransferBlueprintBuilder.calculate_output_blueprint(
-            self.get_atomicals_id_mint_info, self.tx, self.nft_atomicals, self.ft_atomicals,
-            self.atomicals_spent_at_inputs, self.operations_found_at_inputs, self.sort_fifo,
-            self.is_custom_coloring_activated)
+            self.get_atomicals_id_mint_info,
+            self.tx,
+            self.nft_atomicals,
+            self.ft_atomicals,
+            self.atomicals_spent_at_inputs,
+            self.operations_found_at_inputs,
+            self.sort_fifo,
+            self.is_custom_coloring_activated
+        )
         self.nft_output_blueprint = nft_output_blueprint
         self.ft_output_blueprint = ft_output_blueprint
         # if len(ft_atomicals) > 0 or len(nft_atomicals) > 0:

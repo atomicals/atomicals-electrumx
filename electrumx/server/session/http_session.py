@@ -1,6 +1,7 @@
 # -*- coding: utf-8 -*-
 
 import json
+import traceback
 from decimal import Decimal
 from typing import Awaitable
 
@@ -104,6 +105,7 @@ class HttpSession(object):
             # The Atomicals era has begun #
             'blockchain.atomicals.validate': self.ss.transaction_broadcast_validate,
             'blockchain.atomicals.validate_result': self.ss.transaction_validate,
+            'blockchain.atomicals.decode_psbt': self.ss.transaction_decode,
             'blockchain.atomicals.get_ft_balances_scripthash': self.ss.atomicals_get_ft_balances,
             'blockchain.atomicals.get_nft_balances_scripthash': self.ss.atomicals_get_nft_balances,
             'blockchain.atomicals.listscripthash': self.ss.atomicals_list_scripthash,
