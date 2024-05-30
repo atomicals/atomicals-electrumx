@@ -555,7 +555,7 @@ class BlockProcessor:
         encoded_nft_output_blueprint = auto_encode_bytes_items(encode_atomical_ids_hex(nft_output_blueprint))
         ret = {
             'op': [operations_found_at_inputs.get('op') or 'transfer'],
-            'burned': encoded_ft_output_blueprint['fts_burned'],
+            'burned': {**encoded_ft_output_blueprint['fts_burned'], **encoded_nft_output_blueprint['nfts_burned']},
         }
         if operations_found_at_inputs.get('payload'):
             ret['op_payload'] = operations_found_at_inputs['payload']
