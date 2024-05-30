@@ -473,6 +473,29 @@ class AtomicalsTransferBlueprintBuilder:
         return AtomicalNftOutputBlueprintAssignmentSummary(output_colored_map)
 
     @classmethod
+    def custom_color_nft_atomicals(cls, nft_atomicals, operations_found_at_inputs, tx):
+      # define op `z` to custom-color nft
+      output_colored_map = {}
+      for atomical_id, atomical_info in sorted(nft_atomicals.items()):
+        for out_idx, txout in enumerate(tx.outputs):
+          compact_atomical_id = location_id_bytes_to_compact(atomical_id)
+          compact_atomical_id_data = operations_found_at_inputs["payload"].get(compact_atomical_id, {})
+          # if payload try to color two or more outputs, it will try to color output 0.
+          if len(compact_atomical_id_data.keys()) > 1:
+            expected_output_index = 0
+          else:
+            # if out_idx not in payload keys, skip
+            if str(out_idx) not in compact_atomical_id_data.keys():
+              continue
+            # if payload value <= 0, this nft will burn
+            if compact_atomical_id_data.get(str(out_idx), 0) <= 0:
+              continue
+            expected_output_index = out_idx
+          output_colored_map[expected_output_index] = output_colored_map.get(expected_output_index) or {'atomicals': {}}
+          output_colored_map[expected_output_index]['atomicals'][atomical_id] = atomical_info
+      return AtomicalNftOutputBlueprintAssignmentSummary(output_colored_map)
+
+    @classmethod
     def calculate_output_blueprint_nfts(
             cls,
             get_atomicals_id_mint_info,
@@ -480,13 +503,17 @@ class AtomicalsTransferBlueprintBuilder:
             nft_atomicals,
             atomicals_spent_at_inputs,
             operations_found_at_inputs,
-            sort_fifo
+            sort_fifo,
+            is_custom_coloring_activated
     ) -> AtomicalNftOutputBlueprintAssignmentSummary:
         if not nft_atomicals or len(nft_atomicals) == 0:
             return AtomicalNftOutputBlueprintAssignmentSummary({})
         should_splat_nft_atomicals = is_splat_operation(operations_found_at_inputs)
         if should_splat_nft_atomicals and len(nft_atomicals.keys()) > 0:
             return AtomicalsTransferBlueprintBuilder.calculate_nft_atomicals_splat(nft_atomicals, tx)
+        should_custom_colored_nft_atomicals = is_custom_coloring_activated and is_custom_colored_operation(operations_found_at_inputs)
+        if should_custom_colored_nft_atomicals and len(nft_atomicals.keys()) > 0:
+            return AtomicalsTransferBlueprintBuilder.custom_color_nft_atomicals(nft_atomicals, operations_found_at_inputs, tx)
         else:
             # To sort by fifo for NFTs, we also need to calculate a mapping of the nfts to inputs first
             nft_map = AtomicalsTransferBlueprintBuilder.build_nft_input_idx_to_atomical_map(
@@ -552,6 +579,7 @@ class AtomicalsTransferBlueprintBuilder:
                     str(expected_output_index),
                     0
                 )
+                # if expected_value <= 0, ft will burn
                 if expected_value <= 0 or remaining_value <= 0:
                     continue
                 # if expected_value > txout.value
@@ -737,7 +765,8 @@ class AtomicalsTransferBlueprintBuilder:
             nft_atomicals,
             atomicals_spent_at_inputs,
             operations_found_at_inputs,
-            sort_fifo
+            sort_fifo,
+            is_custom_coloring_activated
         )
         ft_blueprint = AtomicalsTransferBlueprintBuilder.calculate_output_blueprint_fts(
             tx,

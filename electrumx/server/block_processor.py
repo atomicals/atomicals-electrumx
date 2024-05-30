@@ -1751,6 +1751,8 @@ class BlockProcessor:
                             self.put_op_data(tx_num, tx_hash, "splat")
                         if operations_found_at_inputs["op"] == "y":
                             self.put_op_data(tx_num, tx_hash, "split")
+                        if operations_found_at_inputs["op"] == "z":
+                            self.put_op_data(tx_num, tx_hash, "custom-color")
                     self.put_or_delete_state_updates(operations_found_at_inputs, atomical_id, tx_num, tx_hash, output_idx_le, height, 0, False)
                     self.put_or_delete_state_updates(operations_found_at_inputs, atomical_id, tx_num, tx_hash, output_idx_le, height, 1, False)
                 # Only allow NFTs to be sealed.
@@ -1777,6 +1779,8 @@ class BlockProcessor:
                         self.put_op_data(tx_num, tx_hash, "splat")
                     if operations_found_at_inputs["op"] == "y":
                         self.put_op_data(tx_num, tx_hash, "split")
+                    if operations_found_at_inputs["op"] == "z":
+                        self.put_op_data(tx_num, tx_hash, "custom-color")
                     else:
                         self.put_op_data(tx_num, tx_hash, operations_found_at_inputs["op"])
                 self.put_or_delete_event_updates_if_found(operations_found_at_inputs, ft_blueprint.first_atomical_id, tx_num, tx_hash, tx, height)

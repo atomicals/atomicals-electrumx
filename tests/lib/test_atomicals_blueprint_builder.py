@@ -907,8 +907,6 @@ def test_custom_colored_ft_normal():
     subject_atomical_id = b'\x13Jv:\xb1\xad\x9a\xaf\x8a#[7\xa9s\xc0\xcc\xb2\xca\xe1"\x05Y\xc8s\x87\x11\xcc\x90W\xe2\x88\x88\x00\x00\x00\x00'
     subject_atomical_id1 = b"\xb4'{\x12Z\x90z\xed\xd4\xd6\xaf\x87\xb3\xe43\x93\xd0\xbd?v\xfc\x17Y\x8fmcb2\xa4\xef'\x95\x00\x00\x00\x00"
     tx, tx_hash = coin.DESERIALIZER(raw_tx, 0).read_tx_and_hash()
-    # print(hash_to_hex_str(subject_atomical_id))
-    # print(hash_to_hex_str(subject_atomical_id1))
     operation_found_at_inputs = parse_protocols_operations_from_witness_array(tx, tx_hash, True)
     # z means costom color
     operation_found_at_inputs["op"] = "z"
@@ -979,5 +977,31 @@ def test_custom_colored_ft_normal():
     ft_output_blueprint = blueprint_builder.get_ft_output_blueprint()
     assert(ft_output_blueprint.cleanly_assigned == False)
     assert(len(ft_output_blueprint.outputs) == 2)
+    assert(ft_output_blueprint.fts_burned == {})
+    assert(blueprint_builder.get_are_fts_burned() == False)
+
+def test_custom_colored_nft_normal():
+    raw_tx_str = '0100000000010258f654e38dee561d45847f45d856ad8cb2d7eafd574521d10ad28b30f44a9e020000000000ffffffffbf6b35d1973a17fc67188ff19731341dafad28a2aac9371c5286c955a6e16c450000000000ffffffff022202000000000000225120d9b4878e9915c8c37149942b02102ed86e462e47f6749424852dc4af89551f212202000000000000225120d9b4878e9915c8c37149942b02102ed86e462e47f6749424852dc4af89551f210340a4334065f27cb80fbf39bd28e634ca9b4e4d7c9b90ed6d575edd9856a664b4352d62e4af96ad11e8aabde952994d8fcb5dd2233ca54100f42045fe63bee9819c7d20c145f972a018b8c401ffd9181a1299a319aee1d55bf2d3393bcd659f06830a78ac00630461746f6d017a4c4fa17842363738376633396235643266633032306562306638653638636439323566323937303635633563383263383664313735636365316139626561613431313233396930a2613018c8613119015a6821c0c145f972a018b8c401ffd9181a1299a319aee1d55bf2d3393bcd659f06830a7801407e04393dddd9e6f899b581a64d26be40b9c148bf1696d99a962dd5257af023ad651efdd4d850819f5eb44e5c281ffb458d59382032248eecf39eb86d4d5dfcb300000000'
+    raw_tx = bytes.fromhex(raw_tx_str)
+    subject_atomical_id = b'9\x12A\xaa\xbe\xa9\xe1\xccu\xd1\x86,\xc8\xc5ep)_\x92\xcdh\x8e\x0f\xeb \xc0/]\x9b\xf3\x87g\x00\x00\x00\x00'
+    tx, tx_hash = coin.DESERIALIZER(raw_tx, 0).read_tx_and_hash()
+    operation_found_at_inputs = parse_protocols_operations_from_witness_array(tx, tx_hash, True)
+    # try to custom nft to output 1
+    operation_found_at_inputs["payload"]["6787f39b5d2fc020eb0f8e68cd925f297065c5c82c86d175cce1a9beaa411239i0"] = {'1': 546}
+    atomicals_spent_at_inputs = {
+        0: [{'atomical_id': subject_atomical_id, 'location_id': b'not_used', 'data': b'not_used', 'data_value': {'sat_value': 546, 'atomical_value': 546}}]
+    }
+    def mock_mint_fetcher(self, atomical_id):
+        return {
+            'atomical_id': atomical_id,
+            # set for nft
+            'type': 'NFT'
+        }
+    blueprint_builder = AtomicalsTransferBlueprintBuilder(MockLogger(), atomicals_spent_at_inputs, operation_found_at_inputs, tx_hash, tx, mock_mint_fetcher, True, True)
+    nft_output_blueprint = blueprint_builder.get_nft_output_blueprint()
+    assert(len(nft_output_blueprint.outputs) == 1)
+    ft_output_blueprint = blueprint_builder.get_ft_output_blueprint()
+    assert(ft_output_blueprint.cleanly_assigned == True)
+    assert(len(ft_output_blueprint.outputs) == 0)
     assert(ft_output_blueprint.fts_burned == {})
     assert(blueprint_builder.get_are_fts_burned() == False)
