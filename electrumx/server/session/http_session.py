@@ -70,9 +70,10 @@ class HttpSession(object):
         except Exception as e:
             method = request.method
             path = request.url
+            s = traceback.format_exc()
             self.logger.error(
                 f'Exception during formatting request: {method} {path}, '
-                f'exception: {e}'
+                f'exception: {e}, stack: {s}'
             )
             return error_resp(500, e)
 
@@ -105,7 +106,8 @@ class HttpSession(object):
             # The Atomicals era has begun #
             'blockchain.atomicals.validate': self.ss.transaction_broadcast_validate,
             'blockchain.atomicals.validate_result': self.ss.transaction_validate,
-            'blockchain.atomicals.decode_psbt': self.ss.transaction_decode,
+            'blockchain.atomicals.decode_psbt': self.ss.transaction_decode_psbt,
+            'blockchain.atomicals.decode_tx': self.ss.transaction_decode_tx,
             'blockchain.atomicals.get_ft_balances_scripthash': self.ss.atomicals_get_ft_balances,
             'blockchain.atomicals.get_nft_balances_scripthash': self.ss.atomicals_get_nft_balances,
             'blockchain.atomicals.listscripthash': self.ss.atomicals_list_scripthash,

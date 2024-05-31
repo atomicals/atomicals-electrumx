@@ -1007,12 +1007,20 @@ class SharedSession(object):
         self.logger.debug(f'transaction_validate: {result}')
         return {"result": dict(result)}
 
-    async def transaction_decode(self, raw_tx: str):
-        result = self.bp.transaction_decode_blueprint(raw_tx)
+    async def transaction_decode_psbt(self, psbt_hex: str):
+        result = self.bp.transaction_decode_psbt_blueprint(psbt_hex)
         atomical_ids = result['atomicals']
         atomicals = [await self._atomical_id_get(atomical_id) for atomical_id in atomical_ids]
         result['atomicals'] = atomicals
-        self.logger.debug(f'transaction_decode: {result}')
+        self.logger.debug(f'transaction_decode_psbt: {result}')
+        return {"result": dict(result)}
+
+    async def transaction_decode_tx(self, tx: str):
+        result = self.bp.transaction_decode_tx_blueprint(tx)
+        atomical_ids = result['atomicals']
+        atomicals = [await self._atomical_id_get(atomical_id) for atomical_id in atomical_ids]
+        result['atomicals'] = atomicals
+        self.logger.debug(f'transaction_decode_tx: {result}')
         return {"result": dict(result)}
 
     async def transaction_get(self, tx_hash, verbose=False):

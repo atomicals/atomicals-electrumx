@@ -586,11 +586,7 @@ class AtomicalsTransferBlueprintBuilder:
             if remaining_value > 0:
                 cleanly_assigned = False
                 fts_burned[atomical_id] = remaining_value
-        return AtomicalFtOutputBlueprintAssignmentSummary(
-            output_colored_map,
-            fts_burned,
-            cleanly_assigned,
-            None)
+        return AtomicalFtOutputBlueprintAssignmentSummary(output_colored_map, fts_burned, cleanly_assigned, None)
 
     @classmethod
     def color_ft_atomicals_split(cls, ft_atomicals, operations_found_at_inputs, tx, is_custom_coloring_activated):

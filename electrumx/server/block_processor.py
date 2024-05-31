@@ -11,6 +11,7 @@ import time
 from typing import Sequence, Tuple, List, Callable, Optional, TYPE_CHECKING, Type, Union, Dict
 
 from aiorpcx import run_in_thread, CancelledError
+from bitcointx.core import psbt
 
 from electrumx.lib.atomicals_blueprint_builder import AtomicalsTransferBlueprintBuilder, AtomicalsValidation, \
     AtomicalsValidationError
@@ -526,10 +527,23 @@ class BlockProcessor:
             auto_encode_bytes_items(encode_atomical_ids_hex(ft_output_blueprint)),
         )
 
+    # Helper method to decode the PSBT and returns formatted structure.
+    def transaction_decode_psbt_blueprint(self, psbt_hex: str) -> dict:
+        raw_tx = psbt.PartiallySignedTransaction.from_base64_or_binary(
+            bytes.fromhex(psbt_hex),
+            validate=False
+        ).unsigned_tx.serialize()
+        return self._transaction_decode_raw_tx_blueprint(raw_tx)
+
+    # Helper method to decode the PSBT and returns formatted structure.
+    def transaction_decode_tx_blueprint(self, tx: str) -> dict:
+        raw_tx = bytes.fromhex(tx)
+        return self._transaction_decode_raw_tx_blueprint(raw_tx)
+
     # Helper method to decode the transaction and returns formatted structure.
-    def transaction_decode_blueprint(self, raw_tx) -> dict:
+    def _transaction_decode_raw_tx_blueprint(self, raw_tx: bytes) -> dict:
         # Deserialize the transaction
-        tx, tx_hash = self.coin.DESERIALIZER(bytes.fromhex(raw_tx), 0).read_tx_and_hash()
+        tx, tx_hash = self.coin.DESERIALIZER(raw_tx, 0).read_tx_and_hash()
         # Determine if there are any other operations at the transfer
         operations_found_at_inputs = parse_protocols_operations_from_witness_array(tx, tx_hash, True)
         # Build the map of the atomicals potential spent at the tx
