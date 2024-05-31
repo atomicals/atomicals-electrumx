@@ -13,7 +13,7 @@ from typing import Sequence, Tuple, List, Callable, Optional, TYPE_CHECKING, Typ
 from aiorpcx import run_in_thread, CancelledError
 
 from electrumx.lib.atomicals_blueprint_builder import AtomicalsTransferBlueprintBuilder, AtomicalsValidation, \
-    AtomicalsValidationError, AtomicalsTransactionDecode
+    AtomicalsValidationError
 from electrumx.lib.script import is_unspendable_legacy, is_unspendable_genesis
 from electrumx.lib.tx import Tx
 from electrumx.lib.util_atomicals import *
@@ -551,8 +551,8 @@ class BlockProcessor:
         nft_output_blueprint = blueprint_builder.get_nft_output_blueprint()
         # Log that there were tokens burned due to not being cleanly assigned
         encoded_spent_at_inputs = encode_atomical_ids_hex(atomicals_spent_at_inputs)
-        encoded_ft_output_blueprint = auto_encode_bytes_items(encode_atomical_ids_hex(ft_output_blueprint))
-        encoded_nft_output_blueprint = auto_encode_bytes_items(encode_atomical_ids_hex(nft_output_blueprint))
+        encoded_ft_output_blueprint: Dict[str, Dict] = dict(encode_atomical_ids_hex(ft_output_blueprint))
+        encoded_nft_output_blueprint: Dict[str, Dict] = dict(encode_atomical_ids_hex(nft_output_blueprint))
         ret = {
             'op': [operations_found_at_inputs.get('op') or 'transfer'],
             'burned': {**encoded_ft_output_blueprint['fts_burned'], **encoded_nft_output_blueprint['nfts_burned']},
@@ -562,25 +562,27 @@ class BlockProcessor:
         atomicals = []
         inputs = {}
         outputs = {}
-        for k, v in encoded_spent_at_inputs.items():
-            for item in v:
-                atomical_id = item['atomical_id']
-                atomicals.append(atomical_id)
-                if not inputs.get(k):
-                    inputs[k] = {}
-                inputs[k][atomical_id] = item['data_value']['sat_value']
-        for k, v in encoded_ft_output_blueprint['outputs'].items():
-            for atomical_id, item in v['atomicals'].items():
-                if not outputs.get(k):
-                    outputs[k] = {}
-                outputs[k][atomical_id] = item['sat_value']
-        if not encoded_nft_output_blueprint.get('outputs'):
-            encoded_nft_output_blueprint['outputs'] = {}
-        for k, v in encoded_nft_output_blueprint['outputs'].items():
-            for atomical_id, item in v['atomicals'].items():
-                if not outputs.get(k):
-                    outputs[k] = {}
-                outputs[k][atomical_id] = item['sat_value']
+        for k1, v1 in encoded_spent_at_inputs.items():
+            for item1 in v1:
+                atomical_id = item1['atomical_id']
+                if atomical_id not in atomicals:
+                    atomicals.append(atomical_id)
+                if not inputs.get(k1):
+                    inputs[k1] = {}
+                inputs[k1][atomical_id] = item1['data_value']['atomical_value']
+        ft_outputs: dict = encoded_ft_output_blueprint['outputs']
+        for k2, v2 in ft_outputs.items():
+            for location_bytes, item2 in v2['atomicals'].items():
+                atomical_id = location_id_bytes_to_compact(location_bytes)
+                if not outputs.get(k2):
+                    outputs[k2] = {}
+                outputs[k2][atomical_id] = item2.atomical_value
+        for k3, v3 in encoded_nft_output_blueprint['outputs'].items():
+            for location_bytes, item3 in v3['atomicals'].items():
+                atomical_id = location_id_bytes_to_compact(location_bytes)
+                if not outputs.get(k3):
+                    outputs[k3] = {}
+                outputs[k3][atomical_id] = item3.atomical_value
         ret['atomicals'] = atomicals
         ret['inputs'] = inputs
         ret['outputs'] = outputs
