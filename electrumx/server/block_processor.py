@@ -11,12 +11,11 @@ import time
 from typing import Sequence, Tuple, List, Callable, Optional, TYPE_CHECKING, Type, Union, Dict
 
 from aiorpcx import run_in_thread, CancelledError
-from bitcointx.core import psbt
 
 from electrumx.lib.atomicals_blueprint_builder import AtomicalsTransferBlueprintBuilder, AtomicalsValidation, \
     AtomicalsValidationError
 from electrumx.lib.script import is_unspendable_legacy, is_unspendable_genesis
-from electrumx.lib.tx import Tx
+from electrumx.lib.tx import Tx, psbt_hex_to_tx_hex
 from electrumx.lib.util_atomicals import *
 from electrumx.server.daemon import DaemonError, Daemon
 from electrumx.server.db import FlushData, COMP_TXID_LEN, DB
@@ -529,10 +528,7 @@ class BlockProcessor:
 
     # Helper method to decode the PSBT and returns formatted structure.
     def transaction_decode_psbt_blueprint(self, psbt_hex: str) -> dict:
-        raw_tx = psbt.PartiallySignedTransaction.from_base64_or_binary(
-            bytes.fromhex(psbt_hex),
-            validate=False
-        ).unsigned_tx.serialize()
+        raw_tx = psbt_hex_to_tx_hex(psbt_hex)
         return self._transaction_decode_raw_tx_blueprint(raw_tx)
 
     # Helper method to decode the PSBT and returns formatted structure.

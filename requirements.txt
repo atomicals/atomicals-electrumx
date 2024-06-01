@@ -8,7 +8,6 @@ regex==2024.5.15
 krock32>=0.1.1,<0.2
 merkletools @ git+https://github.com/tierion/pymerkletools@f10d71e
 requests>=2.32.0,<2.33
-python-bitcointx==1.1.5
 python-dotenv>=1.0.0,<1.1
 
 # For LevelDB

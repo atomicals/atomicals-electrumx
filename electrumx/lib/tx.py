@@ -25,7 +25,7 @@
 # WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE.
 # and warranty status of this software.
 
-'''Transaction-related classes and functions.'''
+"""Transaction-related classes and functions."""
 
 from dataclasses import dataclass
 from hashlib import blake2s
@@ -45,14 +45,14 @@ MINUS_1 = 4294967295
 
 
 class SkipTxDeserialize(Exception):
-    '''Exception used to indicate transactions that should be skipped
+    """Exception used to indicate transactions that should be skipped
     on account of certain deserialization issues.
-    '''
+    """
 
 
 @dataclass
 class Tx:
-    '''Class representing a transaction.'''
+    """Class representing a transaction."""
     __slots__ = 'version', 'inputs', 'outputs', 'locktime'
     version: int
     inputs: Sequence['TxInput']
@@ -72,7 +72,7 @@ class Tx:
 
 @dataclass
 class TxInput:
-    '''Class representing a transaction input.'''
+    """Class representing a transaction input."""
     __slots__ = 'prev_hash', 'prev_idx', 'script', 'sequence'
     prev_hash: bytes
     prev_idx: int
@@ -86,7 +86,7 @@ class TxInput:
                 f"sequence={self.sequence:d})")
 
     def is_generation(self):
-        '''Test if an input is generation/coinbase like'''
+        """Test if an input is generation/coinbase like"""
         return self.prev_idx == MINUS_1 and self.prev_hash == ZERO
 
     def serialize(self):
@@ -112,14 +112,14 @@ class TxOutput:
 
 
 class Deserializer:
-    '''Deserializes blocks into transactions.
+    """Deserializes blocks into transactions.
 
     External entry points are read_tx(), read_tx_and_hash(),
     read_tx_and_vsize() and read_block().
 
     This code is performance sensitive as it is executed 100s of
     millions of times during sync.
-    '''
+    """
 
     TX_HASH_FN = staticmethod(double_sha256)
 
@@ -130,7 +130,7 @@ class Deserializer:
         self.cursor = start
 
     def read_tx(self):
-        '''Return a deserialized transaction.'''
+        """Return a deserialized transaction."""
         return Tx(
             self._read_le_int32(),  # version
             self._read_inputs(),    # inputs
@@ -139,20 +139,20 @@ class Deserializer:
         )
 
     def read_tx_and_hash(self):
-        '''Return a (deserialized TX, tx_hash) pair.
+        """Return a (deserialized TX, tx_hash) pair.
 
         The hash needs to be reversed for human display; for efficiency
         we process it in the natural serialized order.
-        '''
+        """
         start = self.cursor
         return self.read_tx(), self.TX_HASH_FN(self.binary[start:self.cursor])
 
     def read_tx_and_vsize(self):
-        '''Return a (deserialized TX, vsize) pair.'''
+        """Return a (deserialized TX, vsize) pair."""
         return self.read_tx(), self.binary_length
 
     def read_tx_block(self):
-        '''Returns a list of (deserialized_tx, tx_hash) pairs.'''
+        """Returns a list of (deserialized_tx, tx_hash) pairs."""
         read = self.read_tx_and_hash
         # Some coins have excess data beyond the end of the transactions
         return [read() for _ in range(self._read_varint())]
@@ -237,7 +237,7 @@ class Deserializer:
 
 @dataclass
 class TxSegWit:
-    '''Class representing a SegWit transaction.'''
+    """Class representing a SegWit transaction."""
     __slots__ = ('version', 'marker', 'flag', 'inputs', 'outputs', 'witness',
                  'locktime')
     version: int
@@ -266,7 +266,7 @@ class TxSegWit:
             pack_varint(len(witness_field)),
             b''.join(pack_varbytes(item) for item in witness_field)
         ))
-    
+
 
 class DeserializerSegWit(Deserializer):
 
@@ -281,7 +281,7 @@ class DeserializerSegWit(Deserializer):
         return [read_varbytes() for i in range(self._read_varint())]
 
     def _read_tx_parts(self):
-        '''Return a (deserialized TX, tx_hash, vsize) tuple.'''
+        """Return a (deserialized TX, tx_hash, vsize) tuple."""
         start = self.cursor
         marker = self.binary[self.cursor + 4]
         if marker:
@@ -332,7 +332,7 @@ class DeserializerSegWit(Deserializer):
 
 
 class DeserializerLitecoin(DeserializerSegWit):
-    '''Class representing Litecoin transactions, which may have the MW flag set.
+    """Class representing Litecoin transactions, which may have the MW flag set.
 
     This handles regular and segwit Litecoin transactions, with special handling
     for a limited set of MW transactions. All transactions in a block are parsed
@@ -349,9 +349,9 @@ class DeserializerLitecoin(DeserializerSegWit):
     transactions in the getrawmempool result even though when served with the MW
     data stripped they are invalid. Presently, such transactions are of no
     interest to electrumx, and they vanish into the MWEB when mined.
-    '''
+    """
     def _read_tx_parts(self):
-        '''Return a (deserialized TX, tx_hash, vsize) tuple.'''
+        """Return a (deserialized TX, tx_hash, vsize) tuple."""
         start = self.cursor
         marker = self.binary[self.cursor + 4]
         if marker:
@@ -438,7 +438,7 @@ class DeserializerAuxPow(Deserializer):
     VERSION_AUXPOW = (1 << 8)
 
     def read_auxpow(self):
-        '''Reads and returns the CAuxPow data'''
+        """Reads and returns the CAuxPow data"""
 
         # We first calculate the size of the CAuxPow instance and then
         # read it as bytes in the final step.
@@ -459,7 +459,7 @@ class DeserializerAuxPow(Deserializer):
         return self._read_nbytes(end - start)
 
     def read_header(self, static_header_size):
-        '''Return the AuxPow block header bytes'''
+        """Return the AuxPow block header bytes"""
 
         # We are going to calculate the block size then read it as bytes
         start = self.cursor
@@ -483,7 +483,7 @@ class DeserializerAuxPowSegWit(DeserializerSegWit, DeserializerAuxPow):
 
 class DeserializerEquihash(Deserializer):
     def read_header(self, static_header_size):
-        '''Return the block header bytes'''
+        """Return the block header bytes"""
         start = self.cursor
         # We are going to calculate the block size then read it as bytes
         self.cursor += static_header_size
@@ -547,7 +547,7 @@ class DeserializerZcash(DeserializerEquihash):
 
 @dataclass
 class TxPIVX:
-    '''Class representing a PIVX transaction.'''
+    """Class representing a PIVX transaction."""
     __slots__ = 'version', "txtype", 'inputs', 'outputs', 'locktime'
     version: int
     txtype: int
@@ -604,7 +604,7 @@ class DeserializerPIVX(Deserializer):
 
 @dataclass
 class TxTime:
-    '''Class representing transaction that has a time field.'''
+    """Class representing transaction that has a time field."""
     __slots__ = 'version', 'time', 'inputs', 'outputs', 'locktime'
     version: int
     time: int
@@ -626,7 +626,7 @@ class DeserializerTxTime(Deserializer):
 
 @dataclass
 class TxTimeSegWit:
-    '''Class representing a SegWit transaction with time.'''
+    """Class representing a SegWit transaction with time."""
     __slots__ = ('version', 'time', 'marker', 'flag', 'inputs', 'outputs',
                  'witness', 'locktime')
     version: int
@@ -649,7 +649,7 @@ class DeserializerTxTimeSegWit(DeserializerTxTime):
         return [read_varbytes() for _ in range(self._read_varint())]
 
     def _read_tx_parts(self):
-        '''Return a (deserialized TX, tx_hash, vsize) tuple.'''
+        """Return a (deserialized TX, tx_hash, vsize) tuple."""
         start = self.cursor
         marker = self.binary[self.cursor + 8]
         if marker:
@@ -720,7 +720,7 @@ class DeserializerTxTimeSegWitNavCoin(DeserializerTxTime):
         )
 
     def _read_tx_parts(self):
-        '''Return a (deserialized TX, tx_hash, vsize) tuple.'''
+        """Return a (deserialized TX, tx_hash, vsize) tuple."""
         start = self.cursor
         marker = self.binary[self.cursor + 8]
         if marker:
@@ -771,7 +771,7 @@ class DeserializerTxTimeSegWitNavCoin(DeserializerTxTime):
 
 @dataclass
 class TxTrezarcoin:
-    '''Class representing transaction that has a time and txcomment field.'''
+    """Class representing transaction that has a time and txcomment field."""
     __slots__ = ('version', 'time', 'inputs', 'outputs', 'locktime',
                  'txcomment')
     version: int
@@ -893,7 +893,7 @@ class DeserializerEmercoin(DeserializerTxTimeSegWit):
         return False
 
     def read_header(self, static_header_size):
-        '''Return the AuxPow block header bytes'''
+        """Return the AuxPow block header bytes"""
         start = self.cursor
         version = self._read_le_uint32()
         if version & self.VERSION_AUXPOW:
@@ -920,7 +920,7 @@ class DeserializerBitcoinAtom(DeserializerSegWit):
     FORK_BLOCK_HEIGHT = 505888
 
     def read_header(self, height, static_header_size):
-        '''Return the block header bytes'''
+        """Return the block header bytes"""
         header_len = static_header_size
         if height >= self.FORK_BLOCK_HEIGHT:
             header_len += 4  # flags
@@ -932,7 +932,7 @@ class DeserializerGroestlcoin(DeserializerSegWit):
 
 
 class TxInputTokenPay(TxInput):
-    '''Class representing a TokenPay transaction input.'''
+    """Class representing a TokenPay transaction input."""
 
     OP_ANON_MARKER = 0xb9
     # 2byte marker (cpubkey + sigc + sigr)
@@ -955,7 +955,7 @@ class TxInputTokenPay(TxInput):
 
 @dataclass
 class TxInputTokenPayStealth:
-    '''Class representing a TokenPay stealth transaction input.'''
+    """Class representing a TokenPay stealth transaction input."""
     __slots__ = 'keyimage', 'ringsize', 'script', 'sequence'
     keyimage: bytes
     ringsize: bytes
@@ -1007,7 +1007,7 @@ class DeserializerTokenPay(DeserializerTxTime):
 # Decred
 @dataclass
 class TxInputDcr:
-    '''Class representing a Decred transaction input.'''
+    """Class representing a Decred transaction input."""
     __slots__ = 'prev_hash', 'prev_idx', 'tree', 'sequence'
     prev_hash: bytes
     prev_idx: int
@@ -1020,13 +1020,13 @@ class TxInputDcr:
                 f"sequence={self.sequence:d})")
 
     def is_generation(self):
-        '''Test if an input is generation/coinbase like'''
+        """Test if an input is generation/coinbase like"""
         return self.prev_idx == MINUS_1 and self.prev_hash == ZERO
 
 
 @dataclass
 class TxOutputDcr:
-    '''Class representing a Decred transaction output.'''
+    """Class representing a Decred transaction output."""
     __slots__ = 'value', 'version', 'pk_script'
     value: int
     version: int
@@ -1035,7 +1035,7 @@ class TxOutputDcr:
 
 @dataclass
 class TxDcr:
-    '''Class representing a Decred  transaction.'''
+    """Class representing a Decred  transaction."""
     __slots__ = 'version', 'inputs', 'outputs', 'locktime', 'expiry', 'witness'
     version: int
     inputs: Sequence
@@ -1068,14 +1068,14 @@ class DeserializerDecred(Deserializer):
         return tx, vsize
 
     def read_tx_block(self):
-        '''Returns a list of (deserialized_tx, tx_hash) pairs.'''
+        """Returns a list of (deserialized_tx, tx_hash) pairs."""
         read = self.read_tx_and_hash
         txs = [read() for _ in range(self._read_varint())]
         stxs = [read() for _ in range(self._read_varint())]
         return txs + stxs
 
     def read_tx_tree(self):
-        '''Returns a list of deserialized_tx without tx hashes.'''
+        """Returns a list of deserialized_tx without tx hashes."""
         read_tx = self.read_tx
         return [read_tx() for _ in range(self._read_varint())]
 
@@ -1149,7 +1149,7 @@ class DeserializerSmartCash(Deserializer):
 
 @dataclass
 class TxBitcoinDiamond:
-    '''Class representing a transaction.'''
+    """Class representing a transaction."""
     __slots__ = 'version', 'preblockhash', 'inputs', 'outputs', 'locktime'
     version: int
     preblockhash: str
@@ -1187,7 +1187,7 @@ class DeserializerBitcoinDiamond(Deserializer):
 
 @dataclass
 class TxBitcoinDiamondSegWit:
-    '''Class representing a SegWit transaction.'''
+    """Class representing a SegWit transaction."""
     __slots__ = ('version', 'preblockhash', 'marker', 'flag', 'inputs',
                  'outputs', 'witness', 'locktime')
     version: int
@@ -1203,7 +1203,7 @@ class TxBitcoinDiamondSegWit:
 class DeserializerBitcoinDiamondSegWit(DeserializerBitcoinDiamond,
                                        DeserializerSegWit):
     def _read_tx_parts(self):
-        '''Return a (deserialized TX, tx_hash, vsize) tuple.'''
+        """Return a (deserialized TX, tx_hash, vsize) tuple."""
         start = self.cursor
         tx_version = self._get_version()
         if tx_version == self.bitcoin_diamond_tx_version:
@@ -1249,11 +1249,11 @@ class DeserializerBitcoinDiamondSegWit(DeserializerBitcoinDiamond,
                 locktime), self.TX_HASH_FN(orig_ser), vsize
 
     def read_tx(self):
-        '''Return a (Deserialized TX, TX_HASH) pair.
+        """Return a (Deserialized TX, TX_HASH) pair.
 
         The hash needs to be reversed for human display; for efficiency
         we process it in the natural serialized order.
-        '''
+        """
         return self._read_tx_parts()[0]
 
 
@@ -1385,7 +1385,7 @@ class DeserializerSimplicity(Deserializer):
 
 class DeserializerPrimecoin(Deserializer):
     def read_header(self, static_header_size):
-        '''Return the block header bytes'''
+        """Return the block header bytes"""
         start = self.cursor
         # Decode the block header size including multiplier then read it as bytes
         self.cursor += static_header_size
@@ -1394,3 +1394,50 @@ class DeserializerPrimecoin(Deserializer):
         header_end = self.cursor
         self.cursor = start
         return self._read_nbytes(header_end - start)
+
+
+def psbt_hex_to_tx_hex(psbt_hex: str):
+    psbt_bytes = bytes.fromhex(psbt_hex)
+    magic = psbt_bytes[:5]
+    if magic != b'\x70\x73\x62\x74\xff':
+        raise ValueError("Invalid PSBT magic bytes")
+
+    offset = 5
+    global_map = {}
+    inputs = []
+    outputs = []
+
+    def read_varint(data, cursor):
+        v = data[cursor]
+        cursor += 1
+        if v < 0xfd:
+            return v, cursor
+        elif v == 0xfd:
+            return unpack_le_uint16_from(data, cursor)[0], cursor + 2
+        elif v == 0xfe:
+            return unpack_le_uint32_from(data, cursor)[0], cursor + 4
+        else:
+            return unpack_le_uint64_from(data, cursor)[0], cursor + 8
+
+    while offset < len(psbt_bytes):
+        key_len, offset = read_varint(psbt_bytes, offset)
+        if key_len == 0:
+            break
+        key = psbt_bytes[offset:offset + key_len]
+        offset += key_len
+        value_len, offset = read_varint(psbt_bytes, offset)
+        value = psbt_bytes[offset:offset + value_len]
+        offset += value_len
+
+        if key[0] == 0x00:
+            global_map[key] = value
+        elif key[0] == 0x01:
+            inputs.append((key, value))
+        elif key[0] == 0x02:
+            outputs.append((key, value))
+
+    unsigned_tx = global_map.get(b'\x00')
+    if unsigned_tx is None:
+        raise ValueError("No unsigned transaction found in PSBT")
+
+    return unsigned_tx.hex()

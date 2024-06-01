@@ -20,3 +20,4 @@ git+https://github.com/VerusCoin/verushashpy
 bell-yespower
 cpupower
 bitweb_yespower==1.0.5
+python-bitcointx==1.1.5
