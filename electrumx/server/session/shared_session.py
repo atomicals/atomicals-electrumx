@@ -1013,11 +1013,12 @@ class SharedSession(object):
         return {"result": dict(result)}
 
     async def transaction_decode_psbt(self, psbt_hex: str):
-        raw_tx = psbt_hex_to_tx_hex(psbt_hex)
-        return await self.transaction_decode_tx(raw_tx)
+        tx = psbt_hex_to_tx_hex(psbt_hex)
+        return await self.transaction_decode_tx(tx)
 
     async def transaction_decode_tx(self, tx: str):
-        result = self.bp.transaction_decode_tx_blueprint(tx)
+        raw_tx = bytes.fromhex(tx)
+        result = self.bp.transaction_decode_raw_tx_blueprint(raw_tx)
         atomical_ids = result['atomicals']
         atomicals = [await self._atomical_id_get(atomical_id) for atomical_id in atomical_ids]
         result['atomicals'] = atomicals

@@ -532,18 +532,8 @@ class BlockProcessor:
             auto_encode_bytes_items(encode_atomical_ids_hex(nft_output_blueprint)),
         )
 
-    # Helper method to decode the PSBT and returns formatted structure.
-    def transaction_decode_psbt_blueprint(self, psbt_hex: str) -> dict:
-        raw_tx = psbt_hex_to_tx_hex(psbt_hex)
-        return self._transaction_decode_raw_tx_blueprint(raw_tx)
-
-    # Helper method to decode the PSBT and returns formatted structure.
-    def transaction_decode_tx_blueprint(self, tx: str) -> dict:
-        raw_tx = bytes.fromhex(tx)
-        return self._transaction_decode_raw_tx_blueprint(raw_tx)
-
     # Helper method to decode the transaction and returns formatted structure.
-    def _transaction_decode_raw_tx_blueprint(self, raw_tx: bytes) -> dict:
+    def transaction_decode_raw_tx_blueprint(self, raw_tx: bytes) -> dict:
         # Deserialize the transaction
         tx, tx_hash = self.coin.DESERIALIZER(raw_tx, 0).read_tx_and_hash()
         # Determine if there are any other operations at the transfer
