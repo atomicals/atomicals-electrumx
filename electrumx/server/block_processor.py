@@ -480,10 +480,10 @@ class BlockProcessor:
     def get_atomicals_block_txs(self, height):
         return self.db.get_atomicals_block_txs(height)
 
-    # Helper method to validate if the transaction correctly cleanly assigns all FT (ARC20) tokens
-    # This method simulates coloring FT's according to split and regular rules
-    # Note: This does not apply to mempool but only prevout utxos that are confirmed
-    def validate_ft_rules_raw_tx(self, raw_tx, raise_if_burned=True) -> AtomicalsValidation:
+    # Helper method to validate if the transaction correctly cleanly assigns all Atomicals.
+    # This method simulates coloring according to split and regular rules.
+    # Note: This does not apply to mempool but only prevout utxos that are confirmed.
+    def validate_raw_tx_blueprint(self, raw_tx, raise_if_burned=True) -> AtomicalsValidation:
         # Deserialize the transaction
         tx, tx_hash = self.coin.DESERIALIZER(bytes.fromhex(raw_tx), 0).read_tx_and_hash()
         # Determine if there are any other operations at the transfer
@@ -504,26 +504,32 @@ class BlockProcessor:
             self.is_custom_coloring_activated(self.height)
         )
         ft_output_blueprint = blueprint_builder.get_ft_output_blueprint()
+        nft_output_blueprint = blueprint_builder.get_nft_output_blueprint()
         # Log that there were tokens burned due to not being cleanly assigned
         if blueprint_builder.get_are_fts_burned() and raise_if_burned:
             encoded_atomicals_spent_at_inputs = encode_atomical_ids_hex(atomicals_spent_at_inputs)
             encoded_ft_output_blueprint = auto_encode_bytes_items(encode_atomical_ids_hex(ft_output_blueprint))
-            outputs = encoded_ft_output_blueprint['outputs']
+            encoded_nft_output_blueprint = auto_encode_bytes_items(encode_atomical_ids_hex(nft_output_blueprint))
+            ft_outputs = encoded_ft_output_blueprint['outputs']
             fts_burned = encoded_ft_output_blueprint['fts_burned']
+            nft_outputs = encoded_nft_output_blueprint['outputs']
+            nft_burned = encoded_nft_output_blueprint['nfts_burned']
             raise AtomicalsValidationError(
                 f'Invalid FT token inputs/outputs:\n'
                 f'tx_hash={hash_to_hex_str(tx_hash)}\n'
                 f'operations_found_at_inputs={operations_found_at_inputs}\n'
                 f'atomicals_spent_at_inputs={encoded_atomicals_spent_at_inputs}\n'
-                f'ft_output_blueprint.outputs={outputs}\n'
-                f'ft_output_blueprint.fts_burned={fts_burned}'
+                f'ft_output_blueprint.outputs={ft_outputs}\n'
+                f'ft_output_blueprint.fts_burned={fts_burned}\n'
+                f'nft_output_blueprint.outputs={nft_outputs}\n'
+                f'nft_output_blueprint.nfts_burned={nft_burned}'
             )
         return AtomicalsValidation(
-            raw_tx,
             tx_hash,
             operations_found_at_inputs,
             encode_atomical_ids_hex(atomicals_spent_at_inputs),
             auto_encode_bytes_items(encode_atomical_ids_hex(ft_output_blueprint)),
+            auto_encode_bytes_items(encode_atomical_ids_hex(nft_output_blueprint)),
         )
 
     # Helper method to decode the PSBT and returns formatted structure.

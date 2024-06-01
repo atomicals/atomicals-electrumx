@@ -716,7 +716,7 @@ class SessionManager:
         return hex_hash
 
     async def broadcast_transaction_validated(self, raw_tx: str, live_run: bool):
-        self.bp.validate_ft_rules_raw_tx(raw_tx)
+        self.bp.validate_raw_tx_blueprint(raw_tx)
         if live_run:
             hex_hash = await self.daemon.broadcast_transaction(raw_tx)
             self.txs_sent += 1

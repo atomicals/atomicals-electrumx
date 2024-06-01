@@ -8,6 +8,7 @@ from typing import TYPE_CHECKING, Callable, Union, Optional
 from electrumx.lib import util
 from electrumx.lib.atomicals_blueprint_builder import AtomicalsValidationError
 from electrumx.lib.script2addr import get_address_from_output_script
+from electrumx.lib.tx import psbt_hex_to_tx_hex
 from electrumx.lib.util_atomicals import *
 from electrumx.server.daemon import DaemonError
 from electrumx.server.session import ATOMICALS_INVALID_TX, BAD_REQUEST
@@ -1002,25 +1003,25 @@ class SharedSession(object):
             self.logger.info(f'sent tx: {hex_hash}')
             return hex_hash
 
-    async def transaction_validate(self, raw_tx: str):
-        result = self.bp.validate_ft_rules_raw_tx(raw_tx, raise_if_burned=False)
-        self.logger.debug(f'transaction_validate: {result}')
+    def transaction_validate_psbt_blueprint(self, psbt_hex: str):
+        raw_tx = psbt_hex_to_tx_hex(psbt_hex)
+        return self.transaction_validate_tx_blueprint(raw_tx)
+
+    def transaction_validate_tx_blueprint(self, raw_tx: str):
+        result = self.bp.validate_raw_tx_blueprint(raw_tx, raise_if_burned=False)
+        self.logger.debug(f'transaction_validate_tx_blueprint: {result}')
         return {"result": dict(result)}
 
     async def transaction_decode_psbt(self, psbt_hex: str):
-        result = self.bp.transaction_decode_psbt_blueprint(psbt_hex)
-        atomical_ids = result['atomicals']
-        atomicals = [await self._atomical_id_get(atomical_id) for atomical_id in atomical_ids]
-        result['atomicals'] = atomicals
-        self.logger.debug(f'transaction_decode_psbt: {result}')
-        return {"result": dict(result)}
+        raw_tx = psbt_hex_to_tx_hex(psbt_hex)
+        return await self.transaction_decode_tx(raw_tx)
 
     async def transaction_decode_tx(self, tx: str):
         result = self.bp.transaction_decode_tx_blueprint(tx)
         atomical_ids = result['atomicals']
         atomicals = [await self._atomical_id_get(atomical_id) for atomical_id in atomical_ids]
         result['atomicals'] = atomicals
-        self.logger.debug(f'transaction_decode_tx: {result}')
+        self.logger.debug(f'transaction_decode: {result}')
         return {"result": dict(result)}
 
     async def transaction_get(self, tx_hash, verbose=False):
