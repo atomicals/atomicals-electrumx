@@ -1008,7 +1008,7 @@ class SharedSession(object):
         return self.transaction_validate_tx_blueprint(raw_tx)
 
     def transaction_validate_tx_blueprint(self, raw_tx: str):
-        result = self.bp.validate_raw_tx_blueprint(raw_tx, raise_if_burned=False)
+        result = self.session_mgr.validate_raw_tx_blueprint(raw_tx, raise_if_burned=False)
         self.logger.debug(f'transaction_validate_tx_blueprint: {result}')
         return {"result": dict(result)}
 
@@ -1018,7 +1018,7 @@ class SharedSession(object):
 
     async def transaction_decode_tx(self, tx: str):
         raw_tx = bytes.fromhex(tx)
-        result = self.bp.transaction_decode_raw_tx_blueprint(raw_tx)
+        result = self.session_mgr.transaction_decode_raw_tx_blueprint(raw_tx)
         atomical_ids = result['atomicals']
         atomicals = [await self._atomical_id_get(atomical_id) for atomical_id in atomical_ids]
         result['atomicals'] = atomicals

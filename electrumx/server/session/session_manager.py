@@ -10,12 +10,12 @@ import pylru
 from aiorpcx import serve_ws, serve_rs, RPCError, run_in_thread
 
 from electrumx.lib import util
-from electrumx.lib.atomicals_blueprint_builder import AtomicalsTransferBlueprintBuilder
+from electrumx.lib.atomicals_blueprint_builder import AtomicalsTransferBlueprintBuilder, AtomicalsValidation, \
+    AtomicalsValidationError
 from electrumx.lib.hash import Base58Error
 from electrumx.lib.merkle import MerkleCache
 from electrumx.lib.script2addr import *
 from electrumx.lib.text import sessions_lines
-from electrumx.lib.util import OldTaskGroup
 from electrumx.lib.util_atomicals import *
 from electrumx.server.daemon import DaemonError, Daemon
 from electrumx.server.history import TXNUM_LEN
@@ -26,7 +26,7 @@ from electrumx.server.session.http_session import HttpSession
 from electrumx.server.session.util import non_negative_integer, SESSION_PROTOCOL_MAX
 from electrumx.server.peers import PeerManager
 
-from typing import TYPE_CHECKING, Type
+from typing import TYPE_CHECKING, Type, Dict, List
 
 from electrumx.version import electrumx_version
 
@@ -716,7 +716,7 @@ class SessionManager:
         return hex_hash
 
     async def broadcast_transaction_validated(self, raw_tx: str, live_run: bool):
-        self.bp.validate_raw_tx_blueprint(raw_tx)
+        self.validate_raw_tx_blueprint(raw_tx)
         if live_run:
             hex_hash = await self.daemon.broadcast_transaction(raw_tx)
             self.txs_sent += 1
@@ -772,6 +772,120 @@ class SessionManager:
         else:
             history_data = list(filter(lambda x: x["op"], history_data))
         return history_data[offset:limit + offset], len(history_data)
+
+    # Helper method to validate if the transaction correctly cleanly assigns all Atomicals.
+    # This method simulates coloring according to split and regular rules.
+    # Note: This does not apply to mempool but only prevout utxos that are confirmed.
+    def validate_raw_tx_blueprint(self, raw_tx, raise_if_burned=True) -> AtomicalsValidation:
+        # Deserialize the transaction
+        tx, tx_hash = self.env.coin.DESERIALIZER(bytes.fromhex(raw_tx), 0).read_tx_and_hash()
+        # Determine if there are any other operations at the transfer
+        operations_found_at_inputs = parse_protocols_operations_from_witness_array(tx, tx_hash, True)
+        # Build the map of the atomicals potential spent at the tx
+        atomicals_spent_at_inputs = self.bp.build_atomicals_spent_at_inputs_for_validation_only(tx)
+        # Build a structure of organizing into NFT and FTs
+        # Note: We do not validate anything with NFTs, just FTs
+        # Build the "blueprint" for how to assign all atomicals
+        blueprint_builder = AtomicalsTransferBlueprintBuilder(
+            self.logger,
+            atomicals_spent_at_inputs,
+            operations_found_at_inputs,
+            tx_hash,
+            tx,
+            self.bp.get_atomicals_id_mint_info,
+            True,
+            self.bp.is_custom_coloring_activated(self.bp.height)
+        )
+        ft_output_blueprint = blueprint_builder.get_ft_output_blueprint()
+        nft_output_blueprint = blueprint_builder.get_nft_output_blueprint()
+        # Log that there were tokens burned due to not being cleanly assigned
+        if blueprint_builder.get_are_fts_burned() and raise_if_burned:
+            encoded_atomicals_spent_at_inputs = encode_atomical_ids_hex(atomicals_spent_at_inputs)
+            encoded_ft_output_blueprint = auto_encode_bytes_items(encode_atomical_ids_hex(ft_output_blueprint))
+            encoded_nft_output_blueprint = auto_encode_bytes_items(encode_atomical_ids_hex(nft_output_blueprint))
+            ft_outputs = encoded_ft_output_blueprint['outputs']
+            fts_burned = encoded_ft_output_blueprint['fts_burned']
+            nft_outputs = encoded_nft_output_blueprint['outputs']
+            nft_burned = encoded_nft_output_blueprint['nfts_burned']
+            raise AtomicalsValidationError(
+                f'Invalid FT token inputs/outputs:\n'
+                f'tx_hash={hash_to_hex_str(tx_hash)}\n'
+                f'operations_found_at_inputs={operations_found_at_inputs}\n'
+                f'atomicals_spent_at_inputs={encoded_atomicals_spent_at_inputs}\n'
+                f'ft_output_blueprint.outputs={ft_outputs}\n'
+                f'ft_output_blueprint.fts_burned={fts_burned}\n'
+                f'nft_output_blueprint.outputs={nft_outputs}\n'
+                f'nft_output_blueprint.nfts_burned={nft_burned}'
+            )
+        return AtomicalsValidation(
+            tx_hash,
+            operations_found_at_inputs,
+            encode_atomical_ids_hex(atomicals_spent_at_inputs),
+            auto_encode_bytes_items(encode_atomical_ids_hex(ft_output_blueprint)),
+            auto_encode_bytes_items(encode_atomical_ids_hex(nft_output_blueprint)),
+        )
+
+    # Helper method to decode the transaction and returns formatted structure.
+    def transaction_decode_raw_tx_blueprint(self, raw_tx: bytes) -> dict:
+        # Deserialize the transaction
+        tx, tx_hash = self.env.coin.DESERIALIZER(raw_tx, 0).read_tx_and_hash()
+        # Determine if there are any other operations at the transfer
+        operations_found_at_inputs = parse_protocols_operations_from_witness_array(tx, tx_hash, True)
+        # Build the map of the atomicals potential spent at the tx
+        atomicals_spent_at_inputs: Dict[int: List] = self.bp.build_atomicals_spent_at_inputs_for_validation_only(tx)
+        # Build a structure of organizing into NFT and FTs
+        # Note: We do not validate anything with NFTs, just FTs
+        # Build the "blueprint" for how to assign all atomicals
+        blueprint_builder = AtomicalsTransferBlueprintBuilder(
+            self.logger,
+            atomicals_spent_at_inputs,
+            operations_found_at_inputs,
+            tx_hash,
+            tx,
+            self.bp.get_atomicals_id_mint_info,
+            True,
+            self.bp.is_custom_coloring_activated(self.bp.height)
+        )
+        ft_output_blueprint = blueprint_builder.get_ft_output_blueprint()
+        nft_output_blueprint = blueprint_builder.get_nft_output_blueprint()
+        # Log that there were tokens burned due to not being cleanly assigned
+        encoded_spent_at_inputs = encode_atomical_ids_hex(atomicals_spent_at_inputs)
+        encoded_ft_output_blueprint: Dict[str, Dict] = dict(encode_atomical_ids_hex(ft_output_blueprint))
+        encoded_nft_output_blueprint: Dict[str, Dict] = dict(encode_atomical_ids_hex(nft_output_blueprint))
+        ret = {
+            'op': [operations_found_at_inputs.get('op') or 'transfer'],
+            'burned': {**encoded_ft_output_blueprint['fts_burned'], **encoded_nft_output_blueprint['nfts_burned']},
+        }
+        if operations_found_at_inputs.get('payload'):
+            ret['op_payload'] = operations_found_at_inputs['payload']
+        atomicals = []
+        inputs = {}
+        outputs = {}
+        for k1, v1 in encoded_spent_at_inputs.items():
+            for item1 in v1:
+                atomical_id = item1['atomical_id']
+                if atomical_id not in atomicals:
+                    atomicals.append(atomical_id)
+                if not inputs.get(k1):
+                    inputs[k1] = {}
+                inputs[k1][atomical_id] = item1['data_value']['atomical_value']
+        ft_outputs: dict = encoded_ft_output_blueprint['outputs']
+        for k2, v2 in ft_outputs.items():
+            for location_bytes, item2 in v2['atomicals'].items():
+                atomical_id = location_id_bytes_to_compact(location_bytes)
+                if not outputs.get(k2):
+                    outputs[k2] = {}
+                outputs[k2][atomical_id] = item2.atomical_value
+        for k3, v3 in encoded_nft_output_blueprint['outputs'].items():
+            for location_bytes, item3 in v3['atomicals'].items():
+                atomical_id = location_id_bytes_to_compact(location_bytes)
+                if not outputs.get(k3):
+                    outputs[k3] = {}
+                outputs[k3][atomical_id] = item3.atomical_value
+        ret['atomicals'] = atomicals
+        ret['inputs'] = inputs
+        ret['outputs'] = outputs
+        return ret
 
     # Analysis the transaction detail by txid.
     # See BlockProcessor.op_list for the complete op list.
