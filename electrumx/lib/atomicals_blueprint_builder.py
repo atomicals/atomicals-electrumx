@@ -188,8 +188,10 @@ class AtomicalColoredOutputFt(IterableReprMixin):
         self.sat_value = sat_value
         self.atomical_value = atomical_value
         self.input_summary_info = input_summary_info
+        self.type = 'FT'
 
     def __iter__(self):
+        yield 'type', self.type
         yield 'sat_value', self.sat_value
         yield 'atomical_value', self.atomical_value
         yield 'input_summary_info', self.input_summary_info
