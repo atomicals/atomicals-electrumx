@@ -149,6 +149,10 @@ class ElectrumX(SessionBase):
             'mempool.get_fee_histogram': self.ss.compact_fee_histogram,
             # The Atomicals era has begun #
             'blockchain.atomicals.validate': self.ss.transaction_broadcast_validate,
+            'blockchain.atomicals.validate_psbt_blueprint': self.ss.transaction_validate_psbt_blueprint,
+            'blockchain.atomicals.validate_tx_blueprint': self.ss.transaction_validate_tx_blueprint,
+            'blockchain.atomicals.decode_psbt': self.ss.transaction_decode_psbt,
+            'blockchain.atomicals.decode_tx': self.ss.transaction_decode_tx,
             'blockchain.atomicals.get_ft_balances_scripthash': self.ss.atomicals_get_ft_balances,
             'blockchain.atomicals.get_nft_balances_scripthash': self.ss.atomicals_get_nft_balances,
             'blockchain.atomicals.listscripthash': self.ss.atomicals_list_scripthash,

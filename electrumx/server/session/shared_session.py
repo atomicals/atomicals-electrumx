@@ -6,7 +6,9 @@ from logging import LoggerAdapter
 from typing import TYPE_CHECKING, Callable, Union, Optional
 
 from electrumx.lib import util
+from electrumx.lib.atomicals_blueprint_builder import AtomicalsValidationError
 from electrumx.lib.script2addr import get_address_from_output_script
+from electrumx.lib.tx import psbt_hex_to_tx_hex
 from electrumx.lib.util_atomicals import *
 from electrumx.server.daemon import DaemonError
 from electrumx.server.session import ATOMICALS_INVALID_TX, BAD_REQUEST
@@ -34,7 +36,7 @@ class SharedSession(object):
         self.logger = logger
         self.session_mgr = session_mgr
         self.peer_mgr = peer_mgr
-        self.bump_cost = maybe_bump_cost
+        self.maybe_bump_cost = maybe_bump_cost
 
         self.bp = session_mgr.bp
         self.daemon_request = session_mgr.daemon_request
@@ -46,6 +48,10 @@ class SharedSession(object):
         self.hash_x_subs = {}
         self.txs_sent: int = 0
         self.is_peer = False
+
+    def bump_cost(self, amount: float):
+        if self.maybe_bump_cost:
+            self.maybe_bump_cost(amount)
 
     ################################################################################################################
 
@@ -1000,6 +1006,29 @@ class SharedSession(object):
 
             self.logger.info(f'sent tx: {hex_hash}')
             return hex_hash
+
+    def transaction_validate_psbt_blueprint(self, psbt_hex: str):
+        raw_tx = psbt_hex_to_tx_hex(psbt_hex)
+        return self.transaction_validate_tx_blueprint(raw_tx)
+
+    def transaction_validate_tx_blueprint(self, raw_tx: str):
+        result = self.session_mgr.validate_raw_tx_blueprint(raw_tx, raise_if_burned=False)
+        self.logger.debug(f'transaction_validate_tx_blueprint: {result}')
+        return {"result": dict(result)}
+
+    async def transaction_decode_psbt(self, psbt_hex: str):
+        tx = psbt_hex_to_tx_hex(psbt_hex)
+        return await self.transaction_decode_tx(tx)
+
+    async def transaction_decode_tx(self, tx: str):
+        raw_tx = bytes.fromhex(tx)
+        self.bump_cost(0.25 + len(raw_tx) / 5000)
+        result = self.session_mgr.transaction_decode_raw_tx_blueprint(raw_tx)
+        atomical_ids = result['atomicals']
+        atomicals = [await self._atomical_id_get(atomical_id) for atomical_id in atomical_ids]
+        result['atomicals'] = atomicals
+        self.logger.debug(f'transaction_decode: {result}')
+        return {"result": dict(result)}
 
     async def transaction_get(self, tx_hash, verbose=False):
         """Return the serialized raw transaction given its hash

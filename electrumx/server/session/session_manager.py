@@ -10,12 +10,12 @@ import pylru
 from aiorpcx import serve_ws, serve_rs, RPCError, run_in_thread
 
 from electrumx.lib import util
-from electrumx.lib.atomicals_blueprint_builder import AtomicalsTransferBlueprintBuilder
+from electrumx.lib.atomicals_blueprint_builder import AtomicalsTransferBlueprintBuilder, AtomicalsValidation, \
+    AtomicalsValidationError
 from electrumx.lib.hash import Base58Error
 from electrumx.lib.merkle import MerkleCache
 from electrumx.lib.script2addr import *
 from electrumx.lib.text import sessions_lines
-from electrumx.lib.util import OldTaskGroup
 from electrumx.lib.util_atomicals import *
 from electrumx.server.daemon import DaemonError, Daemon
 from electrumx.server.history import TXNUM_LEN
@@ -26,7 +26,7 @@ from electrumx.server.session.http_session import HttpSession
 from electrumx.server.session.util import non_negative_integer, SESSION_PROTOCOL_MAX
 from electrumx.server.peers import PeerManager
 
-from typing import TYPE_CHECKING, Type
+from typing import TYPE_CHECKING, Type, Dict, List
 
 from electrumx.version import electrumx_version
 
@@ -102,6 +102,7 @@ class SessionManager:
         self._merkle_hits = 0
         self.estimatefee_cache = pylru.lrucache(1000)
         self._tx_detail_cache = pylru.lrucache(1000000)
+        self._tx_decode_cache = pylru.lrucache(1000)
         self.notified_height = None
         self.hsub_results = None
         self._task_group = OldTaskGroup()
@@ -716,7 +717,7 @@ class SessionManager:
         return hex_hash
 
     async def broadcast_transaction_validated(self, raw_tx: str, live_run: bool):
-        self.bp.validate_ft_rules_raw_tx(raw_tx)
+        self.validate_raw_tx_blueprint(raw_tx)
         if live_run:
             hex_hash = await self.daemon.broadcast_transaction(raw_tx)
             self.txs_sent += 1
@@ -773,21 +774,190 @@ class SessionManager:
             history_data = list(filter(lambda x: x["op"], history_data))
         return history_data[offset:limit + offset], len(history_data)
 
+    # Helper method to validate if the transaction correctly cleanly assigns all Atomicals.
+    # This method simulates coloring according to split and regular rules.
+    # Note: This does not apply to mempool but only prevout utxos that are confirmed.
+    def validate_raw_tx_blueprint(self, raw_tx, raise_if_burned=True) -> AtomicalsValidation:
+        # Deserialize the transaction
+        tx, tx_hash = self.env.coin.DESERIALIZER(bytes.fromhex(raw_tx), 0).read_tx_and_hash()
+        # Determine if there are any other operations at the transfer
+        operations_found_at_inputs = parse_protocols_operations_from_witness_array(tx, tx_hash, True)
+        # Build the map of the atomicals potential spent at the tx
+        atomicals_spent_at_inputs = self.bp.build_atomicals_spent_at_inputs_for_validation_only(tx)
+        # Build a structure of organizing into NFT and FTs
+        # Note: We do not validate anything with NFTs, just FTs
+        # Build the "blueprint" for how to assign all atomicals
+        blueprint_builder = AtomicalsTransferBlueprintBuilder(
+            self.logger,
+            atomicals_spent_at_inputs,
+            operations_found_at_inputs,
+            tx_hash,
+            tx,
+            self.bp.get_atomicals_id_mint_info,
+            True,
+            self.bp.is_custom_coloring_activated(self.bp.height)
+        )
+        ft_output_blueprint = blueprint_builder.get_ft_output_blueprint()
+        nft_output_blueprint = blueprint_builder.get_nft_output_blueprint()
+        # Log that there were tokens burned due to not being cleanly assigned
+        if blueprint_builder.get_are_fts_burned() and raise_if_burned:
+            encoded_atomicals_spent_at_inputs = encode_atomical_ids_hex(atomicals_spent_at_inputs)
+            encoded_ft_output_blueprint = auto_encode_bytes_items(encode_atomical_ids_hex(ft_output_blueprint))
+            encoded_nft_output_blueprint = auto_encode_bytes_items(encode_atomical_ids_hex(nft_output_blueprint))
+            ft_outputs = encoded_ft_output_blueprint['outputs']
+            fts_burned = encoded_ft_output_blueprint['fts_burned']
+            nft_outputs = encoded_nft_output_blueprint['outputs']
+            nft_burned = encoded_nft_output_blueprint['nfts_burned']
+            raise AtomicalsValidationError(
+                f'Invalid FT token inputs/outputs:\n'
+                f'tx_hash={hash_to_hex_str(tx_hash)}\n'
+                f'operations_found_at_inputs={operations_found_at_inputs}\n'
+                f'atomicals_spent_at_inputs={encoded_atomicals_spent_at_inputs}\n'
+                f'ft_output_blueprint.outputs={ft_outputs}\n'
+                f'ft_output_blueprint.fts_burned={fts_burned}\n'
+                f'nft_output_blueprint.outputs={nft_outputs}\n'
+                f'nft_output_blueprint.nfts_burned={nft_burned}'
+            )
+        return AtomicalsValidation(
+            tx_hash,
+            operations_found_at_inputs,
+            encode_atomical_ids_hex(atomicals_spent_at_inputs),
+            auto_encode_bytes_items(encode_atomical_ids_hex(ft_output_blueprint)),
+            auto_encode_bytes_items(encode_atomical_ids_hex(nft_output_blueprint)),
+        )
+
+    # Helper method to decode the transaction and returns formatted structure.
+    def transaction_decode_raw_tx_blueprint(self, raw_tx: bytes) -> dict:
+        # Deserialize the transaction
+        tx, tx_hash = self.env.coin.DESERIALIZER(raw_tx, 0).read_tx_and_hash()
+        cache_res = self._tx_decode_cache.get(tx_hash)
+        if cache_res:
+            # txid maybe the same, this key should add height add key prefix
+            tx_id = hash_to_hex_str(tx_hash)
+            self.logger.debug(f"read transaction detail from cache {tx_id}")
+            return cache_res
+
+        # Determine if there are any other operations at the transfer
+        operations_found_at_inputs = parse_protocols_operations_from_witness_array(tx, tx_hash, True)
+        # Build the map of the atomicals potential spent at the tx
+        atomicals_spent_at_inputs: Dict[int: List] = self.bp.build_atomicals_spent_at_inputs_for_validation_only(tx)
+        # Build a structure of organizing into NFT and FTs
+        # Note: We do not validate anything with NFTs, just FTs
+        # Build the "blueprint" for how to assign all atomicals
+        blueprint_builder = AtomicalsTransferBlueprintBuilder(
+            self.logger,
+            atomicals_spent_at_inputs,
+            operations_found_at_inputs,
+            tx_hash,
+            tx,
+            self.bp.get_atomicals_id_mint_info,
+            True,
+            self.bp.is_custom_coloring_activated(self.bp.height)
+        )
+        ft_output_blueprint = blueprint_builder.get_ft_output_blueprint()
+        nft_output_blueprint = blueprint_builder.get_nft_output_blueprint()
+        # Log that there were tokens burned due to not being cleanly assigned
+        encoded_spent_at_inputs = encode_atomical_ids_hex(atomicals_spent_at_inputs)
+        encoded_ft_output_blueprint: Dict[str, Dict] = dict(encode_atomical_ids_hex(ft_output_blueprint))
+        encoded_nft_output_blueprint: Dict[str, Dict] = dict(encode_atomical_ids_hex(nft_output_blueprint))
+        op = operations_found_at_inputs.get('op') or 'transfer'
+        payload = operations_found_at_inputs.get('payload')
+        ret = {
+            'op': [op],
+            'burned': {
+                **auto_encode_bytes_items(encoded_ft_output_blueprint['fts_burned']),
+                **auto_encode_bytes_items(encoded_nft_output_blueprint['nfts_burned'])
+            },
+        }
+        if payload:
+            ret['op_payload'] = payload
+        atomicals = []
+        inputs = {}
+        outputs = {}
+        for k1, v1 in encoded_spent_at_inputs.items():
+            for item1 in v1:
+                atomical_id = item1['atomical_id']
+                if atomical_id not in atomicals:
+                    atomicals.append(atomical_id)
+                if not inputs.get(k1):
+                    inputs[k1] = {}
+                inputs[k1][atomical_id] = item1['data_value']['atomical_value']
+        ft_outputs: dict = encoded_ft_output_blueprint['outputs']
+        for k2, v2 in ft_outputs.items():
+            for location_bytes, item2 in v2['atomicals'].items():
+                atomical_id = location_id_bytes_to_compact(location_bytes)
+                if not outputs.get(k2):
+                    outputs[k2] = {}
+                outputs[k2][atomical_id] = item2.atomical_value
+        for k3, v3 in encoded_nft_output_blueprint['outputs'].items():
+            for location_bytes, item3 in v3['atomicals'].items():
+                atomical_id = location_id_bytes_to_compact(location_bytes)
+                if not outputs.get(k3):
+                    outputs[k3] = {}
+                outputs[k3][atomical_id] = item3.atomical_value
+        mint_info = {}
+        if blueprint_builder.is_mint:
+            if op in ['dmt', 'ft']:
+                tx_out = tx.outputs[0]
+                ticker_name = payload.get("args", {}).get("mint_ticker", "")
+                status, candidate_atomical_id, _ = self.bp.get_effective_ticker(ticker_name, self.bp.height)
+                atomical_id = location_id_bytes_to_compact(candidate_atomical_id)
+                mint_info = {
+                    "atomical_id": atomical_id,
+                    "outputs": {
+                        "atomical_id": atomical_id,
+                        "index": 0,
+                        "value": tx_out.value
+                    }
+                }
+            elif op == 'nft':
+                _receive_at_outputs = self.bp.build_atomicals_receive_at_ouutput_for_validation_only(tx, tx_hash)
+                tx_out = tx.outputs[0]
+                atomical_id = location_id_bytes_to_compact(_receive_at_outputs[0][-1]["atomical_id"])
+                mint_info = {
+                    "atomical_id": atomical_id,
+                    "outputs": {
+                        "atomical_id": atomical_id,
+                        "index": 0,
+                        "value": tx_out.value
+                    }
+                }
+        if mint_info:
+            atomical_id = mint_info['atomical_id']
+            index = mint_info['outputs']['index']
+            value = mint_info['outputs']['value']
+            if not outputs.get(index):
+                outputs[index] = {}
+            outputs[index][atomical_id] = value
+        payment_info = {}
+        payment_id, payment_idx, _ = AtomicalsTransferBlueprintBuilder.get_atomical_id_for_payment_marker_if_found(tx)
+        if payment_id:
+            payment_info = {
+                "atomical_id": location_id_bytes_to_compact(payment_id),
+                "payment_marker_idx": payment_idx
+            }
+        ret['atomicals'] = atomicals
+        ret['inputs'] = inputs
+        ret['outputs'] = outputs
+        ret['payment'] = payment_info
+        self._tx_decode_cache[tx_hash] = ret
+        return ret
+
     # Analysis the transaction detail by txid.
     # See BlockProcessor.op_list for the complete op list.
-    async def get_transaction_detail(self, txid: str, height=None, tx_num=-1):
-        tx_hash = hex_str_to_hash(txid)
+    async def get_transaction_detail(self, tx_id: str, height=None, tx_num=-1):
+        tx_hash = hex_str_to_hash(tx_id)
         res = self._tx_detail_cache.get(tx_hash)
         if res:
             # txid maybe the same, this key should add height add key prefix
-            self.logger.debug(f"read transation detail from cache {txid}")
+            self.logger.debug(f"read transaction detail from cache {tx_id}")
             return res
         if not height:
             tx_num, height = self.db.get_tx_num_height_from_tx_hash(tx_hash)
 
         raw_tx = self.db.get_raw_tx_by_tx_hash(tx_hash)
         if not raw_tx:
-            raw_tx = await self.daemon_request('getrawtransaction', txid, False)
+            raw_tx = await self.daemon_request('getrawtransaction', tx_id, False)
             raw_tx = bytes.fromhex(raw_tx)
         tx, _tx_hash = self.env.coin.DESERIALIZER(raw_tx, 0).read_tx_and_hash()
         assert tx_hash == _tx_hash
@@ -816,7 +986,7 @@ class SessionManager:
             burned_fts[location_id_bytes_to_compact(ft_key)] = ft_value
 
         res = {
-            "txid": txid,
+            "txid": tx_id,
             "height": height,
             "tx_num": tx_num,
             "info": {},
@@ -835,7 +1005,7 @@ class SessionManager:
             res["info"]["payload"] = payload_not_none
             if blueprint_builder.is_mint and operation_type in ["dmt", "ft"]:
                 expected_output_index = 0
-                txout = tx.outputs[expected_output_index]
+                tx_out = tx.outputs[expected_output_index]
                 location = tx_hash + util.pack_le_uint32(expected_output_index)
                 # if save into the db, it means mint success
                 has_atomicals = self.db.get_atomicals_by_location_long_form(location)
@@ -850,11 +1020,11 @@ class SessionManager:
                             "payload": payload,
                             "outputs": {
                                 expected_output_index: [{
-                                    "address": get_address_from_output_script(txout.pk_script),
+                                    "address": get_address_from_output_script(tx_out.pk_script),
                                     "atomical_id": atomical_id,
                                     "type": "FT",
                                     "index": expected_output_index,
-                                    "value": txout.value
+                                    "value": tx_out.value
                                 }]
                             }
                         }
@@ -862,7 +1032,7 @@ class SessionManager:
                 if atomicals_receive_at_outputs:
                     expected_output_index = 0
                     location = tx_hash + util.pack_le_uint32(expected_output_index)
-                    txout = tx.outputs[expected_output_index]
+                    tx_out = tx.outputs[expected_output_index]
                     atomical_id = location_id_bytes_to_compact(
                         atomicals_receive_at_outputs[expected_output_index][-1]["atomical_id"]
                     )
@@ -872,98 +1042,89 @@ class SessionManager:
                         "payload": payload,
                         "outputs": {
                             expected_output_index: [{
-                                "address": get_address_from_output_script(txout.pk_script),
+                                "address": get_address_from_output_script(tx_out.pk_script),
                                 "atomical_id": atomical_id,
                                 "type": "NFT",
                                 "index": expected_output_index,
-                                "value": txout.value
+                                "value": tx_out.value
                             }]
                         }
                     }
+
+        async def make_transfer_inputs(inputs, indexes, make_type) -> Dict[int, List[Dict]]:
+            result = {}
+            for _i in indexes:
+                _prev_txid = hash_to_hex_str(inputs[_i.txin_index].prev_hash)
+                _prev_raw_tx = self.db.get_raw_tx_by_tx_hash(hex_str_to_hash(_prev_txid))
+                if not _prev_raw_tx:
+                    _prev_raw_tx = await self.daemon_request('getrawtransaction', _prev_txid, False)
+                    _prev_raw_tx = bytes.fromhex(_prev_raw_tx)
+                    self.bp.general_data_cache[b'rtx' + hex_str_to_hash(_prev_txid)] = _prev_raw_tx
+                _prev_tx, _ = self.env.coin.DESERIALIZER(_prev_raw_tx, 0).read_tx_and_hash()
+                _data = {
+                    "address": get_address_from_output_script(
+                        _prev_tx.outputs[inputs[_i.txin_index].prev_idx].pk_script
+                    ),
+                    "atomical_id": compact_atomical_id,
+                    "type": make_type,
+                    "index": _i.txin_index,
+                    "value": _prev_tx.outputs[inputs[_i.txin_index].prev_idx].value
+                }
+                if not result.get(_i.txin_index):
+                    result[_i.txin_index] = [_data]
+                else:
+                    result[_i.txin_index].append(_data)
+            return result
+
+        def make_transfer_outputs(index: int, output: Dict) -> Dict[int, List[Dict]]:
+            result = {}
+            for _atomical_id, _output in output['atomicals'].items():
+                _compact_atomical_id = location_id_bytes_to_compact(_atomical_id)
+                _data = {
+                    "address": get_address_from_output_script(tx.outputs[index].pk_script),
+                    "atomical_id": _compact_atomical_id,
+                    "type": _output.type,
+                    "index": k,
+                    "value": _output.sat_value
+                }
+                if not result.get(index):
+                    result[index] = [_data]
+                else:
+                    result[index].append(_data)
+            return result
+
         # no operation_found_at_inputs, it will be transfer.
         if blueprint_builder.ft_atomicals and atomicals_spent_at_inputs:
             if not operation_type and not op_raw:
                 op_raw = "transfer"
             for atomical_id, input_ft in blueprint_builder.ft_atomicals.items():
                 compact_atomical_id = location_id_bytes_to_compact(atomical_id)
-                for i in input_ft.input_indexes:
-                    prev_txid = hash_to_hex_str(tx.inputs[i.txin_index].prev_hash)
-                    prev_raw_tx = self.db.get_raw_tx_by_tx_hash(hex_str_to_hash(prev_txid))
-                    if not prev_raw_tx:
-                        prev_raw_tx = await self.daemon_request('getrawtransaction', prev_txid, False)
-                        prev_raw_tx = bytes.fromhex(prev_raw_tx)
-                        self.bp.general_data_cache[b'rtx' + hex_str_to_hash(prev_txid)] = prev_raw_tx
-                    prev_tx, _ = self.env.coin.DESERIALIZER(prev_raw_tx, 0).read_tx_and_hash()
-                    ft_data = {
-                        "address": get_address_from_output_script(
-                            prev_tx.outputs[tx.inputs[i.txin_index].prev_idx].pk_script),
-                        "atomical_id": compact_atomical_id,
-                        "type": "FT",
-                        "index": i.txin_index,
-                        "value": prev_tx.outputs[tx.inputs[i.txin_index].prev_idx].value
-                    }
-                    if i.txin_index not in res["transfers"]["inputs"]:
-                        res["transfers"]["inputs"][i.txin_index] = [ft_data]
-                    else:
-                        res["transfers"]["inputs"][i.txin_index].append(ft_data)
+                res['transfers']['inputs'] = await make_transfer_inputs(
+                    tx.inputs,
+                    input_ft.input_indexes,
+                    'FT'
+                )
             for k, v in blueprint_builder.ft_output_blueprint.outputs.items():
-                for atomical_id, output_ft in v['atomicals'].items():
-                    compact_atomical_id = location_id_bytes_to_compact(atomical_id)
-                    ft_data = {
-                        "address": get_address_from_output_script(tx.outputs[k].pk_script),
-                        "atomical_id": compact_atomical_id,
-                        "type": "FT",
-                        "index": k,
-                        "value": output_ft.sat_value
-                    }
-                    if k not in res["transfers"]["outputs"]:
-                        res["transfers"]["outputs"][k] = [ft_data]
-                    else:
-                        res["transfers"]["outputs"][k].append(ft_data)
+                res["transfers"]["outputs"] = make_transfer_outputs(k, v)
         if blueprint_builder.nft_atomicals and atomicals_spent_at_inputs:
             if not operation_type and not op_raw:
                 op_raw = "transfer"
             for atomical_id, input_nft in blueprint_builder.nft_atomicals.items():
                 compact_atomical_id = location_id_bytes_to_compact(atomical_id)
-                for i in input_nft.input_indexes:
-                    prev_txid = hash_to_hex_str(tx.inputs[i.txin_index].prev_hash)
-                    prev_raw_tx = self.db.get_raw_tx_by_tx_hash(hex_str_to_hash(prev_txid))
-                    if not prev_raw_tx:
-                        prev_raw_tx = await self.daemon_request('getrawtransaction', prev_txid, False)
-                        prev_raw_tx = bytes.fromhex(prev_raw_tx)
-                        self.bp.general_data_cache[b'rtx' + hex_str_to_hash(prev_txid)] = prev_raw_tx
-                    prev_tx, _ = self.env.coin.DESERIALIZER(prev_raw_tx, 0).read_tx_and_hash()
-                    nft_data = {
-                        "address": get_address_from_output_script(
-                            prev_tx.outputs[tx.inputs[i.txin_index].prev_idx].pk_script),
-                        "atomical_id": compact_atomical_id,
-                        "type": "NFT",
-                        "index": i.txin_index,
-                        "value": prev_tx.outputs[tx.inputs[i.txin_index].prev_idx].value
-                    }
-                    if i.txin_index not in res["transfers"]["inputs"]:
-                        res["transfers"]["inputs"][i.txin_index] = [nft_data]
-                    else:
-                        res["transfers"]["inputs"][i.txin_index].append(nft_data)
+                res['transfers']['inputs'] = await make_transfer_inputs(
+                    tx.inputs,
+                    input_nft.input_indexes,
+                    'NFT'
+                )
             for k, v in blueprint_builder.nft_output_blueprint.outputs.items():
-                for atomical_id, output_nft in v['atomicals'].items():
-                    compact_atomical_id = location_id_bytes_to_compact(atomical_id)
-                    nft_data = {
-                        "address": get_address_from_output_script(tx.outputs[k].pk_script),
-                        "atomical_id": compact_atomical_id,
-                        "type": output_nft.type,
-                        "index": k,
-                        "value": output_nft.total_satsvalue
-                    }
-                    if k not in res["transfers"]["outputs"]:
-                        res["transfers"]["outputs"][k] = [nft_data]
-                    else:
-                        res["transfers"]["outputs"][k].append(nft_data)
+                outputs = make_transfer_outputs(k, v)
+                res["transfers"]["outputs"] = make_transfer_outputs(k, v)
 
-        atomical_id_for_payment, payment_marker_idx, _ = AtomicalsTransferBlueprintBuilder.get_atomical_id_for_payment_marker_if_found(tx)
-        if atomical_id_for_payment:
+        payment_id, payment_marker_idx, _ = AtomicalsTransferBlueprintBuilder.get_atomical_id_for_payment_marker_if_found(
+            tx)
+        if payment_id:
             res["info"]["payment"] = {
-                "atomical_id": location_id_bytes_to_compact(atomical_id_for_payment),
+                "atomical_id": location_id_bytes_to_compact(payment_id),
                 "payment_marker_idx": payment_marker_idx
             }
 

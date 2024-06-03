@@ -1,6 +1,7 @@
 # -*- coding: utf-8 -*-
 
 import json
+import traceback
 from decimal import Decimal
 from typing import Awaitable
 
@@ -19,24 +20,6 @@ class DecimalEncoder(json.JSONEncoder):
         if isinstance(o, Decimal):
             return float(o)
         return super(DecimalEncoder, self).default(o)
-
-
-async def formatted_request(request, call):
-    params: list
-    if request.method == "GET":
-        params = json.loads(request.query.get("params", "[]"))
-    elif request.content_length:
-        json_data = await request.json()
-        params = json_data.get("params", [])
-    else:
-        params = []
-    try:
-        result = call(*params)
-        if isinstance(result, Awaitable):
-            result = await result
-        return success_resp(result)
-    except Exception as e:
-        return error_resp(500, e)
 
 
 class HttpSession(object):
@@ -68,6 +51,32 @@ class HttpSession(object):
             self.client,
         )
 
+    async def formatted_request(self, request: web.Request, call):
+        method = request.path
+        params: list
+        if request.method == "GET":
+            params = json.loads(request.query.get("params", "[]"))
+        elif request.content_length:
+            json_data = await request.json()
+            params = json_data.get("params", [])
+        else:
+            params = []
+        self.logger.debug(f'HTTP request handling: [method] {method}, [params]: {params}')
+        try:
+            result = call(*params)
+            if isinstance(result, Awaitable):
+                result = await result
+            return success_resp(result)
+        except Exception as e:
+            method = request.method
+            path = request.url
+            s = traceback.format_exc()
+            self.logger.error(
+                f'Exception during formatting request: {method} {path}, '
+                f'exception: {e}, stack: {s}'
+            )
+            return error_resp(500, e)
+
     async def add_endpoints(self, router, protocols):
         handlers = {
             'health': self.health,
@@ -96,6 +105,10 @@ class HttpSession(object):
             'mempool.get_fee_histogram': self.ss.compact_fee_histogram,
             # The Atomicals era has begun #
             'blockchain.atomicals.validate': self.ss.transaction_broadcast_validate,
+            'blockchain.atomicals.validate_psbt_blueprint': self.ss.transaction_validate_psbt_blueprint,
+            'blockchain.atomicals.validate_tx_blueprint': self.ss.transaction_validate_tx_blueprint,
+            'blockchain.atomicals.decode_psbt': self.ss.transaction_decode_psbt,
+            'blockchain.atomicals.decode_tx': self.ss.transaction_decode_tx,
             'blockchain.atomicals.get_ft_balances_scripthash': self.ss.atomicals_get_ft_balances,
             'blockchain.atomicals.get_nft_balances_scripthash': self.ss.atomicals_get_nft_balances,
             'blockchain.atomicals.listscripthash': self.ss.atomicals_list_scripthash,
@@ -138,8 +151,8 @@ class HttpSession(object):
             handlers['blockchain.scripthash.unsubscribe'] = self.ss.scripthash_unsubscribe
         for m, h in handlers.items():
             method = f'/proxy/{m}'
-            router.add_get(method, lambda r, handler=h: formatted_request(r, handler))
-            router.add_post(method, lambda r, handler=h: formatted_request(r, handler))
+            router.add_get(method, lambda r, handler=h: self.formatted_request(r, handler))
+            router.add_post(method, lambda r, handler=h: self.formatted_request(r, handler))
 
         # Fallback proxy recognition
         router.add_get('/proxy', self.proxy)

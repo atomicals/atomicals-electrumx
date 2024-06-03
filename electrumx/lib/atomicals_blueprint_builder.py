@@ -1,49 +1,33 @@
-from electrumx.lib.hash import hash_to_hex_str
+from typing import Tuple
+
 from electrumx.lib.script import is_unspendable_legacy, is_unspendable_genesis
-from electrumx.lib.util_atomicals import (
-    is_custom_colored_operation,
-    is_splat_operation,
-    is_split_operation,
-    is_mint_operation,
-    location_id_bytes_to_compact,
-    is_op_return_subrealm_payment_marker_atomical_id,
-    is_op_return_dmitem_payment_marker_atomical_id,
-    compact_to_location_id_bytes,
-    is_compact_atomical_id,
-    is_integer_num,
-    SUBNAME_MIN_PAYMENT_DUST_LIMIT
-)
+from electrumx.lib.util_atomicals import *
 
 
-class FtColoringSummary:
+class FtColoringSummary(IterableReprMixin):
     def __init__(self, atomical_id_to_expected_outs_map, fts_burned, cleanly_assigned, atomicals_list):
         self.atomical_id_to_expected_outs_map = atomical_id_to_expected_outs_map
         self.cleanly_assigned = cleanly_assigned
         self.fts_burned = fts_burned
         self.atomicals_list = atomicals_list
 
-    def __repr__(self):
-        return (
-            f'FtColoringSummary '
-            f'cleanly_assigned: {self.cleanly_assigned}, '
-            f'fts_burned: {self.fts_burned}, '
-            f'atomicals_list: {self.atomicals_list}'
-        )
+    def __iter__(self):
+        yield 'atomical_id_to_expected_outs_map', self.atomical_id_to_expected_outs_map
+        yield 'cleanly_assigned', self.cleanly_assigned
+        yield 'fts_burned', self.fts_burned
+        yield 'atomicals_list', self.atomicals_list
 
 
-class ExpectedOutputSet:
+class ExpectedOutputSet(IterableReprMixin):
     """Store the expected output indexes to be colored and the exponent for the outputs to apply"""
 
     def __init__(self, expected_outputs, expected_values):
         self.expected_outputs = expected_outputs
         self.expected_values = expected_values
 
-    def __repr__(self):
-        return (
-            f'ExpectedOutputSet '
-            f'expected_outputs: {self.expected_outputs}, '
-            f'expected_values: {self.expected_values}'
-        )
+    def __iter__(self):
+        yield 'expected_outputs', self.expected_outputs
+        yield 'expected_values', self.expected_values
 
 
 def build_reverse_output_to_atomical_id_exponent_map(atomical_id_to_output_index_map):
@@ -85,7 +69,7 @@ def calculate_outputs_to_color_for_ft_atomical_ids(
         atomical_id = item.atomical_id
         # If a target exponent was provided, then use that instead
         cleanly_assigned, expected_outputs, remaining_value_from_assign = AtomicalsTransferBlueprintBuilder.assign_expected_outputs_basic(
-            item.total_atomical_value,
+            item.atomical_value,
             tx,
             next_start_out_idx,
             is_custom_coloring_activated
@@ -97,7 +81,7 @@ def calculate_outputs_to_color_for_ft_atomical_ids(
                 next_start_out_idx = expected_outputs[-1] + 1
                 potential_atomical_ids_to_output_idxs_map[atomical_id] = ExpectedOutputSet(
                     expected_outputs,
-                    item.total_atomical_value
+                    item.atomical_value
                 )
             else:
                 # Erase the potential for safety
@@ -112,7 +96,7 @@ def calculate_outputs_to_color_for_ft_atomical_ids(
                 next_start_out_idx = expected_outputs[-1] + 1
                 potential_atomical_ids_to_output_idxs_map[atomical_id] = ExpectedOutputSet(
                     expected_outputs,
-                    item.total_atomical_value
+                    item.atomical_value
                 )
             else:
                 # if no enable uxto
@@ -126,14 +110,14 @@ def calculate_outputs_to_color_for_ft_atomical_ids(
         for item in atomical_list:
             atomical_id = item.atomical_id
             cleanly_assigned, expected_outputs, remaining_value_from_assign = AtomicalsTransferBlueprintBuilder.assign_expected_outputs_basic(
-                item.total_atomical_value,
+                item.atomical_value,
                 tx,
                 0,
                 is_custom_coloring_activated
             )
             potential_atomical_ids_to_output_idxs_map[atomical_id] = ExpectedOutputSet(
                 expected_outputs,
-                item.total_atomical_value
+                item.atomical_value
             )
             if remaining_value_from_assign > 0:
                 fts_burned[atomical_id] = remaining_value_from_assign
@@ -157,7 +141,7 @@ class AtomicalsTransferBlueprintBuilderError(Exception):
     """Raised when Atomicals Blueprint builder has an error"""
 
 
-class AtomicalInputItem:
+class AtomicalInputItem(IterableReprMixin):
     """An input item struct"""
 
     def __init__(self, txin_index, sat_value: int, atomical_value: int):
@@ -165,53 +149,113 @@ class AtomicalInputItem:
         self.sat_value = sat_value
         self.atomical_value = atomical_value
 
+    def __iter__(self):
+        yield 'txin_index', self.txin_index
+        yield 'sat_value', self.sat_value
+        yield 'atomical_value', self.atomical_value
 
-class AtomicalInputSummary:
+
+class AtomicalInputSummary(IterableReprMixin):
     """Summarize a set of inputs for a transaction"""
 
     def __init__(self, atomical_id, atomical_type, mint_info):
         self.atomical_id = atomical_id
         self.type = atomical_type
-        self.total_sat_value = 0
-        self.total_atomical_value = 0
+        self.sat_value = 0
+        self.atomical_value = 0
         self.input_indexes = []
         self.mint_info = mint_info
 
+    def __iter__(self):
+        yield 'atomical_id', self.atomical_id
+        yield 'type', self.type
+        yield 'sat_value', self.sat_value
+        yield 'atomical_value', self.atomical_value
+        yield 'input_indexes', self.input_indexes
+        yield 'mint_info', self.mint_info
+
     def apply_input(self, tx_in_index, sat_value, atomical_value):
-        self.total_sat_value += sat_value
+        self.sat_value += sat_value
         # Accumulate the total token value
-        self.total_atomical_value += atomical_value
+        self.atomical_value += atomical_value
         # Track the current input index encountered and the details of the input such as
         # sat_value, token_value, exponent, txin index
         self.input_indexes.append(AtomicalInputItem(tx_in_index, sat_value, atomical_value))
 
 
-class AtomicalColoredOutputFt:
+class AtomicalColoredOutputFt(IterableReprMixin):
     def __init__(self, sat_value: int, atomical_value: int, input_summary_info: AtomicalInputSummary):
         self.sat_value = sat_value
         self.atomical_value = atomical_value
         self.input_summary_info = input_summary_info
+        self.type = 'FT'
 
-    def __repr__(self):
-        return f'atomical colored output ft sat_value: {self.sat_value}, atomical_value: {self.atomical_value}'
+    def __iter__(self):
+        yield 'type', self.type
+        yield 'sat_value', self.sat_value
+        yield 'atomical_value', self.atomical_value
+        yield 'input_summary_info', self.input_summary_info
 
 
-class AtomicalColoredOutputNft:
+class AtomicalColoredOutputNft(IterableReprMixin):
     def __init__(self, input_summary_info: AtomicalInputSummary):
         self.input_summary_info = input_summary_info
 
+    def __iter__(self):
+        yield 'input_summary_info', self.input_summary_info
 
-class AtomicalFtOutputBlueprintAssignmentSummary:
+
+class AtomicalFtOutputBlueprintAssignmentSummary(IterableReprMixin):
     def __init__(self, outputs, fts_burned, cleanly_assigned, first_atomical_id):
-        self.outputs = outputs
-        self.fts_burned = fts_burned
-        self.cleanly_assigned = cleanly_assigned
-        self.first_atomical_id = first_atomical_id
+        self.outputs: dict = outputs
+        self.fts_burned: dict = fts_burned
+        self.cleanly_assigned: bool = cleanly_assigned
+        self.first_atomical_id: str = first_atomical_id
+
+    def __iter__(self):
+        yield 'outputs', self.outputs
+        yield 'fts_burned', self.fts_burned
+        yield 'cleanly_assigned', self.cleanly_assigned
+        yield 'first_atomical_id', self.first_atomical_id
 
 
-class AtomicalNftOutputBlueprintAssignmentSummary:
-    def __init__(self, outputs):
-        self.outputs = outputs
+class AtomicalNftOutputBlueprintAssignmentSummary(IterableReprMixin):
+    def __init__(self, outputs, nfts_burned=None):
+        self.outputs: dict = outputs
+        self.nfts_burned: dict = nfts_burned or {}
+
+    def __iter__(self):
+        yield 'outputs', self.outputs
+        yield 'nfts_burned', self.nfts_burned
+
+
+class AtomicalsValidation(IterableReprMixin):
+    def __init__(
+            self,
+            tx_hash: bytes,
+            operation_found_at_inputs: dict,
+            atomicals_spent_at_inputs: dict,
+            ft_output_blueprint: dict,
+            nft_output_blueprint: dict,
+    ):
+        self.tx_hash: bytes = tx_hash
+        self.operation_found_at_inputs = operation_found_at_inputs
+        self.atomicals_spent_at_inputs = atomicals_spent_at_inputs
+        self.ft_output_blueprint = ft_output_blueprint
+        self.nft_output_blueprint = nft_output_blueprint
+
+        self.tx_id = hash_to_hex_str(tx_hash)
+
+    def __iter__(self):
+        yield 'tx_id', self.tx_id
+        yield 'operation_found_at_inputs', self.operation_found_at_inputs
+        yield 'atomicals_spent_at_inputs', self.atomicals_spent_at_inputs
+        yield 'ft_output_blueprint', self.ft_output_blueprint
+        yield 'nft_output_blueprint', self.nft_output_blueprint
+
+
+class AtomicalsValidationError(Exception):
+    """Raised when Atomicals Validation Error"""
 
 
 def order_ft_inputs(ft_atomicals, sort_by_fifo):
@@ -267,9 +311,15 @@ class AtomicalsTransferBlueprintBuilder:
         self.nft_atomicals = nft_atomicals
         self.ft_atomicals = ft_atomicals
         nft_output_blueprint, ft_output_blueprint = AtomicalsTransferBlueprintBuilder.calculate_output_blueprint(
-            self.get_atomicals_id_mint_info, self.tx, self.nft_atomicals, self.ft_atomicals,
-            self.atomicals_spent_at_inputs, self.operations_found_at_inputs, self.sort_fifo,
-            self.is_custom_coloring_activated)
+            self.get_atomicals_id_mint_info,
+            self.tx,
+            self.nft_atomicals,
+            self.ft_atomicals,
+            self.atomicals_spent_at_inputs,
+            self.operations_found_at_inputs,
+            self.sort_fifo,
+            self.is_custom_coloring_activated
+        )
         self.nft_output_blueprint = nft_output_blueprint
         self.ft_output_blueprint = ft_output_blueprint
         # if len(ft_atomicals) > 0 or len(nft_atomicals) > 0:
@@ -400,29 +450,33 @@ class AtomicalsTransferBlueprintBuilder:
             output_colored_map[expected_output_index]['atomicals'][atomical_id] = atomical_summary_info
             expected_output_index_incrementing += 1
         return AtomicalNftOutputBlueprintAssignmentSummary(output_colored_map)
-    
+
     @classmethod
     def custom_color_nft_atomicals(cls, nft_atomicals, operations_found_at_inputs, tx):
-      # define op `z` to custom-color nft
-      output_colored_map = {}
-      for atomical_id, atomical_info in sorted(nft_atomicals.items()):
-        for out_idx, txout in enumerate(tx.outputs):
-          compact_atomical_id = location_id_bytes_to_compact(atomical_id)
-          compact_atomical_id_data = operations_found_at_inputs["payload"].get(compact_atomical_id, {})
-          # if payload try to color two or more outputs, it will try to color output 0.
-          if len(compact_atomical_id_data.keys()) > 1:
-            expected_output_index = 0
-          else:
-            # if out_idx not in payload keys, skip
-            if str(out_idx) not in compact_atomical_id_data.keys():
-              continue
-            # if payload value <= 0, this nft will burn
-            if compact_atomical_id_data.get(str(out_idx), 0) <= 0:
-              continue
-            expected_output_index = out_idx
-          output_colored_map[expected_output_index] = output_colored_map.get(expected_output_index) or {'atomicals': {}}
-          output_colored_map[expected_output_index]['atomicals'][atomical_id] = atomical_info
-      return AtomicalNftOutputBlueprintAssignmentSummary(output_colored_map)
+        nfts_burned = {}
+        output_colored_map = {}
+        for atomical_id, atomical_info in sorted(nft_atomicals.items()):
+            remaining_value = atomical_info.atomical_value
+            for out_idx, txout in enumerate(tx.outputs):
+                compact_atomical_id = location_id_bytes_to_compact(atomical_id)
+                compact_atomical_id_data = operations_found_at_inputs["payload"].get(compact_atomical_id, {})
+                expected_value = compact_atomical_id_data.get(str(out_idx), 0)
+                if expected_value <= 0 or remaining_value <= 0:
+                    continue
+                # if payload try to color two or more outputs, it will try to color output 0.
+                if len(compact_atomical_id_data.keys()) > 1:
+                    expected_output_index = 0
+                else:
+                    if str(out_idx) not in compact_atomical_id_data.keys():  # if out_idx not in payload keys, skip
+                        continue
+                    expected_output_index = out_idx
+                if not output_colored_map.get(expected_output_index):
+                    output_colored_map[expected_output_index] = {'atomicals': {}}
+                output_colored_map[expected_output_index]['atomicals'][atomical_id] = atomical_info
+                remaining_value -= expected_value
+            if remaining_value > 0:
+                nfts_burned[atomical_id] = remaining_value
+        return AtomicalNftOutputBlueprintAssignmentSummary(output_colored_map, nfts_burned)
 
     @classmethod
     def calculate_output_blueprint_nfts(
@@ -434,28 +488,32 @@ class AtomicalsTransferBlueprintBuilder:
             operations_found_at_inputs,
             sort_fifo,
             is_custom_coloring_activated
-    ):
+    ) -> AtomicalNftOutputBlueprintAssignmentSummary:
         if not nft_atomicals or len(nft_atomicals) == 0:
             return AtomicalNftOutputBlueprintAssignmentSummary({})
         should_splat_nft_atomicals = is_splat_operation(operations_found_at_inputs)
         if should_splat_nft_atomicals and len(nft_atomicals.keys()) > 0:
             return AtomicalsTransferBlueprintBuilder.calculate_nft_atomicals_splat(nft_atomicals, tx)
-        should_custom_colored_nft_atomicals = is_custom_coloring_activated and is_custom_colored_operation(operations_found_at_inputs)
+        should_custom_colored_nft_atomicals = is_custom_coloring_activated and is_custom_colored_operation(
+            operations_found_at_inputs)
         if should_custom_colored_nft_atomicals and len(nft_atomicals.keys()) > 0:
-            return AtomicalsTransferBlueprintBuilder.custom_color_nft_atomicals(nft_atomicals, operations_found_at_inputs, tx)
-        else:
-            # To sort by fifo for NFTs, we also need to calculate a mapping of the nfts to inputs first
-            nft_map = AtomicalsTransferBlueprintBuilder.build_nft_input_idx_to_atomical_map(
-                get_atomicals_id_mint_info,
-                atomicals_spent_at_inputs
-            )
-            return AtomicalsTransferBlueprintBuilder.calculate_nft_atomicals_regular(
-                nft_map,
+            return AtomicalsTransferBlueprintBuilder.custom_color_nft_atomicals(
                 nft_atomicals,
-                tx,
                 operations_found_at_inputs,
-                sort_fifo
+                tx
             )
+        # To sort by fifo for NFTs, we also need to calculate a mapping of the nfts to inputs first
+        nft_map = AtomicalsTransferBlueprintBuilder.build_nft_input_idx_to_atomical_map(
+            get_atomicals_id_mint_info,
+            atomicals_spent_at_inputs
+        )
+        return AtomicalsTransferBlueprintBuilder.calculate_nft_atomicals_regular(
+            nft_map,
+            nft_atomicals,
+            tx,
+            operations_found_at_inputs,
+            sort_fifo
+        )
 
     @classmethod
     def calculate_output_blueprint_fts(
@@ -465,7 +523,7 @@ class AtomicalsTransferBlueprintBuilder:
             operations_found_at_inputs,
             sort_fifo,
             is_custom_coloring_activated
-    ):
+    ) -> AtomicalFtOutputBlueprintAssignmentSummary:
         if not ft_atomicals or len(ft_atomicals) == 0:
             return AtomicalFtOutputBlueprintAssignmentSummary({}, {}, True, None)
         # Split apart multiple NFT/FT from a UTXO
@@ -500,7 +558,7 @@ class AtomicalsTransferBlueprintBuilder:
         fts_burned = {}
         cleanly_assigned = True
         for atomical_id, atomical_info in sorted(ft_atomicals.items()):
-            remaining_value = atomical_info.total_atomical_value
+            remaining_value = atomical_info.atomical_value
             for out_idx, txout in enumerate(tx.outputs):
                 expected_output_index = out_idx
                 compact_atomical_id = location_id_bytes_to_compact(atomical_id)
@@ -530,11 +588,7 @@ class AtomicalsTransferBlueprintBuilder:
             if remaining_value > 0:
                 cleanly_assigned = False
                 fts_burned[atomical_id] = remaining_value
-        return AtomicalFtOutputBlueprintAssignmentSummary(
-            output_colored_map,
-            fts_burned,
-            cleanly_assigned,
-            None)
+        return AtomicalFtOutputBlueprintAssignmentSummary(output_colored_map, fts_burned, cleanly_assigned, None)
 
     @classmethod
     def color_ft_atomicals_split(cls, ft_atomicals, operations_found_at_inputs, tx, is_custom_coloring_activated):
@@ -543,7 +597,7 @@ class AtomicalsTransferBlueprintBuilder:
         cleanly_assigned = True
         for atomical_id, atomical_info in sorted(ft_atomicals.items()):
             expected_output_indexes = []
-            remaining_value = atomical_info.total_atomical_value
+            remaining_value = atomical_info.atomical_value
             # The FT type has the 'split' (y) method which allows us to selectively split (skip)
             # a certain total number of token units (satoshis) before beginning to color the outputs.
             # Essentially this makes it possible to "split" out multiple FT's located at the same input
@@ -687,7 +741,7 @@ class AtomicalsTransferBlueprintBuilder:
             operations_found_at_inputs,
             sort_fifo,
             is_custom_coloring_activated
-    ):
+    ) -> Tuple[AtomicalNftOutputBlueprintAssignmentSummary, AtomicalFtOutputBlueprintAssignmentSummary]:
         nft_blueprint = AtomicalsTransferBlueprintBuilder.calculate_output_blueprint_nfts(
             get_atomicals_id_mint_info,
             tx,
@@ -789,7 +843,9 @@ class AtomicalsTransferBlueprintBuilder:
         # ...and never allow an NFT atomical to be burned accidentally by having insufficient number of outputs either
         # The expected output index will become the 0'th index if the 'x' extract operation was specified
         # or there are insufficient outputs
-        if expected_output_index >= len(tx.outputs) or is_unspendable_genesis(tx.outputs[expected_output_index].pk_script) or is_unspendable_legacy(tx.outputs[expected_output_index].pk_script):
+        if expected_output_index >= len(tx.outputs) or is_unspendable_genesis(
+                tx.outputs[expected_output_index].pk_script) or is_unspendable_legacy(
+                tx.outputs[expected_output_index].pk_script):
             expected_output_index = 0
         # If this was the 'split' (y) command, then also move them to the 0th output
         if is_split_operation(operations_found_at_inputs):
