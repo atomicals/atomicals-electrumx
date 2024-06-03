@@ -102,6 +102,7 @@ class SessionManager:
         self._merkle_hits = 0
         self.estimatefee_cache = pylru.lrucache(1000)
         self._tx_detail_cache = pylru.lrucache(1000000)
+        self._tx_decode_cache = pylru.lrucache(1000)
         self.notified_height = None
         self.hsub_results = None
         self._task_group = OldTaskGroup()
@@ -829,6 +830,13 @@ class SessionManager:
     def transaction_decode_raw_tx_blueprint(self, raw_tx: bytes) -> dict:
         # Deserialize the transaction
         tx, tx_hash = self.env.coin.DESERIALIZER(raw_tx, 0).read_tx_and_hash()
+        cache_res = self._tx_decode_cache.get(tx_hash)
+        if cache_res:
+            # txid maybe the same, this key should add height add key prefix
+            tx_id = hash_to_hex_str(tx_hash)
+            self.logger.debug(f"read transaction detail from cache {tx_id}")
+            return cache_res
+
         # Determine if there are any other operations at the transfer
         operations_found_at_inputs = parse_protocols_operations_from_witness_array(tx, tx_hash, True)
         # Build the map of the atomicals potential spent at the tx
@@ -852,12 +860,17 @@ class SessionManager:
         encoded_spent_at_inputs = encode_atomical_ids_hex(atomicals_spent_at_inputs)
         encoded_ft_output_blueprint: Dict[str, Dict] = dict(encode_atomical_ids_hex(ft_output_blueprint))
         encoded_nft_output_blueprint: Dict[str, Dict] = dict(encode_atomical_ids_hex(nft_output_blueprint))
+        op = operations_found_at_inputs.get('op') or 'transfer'
+        payload = operations_found_at_inputs.get('payload')
         ret = {
-            'op': [operations_found_at_inputs.get('op') or 'transfer'],
-            'burned': {**encoded_ft_output_blueprint['fts_burned'], **encoded_nft_output_blueprint['nfts_burned']},
+            'op': [op],
+            'burned': {
+                **auto_encode_bytes_items(encoded_ft_output_blueprint['fts_burned']),
+                **auto_encode_bytes_items(encoded_nft_output_blueprint['nfts_burned'])
+            },
         }
-        if operations_found_at_inputs.get('payload'):
-            ret['op_payload'] = operations_found_at_inputs['payload']
+        if payload:
+            ret['op_payload'] = payload
         atomicals = []
         inputs = {}
         outputs = {}
@@ -882,19 +895,62 @@ class SessionManager:
                 if not outputs.get(k3):
                     outputs[k3] = {}
                 outputs[k3][atomical_id] = item3.atomical_value
+        mint_info = {}
+        if blueprint_builder.is_mint:
+            if op in ['dmt', 'ft']:
+                tx_out = tx.outputs[0]
+                ticker_name = payload.get("args", {}).get("mint_ticker", "")
+                status, candidate_atomical_id, _ = self.bp.get_effective_ticker(ticker_name, self.bp.height)
+                atomical_id = location_id_bytes_to_compact(candidate_atomical_id)
+                mint_info = {
+                    "atomical_id": atomical_id,
+                    "outputs": {
+                        "atomical_id": atomical_id,
+                        "index": 0,
+                        "value": tx_out.value
+                    }
+                }
+            elif op == 'nft':
+                _receive_at_outputs = self.bp.build_atomicals_receive_at_ouutput_for_validation_only(tx, tx_hash)
+                tx_out = tx.outputs[0]
+                atomical_id = location_id_bytes_to_compact(_receive_at_outputs[0][-1]["atomical_id"])
+                mint_info = {
+                    "atomical_id": atomical_id,
+                    "outputs": {
+                        "atomical_id": atomical_id,
+                        "index": 0,
+                        "value": tx_out.value
+                    }
+                }
+        if mint_info:
+            atomical_id = mint_info['atomical_id']
+            index = mint_info['outputs']['index']
+            value = mint_info['outputs']['value']
+            if not outputs.get(index):
+                outputs[index] = {}
+            outputs[index][atomical_id] = value
+        payment_info = {}
+        payment_id, payment_idx, _ = AtomicalsTransferBlueprintBuilder.get_atomical_id_for_payment_marker_if_found(tx)
+        if payment_id:
+            payment_info = {
+                "atomical_id": location_id_bytes_to_compact(payment_id),
+                "payment_marker_idx": payment_idx
+            }
         ret['atomicals'] = atomicals
         ret['inputs'] = inputs
         ret['outputs'] = outputs
+        ret['payment'] = payment_info
+        self._tx_decode_cache[tx_hash] = ret
         return ret
 
     # Analysis the transaction detail by txid.
     # See BlockProcessor.op_list for the complete op list.
-    async def get_transaction_detail(self, txid: str, height=None, tx_num=-1):
-        tx_hash = hex_str_to_hash(txid)
+    async def get_transaction_detail(self, tx_id: str, height=None, tx_num=-1):
+        tx_hash = hex_str_to_hash(tx_id)
         res = self._tx_detail_cache.get(tx_hash)
         if res:
             # txid maybe the same, this key should add height add key prefix
-            self.logger.debug(f"read transation detail from cache {txid}")
+            self.logger.debug(f"read transaction detail from cache {tx_id}")
             return res
         if not height:
             tx_num, height = self.db.get_tx_num_height_from_tx_hash(tx_hash)
