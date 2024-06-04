@@ -285,8 +285,8 @@ These environment variables are optional:
 
   Set to anything non-empty to deny serving clients which do not
   identify themselves first by issuing the server.version method
-  call with a non-empty client identifier. The connection is dropped 
-  on first actual method call. This might help to filter out simple 
+  call with a non-empty client identifier. The connection is dropped
+  on first actual method call. This might help to filter out simple
   robots. This behavior is off by default.
 
 

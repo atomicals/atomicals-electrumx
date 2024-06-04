@@ -1,33 +1,34 @@
-import attr
 import ssl
 import time
 from asyncio import Event, sleep
 from collections import defaultdict
 from functools import partial
 from ipaddress import *
+from typing import TYPE_CHECKING, Dict, List, Type
 
+import attr
 import pylru
-from aiorpcx import serve_ws, serve_rs, RPCError, run_in_thread
+from aiorpcx import RPCError, run_in_thread, serve_rs, serve_ws
 
 from electrumx.lib import util
-from electrumx.lib.atomicals_blueprint_builder import AtomicalsTransferBlueprintBuilder, AtomicalsValidation, \
-    AtomicalsValidationError
+from electrumx.lib.atomicals_blueprint_builder import (
+    AtomicalsTransferBlueprintBuilder,
+    AtomicalsValidation,
+    AtomicalsValidationError,
+)
 from electrumx.lib.hash import Base58Error
 from electrumx.lib.merkle import MerkleCache
 from electrumx.lib.script2addr import *
 from electrumx.lib.text import sessions_lines
 from electrumx.lib.util_atomicals import *
-from electrumx.server.daemon import DaemonError, Daemon
+from electrumx.server.daemon import Daemon, DaemonError
 from electrumx.server.history import TXNUM_LEN
 from electrumx.server.http_middleware import *
 from electrumx.server.mempool import MemPool
+from electrumx.server.peers import PeerManager
 from electrumx.server.session import BAD_REQUEST, DAEMON_ERROR
 from electrumx.server.session.http_session import HttpSession
-from electrumx.server.session.util import non_negative_integer, SESSION_PROTOCOL_MAX
-from electrumx.server.peers import PeerManager
-
-from typing import TYPE_CHECKING, Type, Dict, List
-
+from electrumx.server.session.util import SESSION_PROTOCOL_MAX, non_negative_integer
 from electrumx.version import electrumx_version
 
 if TYPE_CHECKING:
@@ -63,13 +64,13 @@ class SessionManager:
     """Holds global state about all sessions."""
 
     def __init__(
-            self,
-            env: 'Env',
-            db: 'DB',
-            bp: 'BlockProcessor',
-            daemon: 'Daemon',
-            mempool: 'MemPool',
-            shutdown_event: asyncio.Event,
+        self,
+        env: "Env",
+        db: "DB",
+        bp: "BlockProcessor",
+        daemon: "Daemon",
+        mempool: "MemPool",
+        shutdown_event: asyncio.Event,
     ):
         env.max_send = max(350000, env.max_send)
         self.env = env
@@ -120,71 +121,86 @@ class SessionManager:
     def _ssl_context(self):
         if self._sslc is None:
             self._sslc = ssl.SSLContext(ssl.PROTOCOL_TLS)
-            self._sslc.load_cert_chain(self.env.ssl_certfile, keyfile=self.env.ssl_keyfile)
+            self._sslc.load_cert_chain(
+                self.env.ssl_certfile, keyfile=self.env.ssl_keyfile
+            )
         return self._sslc
 
     async def _start_servers(self, services):
         for service in services:
             kind = service.protocol.upper()
-            if service.protocol == 'http':
-                host = None if service.host == 'all_interfaces' else str(service.host)
+            if service.protocol == "http":
+                host = None if service.host == "all_interfaces" else str(service.host)
                 try:
-                    app = web.Application(middlewares=[
-                        cors_middleware(self),
-                        error_middleware(self),
-                        request_middleware(self),
-                    ])
-                    handler = HttpSession(self, self.db, self.mempool, self.peer_mgr, kind)
+                    app = web.Application(
+                        middlewares=[
+                            cors_middleware(self),
+                            error_middleware(self),
+                            request_middleware(self),
+                        ]
+                    )
+                    handler = HttpSession(
+                        self, self.db, self.mempool, self.peer_mgr, kind
+                    )
                     await handler.add_endpoints(app.router, SESSION_PROTOCOL_MAX)
-                    app['rate_limiter'] = rate_limiter
+                    app["rate_limiter"] = rate_limiter
                     runner = web.AppRunner(app)
                     await runner.setup()
                     site = web.TCPSite(runner, host, service.port)
                     await site.start()
                 except Exception as e:
-                    self.logger.error(f'{kind} server failed to listen on {service.address}: {e}')
+                    self.logger.error(
+                        f"{kind} server failed to listen on {service.address}: {e}"
+                    )
                 else:
-                    self.logger.info(f'{kind} server listening on {service.address}')
+                    self.logger.info(f"{kind} server listening on {service.address}")
             else:
                 if service.protocol in self.env.SSL_PROTOCOLS:
                     sslc = self._ssl_context()
                 else:
                     sslc = None
-                if service.protocol == 'rpc':
-                    session_class = Type['LocalRPC']
+                if service.protocol == "rpc":
+                    session_class = Type["LocalRPC"]
                 else:
                     session_class = self.env.coin.SESSIONCLS
-                if service.protocol in ('ws', 'wss'):
+                if service.protocol in ("ws", "wss"):
                     serve = serve_ws
                 else:
                     serve = serve_rs
                 # FIXME: pass the service not the kind
-                session_factory = partial(session_class, self, self.db, self.mempool,
-                                          self.peer_mgr, kind)
-                host = None if service.host == 'all_interfaces' else str(service.host)
+                session_factory = partial(
+                    session_class, self, self.db, self.mempool, self.peer_mgr, kind
+                )
+                host = None if service.host == "all_interfaces" else str(service.host)
                 try:
-                    self.servers[service] = await serve(session_factory, host,
-                                                        service.port, ssl=sslc)
+                    self.servers[service] = await serve(
+                        session_factory, host, service.port, ssl=sslc
+                    )
                 except OSError as e:  # don't suppress CancelledError
-                    self.logger.error(f'{kind} server failed to listen on {service.address}: {e}')
+                    self.logger.error(
+                        f"{kind} server failed to listen on {service.address}: {e}"
+                    )
                 else:
-                    self.logger.info(f'{kind} server listening on {service.address}')
+                    self.logger.info(f"{kind} server listening on {service.address}")
 
     async def _start_external_servers(self):
         """Start listening on TCP and SSL ports, but only if the respective
         port was given in the environment.
         """
-        await self._start_servers(service for service in self.env.services
-                                  if service.protocol != 'rpc')
+        await self._start_servers(
+            service for service in self.env.services if service.protocol != "rpc"
+        )
         self.server_listening.set()
 
     async def _stop_servers(self, services):
         """Stop the servers of the given protocols."""
-        server_map = {service: self.servers.pop(service)
-                      for service in set(services).intersection(self.servers)}
+        server_map = {
+            service: self.servers.pop(service)
+            for service in set(services).intersection(self.servers)
+        }
         # Close all before waiting
         for service, server in server_map.items():
-            self.logger.info(f'closing down server for {service}')
+            self.logger.info(f"closing down server for {service}")
             server.close()
         # No value in doing these concurrently
         for server in server_map.values():
@@ -198,16 +214,19 @@ class SessionManager:
             await self.session_event.wait()
             self.session_event.clear()
             if not paused and len(self.sessions) >= max_sessions:
-                self.logger.info(f'maximum sessions {max_sessions:,d} '
-                                 f'reached, stopping new connections until '
-                                 f'count drops to {low_watermark:,d}')
-                await self._stop_servers(service for service in self.servers
-                                         if service.protocol != 'rpc')
+                self.logger.info(
+                    f"maximum sessions {max_sessions:,d} "
+                    f"reached, stopping new connections until "
+                    f"count drops to {low_watermark:,d}"
+                )
+                await self._stop_servers(
+                    service for service in self.servers if service.protocol != "rpc"
+                )
                 paused = True
             # Start listening for incoming connections if paused and
             # session count has fallen
             if paused and len(self.sessions) <= low_watermark:
-                self.logger.info('resuming listening for incoming connections')
+                self.logger.info("resuming listening for incoming connections")
                 await self._start_external_servers()
                 paused = False
 
@@ -224,8 +243,8 @@ class SessionManager:
 
     async def _disconnect_sessions(self, sessions, reason, *, force_after=1.0):
         if sessions:
-            session_ids = ', '.join(str(session.session_id) for session in sessions)
-            self.logger.info(f'{reason} session ids {session_ids}')
+            session_ids = ", ".join(str(session.session_id) for session in sessions)
+            self.logger.info(f"{reason} session ids {session_ids}")
             for session in sessions:
                 await self._task_group.spawn(session.close(force_after=force_after))
 
@@ -234,16 +253,17 @@ class SessionManager:
         while True:
             await sleep(60)
             stale_cutoff = time.time() - self.env.session_timeout
-            stale_sessions = [session for session in self.sessions
-                              if session.last_recv < stale_cutoff]
-            await self._disconnect_sessions(stale_sessions, 'closing stale')
+            stale_sessions = [
+                session for session in self.sessions if session.last_recv < stale_cutoff
+            ]
+            await self._disconnect_sessions(stale_sessions, "closing stale")
             del stale_sessions
 
     async def _handle_chain_reorgs(self):
         """Clear certain caches on chain reorgs."""
         while True:
             await self.bp.backed_up_event.wait()
-            self.logger.info(f'reorg signalled; clearing tx_hashes and merkle caches')
+            self.logger.info(f"reorg signalled; clearing tx_hashes and merkle caches")
             self._reorg_count += 1
             self._tx_hashes_cache.clear()
             self._merkle_cache.clear()
@@ -271,79 +291,97 @@ class SessionManager:
             # cost_decay_per_sec.
             for session in self.sessions:
                 # Subs have an on-going cost so decay more slowly with more subs
-                session.cost_decay_per_sec = hard_limit / (10000 + 5 * session.sub_count())
+                session.cost_decay_per_sec = hard_limit / (
+                    10000 + 5 * session.sub_count()
+                )
                 session.recalc_concurrency()
 
     def _get_info(self):
         """A summary of server state."""
-        cache_fmt = '{:,d} lookups {:,d} hits {:,d} entries'
+        cache_fmt = "{:,d} lookups {:,d} hits {:,d} entries"
         sessions = self.sessions
         return {
-            'coin': self.env.coin.__name__,
-            'daemon': self.daemon.logged_url(),
-            'daemon height': self.daemon.cached_height(),
-            'db height': self.db.db_height,
-            'db_flush_count': self.db.history.flush_count,
-            'groups': len(self.session_groups),
-            'history cache': cache_fmt.format(
-                self._history_lookups, self._history_hits, len(self._history_cache)),
-            'merkle cache': cache_fmt.format(
-                self._merkle_lookups, self._merkle_hits, len(self._merkle_cache)),
-            'pid': os.getpid(),
-            'peers': self.peer_mgr.info(),
-            'request counts': self.method_counts,
-            'request total': sum(self.method_counts.values()),
-            'sessions': {
-                'count': len(sessions),
-                'count with subs': sum(len(getattr(s, 'hashX_subs', ())) > 0 for s in sessions),
-                'errors': sum(s.errors for s in sessions),
-                'logged': len([s for s in sessions if s.log_me]),
-                'pending requests': sum(s.unanswered_request_count() for s in sessions),
-                'subs': sum(s.sub_count() for s in sessions),
+            "coin": self.env.coin.__name__,
+            "daemon": self.daemon.logged_url(),
+            "daemon height": self.daemon.cached_height(),
+            "db height": self.db.db_height,
+            "db_flush_count": self.db.history.flush_count,
+            "groups": len(self.session_groups),
+            "history cache": cache_fmt.format(
+                self._history_lookups, self._history_hits, len(self._history_cache)
+            ),
+            "merkle cache": cache_fmt.format(
+                self._merkle_lookups, self._merkle_hits, len(self._merkle_cache)
+            ),
+            "pid": os.getpid(),
+            "peers": self.peer_mgr.info(),
+            "request counts": self.method_counts,
+            "request total": sum(self.method_counts.values()),
+            "sessions": {
+                "count": len(sessions),
+                "count with subs": sum(
+                    len(getattr(s, "hashX_subs", ())) > 0 for s in sessions
+                ),
+                "errors": sum(s.errors for s in sessions),
+                "logged": len([s for s in sessions if s.log_me]),
+                "pending requests": sum(s.unanswered_request_count() for s in sessions),
+                "subs": sum(s.sub_count() for s in sessions),
             },
-            'tx hashes cache': cache_fmt.format(
-                self._tx_hashes_lookups, self._tx_hashes_hits, len(self._tx_hashes_cache)),
-            'txs sent': self.txs_sent,
-            'uptime': util.formatted_time(time.time() - self.start_time),
-            'version': electrumx_version,
+            "tx hashes cache": cache_fmt.format(
+                self._tx_hashes_lookups,
+                self._tx_hashes_hits,
+                len(self._tx_hashes_cache),
+            ),
+            "txs sent": self.txs_sent,
+            "uptime": util.formatted_time(time.time() - self.start_time),
+            "version": electrumx_version,
         }
 
     def _session_data(self, for_log):
         """Returned to the RPC 'sessions' call."""
         now = time.time()
         sessions = sorted(self.sessions, key=lambda s: s.start_time)
-        return [(session.session_id,
-                 session.flags(),
-                 session.remote_address_string(for_log=for_log),
-                 session.client,
-                 session.protocol_version_string(),
-                 session.cost,
-                 session.extra_cost(),
-                 session.unanswered_request_count(),
-                 session.txs_sent,
-                 session.sub_count(),
-                 session.recv_count, session.recv_size,
-                 session.send_count, session.send_size,
-                 now - session.start_time)
-                for session in sessions]
+        return [
+            (
+                session.session_id,
+                session.flags(),
+                session.remote_address_string(for_log=for_log),
+                session.client,
+                session.protocol_version_string(),
+                session.cost,
+                session.extra_cost(),
+                session.unanswered_request_count(),
+                session.txs_sent,
+                session.sub_count(),
+                session.recv_count,
+                session.recv_size,
+                session.send_count,
+                session.send_size,
+                now - session.start_time,
+            )
+            for session in sessions
+        ]
 
     def _group_data(self):
         """Returned to the RPC 'groups' call."""
         result = []
         for name, group in self.session_groups.items():
             sessions = group.sessions
-            result.append([name,
-                           len(sessions),
-                           group.session_cost(),
-                           group.retained_cost,
-                           sum(s.unanswered_request_count() for s in sessions),
-                           sum(s.txs_sent for s in sessions),
-                           sum(s.sub_count() for s in sessions),
-                           sum(s.recv_count for s in sessions),
-                           sum(s.recv_size for s in sessions),
-                           sum(s.send_count for s in sessions),
-                           sum(s.send_size for s in sessions),
-                           ])
+            result.append(
+                [
+                    name,
+                    len(sessions),
+                    group.session_cost(),
+                    group.retained_cost,
+                    sum(s.unanswered_request_count() for s in sessions),
+                    sum(s.txs_sent for s in sessions),
+                    sum(s.sub_count() for s in sessions),
+                    sum(s.recv_count for s in sessions),
+                    sum(s.recv_size for s in sessions),
+                    sum(s.send_count for s in sessions),
+                    sum(s.send_size for s in sessions),
+                ]
+            )
         return result
 
     async def _refresh_hsub_results(self, height):
@@ -353,13 +391,15 @@ class SessionManager:
         # Paranoia: a reorg could race and leave db_height lower
         height = min(height, self.db.db_height)
         raw = await self.raw_header(height)
-        self.hsub_results = {'hex': raw.hex(), 'height': height}
+        self.hsub_results = {"hex": raw.hex(), "height": height}
         self.notified_height = height
 
     def _session_references(self, items, special_strings):
         """Return a SessionReferences object."""
-        if not isinstance(items, list) or not all(isinstance(item, str) for item in items):
-            raise RPCError(BAD_REQUEST, 'expected a list of session IDs')
+        if not isinstance(items, list) or not all(
+            isinstance(item, str) for item in items
+        ):
+            raise RPCError(BAD_REQUEST, "expected a list of session IDs")
 
         sessions_by_id = {session.session_id: session for session in self.sessions}
         groups_by_name = self.session_groups
@@ -404,21 +444,23 @@ class SessionManager:
 
         session_ids: array of session IDs
         """
-        refs = self._session_references(session_ids, {'all'})
+        refs = self._session_references(session_ids, {"all"})
         result = []
 
-        if 'all' in refs.specials:
+        if "all" in refs.specials:
             sessions = self.sessions
-            result.append('disconnecting all sessions')
+            result.append("disconnecting all sessions")
         else:
             sessions = refs.sessions
-            result.extend(f'disconnecting session {session.session_id}' for session in sessions)
+            result.extend(
+                f"disconnecting session {session.session_id}" for session in sessions
+            )
             for group in refs.groups:
-                result.append(f'disconnecting group {group.name}')
+                result.append(f"disconnecting group {group.name}")
                 sessions.update(group.sessions)
-        result.extend(f'unknown: {item}' for item in refs.unknown)
+        result.extend(f"unknown: {item}" for item in refs.unknown)
 
-        await self._disconnect_sessions(sessions, 'local RPC request to disconnect')
+        await self._disconnect_sessions(sessions, "local RPC request to disconnect")
         return result
 
     async def rpc_daemon_url(self, daemon_url):
@@ -427,13 +469,13 @@ class SessionManager:
         try:
             self.daemon.set_url(daemon_url)
         except Exception as e:
-            raise RPCError(BAD_REQUEST, f'an error occurred: {e!r}')
-        return f'now using daemon at {self.daemon.logged_url()}'
+            raise RPCError(BAD_REQUEST, f"an error occurred: {e!r}")
+        return f"now using daemon at {self.daemon.logged_url()}"
 
     async def rpc_stop(self):
         """Shut down the server cleanly."""
         self.shutdown_event.set()
-        return 'stopping'
+        return "stopping"
 
     async def rpc_getinfo(self):
         """Return summary information about the server process."""
@@ -456,14 +498,14 @@ class SessionManager:
         def arg_to_hashX(arg):
             try:
                 script = bytes.fromhex(arg)
-                lines.append(f'Script: {arg}')
+                lines.append(f"Script: {arg}")
                 return coin.hashX_from_script(script)
             except ValueError:
                 pass
 
             try:
                 hashX = coin.address_to_hashX(arg)
-                lines.append(f'Address: {arg}')
+                lines.append(f"Address: {arg}")
                 return hashX
             except Base58Error:
                 pass
@@ -471,7 +513,7 @@ class SessionManager:
             try:
                 script = coin.build_name_index_script(arg.encode("ascii"))
                 hashX = coin.name_hashX_from_script(script)
-                lines.append(f'Name: {arg}')
+                lines.append(f"Name: {arg}")
                 return hashX
             except (AttributeError, UnicodeEncodeError):
                 pass
@@ -485,25 +527,30 @@ class SessionManager:
             n = None
             history = await db.limited_history(hashX, limit=limit)
             for n, (tx_hash, height) in enumerate(history):
-                lines.append(f'History #{n:,d}: height {height:,d} '
-                             f'tx_hash {hash_to_hex_str(tx_hash)}')
+                lines.append(
+                    f"History #{n:,d}: height {height:,d} "
+                    f"tx_hash {hash_to_hex_str(tx_hash)}"
+                )
             if n is None:
-                lines.append('No history found')
+                lines.append("No history found")
             n = None
             utxos = await db.all_utxos(hashX)
             for n, utxo in enumerate(utxos, start=1):
-                lines.append(f'UTXO #{n:,d}: tx_hash '
-                             f'{hash_to_hex_str(utxo.tx_hash)} '
-                             f'tx_pos {utxo.tx_pos:,d} height '
-                             f'{utxo.height:,d} value {utxo.value:,d}')
+                lines.append(
+                    f"UTXO #{n:,d}: tx_hash "
+                    f"{hash_to_hex_str(utxo.tx_hash)} "
+                    f"tx_pos {utxo.tx_pos:,d} height "
+                    f"{utxo.height:,d} value {utxo.value:,d}"
+                )
                 if n == limit:
                     break
             if n is None:
-                lines.append('No UTXOs found')
+                lines.append("No UTXOs found")
 
             balance = sum(utxo.value for utxo in utxos)
-            lines.append(f'Balance: {coin.decimal_value(balance):,f} '
-                         f'{coin.SHORTNAME}')
+            lines.append(
+                f"Balance: {coin.decimal_value(balance):,f} " f"{coin.SHORTNAME}"
+            )
 
         return lines
 
@@ -518,18 +565,17 @@ class SessionManager:
         """
         count = non_negative_integer(count)
         if not self.bp.force_chain_reorg(count):
-            raise RPCError(BAD_REQUEST, 'still catching up with daemon')
-        return f'scheduled a reorg of {count:,d} blocks'
+            raise RPCError(BAD_REQUEST, "still catching up with daemon")
+        return f"scheduled a reorg of {count:,d} blocks"
 
     async def rpc_debug_memusage_list_all_objects(self, limit: int) -> str:
         """Return a string listing the most common types in memory."""
-        import objgraph  # optional dependency
         import io
+
+        import objgraph  # optional dependency
+
         with io.StringIO() as fd:
-            objgraph.show_most_common_types(
-                limit=limit,
-                shortnames=False,
-                file=fd)
+            objgraph.show_most_common_types(limit=limit, shortnames=False, file=fd)
             return fd.getvalue()
 
     async def rpc_debug_memusage_get_random_backref_chain(self, objtype: str) -> str:
@@ -541,18 +587,19 @@ class SessionManager:
         To convert to image:
         $ dot -Tps filename.dot -o outfile.ps
         """
-        import objgraph  # optional dependency
-        import random
         import io
+        import random
+
+        import objgraph  # optional dependency
+
         with io.StringIO() as fd:
             await run_in_thread(
-                lambda:
-                objgraph.show_chain(
+                lambda: objgraph.show_chain(
                     objgraph.find_backref_chain(
                         random.choice(objgraph.by_type(objtype)),
-                        objgraph.is_proper_module
+                        objgraph.is_proper_module,
                     ),
-                    output=fd
+                    output=fd,
                 )
             )
             return fd.getvalue()
@@ -563,8 +610,9 @@ class SessionManager:
         """Start the RPC server if enabled.  When the event is triggered,
         start TCP and SSL servers."""
         try:
-            await self._start_servers(service for service in self.env.services
-                                      if service.protocol == 'rpc')
+            await self._start_servers(
+                service for service in self.env.services if service.protocol == "rpc"
+            )
             await event.wait()
 
             session_class = self.env.coin.SESSIONCLS
@@ -576,22 +624,22 @@ class SessionManager:
             session_class.initial_concurrent = self.env.initial_concurrent
             session_class.processing_timeout = self.env.request_timeout
 
-            self.logger.info(f'max session count: {self.env.max_sessions:,d}')
-            self.logger.info(f'session timeout: {self.env.session_timeout:,d} seconds')
-            self.logger.info(f'session cost hard limit {self.env.cost_hard_limit:,d}')
-            self.logger.info(f'session cost soft limit {self.env.cost_soft_limit:,d}')
-            self.logger.info(f'bandwidth unit cost {self.env.bw_unit_cost:,d}')
-            self.logger.info(f'request sleep {self.env.request_sleep:,d}ms')
-            self.logger.info(f'request timeout {self.env.request_timeout:,d}s')
-            self.logger.info(f'initial concurrent {self.env.initial_concurrent:,d}')
+            self.logger.info(f"max session count: {self.env.max_sessions:,d}")
+            self.logger.info(f"session timeout: {self.env.session_timeout:,d} seconds")
+            self.logger.info(f"session cost hard limit {self.env.cost_hard_limit:,d}")
+            self.logger.info(f"session cost soft limit {self.env.cost_soft_limit:,d}")
+            self.logger.info(f"bandwidth unit cost {self.env.bw_unit_cost:,d}")
+            self.logger.info(f"request sleep {self.env.request_sleep:,d}ms")
+            self.logger.info(f"request timeout {self.env.request_timeout:,d}s")
+            self.logger.info(f"initial concurrent {self.env.initial_concurrent:,d}")
 
-            self.logger.info(f'max response size {self.env.max_send:,d} bytes')
+            self.logger.info(f"max response size {self.env.max_send:,d} bytes")
             if self.env.drop_client is not None:
                 self.logger.info(
-                    f'drop clients matching: {self.env.drop_client.pattern}'
+                    f"drop clients matching: {self.env.drop_client.pattern}"
                 )
             for service in self.env.report_services:
-                self.logger.info(f'advertising service {service}')
+                self.logger.info(f"advertising service {service}")
             # Start notifications; initialize hsub_results
             await notifications.start(self.db.db_height, self._notify_sessions)
             await self._start_external_servers()
@@ -631,8 +679,9 @@ class SessionManager:
                 self._merkle_hits += 1
                 cost = 10 * math.sqrt(tx_hash_count)
             else:
+
                 async def tx_hashes_func(start, count):
-                    return tx_hashes[start: start + count]
+                    return tx_hashes[start : start + count]
 
                 merkle_cache = MerkleCache(self.db.merkle, tx_hashes_func)
                 self._merkle_cache[height] = merkle_cache
@@ -650,8 +699,10 @@ class SessionManager:
         try:
             tx_pos = tx_hashes.index(tx_hash)
         except ValueError:
-            raise RPCError(BAD_REQUEST,
-                           f'tx {hash_to_hex_str(tx_hash)} not in block at height {height:,d}')
+            raise RPCError(
+                BAD_REQUEST,
+                f"tx {hash_to_hex_str(tx_hash)} not in block at height {height:,d}",
+            )
         branch, merkle_cost = await self._merkle_branch(height, tx_hashes, tx_pos)
         return branch, tx_pos, tx_hashes_cost + merkle_cost
 
@@ -661,8 +712,10 @@ class SessionManager:
         try:
             tx_hash = tx_hashes[tx_pos]
         except IndexError:
-            raise RPCError(BAD_REQUEST,
-                           f'no tx at position {tx_pos:,d} in block at height {height:,d}')
+            raise RPCError(
+                BAD_REQUEST,
+                f"no tx at position {tx_pos:,d} in block at height {height:,d}",
+            )
         branch, merkle_cost = await self._merkle_branch(height, tx_hashes, tx_pos)
         return branch, hash_to_hex_str(tx_hash), tx_hashes_cost + merkle_cost
 
@@ -684,7 +737,7 @@ class SessionManager:
             try:
                 tx_hashes = await self.db.tx_hashes_at_blockheight(height)
             except self.db.DBError as e:
-                raise RPCError(BAD_REQUEST, f'db error: {e!r}')
+                raise RPCError(BAD_REQUEST, f"db error: {e!r}")
             if reorg_count == self._reorg_count:
                 break
 
@@ -701,15 +754,14 @@ class SessionManager:
         try:
             return await getattr(self.daemon, method)(*args)
         except DaemonError as e:
-            raise RPCError(DAEMON_ERROR, f'daemon error: {e!r}') from None
+            raise RPCError(DAEMON_ERROR, f"daemon error: {e!r}") from None
 
     async def raw_header(self, height):
         """Return the binary header at the given height."""
         try:
             return await self.db.raw_header(height)
         except IndexError:
-            raise RPCError(BAD_REQUEST, f'height {height:,d} '
-                                        'out of range') from None
+            raise RPCError(BAD_REQUEST, f"height {height:,d} " "out of range") from None
 
     async def broadcast_transaction(self, raw_tx):
         hex_hash = await self.daemon.broadcast_transaction(raw_tx)
@@ -723,7 +775,9 @@ class SessionManager:
             self.txs_sent += 1
             return hex_hash
         else:
-            tx, tx_hash = self.env.coin.DESERIALIZER(bytes.fromhex(raw_tx), 0).read_tx_and_hash()
+            tx, tx_hash = self.env.coin.DESERIALIZER(
+                bytes.fromhex(raw_tx), 0
+            ).read_tx_and_hash()
             return hash_to_hex_str(tx_hash)
 
     async def limited_history(self, hashX):
@@ -742,7 +796,7 @@ class SessionManager:
             result = await self.db.limited_history(hashX, limit=limit)
             cost += 0.1 + len(result) * 0.001
             if len(result) >= limit:
-                result = RPCError(BAD_REQUEST, f'history too large', cost=cost)
+                result = RPCError(BAD_REQUEST, f"history too large", cost=cost)
             self._history_cache[hashX] = result
 
         if isinstance(result, Exception):
@@ -754,36 +808,46 @@ class SessionManager:
         if not history_data:
             history_data = []
             txnum_padding = bytes(8 - TXNUM_LEN)
-            for _key, hist in self.db.history.db.iterator(prefix=hashX, reverse=reverse):
+            for _key, hist in self.db.history.db.iterator(
+                prefix=hashX, reverse=reverse
+            ):
                 for tx_numb in util.chunks(hist, TXNUM_LEN):
-                    tx_num, = util.unpack_le_uint64(tx_numb + txnum_padding)
+                    (tx_num,) = util.unpack_le_uint64(tx_numb + txnum_padding)
                     op_data = self._tx_num_op_cache.get(tx_num)
                     if not op_data:
-                        op_prefix_key = b'op' + util.pack_le_uint64(tx_num)
+                        op_prefix_key = b"op" + util.pack_le_uint64(tx_num)
                         tx_op = self.db.utxo_db.get(op_prefix_key)
                         if tx_op:
-                            op_data, = util.unpack_le_uint32(tx_op)
+                            (op_data,) = util.unpack_le_uint32(tx_op)
                             self._tx_num_op_cache[tx_num] = op_data
                     history_data.append({"tx_num": tx_num, "op": op_data})
             self._history_op_cache[hashX] = history_data
         if reverse:
-            history_data.sort(key=lambda x: x['tx_num'], reverse=reverse)
+            history_data.sort(key=lambda x: x["tx_num"], reverse=reverse)
         if op:
             history_data = list(filter(lambda x: x["op"] == op, history_data))
         else:
             history_data = list(filter(lambda x: x["op"], history_data))
-        return history_data[offset:limit + offset], len(history_data)
+        return history_data[offset : limit + offset], len(history_data)
 
     # Helper method to validate if the transaction correctly cleanly assigns all Atomicals.
     # This method simulates coloring according to split and regular rules.
     # Note: This does not apply to mempool but only prevout utxos that are confirmed.
-    def validate_raw_tx_blueprint(self, raw_tx, raise_if_burned=True) -> AtomicalsValidation:
+    def validate_raw_tx_blueprint(
+        self, raw_tx, raise_if_burned=True
+    ) -> AtomicalsValidation:
         # Deserialize the transaction
-        tx, tx_hash = self.env.coin.DESERIALIZER(bytes.fromhex(raw_tx), 0).read_tx_and_hash()
+        tx, tx_hash = self.env.coin.DESERIALIZER(
+            bytes.fromhex(raw_tx), 0
+        ).read_tx_and_hash()
         # Determine if there are any other operations at the transfer
-        operations_found_at_inputs = parse_protocols_operations_from_witness_array(tx, tx_hash, True)
+        operations_found_at_inputs = parse_protocols_operations_from_witness_array(
+            tx, tx_hash, True
+        )
         # Build the map of the atomicals potential spent at the tx
-        atomicals_spent_at_inputs = self.bp.build_atomicals_spent_at_inputs_for_validation_only(tx)
+        atomicals_spent_at_inputs = (
+            self.bp.build_atomicals_spent_at_inputs_for_validation_only(tx)
+        )
         # Build a structure of organizing into NFT and FTs
         # Note: We do not validate anything with NFTs, just FTs
         # Build the "blueprint" for how to assign all atomicals
@@ -795,28 +859,34 @@ class SessionManager:
             tx,
             self.bp.get_atomicals_id_mint_info,
             True,
-            self.bp.is_custom_coloring_activated(self.bp.height)
+            self.bp.is_custom_coloring_activated(self.bp.height),
         )
         ft_output_blueprint = blueprint_builder.get_ft_output_blueprint()
         nft_output_blueprint = blueprint_builder.get_nft_output_blueprint()
         # Log that there were tokens burned due to not being cleanly assigned
         if blueprint_builder.get_are_fts_burned() and raise_if_burned:
-            encoded_atomicals_spent_at_inputs = encode_atomical_ids_hex(atomicals_spent_at_inputs)
-            encoded_ft_output_blueprint = auto_encode_bytes_items(encode_atomical_ids_hex(ft_output_blueprint))
-            encoded_nft_output_blueprint = auto_encode_bytes_items(encode_atomical_ids_hex(nft_output_blueprint))
-            ft_outputs = encoded_ft_output_blueprint['outputs']
-            fts_burned = encoded_ft_output_blueprint['fts_burned']
-            nft_outputs = encoded_nft_output_blueprint['outputs']
-            nft_burned = encoded_nft_output_blueprint['nfts_burned']
+            encoded_atomicals_spent_at_inputs = encode_atomical_ids_hex(
+                atomicals_spent_at_inputs
+            )
+            encoded_ft_output_blueprint = auto_encode_bytes_items(
+                encode_atomical_ids_hex(ft_output_blueprint)
+            )
+            encoded_nft_output_blueprint = auto_encode_bytes_items(
+                encode_atomical_ids_hex(nft_output_blueprint)
+            )
+            ft_outputs = encoded_ft_output_blueprint["outputs"]
+            fts_burned = encoded_ft_output_blueprint["fts_burned"]
+            nft_outputs = encoded_nft_output_blueprint["outputs"]
+            nft_burned = encoded_nft_output_blueprint["nfts_burned"]
             raise AtomicalsValidationError(
-                f'Invalid FT token inputs/outputs:\n'
-                f'tx_hash={hash_to_hex_str(tx_hash)}\n'
-                f'operations_found_at_inputs={operations_found_at_inputs}\n'
-                f'atomicals_spent_at_inputs={encoded_atomicals_spent_at_inputs}\n'
-                f'ft_output_blueprint.outputs={ft_outputs}\n'
-                f'ft_output_blueprint.fts_burned={fts_burned}\n'
-                f'nft_output_blueprint.outputs={nft_outputs}\n'
-                f'nft_output_blueprint.nfts_burned={nft_burned}'
+                f"Invalid FT token inputs/outputs:\n"
+                f"tx_hash={hash_to_hex_str(tx_hash)}\n"
+                f"operations_found_at_inputs={operations_found_at_inputs}\n"
+                f"atomicals_spent_at_inputs={encoded_atomicals_spent_at_inputs}\n"
+                f"ft_output_blueprint.outputs={ft_outputs}\n"
+                f"ft_output_blueprint.fts_burned={fts_burned}\n"
+                f"nft_output_blueprint.outputs={nft_outputs}\n"
+                f"nft_output_blueprint.nfts_burned={nft_burned}"
             )
         return AtomicalsValidation(
             tx_hash,
@@ -838,9 +908,13 @@ class SessionManager:
             return cache_res
 
         # Determine if there are any other operations at the transfer
-        operations_found_at_inputs = parse_protocols_operations_from_witness_array(tx, tx_hash, True)
+        operations_found_at_inputs = parse_protocols_operations_from_witness_array(
+            tx, tx_hash, True
+        )
         # Build the map of the atomicals potential spent at the tx
-        atomicals_spent_at_inputs: Dict[int: List] = self.bp.build_atomicals_spent_at_inputs_for_validation_only(tx)
+        atomicals_spent_at_inputs: Dict[
+            int:List
+        ] = self.bp.build_atomicals_spent_at_inputs_for_validation_only(tx)
         # Build a structure of organizing into NFT and FTs
         # Note: We do not validate anything with NFTs, just FTs
         # Build the "blueprint" for how to assign all atomicals
@@ -852,94 +926,112 @@ class SessionManager:
             tx,
             self.bp.get_atomicals_id_mint_info,
             True,
-            self.bp.is_custom_coloring_activated(self.bp.height)
+            self.bp.is_custom_coloring_activated(self.bp.height),
         )
         ft_output_blueprint = blueprint_builder.get_ft_output_blueprint()
         nft_output_blueprint = blueprint_builder.get_nft_output_blueprint()
         # Log that there were tokens burned due to not being cleanly assigned
         encoded_spent_at_inputs = encode_atomical_ids_hex(atomicals_spent_at_inputs)
-        encoded_ft_output_blueprint: Dict[str, Dict] = dict(encode_atomical_ids_hex(ft_output_blueprint))
-        encoded_nft_output_blueprint: Dict[str, Dict] = dict(encode_atomical_ids_hex(nft_output_blueprint))
-        op = operations_found_at_inputs.get('op') or 'transfer'
-        payload = operations_found_at_inputs.get('payload')
+        encoded_ft_output_blueprint: Dict[str, Dict] = dict(
+            encode_atomical_ids_hex(ft_output_blueprint)
+        )
+        encoded_nft_output_blueprint: Dict[str, Dict] = dict(
+            encode_atomical_ids_hex(nft_output_blueprint)
+        )
+        op = operations_found_at_inputs.get("op") or "transfer"
+        payload = operations_found_at_inputs.get("payload")
         ret = {
-            'op': [op],
-            'burned': {
-                **auto_encode_bytes_items(encoded_ft_output_blueprint['fts_burned']),
-                **auto_encode_bytes_items(encoded_nft_output_blueprint['nfts_burned'])
+            "op": [op],
+            "burned": {
+                **auto_encode_bytes_items(encoded_ft_output_blueprint["fts_burned"]),
+                **auto_encode_bytes_items(encoded_nft_output_blueprint["nfts_burned"]),
             },
         }
         if payload:
-            ret['op_payload'] = payload
+            ret["op_payload"] = payload
         atomicals = []
         inputs = {}
         outputs = {}
         for k1, v1 in encoded_spent_at_inputs.items():
             for item1 in v1:
-                atomical_id = item1['atomical_id']
+                atomical_id = item1["atomical_id"]
                 if atomical_id not in atomicals:
                     atomicals.append(atomical_id)
                 if not inputs.get(k1):
                     inputs[k1] = {}
-                inputs[k1][atomical_id] = item1['data_value']['atomical_value']
-        ft_outputs: dict = encoded_ft_output_blueprint['outputs']
+                inputs[k1][atomical_id] = item1["data_value"]["atomical_value"]
+        ft_outputs: dict = encoded_ft_output_blueprint["outputs"]
         for k2, v2 in ft_outputs.items():
-            for location_bytes, item2 in v2['atomicals'].items():
+            for location_bytes, item2 in v2["atomicals"].items():
                 atomical_id = location_id_bytes_to_compact(location_bytes)
                 if not outputs.get(k2):
                     outputs[k2] = {}
                 outputs[k2][atomical_id] = item2.atomical_value
-        for k3, v3 in encoded_nft_output_blueprint['outputs'].items():
-            for location_bytes, item3 in v3['atomicals'].items():
+        for k3, v3 in encoded_nft_output_blueprint["outputs"].items():
+            for location_bytes, item3 in v3["atomicals"].items():
                 atomical_id = location_id_bytes_to_compact(location_bytes)
                 if not outputs.get(k3):
                     outputs[k3] = {}
                 outputs[k3][atomical_id] = item3.atomical_value
         mint_info = {}
         if blueprint_builder.is_mint:
-            if op in ['dmt', 'ft']:
+            if op in ["dmt", "ft"]:
                 tx_out = tx.outputs[0]
                 ticker_name = payload.get("args", {}).get("mint_ticker", "")
-                status, candidate_atomical_id, _ = self.bp.get_effective_ticker(ticker_name, self.bp.height)
+                status, candidate_atomical_id, _ = self.bp.get_effective_ticker(
+                    ticker_name, self.bp.height
+                )
                 atomical_id = location_id_bytes_to_compact(candidate_atomical_id)
                 mint_info = {
                     "atomical_id": atomical_id,
                     "outputs": {
                         "atomical_id": atomical_id,
                         "index": 0,
-                        "value": tx_out.value
-                    }
+                        "value": tx_out.value,
+                    },
                 }
-            elif op == 'nft':
-                _receive_at_outputs = self.bp.build_atomicals_receive_at_ouutput_for_validation_only(tx, tx_hash)
+            elif op == "nft":
+                _receive_at_outputs = (
+                    self.bp.build_atomicals_receive_at_ouutput_for_validation_only(
+                        tx, tx_hash
+                    )
+                )
                 tx_out = tx.outputs[0]
-                atomical_id = location_id_bytes_to_compact(_receive_at_outputs[0][-1]["atomical_id"])
+                atomical_id = location_id_bytes_to_compact(
+                    _receive_at_outputs[0][-1]["atomical_id"]
+                )
                 mint_info = {
                     "atomical_id": atomical_id,
                     "outputs": {
                         "atomical_id": atomical_id,
                         "index": 0,
-                        "value": tx_out.value
-                    }
+                        "value": tx_out.value,
+                    },
                 }
         if mint_info:
-            atomical_id = mint_info['atomical_id']
-            index = mint_info['outputs']['index']
-            value = mint_info['outputs']['value']
+            atomical_id = mint_info["atomical_id"]
+            index = mint_info["outputs"]["index"]
+            value = mint_info["outputs"]["value"]
             if not outputs.get(index):
                 outputs[index] = {}
             outputs[index][atomical_id] = value
         payment_info = {}
-        payment_id, payment_idx, _ = AtomicalsTransferBlueprintBuilder.get_atomical_id_for_payment_marker_if_found(tx)
+        (
+            payment_id,
+            payment_idx,
+            _,
+        ) = AtomicalsTransferBlueprintBuilder.get_atomical_id_for_payment_marker_if_found(
+            tx
+        )
         if payment_id:
             payment_info = {
                 "atomical_id": location_id_bytes_to_compact(payment_id),
-                "payment_marker_idx": payment_idx
+                "payment_marker_idx": payment_idx,
             }
-        ret['atomicals'] = atomicals
-        ret['inputs'] = inputs
-        ret['outputs'] = outputs
-        ret['payment'] = payment_info
+        ret["atomicals"] = atomicals
+        ret["inputs"] = inputs
+        ret["outputs"] = outputs
+        ret["payment"] = payment_info
         self._tx_decode_cache[tx_hash] = ret
         return ret
 
@@ -957,16 +1049,22 @@ class SessionManager:
 
         raw_tx = self.db.get_raw_tx_by_tx_hash(tx_hash)
         if not raw_tx:
-            raw_tx = await self.daemon_request('getrawtransaction', tx_id, False)
+            raw_tx = await self.daemon_request("getrawtransaction", tx_id, False)
             raw_tx = bytes.fromhex(raw_tx)
         tx, _tx_hash = self.env.coin.DESERIALIZER(raw_tx, 0).read_tx_and_hash()
         assert tx_hash == _tx_hash
         ops = self.db.get_op_by_tx_num(tx_num)
         op_raw = self.bp.op_list_vk[ops[0]] if ops else ""
 
-        operation_found_at_inputs = parse_protocols_operations_from_witness_array(tx, tx_hash, True)
-        atomicals_spent_at_inputs = self.bp.build_atomicals_spent_at_inputs_for_validation_only(tx)
-        atomicals_receive_at_outputs = self.bp.build_atomicals_receive_at_ouutput_for_validation_only(tx, tx_hash)
+        operation_found_at_inputs = parse_protocols_operations_from_witness_array(
+            tx, tx_hash, True
+        )
+        atomicals_spent_at_inputs = (
+            self.bp.build_atomicals_spent_at_inputs_for_validation_only(tx)
+        )
+        atomicals_receive_at_outputs = (
+            self.bp.build_atomicals_receive_at_ouutput_for_validation_only(tx, tx_hash)
+        )
         blueprint_builder = AtomicalsTransferBlueprintBuilder(
             self.logger,
             atomicals_spent_at_inputs,
@@ -995,10 +1093,12 @@ class SessionManager:
                 "outputs": {},
                 "is_burned": is_burned,
                 "burned_fts": burned_fts,
-                "is_cleanly_assigned": is_cleanly_assigned
-            }
+                "is_cleanly_assigned": is_cleanly_assigned,
+            },
         }
-        operation_type = operation_found_at_inputs.get("op", "") if operation_found_at_inputs else ""
+        operation_type = (
+            operation_found_at_inputs.get("op", "") if operation_found_at_inputs else ""
+        )
         if operation_found_at_inputs:
             payload = operation_found_at_inputs.get("payload")
             payload_not_none = payload or {}
@@ -1010,23 +1110,33 @@ class SessionManager:
                 # if save into the db, it means mint success
                 has_atomicals = self.db.get_atomicals_by_location_long_form(location)
                 if len(has_atomicals):
-                    ticker_name = payload_not_none.get("args", {}).get("mint_ticker", "")
-                    status, candidate_atomical_id, _ = self.bp.get_effective_ticker(ticker_name, self.bp.height)
+                    ticker_name = payload_not_none.get("args", {}).get(
+                        "mint_ticker", ""
+                    )
+                    status, candidate_atomical_id, _ = self.bp.get_effective_ticker(
+                        ticker_name, self.bp.height
+                    )
                     if status:
-                        atomical_id = location_id_bytes_to_compact(candidate_atomical_id)
+                        atomical_id = location_id_bytes_to_compact(
+                            candidate_atomical_id
+                        )
                         res["info"] = {
                             "atomical_id": atomical_id,
                             "location_id": location_id_bytes_to_compact(location),
                             "payload": payload,
                             "outputs": {
-                                expected_output_index: [{
-                                    "address": get_address_from_output_script(tx_out.pk_script),
-                                    "atomical_id": atomical_id,
-                                    "type": "FT",
-                                    "index": expected_output_index,
-                                    "value": tx_out.value
-                                }]
-                            }
+                                expected_output_index: [
+                                    {
+                                        "address": get_address_from_output_script(
+                                            tx_out.pk_script
+                                        ),
+                                        "atomical_id": atomical_id,
+                                        "type": "FT",
+                                        "index": expected_output_index,
+                                        "value": tx_out.value,
+                                    }
+                                ]
+                            },
                         }
             elif operation_type == "nft":
                 if atomicals_receive_at_outputs:
@@ -1034,33 +1144,49 @@ class SessionManager:
                     location = tx_hash + util.pack_le_uint32(expected_output_index)
                     tx_out = tx.outputs[expected_output_index]
                     atomical_id = location_id_bytes_to_compact(
-                        atomicals_receive_at_outputs[expected_output_index][-1]["atomical_id"]
+                        atomicals_receive_at_outputs[expected_output_index][-1][
+                            "atomical_id"
+                        ]
                     )
                     res["info"] = {
                         "atomical_id": atomical_id,
                         "location_id": location_id_bytes_to_compact(location),
                         "payload": payload,
                         "outputs": {
-                            expected_output_index: [{
-                                "address": get_address_from_output_script(tx_out.pk_script),
-                                "atomical_id": atomical_id,
-                                "type": "NFT",
-                                "index": expected_output_index,
-                                "value": tx_out.value
-                            }]
-                        }
+                            expected_output_index: [
+                                {
+                                    "address": get_address_from_output_script(
+                                        tx_out.pk_script
+                                    ),
+                                    "atomical_id": atomical_id,
+                                    "type": "NFT",
+                                    "index": expected_output_index,
+                                    "value": tx_out.value,
+                                }
+                            ]
+                        },
                     }
 
-        async def make_transfer_inputs(inputs, indexes, make_type) -> Dict[int, List[Dict]]:
+        async def make_transfer_inputs(
+            inputs, indexes, make_type
+        ) -> Dict[int, List[Dict]]:
             result = {}
             for _i in indexes:
                 _prev_txid = hash_to_hex_str(inputs[_i.txin_index].prev_hash)
-                _prev_raw_tx = self.db.get_raw_tx_by_tx_hash(hex_str_to_hash(_prev_txid))
+                _prev_raw_tx = self.db.get_raw_tx_by_tx_hash(
+                    hex_str_to_hash(_prev_txid)
+                )
                 if not _prev_raw_tx:
-                    _prev_raw_tx = await self.daemon_request('getrawtransaction', _prev_txid, False)
+                    _prev_raw_tx = await self.daemon_request(
+                        "getrawtransaction", _prev_txid, False
+                    )
                     _prev_raw_tx = bytes.fromhex(_prev_raw_tx)
-                    self.bp.general_data_cache[b'rtx' + hex_str_to_hash(_prev_txid)] = _prev_raw_tx
-                _prev_tx, _ = self.env.coin.DESERIALIZER(_prev_raw_tx, 0).read_tx_and_hash()
+                    self.bp.general_data_cache[
+                        b"rtx" + hex_str_to_hash(_prev_txid)
+                    ] = _prev_raw_tx
+                _prev_tx, _ = self.env.coin.DESERIALIZER(
+                    _prev_raw_tx, 0
+                ).read_tx_and_hash()
                 _data = {
                     "address": get_address_from_output_script(
                         _prev_tx.outputs[inputs[_i.txin_index].prev_idx].pk_script
@@ -1068,7 +1194,7 @@ class SessionManager:
                     "atomical_id": compact_atomical_id,
                     "type": make_type,
                     "index": _i.txin_index,
-                    "value": _prev_tx.outputs[inputs[_i.txin_index].prev_idx].value
+                    "value": _prev_tx.outputs[inputs[_i.txin_index].prev_idx].value,
                 }
                 if not result.get(_i.txin_index):
                     result[_i.txin_index] = [_data]
@@ -1078,14 +1204,16 @@ class SessionManager:
 
         def make_transfer_outputs(index: int, output: Dict) -> Dict[int, List[Dict]]:
             result = {}
-            for _atomical_id, _output in output['atomicals'].items():
+            for _atomical_id, _output in output["atomicals"].items():
                 _compact_atomical_id = location_id_bytes_to_compact(_atomical_id)
                 _data = {
-                    "address": get_address_from_output_script(tx.outputs[index].pk_script),
+                    "address": get_address_from_output_script(
+                        tx.outputs[index].pk_script
+                    ),
                     "atomical_id": _compact_atomical_id,
                     "type": _output.type,
                     "index": k,
-                    "value": _output.sat_value
+                    "value": _output.sat_value,
                 }
                 if not result.get(index):
                     result[index] = [_data]
@@ -1099,10 +1227,8 @@ class SessionManager:
                 op_raw = "transfer"
             for atomical_id, input_ft in blueprint_builder.ft_atomicals.items():
                 compact_atomical_id = location_id_bytes_to_compact(atomical_id)
-                res['transfers']['inputs'] = await make_transfer_inputs(
-                    tx.inputs,
-                    input_ft.input_indexes,
-                    'FT'
+                res["transfers"]["inputs"] = await make_transfer_inputs(
+                    tx.inputs, input_ft.input_indexes, "FT"
                 )
             for k, v in blueprint_builder.ft_output_blueprint.outputs.items():
                 res["transfers"]["outputs"] = make_transfer_outputs(k, v)
@@ -1111,21 +1237,24 @@ class SessionManager:
                 op_raw = "transfer"
             for atomical_id, input_nft in blueprint_builder.nft_atomicals.items():
                 compact_atomical_id = location_id_bytes_to_compact(atomical_id)
-                res['transfers']['inputs'] = await make_transfer_inputs(
-                    tx.inputs,
-                    input_nft.input_indexes,
-                    'NFT'
+                res["transfers"]["inputs"] = await make_transfer_inputs(
+                    tx.inputs, input_nft.input_indexes, "NFT"
                 )
             for k, v in blueprint_builder.nft_output_blueprint.outputs.items():
                 outputs = make_transfer_outputs(k, v)
                 res["transfers"]["outputs"] = make_transfer_outputs(k, v)
 
-        payment_id, payment_marker_idx, _ = AtomicalsTransferBlueprintBuilder.get_atomical_id_for_payment_marker_if_found(
-            tx)
+        (
+            payment_id,
+            payment_marker_idx,
+            _,
+        ) = AtomicalsTransferBlueprintBuilder.get_atomical_id_for_payment_marker_if_found(
+            tx
+        )
         if payment_id:
             res["info"]["payment"] = {
                 "atomical_id": location_id_bytes_to_compact(payment_id),
-                "payment_marker_idx": payment_marker_idx
+                "payment_marker_idx": payment_marker_idx,
             }
 
         if op_raw and height:
@@ -1136,36 +1265,43 @@ class SessionManager:
         return auto_encode_bytes_elements(res)
 
     async def transaction_global(
-            self,
-            limit: int = 10,
-            offset: int = 0,
-            op_type: Optional[str] = None,
-            reverse: bool = True
+        self,
+        limit: int = 10,
+        offset: int = 0,
+        op_type: Optional[str] = None,
+        reverse: bool = True,
     ):
         height = self.bp.height
         res = []
         count = 0
         history_list = []
-        for current_height in range(height, self.env.coin.ATOMICALS_ACTIVATION_HEIGHT, -1):
+        for current_height in range(
+            height, self.env.coin.ATOMICALS_ACTIVATION_HEIGHT, -1
+        ):
             txs = self.db.get_atomicals_block_txs(current_height)
             for tx in txs:
                 tx_num, _ = self.db.get_tx_num_height_from_tx_hash(hex_str_to_hash(tx))
-                history_list.append({
-                    "tx_num": tx_num,
-                    "tx_hash": tx,
-                    "height": current_height
-                })
+                history_list.append(
+                    {"tx_num": tx_num, "tx_hash": tx, "height": current_height}
+                )
                 count += 1
             if count >= offset + limit:
                 break
-        history_list.sort(key=lambda x: x['tx_num'], reverse=reverse)
+        history_list.sort(key=lambda x: x["tx_num"], reverse=reverse)
 
         for history in history_list:
-            data = await self.get_transaction_detail(history["tx_hash"], history["height"], history["tx_num"])
+            data = await self.get_transaction_detail(
+                history["tx_hash"], history["height"], history["tx_num"]
+            )
             if (op_type and op_type == data["op"]) or (not op_type and data["op"]):
                 res.append(data)
         total = len(res)
-        return {"result": res[offset:offset + limit], "total": total, "limit": limit, "offset": offset}
+        return {
+            "result": res[offset : offset + limit],
+            "total": total,
+            "limit": limit,
+            "offset": offset,
+        }
 
     async def _notify_sessions(self, height, touched):
         """Notify sessions about height changes and touched addresses."""
@@ -1180,12 +1316,16 @@ class SessionManager:
                 op_cache.pop(hashX, None)
                 self.logger.info(f"refresh op cache {self.notified_height}")
                 time.sleep(2)
-                background_task = asyncio.create_task(self.get_history_op(hashX, 10, 0, None, True))
+                background_task = asyncio.create_task(
+                    self.get_history_op(hashX, 10, 0, None, True)
+                )
                 await background_task
 
         for session in self.sessions:
             if self._task_group.joined:  # this can happen during shutdown
-                self.logger.warning(f"task group already terminated. not notifying sessions.")
+                self.logger.warning(
+                    f"task group already terminated. not notifying sessions."
+                )
                 return
             await self._task_group.spawn(session.notify, touched, height_changed)
 
@@ -1202,9 +1342,11 @@ class SessionManager:
                 subnet_size = self.env.session_group_by_subnet_ipv6
                 subnet = IPv6Network(host).supernet(prefixlen_diff=128 - subnet_size)
                 return str(subnet)
-        return 'unknown_addr'
+        return "unknown_addr"
 
-    def _session_group(self, name: Optional[str], weight: float) -> Optional[SessionGroup]:
+    def _session_group(
+        self, name: Optional[str], weight: float
+    ) -> Optional[SessionGroup]:
         if name is None:
             return None
         group = self.session_groups.get(name)
@@ -1216,9 +1358,7 @@ class SessionManager:
     def add_session(self, session):
         self.session_event.set()
         # Return the session groups
-        groups = (
-            self._session_group(self._ip_addr_group_name(session), 1.0),
-        )
+        groups = (self._session_group(self._ip_addr_group_name(session), 1.0),)
         groups = tuple(group for group in groups if group is not None)
         self.sessions[session] = groups
         for group in groups:

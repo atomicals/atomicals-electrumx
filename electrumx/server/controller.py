@@ -10,10 +10,10 @@ from asyncio import Event
 from aiorpcx import _version as aiorpcx_version
 
 from electrumx.lib.server_base import ServerBase
-from electrumx.lib.util import version_string, OldTaskGroup
+from electrumx.lib.util import OldTaskGroup, version_string
 from electrumx.server.db import DB
-from electrumx.server.session.session_manager import SessionManager
 from electrumx.server.mempool import MemPool, MemPoolAPI
+from electrumx.server.session.session_manager import SessionManager
 from electrumx.version import electrumx_version
 
 
@@ -82,21 +82,23 @@ class Controller(ServerBase):
     async def serve(self, shutdown_event):
         """Start the RPC server and wait for the mempool to synchronize, then start serving external clients."""
         if not (0, 23, 0) <= aiorpcx_version < (0, 24):
-            raise RuntimeError('aiorpcX version 0.23.x is required')
+            raise RuntimeError("aiorpcX version 0.23.x is required")
 
         env = self.env
         min_str, max_str = env.coin.SESSIONCLS.protocol_min_max_strings()
-        self.logger.info(f'software version: {electrumx_version}')
-        self.logger.info(f'aiorpcX version: {version_string(aiorpcx_version)}')
-        self.logger.info(f'supported protocol versions: {min_str}-{max_str}')
-        self.logger.info(f'event loop policy: {env.loop_policy}')
-        self.logger.info(f'reorg limit is {env.reorg_limit:,d} blocks')
+        self.logger.info(f"software version: {electrumx_version}")
+        self.logger.info(f"aiorpcX version: {version_string(aiorpcx_version)}")
+        self.logger.info(f"supported protocol versions: {min_str}-{max_str}")
+        self.logger.info(f"event loop policy: {env.loop_policy}")
+        self.logger.info(f"reorg limit is {env.reorg_limit:,d} blocks")
 
         notifications = Notifications()
         Daemon = env.coin.DAEMON
         BlockProcessor = env.coin.BLOCK_PROCESSOR
 
-        async with Daemon(env.coin, env.daemon_url, proxy_url=env.daemon_proxy_url) as daemon:
+        async with Daemon(
+            env.coin, env.daemon_url, proxy_url=env.daemon_proxy_url
+        ) as daemon:
             db = DB(env)
             bp = BlockProcessor(env, db, daemon, notifications)
 

@@ -16,7 +16,8 @@ from electrumx.lib.hash import hash_to_hex_str
 from electrumx.lib.script import OpCodes, Script
 
 TRANSACTION_DIR = os.path.join(
-    os.path.dirname(os.path.realpath(__file__)), 'transactions')
+    os.path.dirname(os.path.realpath(__file__)), "transactions"
+)
 
 # Find out which db engines to test
 # Those that are not installed will be skipped
@@ -40,22 +41,22 @@ def transaction_details(request):
 def test_transaction(transaction_details):
     coin, tx_info = transaction_details
 
-    raw_tx = unhexlify(tx_info['hex'])
+    raw_tx = unhexlify(tx_info["hex"])
     tx, tx_hash = coin.DESERIALIZER(raw_tx, 0).read_tx_and_hash()
-    assert tx_info['txid'] == hash_to_hex_str(tx_hash)
+    assert tx_info["txid"] == hash_to_hex_str(tx_hash)
 
-    vin = tx_info['vin']
+    vin = tx_info["vin"]
     for i in range(len(vin)):
-        assert vin[i]['txid'] == hash_to_hex_str(tx.inputs[i].prev_hash)
-        assert vin[i]['vout'] == tx.inputs[i].prev_idx
+        assert vin[i]["txid"] == hash_to_hex_str(tx.inputs[i].prev_hash)
+        assert vin[i]["vout"] == tx.inputs[i].prev_idx
 
-    vout = tx_info['vout']
+    vout = tx_info["vout"]
     for i in range(len(vout)):
         # value pk_script
-        assert vout[i]['value'] == tx.outputs[i].value
-        spk = vout[i]['scriptPubKey']
+        assert vout[i]["value"] == tx.outputs[i].value
+        spk = vout[i]["scriptPubKey"]
         tx_pks = tx.outputs[i].pk_script
-        assert spk['hex'] == tx_pks.hex()
+        assert spk["hex"] == tx_pks.hex()
         if "addresses" in spk:
             assert len(spk["addresses"]) == 1
             address = spk["addresses"][0]
@@ -69,9 +70,13 @@ def test_transaction(transaction_details):
                 OP_NAME_UPDATE = OpCodes.OP_3
                 normalized_name_op_script = bytearray()
                 normalized_name_op_script.append(OP_NAME_UPDATE)
-                normalized_name_op_script.extend(Script.push_data(spk["nameOp"]["name"].encode("ascii")))
+                normalized_name_op_script.extend(
+                    Script.push_data(spk["nameOp"]["name"].encode("ascii"))
+                )
                 normalized_name_op_script.extend(Script.push_data(bytes([])))
                 normalized_name_op_script.append(OpCodes.OP_2DROP)
                 normalized_name_op_script.append(OpCodes.OP_DROP)
                 normalized_name_op_script.append(OpCodes.OP_RETURN)
-                assert coin.name_hashX_from_script(tx_pks) == Coin.hashX_from_script(normalized_name_op_script)
+                assert coin.name_hashX_from_script(tx_pks) == Coin.hashX_from_script(
+                    normalized_name_op_script
+                )

@@ -1,8 +1,9 @@
-import pytest
 import os
 
-from electrumx.server.storage import Storage, db_class
+import pytest
+
 from electrumx.lib.util import subclasses
+from electrumx.server.storage import Storage, db_class
 
 # Find out which db engines to test
 # Those that are not installed will be skipped
@@ -50,9 +51,8 @@ def test_iterator(db):
     db.put(b"a", b"xyz")
     db.put(b"abd", b"x")
     assert list(db.iterator(prefix=b"abc")) == [(b"abc", b"")] + [
-            (b"abc" + str.encode(str(i)), str.encode(str(i))) for
-            i in range(5)
-        ]
+        (b"abc" + str.encode(str(i)), str.encode(str(i))) for i in range(5)
+    ]
 
 
 def test_iterator_reverse(db):
@@ -61,9 +61,8 @@ def test_iterator_reverse(db):
     db.put(b"a", b"xyz")
     db.put(b"abd", b"x")
     assert list(db.iterator(prefix=b"abc", reverse=True)) == [
-            (b"abc" + str.encode(str(i)), str.encode(str(i))) for
-            i in reversed(range(5))
-        ]
+        (b"abc" + str.encode(str(i)), str.encode(str(i))) for i in reversed(range(5))
+    ]
 
 
 def test_close(db):
