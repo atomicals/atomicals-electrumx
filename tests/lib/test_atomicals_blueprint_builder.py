@@ -1654,3 +1654,42 @@ def test_custom_colored_nft_normal():
     assert len(ft_output_blueprint.outputs) == 0
     assert ft_output_blueprint.fts_burned == {}
     assert blueprint_builder.get_are_fts_burned() == False
+
+    operation_found_at_inputs["payload"]["6787f39b5d2fc020eb0f8e68cd925f297065c5c82c86d175cce1a9beaa411239i0"] = {
+        "1": 546
+    }
+    atomicals_spent_at_inputs = {
+        0: [
+            {
+                "atomical_id": subject_atomical_id,
+                "location_id": b"not_used",
+                "data": b"not_used",
+                "data_value": {"sat_value": 546, "atomical_value": 546},
+            }
+        ]
+    }
+
+    def mock_mint_fetcher(self, atomical_id):
+        return {
+            "atomical_id": atomical_id,
+            # set for nft
+            "type": "NFT",
+        }
+
+    blueprint_builder = AtomicalsTransferBlueprintBuilder(
+        MockLogger(),
+        atomicals_spent_at_inputs,
+        operation_found_at_inputs,
+        tx_hash,
+        tx,
+        mock_mint_fetcher,
+        True,
+        True,
+    )
+    nft_output_blueprint = blueprint_builder.get_nft_output_blueprint()
+    assert len(nft_output_blueprint.outputs) == 1
+    ft_output_blueprint = blueprint_builder.get_ft_output_blueprint()
+    assert ft_output_blueprint.cleanly_assigned == True
+    assert len(ft_output_blueprint.outputs) == 0
+    assert ft_output_blueprint.fts_burned == {}
+    assert blueprint_builder.get_are_fts_burned() == False
