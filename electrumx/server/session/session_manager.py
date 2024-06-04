@@ -1095,7 +1095,7 @@ class SessionManager:
                         result[_i.txin_index].append(_data)
             return result
 
-        async def make_transfer_outputs(result, outputs: Dict) -> Dict[int, List[Dict]]:
+        def make_transfer_outputs(result, outputs: Dict) -> Dict[int, List[Dict]]:
             for k, v in outputs:
                 for _atomical_id, _output in v["atomicals"].items():
                     _compact_atomical_id = location_id_bytes_to_compact(_atomical_id)
@@ -1117,12 +1117,12 @@ class SessionManager:
             if not operation_type and not op_raw:
                 op_raw = "transfer"
             await make_transfer_inputs(res["transfers"]["inputs"], blueprint_builder.ft_atomicals, tx.inputs, "FT")
-            await make_transfer_outputs(res["transfers"]["outputs"], blueprint_builder.ft_output_blueprint.outputs)
+            make_transfer_outputs(res["transfers"]["outputs"], blueprint_builder.ft_output_blueprint.outputs)
         if blueprint_builder.nft_atomicals and atomicals_spent_at_inputs:
             if not operation_type and not op_raw:
                 op_raw = "transfer"
             await make_transfer_inputs(res["transfers"]["inputs"], blueprint_builder.nft_atomicals, tx.inputs, "NFT")
-            await make_transfer_outputs(res["transfers"]["outputs"], blueprint_builder.nft_output_blueprint.outputs)
+            make_transfer_outputs(res["transfers"]["outputs"], blueprint_builder.nft_output_blueprint.outputs)
 
         (
             payment_id,
