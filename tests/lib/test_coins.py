@@ -163,9 +163,7 @@ def test_name_mixin_interpret_name_prefix_with_named_placeholders(opcode, patter
 )
 def test_name_mixin_interpret_name_prefix_wrong_ops(opcode):
     ops = [opcode]
-    script = create_script(
-        [OP_NAME_NEW, OP_DROP, NAME, DAYS, OP_2DROP, VALUE, OP_DROP], ADDRESS_SCRIPT
-    )
+    script = create_script([OP_NAME_NEW, OP_DROP, NAME, DAYS, OP_2DROP, VALUE, OP_DROP], ADDRESS_SCRIPT)
     parsed_names, parsed_address_script = NameMixin.interpret_name_prefix(script, ops)
 
     assert parsed_names is None

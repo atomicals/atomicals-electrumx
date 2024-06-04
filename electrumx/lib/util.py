@@ -163,11 +163,7 @@ def subclasses(base_class, strict=True):
     """Return a list of subclasses of base_class in its module."""
 
     def select(obj):
-        return (
-            inspect.isclass(obj)
-            and issubclass(obj, base_class)
-            and (not strict or obj != base_class)
-        )
+        return inspect.isclass(obj) and issubclass(obj, base_class) and (not strict or obj != base_class)
 
     pairs = inspect.getmembers(sys.modules[base_class.__module__], select)
     return [pair[1] for pair in pairs]
@@ -435,9 +431,7 @@ aiorpcx.TaskGroup._add_task = _patched_TaskGroup_add_task
 def _aiorpcx_monkeypatched_set_new_deadline(task, deadline):
     def timeout_task():
         task._orig_cancel()
-        task._timed_out = (
-            None if getattr(task, "_externally_cancelled", False) else deadline
-        )
+        task._timed_out = None if getattr(task, "_externally_cancelled", False) else deadline
 
     def mycancel(*args, **kwargs):
         task._orig_cancel(*args, **kwargs)

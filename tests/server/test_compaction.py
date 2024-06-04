@@ -21,9 +21,7 @@ def create_histories(history, hashX_count=100):
     tx_num = 0
     while hashXs:
         tx_numb = pack_le_uint64(tx_num)[:5]
-        hash_indexes = set(
-            random.randrange(len(hashXs)) for n in range(1 + random.randrange(4))
-        )
+        hash_indexes = set(random.randrange(len(hashXs)) for n in range(1 + random.randrange(4)))
         for index in hash_indexes:
             histories[hashXs[index]].append(tx_num)
             unflushed[hashXs[index]].extend(tx_numb)
@@ -58,9 +56,7 @@ def check_hashX_compaction(history):
 
     write_items = []
     keys_to_delete = set()
-    write_size = history._compact_hashX(
-        hashX, hist_map, hist_list, write_items, keys_to_delete
-    )
+    write_size = history._compact_hashX(hashX, hist_map, hist_list, write_items, keys_to_delete)
     # Check results for sanity
     assert write_size == len(full_hist)
     assert len(write_items) == 3
@@ -79,9 +75,7 @@ def check_hashX_compaction(history):
     hist_list = [value for key, value in write_items]
     write_items.clear()
     keys_to_delete.clear()
-    write_size = history._compact_hashX(
-        hashX, hist_map, hist_list, write_items, keys_to_delete
-    )
+    write_size = history._compact_hashX(hashX, hist_map, hist_list, write_items, keys_to_delete)
     assert write_size == 0
     assert len(write_items) == 0
     assert len(keys_to_delete) == 0
@@ -89,9 +83,7 @@ def check_hashX_compaction(history):
 
     # Check re-compaction adding a single tx writes the one row
     hist_list[-1] += array.array("I", [100]).tobytes()
-    write_size = history._compact_hashX(
-        hashX, hist_map, hist_list, write_items, keys_to_delete
-    )
+    write_size = history._compact_hashX(hashX, hist_map, hist_list, write_items, keys_to_delete)
     assert write_size == len(hist_list[-1])
     assert write_items == [(hashX + pack_be_uint16(2), hist_list[-1])]
     assert len(keys_to_delete) == 1

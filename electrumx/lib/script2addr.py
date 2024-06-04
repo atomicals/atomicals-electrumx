@@ -57,9 +57,7 @@ class OPPushDataGeneric:
     def is_instance(cls, item):
         # accept objects that are instances of this class
         # or other classes that are subclasses
-        return isinstance(item, cls) or (
-            isinstance(item, type) and issubclass(item, cls)
-        )
+        return isinstance(item, cls) or (isinstance(item, type) and issubclass(item, cls))
 
 
 class OPGeneric:
@@ -74,9 +72,7 @@ class OPGeneric:
     def is_instance(cls, item):
         # accept objects that are instances of this class
         # or other classes that are subclasses
-        return isinstance(item, cls) or (
-            isinstance(item, type) and issubclass(item, cls)
-        )
+        return isinstance(item, cls) or (isinstance(item, type) and issubclass(item, cls))
 
 
 def match_script_against_template(script, template) -> bool:
@@ -95,9 +91,7 @@ def match_script_against_template(script, template) -> bool:
     for i in range(len(script)):
         template_item = template[i]
         script_item = script[i]
-        if OPPushDataGeneric.is_instance(
-            template_item
-        ) and template_item.check_data_len(script_item[0]):
+        if OPPushDataGeneric.is_instance(template_item) and template_item.check_data_len(script_item[0]):
             continue
         if OPGeneric.is_instance(template_item) and template_item.match(script_item[0]):
             continue
@@ -106,9 +100,7 @@ def match_script_against_template(script, template) -> bool:
     return True
 
 
-OP_ANYSEGWIT_VERSION = OPGeneric(
-    lambda x: x in list(range(OpCodes.OP_1, OpCodes.OP_16 + 1))
-)
+OP_ANYSEGWIT_VERSION = OPGeneric(lambda x: x in list(range(OpCodes.OP_1, OpCodes.OP_16 + 1)))
 
 SCRIPTPUBKEY_TEMPLATE_P2PKH = [
     OpCodes.OP_DUP,

@@ -53,10 +53,7 @@ class JSONResponse(ResponseBase):
         if isinstance(self.msg_id, int):
             message = JSONRPCv1.response_message(self.result, self.msg_id)
         else:
-            parts = [
-                JSONRPCv1.response_message(item, msg_id)
-                for item, msg_id in zip(self.result, self.msg_id)
-            ]
+            parts = [JSONRPCv1.response_message(item, msg_id) for item, msg_id in zip(self.result, self.msg_id)]
             message = JSONRPCv1.batch_message_from_parts(parts)
         return loads(message.decode())
 
@@ -266,9 +263,7 @@ async def test_estimatefee(daemon):
         result = daemon.coin.ESTIMATE_FEE
     else:
         result = -1
-    daemon.session = ClientSessionGood(
-        ("estimatesmartfee", [], method_not_found), ("estimatefee", [2], result)
-    )
+    daemon.session = ClientSessionGood(("estimatesmartfee", [], method_not_found), ("estimatefee", [2], result))
     assert await daemon.estimatefee(2) == result
 
 
@@ -279,9 +274,7 @@ async def test_estimatefee_smart(daemon):
         return
     rate = 0.0002
     result = {"feerate": rate}
-    daemon.session = ClientSessionGood(
-        ("estimatesmartfee", [], bad_args), ("estimatesmartfee", [2], result)
-    )
+    daemon.session = ClientSessionGood(("estimatesmartfee", [], bad_args), ("estimatesmartfee", [2], result))
     assert await daemon.estimatefee(2) == rate
 
     # Test the rpc_available_cache is used
@@ -326,9 +319,7 @@ async def test_block_hex_hashes(daemon):
     first = 5
     count = 3
     hashes = [f"hex_hash{n}" for n in range(count)]
-    daemon.session = ClientSessionGood(
-        ("getblockhash", [[n] for n in range(first, first + count)], hashes)
-    )
+    daemon.session = ClientSessionGood(("getblockhash", [[n] for n in range(first, first + count)], hashes))
     assert await daemon.block_hex_hashes(first, count) == hashes
 
 
@@ -392,9 +383,7 @@ async def test_connection_error(daemon, caplog):
     height = 100
     daemon.init_retry = 0.01
     with caplog.at_level(logging.INFO):
-        daemon.session = ClientSessionPostError(
-            aiohttp.ClientConnectionError, ("getblockcount", [], height)
-        )
+        daemon.session = ClientSessionPostError(aiohttp.ClientConnectionError, ("getblockcount", [], height))
         await daemon.height() == height
 
     assert in_caplog(caplog, "connection problem - check your daemon is running")
@@ -406,9 +395,7 @@ async def test_timeout_error(daemon, caplog):
     height = 100
     daemon.init_retry = 0.01
     with caplog.at_level(logging.INFO):
-        daemon.session = ClientSessionPostError(
-            asyncio.TimeoutError, ("getblockcount", [], height)
-        )
+        daemon.session = ClientSessionPostError(asyncio.TimeoutError, ("getblockcount", [], height))
         await daemon.height() == height
 
     assert in_caplog(caplog, "timeout error")
@@ -419,9 +406,7 @@ async def test_disconnected(daemon, caplog):
     height = 100
     daemon.init_retry = 0.01
     with caplog.at_level(logging.INFO):
-        daemon.session = ClientSessionPostError(
-            aiohttp.ServerDisconnectedError, ("getblockcount", [], height)
-        )
+        daemon.session = ClientSessionPostError(aiohttp.ServerDisconnectedError, ("getblockcount", [], height))
         await daemon.height() == height
 
     assert in_caplog(caplog, "disconnected")
@@ -434,9 +419,7 @@ async def test_warming_up(daemon, caplog):
     height = 100
     daemon.init_retry = 0.01
     with caplog.at_level(logging.INFO):
-        daemon.session = ClientSessionGood(
-            ("getblockcount", [], warming_up), ("getblockcount", [], height)
-        )
+        daemon.session = ClientSessionGood(("getblockcount", [], warming_up), ("getblockcount", [], height))
         assert await daemon.height() == height
 
     assert in_caplog(caplog, "starting up checking blocks")

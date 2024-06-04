@@ -48,8 +48,7 @@ other_commands = {
         },
     ),
     "daemon_url": (
-        "replace the daemon's URL at run-time, and forecefully rotate "
-        " to the first URL in the list",
+        "replace the daemon's URL at run-time, and forecefully rotate " " to the first URL in the list",
         [],
         {
             "type": str,
@@ -107,15 +106,9 @@ other_commands = {
 
 def main():
     """Send the RPC command to the server and print the result."""
-    main_parser = argparse.ArgumentParser(
-        "electrumx_rpc", description="Send electrumx an RPC command"
-    )
-    main_parser.add_argument(
-        "-p", "--port", metavar="port_num", type=int, help="RPC port number"
-    )
-    main_parser.add_argument(
-        "--timeout", type=int, default=30, help="timeout for command in seconds"
-    )
+    main_parser = argparse.ArgumentParser("electrumx_rpc", description="Send electrumx an RPC command")
+    main_parser.add_argument("-p", "--port", metavar="port_num", type=int, help="RPC port number")
+    main_parser.add_argument("--timeout", type=int, default=30, help="timeout for command in seconds")
 
     subparsers = main_parser.add_subparsers(help="sub-command help", dest="command")
 
@@ -124,9 +117,7 @@ def main():
 
     for command, help in session_commands.items():
         parser = subparsers.add_parser(command, help=help)
-        parser.add_argument(
-            "session_ids", nargs="+", type=str, help="list of session ids"
-        )
+        parser.add_argument("session_ids", nargs="+", type=str, help="list of session ids")
 
     for command, data in other_commands.items():
         parser_help, *arguments = data
@@ -168,10 +159,7 @@ def main():
                         print(json.dumps(result, indent=4, sort_keys=True))
             return 0
         except OSError:
-            print(
-                "cannot connect - is ElectrumX catching up, not running, or "
-                f"is {port} the wrong RPC port?"
-            )
+            print("cannot connect - is ElectrumX catching up, not running, or " f"is {port} the wrong RPC port?")
             return 1
         except Exception as e:
             print(f"error making request: {e}")

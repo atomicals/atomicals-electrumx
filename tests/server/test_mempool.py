@@ -80,9 +80,7 @@ class API(MemPoolAPI):
         self.hashXs = [coin.hash160_to_P2PKH_hashX(hash160) for hash160 in hash160s]
         prevouts = [(os.urandom(32), randrange(0, 10)) for n in range(db_utxo_count)]
         random_value = partial(randrange, coin.VALUE_PER_COIN * 10)
-        self.db_utxos = {
-            prevout: (choice(self.hashXs), random_value()) for prevout in prevouts
-        }
+        self.db_utxos = {prevout: (choice(self.hashXs), random_value()) for prevout in prevouts}
 
         unspent_utxos = self.db_utxos.copy()
         for n in range(mempool_size):
@@ -392,10 +390,7 @@ async def _test_summaries(mempool, api):
     summaries = api.summaries()
     for hashX in api.hashXs:
         mempool_result = await mempool.transaction_summaries(hashX)
-        mempool_result = [
-            (item.hash, item.fee, item.has_unconfirmed_inputs)
-            for item in mempool_result
-        ]
+        mempool_result = [(item.hash, item.fee, item.has_unconfirmed_inputs) for item in mempool_result]
         our_result = summaries.get(hashX, [])
         assert set(our_result) == set(mempool_result)
 

@@ -255,9 +255,7 @@ def test_dash_tx_cb_tx():
     assert extra.version == 1
     assert extra.height == 264132
     assert len(extra.merkleRootMNList) == 32
-    assert extra.merkleRootMNList == bfh(
-        "76629a6e42fb519188f65889fd3ac0201be87aa227462b5643e8bb2ec1d7a82a"
-    )
+    assert extra.merkleRootMNList == bfh("76629a6e42fb519188f65889fd3ac0201be87aa227462b5643e8bb2ec1d7a82a")
     ser = tx.serialize()
     assert ser == test
 
@@ -272,13 +270,9 @@ def test_dash_tx_cb_tx_v2():
     assert extra.version == 2
     assert extra.height == 264132
     assert len(extra.merkleRootMNList) == 32
-    assert extra.merkleRootMNList == bfh(
-        "76629a6e42fb519188f65889fd3ac0201be87aa227462b5643e8bb2ec1d7a82a"
-    )
+    assert extra.merkleRootMNList == bfh("76629a6e42fb519188f65889fd3ac0201be87aa227462b5643e8bb2ec1d7a82a")
     assert len(extra.merkleRootQuorums) == 32
-    assert extra.merkleRootQuorums == bfh(
-        "76629a6e42fb519188f65889fd3ac0201be87aa227462b5643e8bb2ec1d7a82a"
-    )
+    assert extra.merkleRootQuorums == bfh("76629a6e42fb519188f65889fd3ac0201be87aa227462b5643e8bb2ec1d7a82a")
     ser = tx.serialize()
     assert ser == test
 
@@ -294,9 +288,7 @@ def test_dash_tx_pro_reg_tx():
     assert extra.type == 0
     assert extra.mode == 0
     assert len(extra.collateralOutpoint.hash) == 32
-    assert extra.collateralOutpoint.hash == bfh(
-        "4de1afa0a321bc88c34978d4eeba739256b86f8d8cdf47651b6f60e451f0a3de"
-    )
+    assert extra.collateralOutpoint.hash == bfh("4de1afa0a321bc88c34978d4eeba739256b86f8d8cdf47651b6f60e451f0a3de")
     assert extra.collateralOutpoint.index == 1
     assert len(extra.ipAddress) == 16
     assert extra.ipAddress == bfh("00000000000000000000ffff12ca34aa")
@@ -305,19 +297,14 @@ def test_dash_tx_pro_reg_tx():
     assert extra.KeyIdOwner == bfh("2b3edeed6842db1f59cf35de1ab5721094f049d0")
     assert len(extra.PubKeyOperator) == 48
     assert extra.PubKeyOperator == bfh(
-        "00ab986c589053b3f3bd720724e75e18581afdca54bce80d14750b1bcf920215"
-        "8fe6c596ce8391815265747bd4a2009e"
+        "00ab986c589053b3f3bd720724e75e18581afdca54bce80d14750b1bcf920215" "8fe6c596ce8391815265747bd4a2009e"
     )
     assert len(extra.KeyIdVoting) == 20
     assert extra.KeyIdVoting == bfh("2b3edeed6842db1f59cf35de1ab5721094f049d0")
     assert extra.operatorReward == 0
-    assert extra.scriptPayout == bfh(
-        "76a9149bf5948b901a1e3e54e42c6e10496a17cd4067e088ac"
-    )
+    assert extra.scriptPayout == bfh("76a9149bf5948b901a1e3e54e42c6e10496a17cd4067e088ac")
     assert len(extra.inputsHash) == 32
-    assert extra.inputsHash == bfh(
-        "54d046585434668b4ee664c597864248b8a6aac33a7b2f4fcd1cc1b5da474a8a"
-    )
+    assert extra.inputsHash == bfh("54d046585434668b4ee664c597864248b8a6aac33a7b2f4fcd1cc1b5da474a8a")
     assert extra.payloadSig == bfh(
         "1fc1617ae83406c92a9132f14f9fff1487f2890f401e776fdddd639bc505"
         "5c456268cf7497400d3196109c8cd31b94732caf6937d63de81d9a5be4db"
@@ -338,9 +325,7 @@ def test_dash_tx_pro_reg_tx_v2():
     assert extra.type == 1
     assert extra.mode == 0
     assert len(extra.collateralOutpoint.hash) == 32
-    assert extra.collateralOutpoint.hash == bfh(
-        "3d7f654493ff3c9e7ea26c326f435e72cf1ba88d687dd7532d686760221e0b27"
-    )
+    assert extra.collateralOutpoint.hash == bfh("3d7f654493ff3c9e7ea26c326f435e72cf1ba88d687dd7532d686760221e0b27")
     assert extra.collateralOutpoint.index == 2
     assert len(extra.ipAddress) == 16
     assert extra.ipAddress == bfh("00000000000000000000ffff7f000001")
@@ -349,19 +334,14 @@ def test_dash_tx_pro_reg_tx_v2():
     assert extra.KeyIdOwner == bfh("6cfacb0f86aa7f86200512b346504952b2ecdca2")
     assert len(extra.PubKeyOperator) == 48
     assert extra.PubKeyOperator == bfh(
-        "b3c39049cc46a565e8f2e91c9ec68b58379b99c506f6701e7bd5c8864d895448"
-        "0abaa2c4ea53af9f31d60155e3df936a"
+        "b3c39049cc46a565e8f2e91c9ec68b58379b99c506f6701e7bd5c8864d895448" "0abaa2c4ea53af9f31d60155e3df936a"
     )
     assert len(extra.KeyIdVoting) == 20
     assert extra.KeyIdVoting == bfh("69e6f2b2014e943402adfdc16d8785971bd4ef4b")
     assert extra.operatorReward == 500
-    assert extra.scriptPayout == bfh(
-        "76a914d4bd717bc0ff02c9aa34cd72fcd73989f68d941288ac"
-    )
+    assert extra.scriptPayout == bfh("76a914d4bd717bc0ff02c9aa34cd72fcd73989f68d941288ac")
     assert len(extra.inputsHash) == 32
-    assert extra.inputsHash == bfh(
-        "dcc55e86aaad9f59533a5cca568badbc04aa68e81ac61d5e2fa5ac732714c4b7"
-    )
+    assert extra.inputsHash == bfh("dcc55e86aaad9f59533a5cca568badbc04aa68e81ac61d5e2fa5ac732714c4b7")
     assert len(extra.platformNodeID) == 20
     assert extra.platformNodeID == bfh("0319c63d1bf01d6893b01d1bef62f08f79d96816")
     assert extra.platformP2PPort == 11106
@@ -384,19 +364,13 @@ def test_dash_tx_pro_up_serv_tx():
     extra = tx.extra_payload
     assert extra.version == 1
     assert len(extra.proTxHash) == 32
-    assert extra.proTxHash == bfh(
-        "3c6dca244f49f19d3f09889753ffff1fec5bb8f9f5bd5bc09dabd999da21198f"
-    )
+    assert extra.proTxHash == bfh("3c6dca244f49f19d3f09889753ffff1fec5bb8f9f5bd5bc09dabd999da21198f")
     assert len(extra.ipAddress) == 16
     assert extra.ipAddress == bfh("00000000000000000000ffff5fb73580")
     assert extra.port == 10001
-    assert extra.scriptOperatorPayout == bfh(
-        "76a91421851058431a7d722e8e8dd9509e7f2b8e7042ec88ac"
-    )
+    assert extra.scriptOperatorPayout == bfh("76a91421851058431a7d722e8e8dd9509e7f2b8e7042ec88ac")
     assert len(extra.inputsHash) == 32
-    assert extra.inputsHash == bfh(
-        "efcfe3d578914bb48c6bd71b3459d384e4237446d521c9e2c6" "b6fcf019b5aafc"
-    )
+    assert extra.inputsHash == bfh("efcfe3d578914bb48c6bd71b3459d384e4237446d521c9e2c6" "b6fcf019b5aafc")
     assert len(extra.payloadSig) == 96
     assert extra.payloadSig == bfh(
         "99443fe14f644cfa47086e8897cf7b546a67723d4a8ec5353a82f962a96e"
@@ -417,19 +391,13 @@ def test_dash_tx_pro_up_serv_tx_v2():
     extra = tx.extra_payload
     assert extra.version == 2
     assert len(extra.proTxHash) == 32
-    assert extra.proTxHash == bfh(
-        "d299fbe08bae8863e482ed70c4c078ff0cbf05204f934ecf0fc114c6bdbd03d2"
-    )
+    assert extra.proTxHash == bfh("d299fbe08bae8863e482ed70c4c078ff0cbf05204f934ecf0fc114c6bdbd03d2")
     assert len(extra.ipAddress) == 16
     assert extra.ipAddress == bfh("00000000000000000000ffff7f000001")
     assert extra.port == 11005
-    assert extra.scriptOperatorPayout == bfh(
-        "76a914b7f5148c7f8b29370255b655be5ae9c7404b18c188ac"
-    )
+    assert extra.scriptOperatorPayout == bfh("76a914b7f5148c7f8b29370255b655be5ae9c7404b18c188ac")
     assert len(extra.inputsHash) == 32
-    assert extra.inputsHash == bfh(
-        "4d3c4a39662eff4cb7bb00531b9048a81a9500cee046693a89" "3ac928a46fb210"
-    )
+    assert extra.inputsHash == bfh("4d3c4a39662eff4cb7bb00531b9048a81a9500cee046693a89" "3ac928a46fb210")
     assert len(extra.platformNodeID) == 20
     assert extra.platformNodeID == bfh("af1bf741032fdf87ac1153dea88c0039a390fdf2")
     assert extra.platformP2PPort == 25119
@@ -454,24 +422,17 @@ def test_dash_tx_pro_up_reg_tx():
     extra = tx.extra_payload
     assert extra.version == 1
     assert len(extra.proTxHash) == 32
-    assert extra.proTxHash == bfh(
-        "aeb817f94b8e699b58130a53d2fbe98d5519c2abe3b15e6f36c9abeb32e4dcce"
-    )
+    assert extra.proTxHash == bfh("aeb817f94b8e699b58130a53d2fbe98d5519c2abe3b15e6f36c9abeb32e4dcce")
     assert extra.mode == 0
     assert len(extra.PubKeyOperator) == 48
     assert extra.PubKeyOperator == bfh(
-        "1061eb559a64427ad239830742ef59591cdbbdffda7d3f5e7a2d95b9607a"
-        "d80e389191e44c59ea5987b85e6d0e3eb527"
+        "1061eb559a64427ad239830742ef59591cdbbdffda7d3f5e7a2d95b9607a" "d80e389191e44c59ea5987b85e6d0e3eb527"
     )
     assert len(extra.KeyIdVoting) == 20
     assert extra.KeyIdVoting == bfh("b9e198fa7a745913c9278ec993d4472a95dac425")
-    assert extra.scriptPayout == bfh(
-        "76a914eebbacffff3a55437803e0efb68a7d591e0409d188ac"
-    )
+    assert extra.scriptPayout == bfh("76a914eebbacffff3a55437803e0efb68a7d591e0409d188ac")
     assert len(extra.inputsHash) == 32
-    assert extra.inputsHash == bfh(
-        "0eb0067e6ccdd2acb96e7279113702218f3f0ab6f2287e14c11c5be6f2051d5a"
-    )
+    assert extra.inputsHash == bfh("0eb0067e6ccdd2acb96e7279113702218f3f0ab6f2287e14c11c5be6f2051d5a")
     assert extra.payloadSig == bfh(
         "20cb00124d838b02207097048cb668244cd79df825eb2d4d211fd2c4604c1"
         "8b30e1ae9bb654787144d16856676efff180889f05b5c9121a483b4ae3f0e"
@@ -490,14 +451,10 @@ def test_dash_tx_pro_up_rev_tx():
     extra = tx.extra_payload
     assert extra.version == 1
     assert len(extra.proTxHash) == 32
-    assert extra.proTxHash == bfh(
-        "b67ffbbd095de31ea38446754b6bf251287936d2881d58b7c4efae0b54c75e9f"
-    )
+    assert extra.proTxHash == bfh("b67ffbbd095de31ea38446754b6bf251287936d2881d58b7c4efae0b54c75e9f")
     assert extra.reason == 0
     assert len(extra.inputsHash) == 32
-    assert extra.inputsHash == bfh(
-        "eb073521b60306717f1d4feb3e9022f886b97bf981137684716a7d3d7e45b7fe"
-    )
+    assert extra.inputsHash == bfh("eb073521b60306717f1d4feb3e9022f886b97bf981137684716a7d3d7e45b7fe")
     assert len(extra.payloadSig) == 96
     assert extra.payloadSig == bfh(
         "83f4bb5530f7c5954e8b1ad50a74a9e1d65dcdcbe4acb8cbe3671abc7911"
@@ -520,8 +477,7 @@ def test_dash_tx_sub_tx_register_tx():
     assert extra.userName == b"abc"
     assert len(extra.pubKey) == 48
     assert extra.pubKey == bfh(
-        "8e7042ec88acefcfe3d578914bb48c6bd71b3459d384e42374e8abfeffff"
-        "ff01570b0000000000001976a91490c5ce9d"
+        "8e7042ec88acefcfe3d578914bb48c6bd71b3459d384e42374e8abfeffff" "ff01570b0000000000001976a91490c5ce9d"
     )
     assert len(extra.payloadSig) == 96
     assert extra.payloadSig == bfh(
@@ -543,9 +499,7 @@ def test_dash_tx_sub_tx_topup_tx():
     extra = tx.extra_payload
     assert extra.version == 1
     assert len(extra.regTxHash) == 32
-    assert extra.regTxHash == bfh(
-        "d384e42374e8abfeffffff01570b000000a40100b67ffbbd095de31ea3844675"
-    )
+    assert extra.regTxHash == bfh("d384e42374e8abfeffffff01570b000000a40100b67ffbbd095de31ea3844675")
     ser = tx.serialize()
     assert ser == test
 
@@ -559,18 +513,13 @@ def test_dash_tx_sub_tx_reset_key_tx():
     extra = tx.extra_payload
     assert extra.version == 1
     assert len(extra.regTxHash) == 32
-    assert extra.regTxHash == bfh(
-        "d384e42374e8abfeffffff01570b000000a40100b67ffbbd095de31ea3844675"
-    )
+    assert extra.regTxHash == bfh("d384e42374e8abfeffffff01570b000000a40100b67ffbbd095de31ea3844675")
     assert len(extra.hashPrevSubTx) == 32
-    assert extra.hashPrevSubTx == bfh(
-        "af3e98e9601210293360bf2a2e810673412bc6e8e0e358f3fb7bdbe9a667b3d0"
-    )
+    assert extra.hashPrevSubTx == bfh("af3e98e9601210293360bf2a2e810673412bc6e8e0e358f3fb7bdbe9a667b3d0")
     assert extra.creditFee == 1000
     assert len(extra.newPubKey) == 48
     assert extra.newPubKey == bfh(
-        "601210293360bf2a2e810673412bc6e8e0e358f3fb7bdbe9a667b3d0103f7"
-        "61caf3e98e9601210293360bf2a2e810673"
+        "601210293360bf2a2e810673412bc6e8e0e358f3fb7bdbe9a667b3d0103f7" "61caf3e98e9601210293360bf2a2e810673"
     )
     assert len(extra.payloadSig) == 96
     assert extra.payloadSig == bfh(
@@ -592,13 +541,9 @@ def test_dash_tx_sub_tx_close_account_tx():
     extra = tx.extra_payload
     assert extra.version == 1
     assert len(extra.regTxHash) == 32
-    assert extra.regTxHash == bfh(
-        "d384e42374e8abfeffffff01570b000000a40100b67ffbbd095de31ea3844675"
-    )
+    assert extra.regTxHash == bfh("d384e42374e8abfeffffff01570b000000a40100b67ffbbd095de31ea3844675")
     assert len(extra.hashPrevSubTx) == 32
-    assert extra.hashPrevSubTx == bfh(
-        "af3e98e9601210293360bf2a2e810673412bc6e8e0e358f3fb7bdbe9a12bc6e8"
-    )
+    assert extra.hashPrevSubTx == bfh("af3e98e9601210293360bf2a2e810673412bc6e8e0e358f3fb7bdbe9a12bc6e8")
     assert extra.creditFee == 1000
     assert len(extra.payloadSig) == 96
     assert extra.payloadSig == bfh(
@@ -651,6 +596,4 @@ def test_dash_tx_serialize_wrong_tx_type():
     assert tx.tx_type == 4
     with pytest.raises(ValueError) as excinfo:
         ser = tx.serialize()
-    assert "Dash tx_type does not conform" " with extra payload class" in str(
-        excinfo.value
-    )
+    assert "Dash tx_type does not conform" " with extra payload class" in str(excinfo.value)

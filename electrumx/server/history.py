@@ -111,9 +111,7 @@ class History:
         if self.flush_count <= utxo_flush_count:
             return
 
-        self.logger.info(
-            "DB shut down uncleanly.  Scanning for " "excess history flushes..."
-        )
+        self.logger.info("DB shut down uncleanly.  Scanning for " "excess history flushes...")
 
         keys = []
         for key, _hist in self.db.iterator(prefix=b""):
@@ -179,9 +177,7 @@ class History:
 
         if self.db.for_sync:
             elapsed = time.monotonic() - start_time
-            self.logger.info(
-                f"flushed history in {elapsed:.1f}s " f"for {count:,d} addrs"
-            )
+            self.logger.info(f"flushed history in {elapsed:.1f}s " f"for {count:,d} addrs")
 
     def backup(self, hashXs, tx_count):
         # Not certain this is needed, but it doesn't hurt
@@ -198,9 +194,7 @@ class History:
                 for key, hist in self.db.iterator(prefix=hashX, reverse=True):
                     a = array(
                         "Q",
-                        b"".join(
-                            item + txnum_padding for item in chunks(hist, TXNUM_LEN)
-                        ),
+                        b"".join(item + txnum_padding for item in chunks(hist, TXNUM_LEN)),
                     )
                     # Remove all history entries >= tx_count
                     idx = bisect_left(a, tx_count)
@@ -322,9 +316,7 @@ class History:
                 continue
             hashX = key[:-FLUSHID_LEN]
             if hashX != prior_hashX and prior_hashX:
-                write_size += self._compact_hashX(
-                    prior_hashX, hist_map, hist_list, write_items, keys_to_delete
-                )
+                write_size += self._compact_hashX(prior_hashX, hist_map, hist_list, write_items, keys_to_delete)
                 hist_map.clear()
                 hist_list.clear()
             prior_hashX = hashX
@@ -332,9 +324,7 @@ class History:
             hist_list.append(hist)
 
         if prior_hashX:
-            write_size += self._compact_hashX(
-                prior_hashX, hist_map, hist_list, write_items, keys_to_delete
-            )
+            write_size += self._compact_hashX(prior_hashX, hist_map, hist_list, write_items, keys_to_delete)
         return write_size
 
     def _compact_history(self, limit):
@@ -403,10 +393,7 @@ class History:
             now = time.monotonic()
             if now > last + 10:
                 last = now
-                self.logger.info(
-                    f"DB 3 of 3: {count:,d} entries updated, "
-                    f"{cursor * 100 / 65536:.1f}% complete"
-                )
+                self.logger.info(f"DB 3 of 3: {count:,d} entries updated, " f"{cursor * 100 / 65536:.1f}% complete")
 
         self.db_version = max(self.DB_VERSIONS)
         self.upgrade_cursor = -1

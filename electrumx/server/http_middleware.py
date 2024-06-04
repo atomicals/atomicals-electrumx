@@ -70,9 +70,7 @@ def error_middleware(self) -> web_middlewares:
                     return error_resp(ex.status, ex)
                 raise
             except Exception as e:
-                self.logger.warning(
-                    "Request {} has failed with exception: {}".format(request, repr(e))
-                )
+                self.logger.warning("Request {} has failed with exception: {}".format(request, repr(e)))
                 self.logger.warning(traceback.format_exc())
                 return error_resp(500, e)
 
@@ -117,9 +115,7 @@ def request_middleware(self) -> web_middlewares:
                     return response
                 return success_resp(response)
             await asyncio.sleep(request.app["rate_limiter"].delay_ms / 1000)
-            return error_resp(
-                status_code=429, exception=Exception("Rate limit exceeded")
-            )
+            return error_resp(status_code=429, exception=Exception("Rate limit exceeded"))
 
         return middleware_handler
 

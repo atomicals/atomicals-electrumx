@@ -37,9 +37,7 @@ class ServerBase:
     """
 
     SUPPRESS_MESSAGE_REGEX = re.compile(
-        "SSL handshake|Fatal read error on|"
-        "SSL error in data received|"
-        "socket.send() raised exception"
+        "SSL handshake|Fatal read error on|" "SSL error in data received|" "socket.send() raised exception"
     )
     SUPPRESS_TASK_REGEX = re.compile("accept_connection2")
     PYTHON_MIN_VERSION = (3, 7)
@@ -116,9 +114,7 @@ class ServerBase:
         if platform.system() != "Windows":
             # No signals on Windows
             for signame in ("SIGINT", "SIGTERM"):
-                loop.add_signal_handler(
-                    getattr(signal, signame), partial(on_signal, signame)
-                )
+                loop.add_signal_handler(getattr(signal, signame), partial(on_signal, signame))
         loop.set_exception_handler(self.on_exception)
 
         # Start serving and wait for shutdown, log receipt of the event

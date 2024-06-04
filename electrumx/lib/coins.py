@@ -181,10 +181,7 @@ class Coin(CoinHeaderHashMixin, CoinShortNameMixin):
         header = cls.block_header(block, 0)
         header_hex_hash = hash_to_hex_str(cls.header_hash(header))
         if header_hex_hash != cls.GENESIS_HASH:
-            raise CoinError(
-                f"genesis block has hash {header_hex_hash} "
-                f"expected {cls.GENESIS_HASH}"
-            )
+            raise CoinError(f"genesis block has hash {header_hex_hash} " f"expected {cls.GENESIS_HASH}")
 
         return header + b"\0"
 
@@ -423,9 +420,7 @@ class NameMixin:
                 if op == cls.DATA_PUSH_MULTIPLE:
                     # Emercoin stores value in multiple placeholders
                     # Script structure: https://git.io/fjuRu
-                    added, template = cls._add_data_placeholders_to_template(
-                        ops[i:], template
-                    )
+                    added, template = cls._add_data_placeholders_to_template(ops[i:], template)
                     offset += added - 1  # subtract the "DATA_PUSH_MULTIPLE" opcode
                 elif type(op) == str:
                     template.append(-1)
@@ -536,9 +531,7 @@ class NameIndexMixin(NameMixin):
 
     @classmethod
     def split_name_script(cls, script):
-        named_values, address_script = cls.interpret_name_prefix(
-            script, cls.NAME_OPERATIONS
-        )
+        named_values, address_script = cls.interpret_name_prefix(script, cls.NAME_OPERATIONS)
         if named_values is None or "name" not in named_values:
             return None, address_script
 
@@ -1892,10 +1885,7 @@ class Trezarcoin(Coin):
         header = cls.block_header(block, 0)
         header_hex_hash = cls.HEADER_HASH_GEN(header)
         if header_hex_hash != cls.GENESIS_HASH:
-            raise CoinError(
-                f"genesis block has hash {header_hex_hash} "
-                f"expected {cls.GENESIS_HASH}"
-            )
+            raise CoinError(f"genesis block has hash {header_hex_hash} " f"expected {cls.GENESIS_HASH}")
         return header + b"\0"
 
     @classmethod
@@ -2402,12 +2392,8 @@ class Decred(Coin):
     DESERIALIZER = lib_tx.DeserializerDecred
     DAEMON = daemon.DecredDaemon
     BLOCK_PROCESSOR = block_proc.DecredBlockProcessor
-    ENCODE_CHECK = partial(
-        Base58.encode_check, hash_fn=lib_tx.DeserializerDecred.blake256d
-    )
-    DECODE_CHECK = partial(
-        Base58.decode_check, hash_fn=lib_tx.DeserializerDecred.blake256d
-    )
+    ENCODE_CHECK = partial(Base58.encode_check, hash_fn=lib_tx.DeserializerDecred.blake256d)
+    DECODE_CHECK = partial(Base58.decode_check, hash_fn=lib_tx.DeserializerDecred.blake256d)
     HEADER_VALUES = (
         "version",
         "prev_block_hash",
@@ -2428,9 +2414,7 @@ class Decred(Coin):
         "extra_data",
         "stake_version",
     )
-    HEADER_UNPACK = struct.Struct(
-        "< i 32s 32s 32s H 6s H B B I I Q I I I I 32s I"
-    ).unpack_from
+    HEADER_UNPACK = struct.Struct("< i 32s 32s 32s H 6s H B B I I Q I I I I 32s I").unpack_from
     TX_COUNT = 4629388
     TX_COUNT_HEIGHT = 260628
     TX_PER_BLOCK = 17
@@ -2936,9 +2920,9 @@ class Pivx(Coin):
     @classmethod
     def static_header_len(cls, height):
         """Given a header height return its length."""
-        if (
-            height >= cls.ZEROCOIN_START_HEIGHT and height < cls.ZEROCOIN_END_HEIGHT
-        ) or (height >= cls.SAPLING_START_HEIGHT):
+        if (height >= cls.ZEROCOIN_START_HEIGHT and height < cls.ZEROCOIN_END_HEIGHT) or (
+            height >= cls.SAPLING_START_HEIGHT
+        ):
             return cls.EXPANDED_HEADER
         else:
             return cls.BASIC_HEADER_SIZE
@@ -2973,9 +2957,9 @@ class PivxTestnet(Pivx):
     @classmethod
     def static_header_len(cls, height):
         """Given a header height return its length."""
-        if (
-            height >= cls.ZEROCOIN_START_HEIGHT and height < cls.ZEROCOIN_END_HEIGHT
-        ) or (height >= cls.SAPLING_START_HEIGHT):
+        if (height >= cls.ZEROCOIN_START_HEIGHT and height < cls.ZEROCOIN_END_HEIGHT) or (
+            height >= cls.SAPLING_START_HEIGHT
+        ):
             return cls.EXPANDED_HEADER
         else:
             return cls.BASIC_HEADER_SIZE
@@ -3081,12 +3065,8 @@ class SmartCash(Coin):
     TX_COUNT = 1115016
     TX_COUNT_HEIGHT = 541656
     TX_PER_BLOCK = 1
-    ENCODE_CHECK = partial(
-        Base58.encode_check, hash_fn=lib_tx.DeserializerSmartCash.keccak
-    )
-    DECODE_CHECK = partial(
-        Base58.decode_check, hash_fn=lib_tx.DeserializerSmartCash.keccak
-    )
+    ENCODE_CHECK = partial(Base58.encode_check, hash_fn=lib_tx.DeserializerSmartCash.keccak)
+    DECODE_CHECK = partial(Base58.decode_check, hash_fn=lib_tx.DeserializerSmartCash.keccak)
     HEADER_HASH = lib_tx.DeserializerSmartCash.keccak
     DAEMON = daemon.SmartCashDaemon
     SESSIONCLS = SmartCashElectrumX
@@ -3233,10 +3213,7 @@ class Bitsend(Coin):
         header = cls.block_header(block, 0)
         header_hex_hash = hash_to_hex_str(cls.header_hash(header))
         if header_hex_hash != cls.GENESIS_HASH:
-            raise CoinError(
-                f"genesis block has hash {header_hex_hash} "
-                f"expected {cls.GENESIS_HASH}"
-            )
+            raise CoinError(f"genesis block has hash {header_hex_hash} " f"expected {cls.GENESIS_HASH}")
         return header + b"\0"
 
 
@@ -3293,9 +3270,7 @@ class Ravencoin(Coin):
             result = height * cls.BASIC_HEADER_SIZE
         else:  # RVN block header size increased with kawpow fork
             baseoffset = cls.KAWPOW_ACTIVATION_HEIGHT * cls.BASIC_HEADER_SIZE
-            result = baseoffset + (
-                (height - cls.KAWPOW_ACTIVATION_HEIGHT) * cls.KAWPOW_HEADER_SIZE
-            )
+            result = baseoffset + ((height - cls.KAWPOW_ACTIVATION_HEIGHT) * cls.KAWPOW_HEADER_SIZE)
         return result
 
     @classmethod
@@ -3317,9 +3292,7 @@ class Ravencoin(Coin):
 
             header_hash = reverse_bytes(double_sha256(header[:80]))
 
-            final_hash = reverse_bytes(
-                kawpow.light_verify(header_hash, mix_hash, nNonce64)
-            )
+            final_hash = reverse_bytes(kawpow.light_verify(header_hash, mix_hash, nNonce64))
             return final_hash
 
         elif timestamp >= cls.X16RV2_ACTIVATION_TIME:

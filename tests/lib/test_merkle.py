@@ -115,9 +115,7 @@ def test_branch_and_root_from_level():
                 leaf_index = (index >> depth_higher) << depth_higher
                 leaf_hashes = part[leaf_index : leaf_index + (1 << depth_higher)]
                 branch = merkle.branch_and_root(part, index)
-                branch2 = merkle.branch_and_root_from_level(
-                    level, leaf_hashes, index, depth_higher
-                )
+                branch2 = merkle.branch_and_root_from_level(level, leaf_hashes, index, depth_higher)
                 assert branch == branch2
 
 

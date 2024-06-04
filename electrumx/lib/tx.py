@@ -94,10 +94,7 @@ class TxInput:
     def __str__(self):
         script = self.script.hex()
         prev_hash = hash_to_hex_str(self.prev_hash)
-        return (
-            f"Input({prev_hash}, {self.prev_idx:d}, script={script}, "
-            f"sequence={self.sequence:d})"
-        )
+        return f"Input({prev_hash}, {self.prev_idx:d}, script={script}, " f"sequence={self.sequence:d})"
 
     def is_generation(self):
         """Test if an input is generation/coinbase like"""
@@ -284,10 +281,7 @@ class TxSegWit:
                 b"".join(tx_in.serialize() for tx_in in self.inputs),
                 pack_varint(len(self.outputs)),
                 b"".join(tx_out.serialize() for tx_out in self.outputs),
-                b"".join(
-                    self._serialize_witness_field(witness_field)
-                    for witness_field in self.witness
-                ),
+                b"".join(self._serialize_witness_field(witness_field) for witness_field in self.witness),
                 pack_le_uint32(self.locktime),
             )
         )
@@ -415,9 +409,7 @@ class DeserializerLitecoin(DeserializerSegWit):
         # incorrectly interpreted as a marker and flag. If what we parsed as
         # marker and flag are both zero, this is such an invalid transaction.
         if flag == 0:
-            raise SkipTxDeserialize(
-                "invalid MW-only transaction with no regular inputs or outputs"
-            )
+            raise SkipTxDeserialize("invalid MW-only transaction with no regular inputs or outputs")
 
         start = self.cursor
         inputs = self._read_inputs()
@@ -732,9 +724,7 @@ class DeserializerTxTimeSegWit(DeserializerTxTime):
         vsize = (3 * base_size + self.binary_length) // 4
 
         return (
-            TxTimeSegWit(
-                version, time, marker, flag, inputs, outputs, witness, locktime
-            ),
+            TxTimeSegWit(version, time, marker, flag, inputs, outputs, witness, locktime),
             self.TX_HASH_FN(orig_ser),
             vsize,
         )
@@ -806,9 +796,7 @@ class DeserializerTxTimeSegWitNavCoin(DeserializerTxTime):
         orig_ser += self.binary[start : self.cursor]
 
         return (
-            TxTimeSegWit(
-                version, time, marker, flag, inputs, outputs, witness, locktime
-            ),
+            TxTimeSegWit(version, time, marker, flag, inputs, outputs, witness, locktime),
             self.TX_HASH_FN(orig_ser),
             vsize,
         )
@@ -1027,10 +1015,7 @@ class TxInputTokenPayStealth:
     def __str__(self):
         script = self.script.hex()
         keyimage = bytes(self.keyimage).hex()
-        return (
-            f"Input({keyimage}, {self.ringsize[1]:d}, script={script}, "
-            f"sequence={self.sequence:d})"
-        )
+        return f"Input({keyimage}, {self.ringsize[1]:d}, script={script}, " f"sequence={self.sequence:d})"
 
     def is_generation(self):
         return True
@@ -1082,10 +1067,7 @@ class TxInputDcr:
 
     def __str__(self):
         prev_hash = hash_to_hex_str(self.prev_hash)
-        return (
-            f"Input({prev_hash}, {self.prev_idx:d}, tree={self.tree}, "
-            f"sequence={self.sequence:d})"
-        )
+        return f"Input({prev_hash}, {self.prev_idx:d}, tree={self.tree}, " f"sequence={self.sequence:d})"
 
     def is_generation(self):
         """Test if an input is generation/coinbase like"""

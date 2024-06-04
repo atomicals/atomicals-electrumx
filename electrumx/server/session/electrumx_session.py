@@ -30,10 +30,7 @@ class ElectrumX(SessionBase):
 
     @classmethod
     def protocol_min_max_strings(cls):
-        return [
-            util.version_string(ver)
-            for ver in (SESSION_PROTOCOL_MIN, SESSION_PROTOCOL_MAX)
-        ]
+        return [util.version_string(ver) for ver in (SESSION_PROTOCOL_MIN, SESSION_PROTOCOL_MAX)]
 
     @classmethod
     def server_features(cls, env):
@@ -75,9 +72,7 @@ class ElectrumX(SessionBase):
         ip_addr = remote_addr.host if remote_addr else None
         groups = self.session_mgr.sessions[self]
         group_names = [group.name for group in groups]
-        self.logger.info(
-            f"closing session over res usage. ip: {ip_addr}. groups: {group_names}"
-        )
+        self.logger.info(f"closing session over res usage. ip: {ip_addr}. groups: {group_names}")
 
     def sub_count(self):
         return len(self.hashX_subs)
@@ -200,9 +195,7 @@ class ElectrumX(SessionBase):
             "blockchain.atomicals.transaction_global": self.session_mgr.transaction_global,
         }
         if protocols >= (1, 4, 2):
-            handlers[
-                "blockchain.scripthash.unsubscribe"
-            ] = self.ss.scripthash_unsubscribe
+            handlers["blockchain.scripthash.unsubscribe"] = self.ss.scripthash_unsubscribe
         self.request_handlers = handlers
 
     async def banner(self):
@@ -278,19 +271,13 @@ class ElectrumX(SessionBase):
 
         if client_name:
             client_name = str(client_name)
-            if self.env.drop_client is not None and self.env.drop_client.match(
-                client_name
-            ):
-                raise ReplyAndDisconnect(
-                    RPCError(BAD_REQUEST, f"unsupported client: {client_name}")
-                )
+            if self.env.drop_client is not None and self.env.drop_client.match(client_name):
+                raise ReplyAndDisconnect(RPCError(BAD_REQUEST, f"unsupported client: {client_name}"))
             self.client = client_name[:17]
 
         # Find the highest common protocol version.  Disconnect if
         # that protocol version in unsupported.
-        ptuple, client_min = util.protocol_version(
-            protocol_version, SESSION_PROTOCOL_MIN, SESSION_PROTOCOL_MAX
-        )
+        ptuple, client_min = util.protocol_version(protocol_version, SESSION_PROTOCOL_MIN, SESSION_PROTOCOL_MAX)
         await self.crash_old_client(ptuple, self.env.coin.CRASH_CLIENT_VER)
         if ptuple is None:
             if client_min > SESSION_PROTOCOL_MIN:
@@ -299,11 +286,7 @@ class ElectrumX(SessionBase):
                     f"{util.version_string(client_min)} "
                     f"- is your software out of date?"
                 )
-            raise ReplyAndDisconnect(
-                RPCError(
-                    BAD_REQUEST, f"unsupported protocol version: {protocol_version}"
-                )
-            )
+            raise ReplyAndDisconnect(RPCError(BAD_REQUEST, f"unsupported protocol version: {protocol_version}"))
 
         self.set_request_handlers(ptuple)
         return electrumx_version, self.protocol_version_string()
@@ -314,9 +297,7 @@ class ElectrumX(SessionBase):
             is_old_protocol = ptuple is None or ptuple <= (1, 2)
             is_old_client = client_ver != (0,) and client_ver <= crash_client_ver
             if is_old_protocol and is_old_client:
-                self.logger.info(
-                    f"attempting to crash old client with version {self.client}"
-                )
+                self.logger.info(f"attempting to crash old client with version {self.client}")
                 # this can crash electrum client 2.6 <= v < 3.1.2
                 await self.send_notification("blockchain.relayfee", ())
                 # this can crash electrum client (v < 2.8.2) UNION (3.0.0 <= v < 3.3.0)
@@ -454,12 +435,8 @@ class DashElectrumX(ElectrumX):
                     "lastpaidblock": mn_data[6],
                     "ip": mn_data[7],
                 }
-                mn_info["paymentposition"] = get_payment_position(
-                    mn_payment_queue, mn_info["payee"]
-                )
-                mn_info["inselection"] = (
-                    mn_info["paymentposition"] < mn_payment_count // 10
-                )
+                mn_info["paymentposition"] = get_payment_position(mn_payment_queue, mn_info["payee"])
+                mn_info["inselection"] = mn_info["paymentposition"] < mn_payment_count // 10
                 hash_x = self.coin.address_to_hashX(mn_info["payee"])
                 balance = await self.ss.get_balance(hash_x)
                 mn_info["balance"] = sum(balance.values()) / self.coin.VALUE_PER_COIN
@@ -486,10 +463,7 @@ class DashElectrumX(ElectrumX):
             raise RPCError(BAD_REQUEST, "expected a int block heights")
 
         max_height = self.db.db_height
-        if (
-            not 1 <= base_height <= max_height
-            or not base_height <= height <= max_height
-        ):
+        if not 1 <= base_height <= max_height or not base_height <= height <= max_height:
             raise RPCError(
                 BAD_REQUEST,
                 f"require 1 <= base_height {base_height:,d} <= "
@@ -595,9 +569,7 @@ class NameIndexElectrumX(ElectrumX):
         super().set_request_handlers(ptuple)
 
         if ptuple >= SESSION_PROTOCOL_MAX:
-            self.request_handlers[
-                "blockchain.name.get_value_proof"
-            ] = self.name_get_value_proof
+            self.request_handlers["blockchain.name.get_value_proof"] = self.name_get_value_proof
 
     async def name_get_value_proof(self, scripthash, cp_height=0):
         history = await self.ss.scripthash_get_history(scripthash)

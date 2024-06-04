@@ -96,11 +96,7 @@ class Peer:
         if isinstance(features, dict):
             hosts = features.get("hosts")
             if isinstance(hosts, dict):
-                peers = [
-                    Peer(host, features, source=source)
-                    for host in hosts
-                    if isinstance(host, str)
-                ]
+                peers = [Peer(host, features, source=source) for host in hosts if isinstance(host, str)]
         return peers
 
     @classmethod
@@ -114,11 +110,7 @@ class Peer:
         hostname if that is an IP address.
         """
         candidates = (self.host.lower(), self.ip_addr)
-        return [
-            peer
-            for peer in peers
-            if peer.host.lower() in candidates or peer.ip_addr == self.host
-        ]
+        return [peer for peer in peers if peer.host.lower() in candidates or peer.ip_addr == self.host]
 
     def __str__(self):
         return self.host
@@ -153,9 +145,7 @@ class Peer:
             families = (AF_INET6,)
         else:
             families = (AF_INET, AF_INET6)
-        return [
-            (kind, port, family) for kind, port in pairs if port for family in families
-        ]
+        return [(kind, port, family) for kind, port in pairs if port for family in families]
 
     def mark_bad(self):
         """Mark as bad to avoid reconnects but also to remember for a
@@ -179,9 +169,7 @@ class Peer:
     def is_valid(self):
         ip = self.ip_address
         if ip:
-            return (ip.is_global or ip.is_private) and not (
-                ip.is_multicast or ip.is_unspecified
-            )
+            return (ip.is_global or ip.is_private) and not (ip.is_multicast or ip.is_unspecified)
         return is_valid_hostname(self.host)
 
     @cachedproperty

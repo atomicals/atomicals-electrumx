@@ -223,9 +223,7 @@ class SharedSession(object):
         atomicals = await self.db.get_atomicals_list(limit, offset, asc)
         atomicals_populated = []
         for atomical_id in atomicals:
-            atomical = await self._atomical_id_get(
-                location_id_bytes_to_compact(atomical_id)
-            )
+            atomical = await self._atomical_id_get(location_id_bytes_to_compact(atomical_id))
             atomicals_populated.append(atomical)
         return {"global": await self._get_summary_info(), "result": atomicals_populated}
 
@@ -233,9 +231,7 @@ class SharedSession(object):
         atomicals_num_to_id_map = await self.db.get_num_to_id(limit, offset, asc)
         atomicals_num_to_id_map_reformatted = {}
         for num, atomical_id in atomicals_num_to_id_map.items():
-            atomicals_num_to_id_map_reformatted[num] = location_id_bytes_to_compact(
-                atomical_id
-            )
+            atomicals_num_to_id_map_reformatted[num] = location_id_bytes_to_compact(atomical_id)
         return {
             "global": await self._get_summary_info(),
             "result": atomicals_num_to_id_map_reformatted,
@@ -258,10 +254,8 @@ class SharedSession(object):
     async def atomicals_at_location(self, compact_location_id):
         """Return the Atomicals at a specific location id```"""
         atomical_basic_infos = []
-        atomicals_found_at_location = (
-            self.db.get_atomicals_by_location_extended_info_long_form(
-                compact_to_location_id_bytes(compact_location_id)
-            )
+        atomicals_found_at_location = self.db.get_atomicals_by_location_extended_info_long_form(
+            compact_to_location_id_bytes(compact_location_id)
         )
         for atomical_id in atomicals_found_at_location["atomicals"]:
             basic_info = self.bp.get_atomicals_id_mint_info_basic_struct(atomical_id)
@@ -275,18 +269,14 @@ class SharedSession(object):
         }
 
     async def atomicals_get_location(self, compact_atomical_id_or_atomical_number):
-        compact_atomical_id = self._atomical_resolve_id(
-            compact_atomical_id_or_atomical_number
-        )
+        compact_atomical_id = self._atomical_resolve_id(compact_atomical_id_or_atomical_number)
         return {
             "global": await self._get_summary_info(),
             "result": await self._atomical_id_get_location(compact_atomical_id),
         }
 
     async def atomicals_get(self, compact_atomical_id_or_atomical_number):
-        compact_atomical_id = self._atomical_resolve_id(
-            compact_atomical_id_or_atomical_number
-        )
+        compact_atomical_id = self._atomical_resolve_id(compact_atomical_id_or_atomical_number)
         return {
             "global": await self._get_summary_info(),
             "result": await self._atomical_id_get(compact_atomical_id),
@@ -296,27 +286,21 @@ class SharedSession(object):
         return {"global": await self._get_summary_info(hashes)}
 
     async def atomical_get_state(self, compact_atomical_id_or_atomical_number):
-        compact_atomical_id = self._atomical_resolve_id(
-            compact_atomical_id_or_atomical_number
-        )
+        compact_atomical_id = self._atomical_resolve_id(compact_atomical_id_or_atomical_number)
         return {
             "global": await self._get_summary_info(),
             "result": await self._atomical_id_get_state(compact_atomical_id),
         }
 
     async def atomical_get_state_history(self, compact_atomical_id_or_atomical_number):
-        compact_atomical_id = self._atomical_resolve_id(
-            compact_atomical_id_or_atomical_number
-        )
+        compact_atomical_id = self._atomical_resolve_id(compact_atomical_id_or_atomical_number)
         return {
             "global": await self._get_summary_info(),
             "result": await self._atomical_id_get_state_history(compact_atomical_id),
         }
 
     async def atomical_get_events(self, compact_atomical_id_or_atomical_number):
-        compact_atomical_id = self._atomical_resolve_id(
-            compact_atomical_id_or_atomical_number
-        )
+        compact_atomical_id = self._atomical_resolve_id(compact_atomical_id_or_atomical_number)
         return {
             "global": await self._get_summary_info(),
             "result": await self._atomical_id_get_events(compact_atomical_id),
@@ -332,9 +316,7 @@ class SharedSession(object):
             assert_atomical_id(compact_atomical_id)
         else:
             compact_atomical_id = location_id_bytes_to_compact(
-                self.db.get_atomical_id_by_atomical_number(
-                    compact_atomical_id_or_atomical_number
-                )
+                self.db.get_atomical_id_by_atomical_number(compact_atomical_id_or_atomical_number)
             )
         return {
             "global": await self._get_summary_info(),
@@ -342,9 +324,7 @@ class SharedSession(object):
         }
 
     async def atomicals_get_ft_info(self, compact_atomical_id_or_atomical_number):
-        compact_atomical_id = self._atomical_resolve_id(
-            compact_atomical_id_or_atomical_number
-        )
+        compact_atomical_id = self._atomical_resolve_id(compact_atomical_id_or_atomical_number)
         return {
             "global": await self._get_summary_info(),
             "result": await self._atomical_id_get_ft_info(compact_atomical_id),
@@ -369,14 +349,10 @@ class SharedSession(object):
         height = self.bp.height
         for name_part in split_names:
             if level == 0:
-                status, last_found, candidates = self.bp.get_effective_realm(
-                    name_part, height
-                )
+                status, last_found, candidates = self.bp.get_effective_realm(name_part, height)
             else:
                 self.logger.info(f"atomicals_get_realm_info {last_found} {name_part}")
-                status, last_found, candidates = self.bp.get_effective_subrealm(
-                    last_found, name_part, height
-                )
+                status, last_found, candidates = self.bp.get_effective_subrealm(last_found, name_part, height)
             # stops when it does not found the realm component
             if status != "verified":
                 break
@@ -386,9 +362,7 @@ class SharedSession(object):
             # Add it to the list of paths
             realms_path.append(
                 {
-                    "atomical_id": location_id_bytes_to_compact(
-                        last_found_realm_atomical_id
-                    ),
+                    "atomical_id": location_id_bytes_to_compact(last_found_realm_atomical_id),
                     "name_part": name_part,
                     "candidates": candidates,
                 }
@@ -427,28 +401,18 @@ class SharedSession(object):
 
         def populate_rules_response_struct(parent_atomical_id, struct_to_populate):
             current_height = that.bp.height
-            subrealm_mint_mod_history = that.bp.get_mod_history(
-                parent_atomical_id, current_height
-            )
-            current_height_latest_state = calculate_latest_state_from_mod_history(
-                subrealm_mint_mod_history
-            )
-            current_height_rules_list = validate_rules_data(
-                current_height_latest_state.get(SUBREALM_MINT_PATH, None)
-            )
+            subrealm_mint_mod_history = that.bp.get_mod_history(parent_atomical_id, current_height)
+            current_height_latest_state = calculate_latest_state_from_mod_history(subrealm_mint_mod_history)
+            current_height_rules_list = validate_rules_data(current_height_latest_state.get(SUBREALM_MINT_PATH, None))
             nearest_parent_mint_allowed = False
             struct_to_populate["nearest_parent_realm_subrealm_mint_rules"] = {
-                "nearest_parent_realm_atomical_id": location_id_bytes_to_compact(
-                    parent_atomical_id
-                ),
+                "nearest_parent_realm_atomical_id": location_id_bytes_to_compact(parent_atomical_id),
                 "current_height": current_height,
                 "current_height_rules": current_height_rules_list,
             }
             if current_height_rules_list and len(current_height_rules_list) > 0:
                 nearest_parent_mint_allowed = True
-            struct_to_populate[
-                "nearest_parent_realm_subrealm_mint_allowed"
-            ] = nearest_parent_mint_allowed
+            struct_to_populate["nearest_parent_realm_subrealm_mint_allowed"] = nearest_parent_mint_allowed
 
         # At least the top level realm was found if we got this far.
         # The number of realms returned and name components is equal, therefore the subrealm was found correctly.
@@ -534,9 +498,7 @@ class SharedSession(object):
 
     async def atomicals_get_by_realm(self, name):
         height = self.bp.height
-        status, candidate_atomical_id, all_entries = self.bp.get_effective_realm(
-            name, height
-        )
+        status, candidate_atomical_id, all_entries = self.bp.get_effective_realm(name, height)
         formatted_entries = format_name_type_candidates_to_rpc(
             all_entries,
             self.bp.build_atomical_id_to_candidate_map(all_entries),
@@ -555,17 +517,11 @@ class SharedSession(object):
         }
         return {"result": return_result}
 
-    async def atomicals_get_by_subrealm(
-        self, parent_compact_atomical_id_or_atomical_number, name
-    ):
+    async def atomicals_get_by_subrealm(self, parent_compact_atomical_id_or_atomical_number, name):
         height = self.bp.height
-        compact_atomical_id_parent = self._atomical_resolve_id(
-            parent_compact_atomical_id_or_atomical_number
-        )
+        compact_atomical_id_parent = self._atomical_resolve_id(parent_compact_atomical_id_or_atomical_number)
         parent_id = compact_to_location_id_bytes(compact_atomical_id_parent)
-        status, candidate_atomical_id, all_entries = self.bp.get_effective_subrealm(
-            parent_id, name, height
-        )
+        status, candidate_atomical_id, all_entries = self.bp.get_effective_subrealm(parent_id, name, height)
         formatted_entries = format_name_type_candidates_to_rpc(
             all_entries, self.bp.build_atomical_id_to_candidate_map(all_entries)
         )
@@ -583,17 +539,11 @@ class SharedSession(object):
         }
         return {"result": return_result}
 
-    async def atomicals_get_by_dmitem(
-        self, parent_compact_atomical_id_or_atomical_number, name
-    ):
+    async def atomicals_get_by_dmitem(self, parent_compact_atomical_id_or_atomical_number, name):
         height = self.bp.height
-        compact_atomical_id_parent = self._atomical_resolve_id(
-            parent_compact_atomical_id_or_atomical_number
-        )
+        compact_atomical_id_parent = self._atomical_resolve_id(parent_compact_atomical_id_or_atomical_number)
         parent_id = compact_to_location_id_bytes(compact_atomical_id_parent)
-        status, candidate_atomical_id, all_entries = self.bp.get_effective_dmitem(
-            parent_id, name, height
-        )
+        status, candidate_atomical_id, all_entries = self.bp.get_effective_dmitem(parent_id, name, height)
         formatted_entries = format_name_type_candidates_to_rpc(
             all_entries, self.bp.build_atomical_id_to_candidate_map(all_entries)
         )
@@ -613,9 +563,7 @@ class SharedSession(object):
 
     async def atomicals_get_by_ticker(self, ticker):
         height = self.bp.height
-        status, candidate_atomical_id, all_entries = self.bp.get_effective_ticker(
-            ticker, height
-        )
+        status, candidate_atomical_id, all_entries = self.bp.get_effective_ticker(ticker, height)
         formatted_entries = format_name_type_candidates_to_rpc(
             all_entries, self.bp.build_atomical_id_to_candidate_map(all_entries)
         )
@@ -637,9 +585,7 @@ class SharedSession(object):
         if not isinstance(container, str):
             raise RPCError(BAD_REQUEST, f"empty container")
         height = self.bp.height
-        status, candidate_atomical_id, all_entries = self.bp.get_effective_container(
-            container, height
-        )
+        status, candidate_atomical_id, all_entries = self.bp.get_effective_container(container, height)
         formatted_entries = format_name_type_candidates_to_rpc(
             all_entries, self.bp.build_atomical_id_to_candidate_map(all_entries)
         )
@@ -661,9 +607,7 @@ class SharedSession(object):
         if not isinstance(container, str):
             raise RPCError(BAD_REQUEST, f"empty container")
         height = self.bp.height
-        status, candidate_atomical_id, all_entries = self.bp.get_effective_container(
-            container, height
-        )
+        status, candidate_atomical_id, all_entries = self.bp.get_effective_container(container, height)
         if status != "verified":
             formatted_entries = format_name_type_candidates_to_rpc(
                 all_entries, self.bp.build_atomical_id_to_candidate_map(all_entries)
@@ -671,9 +615,7 @@ class SharedSession(object):
             self.logger.info(f"formatted_entries {formatted_entries}")
             raise RPCError(BAD_REQUEST, f"Container does not exist")
         found_atomical_id = candidate_atomical_id
-        status, candidate_atomical_id, all_entries = self.bp.get_effective_dmitem(
-            found_atomical_id, item_name, height
-        )
+        status, candidate_atomical_id, all_entries = self.bp.get_effective_dmitem(found_atomical_id, item_name, height)
         found_item_atomical_id = None
         formatted_entries = format_name_type_candidates_to_rpc(
             all_entries, self.bp.build_atomical_id_to_candidate_map(all_entries)
@@ -705,9 +647,7 @@ class SharedSession(object):
         if not isinstance(container, str):
             raise RPCError(BAD_REQUEST, f"empty container")
         height = self.bp.height
-        status, candidate_atomical_id, all_entries = self.bp.get_effective_container(
-            container, height
-        )
+        status, candidate_atomical_id, all_entries = self.bp.get_effective_container(container, height)
         if status != "verified":
             formatted_entries = format_name_type_candidates_to_rpc(
                 all_entries, self.bp.build_atomical_id_to_candidate_map(all_entries)
@@ -724,19 +664,12 @@ class SharedSession(object):
             raise RPCError(BAD_REQUEST, f"Container dmint status not exist")
         if container_dmint_status.get("status") != "valid":
             errors = container_dmint_status.get("errors")
-            if (
-                check_without_sealed
-                and errors
-                and len(errors) == 1
-                and errors[0] == "container not sealed"
-            ):
+            if check_without_sealed and errors and len(errors) == 1 and errors[0] == "container not sealed":
                 pass
             raise RPCError(BAD_REQUEST, f"Container dmint status is invalid: {errors}")
 
         dmint = container_dmint_status.get("dmint")
-        status, candidate_atomical_id, all_entries = self.bp.get_effective_dmitem(
-            found_parent, item_name, height
-        )
+        status, candidate_atomical_id, all_entries = self.bp.get_effective_dmitem(found_parent, item_name, height)
         found_item_atomical_id = None
         formatted_entries = format_name_type_candidates_to_rpc(
             all_entries, self.bp.build_atomical_id_to_candidate_map(all_entries)
@@ -778,9 +711,7 @@ class SharedSession(object):
     async def atomicals_get_container_items(self, container, limit, offset):
         if not isinstance(container, str):
             raise RPCError(BAD_REQUEST, f"empty container")
-        status, candidate_atomical_id, all_entries = self.bp.get_effective_container(
-            container, self.bp.height
-        )
+        status, candidate_atomical_id, all_entries = self.bp.get_effective_container(container, self.bp.height)
         if status != "verified":
             formatted_entries = format_name_type_candidates_to_rpc(
                 all_entries, self.bp.build_atomical_id_to_candidate_map(all_entries)
@@ -798,9 +729,7 @@ class SharedSession(object):
             if offset < 0:
                 offset = 0
             height = self.bp.height
-            items = await self.bp.get_effective_dmitems_paginated(
-                found_atomical_id, limit, offset, height
-            )
+            items = await self.bp.get_effective_dmitems_paginated(found_atomical_id, limit, offset, height)
             return {
                 "result": {
                     "container": container_info,
@@ -812,12 +741,8 @@ class SharedSession(object):
                     },
                 }
             }
-        container_mod_history = self.bp.get_mod_history(
-            found_atomical_id, self.bp.height
-        )
-        current_height_latest_state = calculate_latest_state_from_mod_history(
-            container_mod_history
-        )
+        container_mod_history = self.bp.get_mod_history(found_atomical_id, self.bp.height)
+        current_height_latest_state = calculate_latest_state_from_mod_history(container_mod_history)
         items = current_height_latest_state.get("items", [])
         return {
             "result": {
@@ -831,18 +756,14 @@ class SharedSession(object):
             }
         }
 
-    async def atomicals_search_tickers(
-        self, prefix=None, reverse=False, limit=100, offset=0, is_verified_only=False
-    ):
+    async def atomicals_search_tickers(self, prefix=None, reverse=False, limit=100, offset=0, is_verified_only=False):
         if isinstance(prefix, str):
             prefix = prefix.encode()
         return self._atomicals_search_name_template(
             b"tick", "ticker", None, prefix, reverse, limit, offset, is_verified_only
         )
 
-    async def atomicals_search_realms(
-        self, prefix=None, reverse=False, limit=100, offset=0, is_verified_only=False
-    ):
+    async def atomicals_search_realms(self, prefix=None, reverse=False, limit=100, offset=0, is_verified_only=False):
         if isinstance(prefix, str):
             prefix = prefix.encode()
         return self._atomicals_search_name_template(
@@ -886,27 +807,21 @@ class SharedSession(object):
         formatted_results = []
         atomical_id = compact_to_location_id_bytes(compact_atomical_id)
         atomical = await self._atomical_id_get(compact_atomical_id)
-        atomical = await self.db.populate_extended_atomical_holder_info(
-            atomical_id, atomical
-        )
+        atomical = await self.db.populate_extended_atomical_holder_info(atomical_id, atomical)
         if atomical["type"] == "FT":
             if atomical.get("$mint_mode", "fixed") == "fixed":
                 max_supply = atomical.get("$max_supply", 0)
             else:
                 max_supply = atomical.get("$max_supply", -1)
                 if max_supply < 0:
-                    mint_amount = (
-                        atomical.get("mint_info", {}).get("args", {}).get("mint_amount")
-                    )
+                    mint_amount = atomical.get("mint_info", {}).get("args", {}).get("mint_amount")
                     max_supply = DFT_MINT_MAX_MAX_COUNT_DENSITY * mint_amount
             for holder in atomical.get("holders", [])[offset : offset + limit]:
                 percent = holder["holding"] / max_supply
                 formatted_results.append(
                     {
                         "percent": percent,
-                        "address": get_address_from_output_script(
-                            bytes.fromhex(holder["script"])
-                        ),
+                        "address": get_address_from_output_script(bytes.fromhex(holder["script"])),
                         "holding": holder["holding"],
                     }
                 )
@@ -914,9 +829,7 @@ class SharedSession(object):
             for holder in atomical.get("holders", [])[offset : offset + limit]:
                 formatted_results.append(
                     {
-                        "address": get_address_from_output_script(
-                            bytes.fromhex(holder["script"])
-                        ),
+                        "address": get_address_from_output_script(bytes.fromhex(holder["script"])),
                         "holding": holder["holding"],
                     }
                 )
@@ -924,18 +837,12 @@ class SharedSession(object):
 
     # get the whole transaction by block height
     # return transaction detail
-    async def transaction_by_height(
-        self, height, limit=10, offset=0, op_type=None, reverse=True
-    ):
-        res, total = await self.get_transaction_detail_by_height(
-            height, limit, offset, op_type, reverse
-        )
+    async def transaction_by_height(self, height, limit=10, offset=0, op_type=None, reverse=True):
+        res, total = await self.get_transaction_detail_by_height(height, limit, offset, op_type, reverse)
         return {"result": res, "total": total, "limit": limit, "offset": offset}
 
     # get transaction by atomical id
-    async def transaction_by_atomical_id(
-        self, compact_id_or_number, limit=10, offset=0, op_type=None, reverse=True
-    ):
+    async def transaction_by_atomical_id(self, compact_id_or_number, limit=10, offset=0, op_type=None, reverse=True):
         compact_atomical_id = compact_id_or_number
         if is_compact_atomical_id(compact_id_or_number):
             assert_atomical_id(compact_atomical_id)
@@ -947,45 +854,31 @@ class SharedSession(object):
         hash_x = double_sha256(atomical_id)
         if op_type:
             op = self.session_mgr.bp.op_list.get(op_type, None)
-            history_data, total = await self.session_mgr.get_history_op(
-                hash_x, limit, offset, op, reverse
-            )
+            history_data, total = await self.session_mgr.get_history_op(hash_x, limit, offset, op, reverse)
         else:
-            history_data, total = await self.session_mgr.get_history_op(
-                hash_x, limit, offset, None, reverse
-            )
+            history_data, total = await self.session_mgr.get_history_op(hash_x, limit, offset, None, reverse)
         res = []
         for history in history_data:
             tx_hash, tx_height = self.db.fs_tx_hash(history["tx_num"])
-            data = await self.session_mgr.get_transaction_detail(
-                hash_to_hex_str(tx_hash), tx_height, history["tx_num"]
-            )
+            data = await self.session_mgr.get_transaction_detail(hash_to_hex_str(tx_hash), tx_height, history["tx_num"])
             if data and data["op"]:
                 if (op_type and data["op"] == op_type) or not op_type:
                     res.append(data)
         return {"result": res, "total": total, "limit": limit, "offset": offset}
 
     # get transaction by scripthash
-    async def transaction_by_scripthash(
-        self, scripthash, limit=10, offset=0, op_type=None, reverse=True
-    ):
+    async def transaction_by_scripthash(self, scripthash, limit=10, offset=0, op_type=None, reverse=True):
         hash_x = scripthash_to_hash_x(scripthash)
         res = []
         if op_type:
             op = self.session_mgr.bp.op_list.get(op_type, None)
-            history_data, total = await self.session_mgr.get_history_op(
-                hash_x, limit, offset, op, reverse
-            )
+            history_data, total = await self.session_mgr.get_history_op(hash_x, limit, offset, op, reverse)
         else:
-            history_data, total = await self.session_mgr.get_history_op(
-                hash_x, limit, offset, None, reverse
-            )
+            history_data, total = await self.session_mgr.get_history_op(hash_x, limit, offset, None, reverse)
 
         for history in history_data:
             tx_hash, tx_height = self.db.fs_tx_hash(history["tx_num"])
-            data = await self.session_mgr.get_transaction_detail(
-                hash_to_hex_str(tx_hash), tx_height, history["tx_num"]
-            )
+            data = await self.session_mgr.get_transaction_detail(hash_to_hex_str(tx_hash), tx_height, history["tx_num"])
             if data and data["op"]:
                 if data["op"] and (data["op"] == op_type or not op_type):
                     res.append(data)
@@ -999,9 +892,7 @@ class SharedSession(object):
         # This returns errors as JSON RPC errors, as is natural
         self.bump_cost(0.25 + len(raw_tx) / 5000)
         try:
-            hex_hash = await self.session_mgr.broadcast_transaction_validated(
-                raw_tx, False
-            )
+            hex_hash = await self.session_mgr.broadcast_transaction_validated(raw_tx, False)
             return hex_hash
         except AtomicalsValidationError as e:
             self.logger.info(f"error validating atomicals transaction: {e}")
@@ -1017,9 +908,7 @@ class SharedSession(object):
         # This returns errors as JSON RPC errors, as is natural.
         self.bump_cost(0.25 + len(raw_tx) / 5000)
         try:
-            hex_hash = await self.session_mgr.broadcast_transaction_validated(
-                raw_tx, True
-            )
+            hex_hash = await self.session_mgr.broadcast_transaction_validated(raw_tx, True)
         except DaemonError as e:
             (error,) = e.args
             message = error["message"]
@@ -1041,8 +930,7 @@ class SharedSession(object):
                 msg = self.coin.warn_old_client_on_tx_broadcast(client_ver)
                 if msg:
                     self.logger.info(
-                        f"sent tx: {hex_hash}, and warned user to upgrade their "
-                        f"client from {self.client}"
+                        f"sent tx: {hex_hash}, and warned user to upgrade their " f"client from {self.client}"
                     )
                     return msg
 
@@ -1059,8 +947,7 @@ class SharedSession(object):
             self.logger.info(f"error sending transaction: {message}")
             raise RPCError(
                 BAD_REQUEST,
-                "the transaction was rejected by "
-                f"network rules.\n\n{message}\n[{raw_tx}]",
+                "the transaction was rejected by " f"network rules.\n\n{message}\n[{raw_tx}]",
             )
         else:
             self.txs_sent += 1
@@ -1069,8 +956,7 @@ class SharedSession(object):
                 msg = self.coin.warn_old_client_on_tx_broadcast(client_ver)
                 if msg:
                     self.logger.info(
-                        f"sent tx: {hex_hash}. and warned user to upgrade their "
-                        f"client from {self.client}"
+                        f"sent tx: {hex_hash}. and warned user to upgrade their " f"client from {self.client}"
                     )
                     return msg
 
@@ -1082,9 +968,7 @@ class SharedSession(object):
         return self.transaction_validate_tx_blueprint(raw_tx)
 
     def transaction_validate_tx_blueprint(self, raw_tx: str):
-        result = self.session_mgr.validate_raw_tx_blueprint(
-            raw_tx, raise_if_burned=False
-        )
+        result = self.session_mgr.validate_raw_tx_blueprint(raw_tx, raise_if_burned=False)
         self.logger.debug(f"transaction_validate_tx_blueprint: {result}")
         return {"result": dict(result)}
 
@@ -1097,9 +981,7 @@ class SharedSession(object):
         self.bump_cost(0.25 + len(raw_tx) / 5000)
         result = self.session_mgr.transaction_decode_raw_tx_blueprint(raw_tx)
         atomical_ids = result["atomicals"]
-        atomicals = [
-            await self._atomical_id_get(atomical_id) for atomical_id in atomical_ids
-        ]
+        atomicals = [await self._atomical_id_get(atomical_id) for atomical_id in atomical_ids]
         result["atomicals"] = atomicals
         self.logger.debug(f"transaction_decode: {result}")
         return {"result": dict(result)}
@@ -1127,9 +1009,7 @@ class SharedSession(object):
         tx_hash = assert_tx_hash(tx_hash)
         height = non_negative_integer(height)
 
-        branch, tx_pos, cost = await self.session_mgr.merkle_branch_for_tx_hash(
-            height, tx_hash
-        )
+        branch, tx_pos, cost = await self.session_mgr.merkle_branch_for_tx_hash(height, tx_hash)
         self.bump_cost(cost)
 
         return {"block_height": height, "merkle": branch, "pos": tx_pos}
@@ -1144,9 +1024,7 @@ class SharedSession(object):
             raise RPCError(BAD_REQUEST, '"merkle" must be a boolean')
 
         if merkle:
-            branch, tx_hash, cost = await self.session_mgr.merkle_branch_for_tx_pos(
-                height, tx_pos
-            )
+            branch, tx_hash, cost = await self.session_mgr.merkle_branch_for_tx_pos(height, tx_pos)
             self.bump_cost(cost)
             return {"tx_hash": tx_hash, "merkle": branch}
         else:
@@ -1205,9 +1083,7 @@ class SharedSession(object):
         if is_compact_atomical_id(compact_atomical_id_or_atomical_number):
             assert_atomical_id(compact_atomical_id)
         else:
-            found_atomical_id = self.db.get_atomical_id_by_atomical_number(
-                compact_atomical_id_or_atomical_number
-            )
+            found_atomical_id = self.db.get_atomical_id_by_atomical_number(compact_atomical_id_or_atomical_number)
             if not found_atomical_id:
                 raise RPCError(
                     BAD_REQUEST,
@@ -1219,9 +1095,7 @@ class SharedSession(object):
     # Get atomicals base information from db or placeholder information if mint is still in the mempool and unconfirmed
     async def _atomical_id_get(self, compact_atomical_id):
         atomical_id = compact_to_location_id_bytes(compact_atomical_id)
-        atomical = await self.bp.get_base_mint_info_rpc_format_by_atomical_id(
-            atomical_id
-        )
+        atomical = await self.bp.get_base_mint_info_rpc_format_by_atomical_id(atomical_id)
         if atomical:
             return atomical
         # Check mempool
@@ -1240,9 +1114,7 @@ class SharedSession(object):
         atomical_id = compact_to_location_id_bytes(compact_atomical_id)
         atomical = await self._atomical_id_get(compact_atomical_id)
         height = self.bp.height
-        self.db.populate_extended_mod_state_latest_atomical_info(
-            atomical_id, atomical, height
-        )
+        self.db.populate_extended_mod_state_latest_atomical_info(atomical_id, atomical, height)
         await self.db.populate_extended_location_atomical_info(atomical_id, atomical)
         return atomical
 
@@ -1250,9 +1122,7 @@ class SharedSession(object):
         atomical_id = compact_to_location_id_bytes(compact_atomical_id)
         atomical = await self._atomical_id_get(compact_atomical_id)
         height = self.bp.height
-        self.db.populate_extended_mod_state_history_atomical_info(
-            atomical_id, atomical, height
-        )
+        self.db.populate_extended_mod_state_history_atomical_info(atomical_id, atomical, height)
         await self.db.populate_extended_location_atomical_info(atomical_id, atomical)
         return atomical
 
@@ -1267,30 +1137,20 @@ class SharedSession(object):
     async def _atomical_id_get_tx_history(self, compact_atomical_id):
         atomical_id = compact_to_location_id_bytes(compact_atomical_id)
         atomical = await self._atomical_id_get(compact_atomical_id)
-        history = await self.scripthash_get_history(
-            hash_to_hex_str(double_sha256(atomical_id))
-        )
+        history = await self.scripthash_get_history(hash_to_hex_str(double_sha256(atomical_id)))
         history.sort(key=lambda x: x["height"], reverse=True)
         atomical["tx"] = {"history": history}
         return atomical
 
     async def _atomical_id_get_ft_info(self, compact_atomical_id):
         atomical_id = compact_to_location_id_bytes(compact_atomical_id)
-        atomical = await self.bp.get_base_mint_info_rpc_format_by_atomical_id(
-            atomical_id
-        )
+        atomical = await self.bp.get_base_mint_info_rpc_format_by_atomical_id(atomical_id)
         if atomical["subtype"] == "decentralized":
-            atomical = await self.bp.get_dft_mint_info_rpc_format_by_atomical_id(
-                atomical_id
-            )
+            atomical = await self.bp.get_dft_mint_info_rpc_format_by_atomical_id(atomical_id)
         elif atomical["subtype"] == "direct":
-            atomical = await self.bp.get_ft_mint_info_rpc_format_by_atomical_id(
-                atomical_id
-            )
+            atomical = await self.bp.get_ft_mint_info_rpc_format_by_atomical_id(atomical_id)
         else:
-            raise RPCError(
-                BAD_REQUEST, f'"{compact_atomical_id}" is not a fungible token (FT)'
-            )
+            raise RPCError(BAD_REQUEST, f'"{compact_atomical_id}" is not a fungible token (FT)')
 
         if atomical:
             return atomical
@@ -1309,13 +1169,8 @@ class SharedSession(object):
         # For mempool, height is -1 if it has unconfirmed inputs, otherwise 0
         db_history, cost = await self.session_mgr.limited_history(hash_x)
         mempool = await self.mempool.transaction_summaries(hash_x)
-        status = "".join(
-            f"{hash_to_hex_str(tx_hash)}:{height:d}:" for tx_hash, height in db_history
-        )
-        status += "".join(
-            f"{hash_to_hex_str(tx.hash)}:{-tx.has_unconfirmed_inputs:d}:"
-            for tx in mempool
-        )
+        status = "".join(f"{hash_to_hex_str(tx_hash)}:{height:d}:" for tx_hash, height in db_history)
+        status += "".join(f"{hash_to_hex_str(tx.hash)}:{-tx.has_unconfirmed_inputs:d}:" for tx in mempool)
         # Add status hashing cost
         self.bump_cost(cost + 0.1 + len(status) * 0.00002)
 
@@ -1340,10 +1195,7 @@ class SharedSession(object):
         # Note history is ordered but unconfirmed is unordered in e-s
         history, cost = await self.session_mgr.limited_history(hash_x)
         self.bump_cost(cost)
-        conf = [
-            {"tx_hash": hash_to_hex_str(tx_hash), "height": height}
-            for tx_hash, height in history
-        ]
+        conf = [{"tx_hash": hash_to_hex_str(tx_hash), "height": height} for tx_hash, height in history]
         return conf + await self._unconfirmed_history(hash_x)
 
     async def _unconfirmed_history(self, hash_x):
@@ -1381,9 +1233,7 @@ class SharedSession(object):
                 # Todo need to combine mempool atomicals
                 atomical_id_compact = location_id_bytes_to_compact(atomical_id)
                 location = utxo.tx_hash + util.pack_le_uint32(utxo.tx_pos)
-                atomicals_basic_infos[
-                    atomical_id_compact
-                ] = self.db.get_uxto_atomicals_value(location, atomical_id)
+                atomicals_basic_infos[atomical_id_compact] = self.db.get_uxto_atomicals_value(location, atomical_id)
             returned_utxos.append(
                 {
                     "txid": hash_to_hex_str(utxo.tx_hash),
@@ -1426,17 +1276,11 @@ class SharedSession(object):
                 # This call is efficient in that it's cached underneath.
                 # Now we only show the atomical id and its corresponding value
                 # because it can always be fetched separately which is more efficient.
-                atomical_basic_info = (
-                    await self.bp.get_base_mint_info_rpc_format_by_atomical_id(
-                        atomical_id
-                    )
-                )
+                atomical_basic_info = await self.bp.get_base_mint_info_rpc_format_by_atomical_id(atomical_id)
                 compact_id = location_id_bytes_to_compact(atomical_id)
                 atomicals_id_map[compact_id] = atomical_basic_info
                 location = utxo.tx_hash + util.pack_le_uint32(utxo.tx_pos)
-                atomicals_basic_infos[compact_id] = self.db.get_uxto_atomicals_value(
-                    location, atomical_id
-                )
+                atomicals_basic_infos[compact_id] = self.db.get_uxto_atomicals_value(location, atomical_id)
             if len(atomicals) > 0:
                 returned_utxos.append(
                     {
@@ -1464,9 +1308,7 @@ class SharedSession(object):
                         "confirmed": 0,
                     }
                 if returned_utxo["height"] > 0:
-                    balances[compact_id]["confirmed"] += returned_utxo["atomicals"][
-                        compact_id
-                    ]
+                    balances[compact_id]["confirmed"] += returned_utxo["atomicals"][compact_id]
         return {"balances": balances}
 
     async def _hash_x_nft_balances_atomicals(self, hash_x):
@@ -1487,17 +1329,11 @@ class SharedSession(object):
                 # This call is efficient in that it's cached underneath.
                 # Now we only show the atomical id and its corresponding value
                 # because it can always be fetched separately which is more efficient.
-                atomical_basic_info = (
-                    await self.bp.get_base_mint_info_rpc_format_by_atomical_id(
-                        atomical_id
-                    )
-                )
+                atomical_basic_info = await self.bp.get_base_mint_info_rpc_format_by_atomical_id(atomical_id)
                 compact_id = location_id_bytes_to_compact(atomical_id)
                 atomicals_id_map[compact_id] = atomical_basic_info
                 location = utxo.tx_hash + util.pack_le_uint32(utxo.tx_pos)
-                atomicals_basic_infos[compact_id] = self.db.get_uxto_atomicals_value(
-                    location, atomical_id
-                )
+                atomicals_basic_infos[compact_id] = self.db.get_uxto_atomicals_value(location, atomical_id)
             if len(atomicals) > 0:
                 returned_utxos.append(
                     {
@@ -1524,67 +1360,37 @@ class SharedSession(object):
                         "confirmed": 0,
                     }
                 if atomical_id_basic_info.get("subtype"):
-                    balances[compact_id]["subtype"] = atomical_id_basic_info.get(
-                        "subtype"
-                    )
+                    balances[compact_id]["subtype"] = atomical_id_basic_info.get("subtype")
                 if atomical_id_basic_info.get("$request_container"):
-                    balances[compact_id][
-                        "request_container"
-                    ] = atomical_id_basic_info.get("$request_container")
+                    balances[compact_id]["request_container"] = atomical_id_basic_info.get("$request_container")
                 if atomical_id_basic_info.get("$container"):
-                    balances[compact_id]["container"] = atomical_id_basic_info.get(
-                        "$container"
-                    )
+                    balances[compact_id]["container"] = atomical_id_basic_info.get("$container")
                 if atomical_id_basic_info.get("$dmitem"):
-                    balances[compact_id]["dmitem"] = atomical_id_basic_info.get(
-                        "$dmitem"
-                    )
+                    balances[compact_id]["dmitem"] = atomical_id_basic_info.get("$dmitem")
                 if atomical_id_basic_info.get("$request_dmitem"):
-                    balances[compact_id]["request_dmitem"] = atomical_id_basic_info.get(
-                        "$request_dmitem"
-                    )
+                    balances[compact_id]["request_dmitem"] = atomical_id_basic_info.get("$request_dmitem")
                 if atomical_id_basic_info.get("$realm"):
                     balances[compact_id]["realm"] = atomical_id_basic_info.get("$realm")
                 if atomical_id_basic_info.get("$request_realm"):
-                    balances[compact_id]["request_realm"] = atomical_id_basic_info.get(
-                        "$request_realm"
-                    )
+                    balances[compact_id]["request_realm"] = atomical_id_basic_info.get("$request_realm")
                 if atomical_id_basic_info.get("$subrealm"):
-                    balances[compact_id]["subrealm"] = atomical_id_basic_info.get(
-                        "$subrealm"
-                    )
+                    balances[compact_id]["subrealm"] = atomical_id_basic_info.get("$subrealm")
                 if atomical_id_basic_info.get("$request_subrealm"):
-                    balances[compact_id][
-                        "request_subrealm"
-                    ] = atomical_id_basic_info.get("$request_subrealm")
+                    balances[compact_id]["request_subrealm"] = atomical_id_basic_info.get("$request_subrealm")
                 if atomical_id_basic_info.get("$full_realm_name"):
-                    balances[compact_id][
-                        "full_realm_name"
-                    ] = atomical_id_basic_info.get("$full_realm_name")
+                    balances[compact_id]["full_realm_name"] = atomical_id_basic_info.get("$full_realm_name")
                 if atomical_id_basic_info.get("$parent_container"):
-                    balances[compact_id][
-                        "parent_container"
-                    ] = atomical_id_basic_info.get("$parent_container")
+                    balances[compact_id]["parent_container"] = atomical_id_basic_info.get("$parent_container")
                 if atomical_id_basic_info.get("$parent_realm"):
-                    balances[compact_id]["parent_realm"] = atomical_id_basic_info.get(
-                        "$parent_realm"
-                    )
+                    balances[compact_id]["parent_realm"] = atomical_id_basic_info.get("$parent_realm")
                 if atomical_id_basic_info.get("$parent_container_name"):
-                    balances[compact_id][
-                        "parent_container_name"
-                    ] = atomical_id_basic_info.get("$parent_container_name")
+                    balances[compact_id]["parent_container_name"] = atomical_id_basic_info.get("$parent_container_name")
                 if atomical_id_basic_info.get("$bitwork"):
-                    balances[compact_id]["bitwork"] = atomical_id_basic_info.get(
-                        "$bitwork"
-                    )
+                    balances[compact_id]["bitwork"] = atomical_id_basic_info.get("$bitwork")
                 if atomical_id_basic_info.get("$parents"):
-                    balances[compact_id]["parents"] = atomical_id_basic_info.get(
-                        "$parents"
-                    )
+                    balances[compact_id]["parents"] = atomical_id_basic_info.get("$parents")
                 if returned_utxo["height"] > 0:
-                    balances[compact_id]["confirmed"] += returned_utxo["atomicals"][
-                        compact_id
-                    ]
+                    balances[compact_id]["confirmed"] += returned_utxo["atomicals"][compact_id]
         return {"balances": balances}
 
     async def _hash_x_list_scripthash_atomicals(self, hash_x, verbose=False):
@@ -1605,15 +1411,11 @@ class SharedSession(object):
                 # This call is efficient in that it's cached underneath.
                 # Now we only show the atomical id and its corresponding value
                 # because it can always be fetched separately which is more efficient.
-                basic_info = await self.bp.get_base_mint_info_rpc_format_by_atomical_id(
-                    atomical_id
-                )
+                basic_info = await self.bp.get_base_mint_info_rpc_format_by_atomical_id(atomical_id)
                 atomical_id_compact = location_id_bytes_to_compact(atomical_id)
                 atomicals_id_map[atomical_id_compact] = basic_info
                 location = utxo.tx_hash + util.pack_le_uint32(utxo.tx_pos)
-                atomicals_basic_infos[
-                    atomical_id_compact
-                ] = self.db.get_uxto_atomicals_value(location, atomical_id)
+                atomicals_basic_infos[atomical_id_compact] = self.db.get_uxto_atomicals_value(location, atomical_id)
             if verbose or len(atomicals) > 0:
                 returned_utxos.append(
                     {
@@ -1648,134 +1450,66 @@ class SharedSession(object):
                     }
                     if basic_info.get("$realm"):
                         atomicals[id_ref]["subtype"] = basic_info.get("subtype")
-                        atomicals[id_ref]["request_realm_status"] = basic_info.get(
-                            "$request_realm_status"
-                        )
-                        atomicals[id_ref]["request_realm"] = basic_info.get(
-                            "$request_realm"
-                        )
+                        atomicals[id_ref]["request_realm_status"] = basic_info.get("$request_realm_status")
+                        atomicals[id_ref]["request_realm"] = basic_info.get("$request_realm")
                         atomicals[id_ref]["realm"] = basic_info.get("$realm")
-                        atomicals[id_ref]["full_realm_name"] = basic_info.get(
-                            "$full_realm_name"
-                        )
+                        atomicals[id_ref]["full_realm_name"] = basic_info.get("$full_realm_name")
                     elif basic_info.get("$subrealm"):
                         atomicals[id_ref]["subtype"] = basic_info.get("subtype")
-                        atomicals[id_ref]["request_subrealm_status"] = basic_info.get(
-                            "$request_subrealm_status"
-                        )
-                        atomicals[id_ref]["request_subrealm"] = basic_info.get(
-                            "$request_subrealm"
-                        )
-                        atomicals[id_ref]["parent_realm"] = basic_info.get(
-                            "$parent_realm"
-                        )
+                        atomicals[id_ref]["request_subrealm_status"] = basic_info.get("$request_subrealm_status")
+                        atomicals[id_ref]["request_subrealm"] = basic_info.get("$request_subrealm")
+                        atomicals[id_ref]["parent_realm"] = basic_info.get("$parent_realm")
                         atomicals[id_ref]["subrealm"] = basic_info.get("$subrealm")
-                        atomicals[id_ref]["full_realm_name"] = basic_info.get(
-                            "$full_realm_name"
-                        )
+                        atomicals[id_ref]["full_realm_name"] = basic_info.get("$full_realm_name")
                     elif basic_info.get("$dmitem"):
                         atomicals[id_ref]["subtype"] = basic_info.get("subtype")
-                        atomicals[id_ref]["request_dmitem_status"] = basic_info.get(
-                            "$request_dmitem_status"
-                        )
-                        atomicals[id_ref]["request_dmitem"] = basic_info.get(
-                            "$request_dmitem"
-                        )
-                        atomicals[id_ref]["parent_container"] = basic_info.get(
-                            "$parent_container"
-                        )
+                        atomicals[id_ref]["request_dmitem_status"] = basic_info.get("$request_dmitem_status")
+                        atomicals[id_ref]["request_dmitem"] = basic_info.get("$request_dmitem")
+                        atomicals[id_ref]["parent_container"] = basic_info.get("$parent_container")
                         atomicals[id_ref]["dmitem"] = basic_info.get("$dmitem")
                     elif basic_info.get("$ticker"):
                         atomicals[id_ref]["subtype"] = basic_info.get("subtype")
-                        atomicals[id_ref]["ticker_candidates"] = basic_info.get(
-                            "$ticker_candidates"
-                        )
-                        atomicals[id_ref]["request_ticker_status"] = basic_info.get(
-                            "$request_ticker_status"
-                        )
-                        atomicals[id_ref]["request_ticker"] = basic_info.get(
-                            "$request_ticker"
-                        )
+                        atomicals[id_ref]["ticker_candidates"] = basic_info.get("$ticker_candidates")
+                        atomicals[id_ref]["request_ticker_status"] = basic_info.get("$request_ticker_status")
+                        atomicals[id_ref]["request_ticker"] = basic_info.get("$request_ticker")
                         atomicals[id_ref]["ticker"] = basic_info.get("$ticker")
                     elif basic_info.get("$container"):
                         atomicals[id_ref]["subtype"] = basic_info.get("subtype")
-                        atomicals[id_ref]["request_container_status"] = basic_info.get(
-                            "$request_container_status"
-                        )
+                        atomicals[id_ref]["request_container_status"] = basic_info.get("$request_container_status")
                         atomicals[id_ref]["container"] = basic_info.get("$container")
-                        atomicals[id_ref]["request_container"] = basic_info.get(
-                            "$request_container"
-                        )
+                        atomicals[id_ref]["request_container"] = basic_info.get("$request_container")
                     # Label them as candidates if they were candidates
                     elif basic_info.get("subtype") == "request_realm":
                         atomicals[id_ref]["subtype"] = basic_info.get("subtype")
-                        atomicals[id_ref]["request_realm_status"] = basic_info.get(
-                            "$request_realm_status"
-                        )
-                        atomicals[id_ref]["request_realm"] = basic_info.get(
-                            "$request_realm"
-                        )
-                        atomicals[id_ref]["realm_candidates"] = basic_info.get(
-                            "$realm_candidates"
-                        )
+                        atomicals[id_ref]["request_realm_status"] = basic_info.get("$request_realm_status")
+                        atomicals[id_ref]["request_realm"] = basic_info.get("$request_realm")
+                        atomicals[id_ref]["realm_candidates"] = basic_info.get("$realm_candidates")
                     elif basic_info.get("subtype") == "request_subrealm":
                         atomicals[id_ref]["subtype"] = basic_info.get("subtype")
-                        atomicals[id_ref]["subrealm_candidates"] = basic_info.get(
-                            "$subrealm_candidates"
-                        )
-                        atomicals[id_ref]["request_subrealm_status"] = basic_info.get(
-                            "$request_subrealm_status"
-                        )
-                        atomicals[id_ref]["request_full_realm_name"] = basic_info.get(
-                            "$request_full_realm_name"
-                        )
-                        atomicals[id_ref]["request_subrealm"] = basic_info.get(
-                            "$request_subrealm"
-                        )
-                        atomicals[id_ref]["parent_realm"] = basic_info.get(
-                            "$parent_realm"
-                        )
+                        atomicals[id_ref]["subrealm_candidates"] = basic_info.get("$subrealm_candidates")
+                        atomicals[id_ref]["request_subrealm_status"] = basic_info.get("$request_subrealm_status")
+                        atomicals[id_ref]["request_full_realm_name"] = basic_info.get("$request_full_realm_name")
+                        atomicals[id_ref]["request_subrealm"] = basic_info.get("$request_subrealm")
+                        atomicals[id_ref]["parent_realm"] = basic_info.get("$parent_realm")
                     elif basic_info.get("subtype") == "request_dmitem":
                         atomicals[id_ref]["subtype"] = basic_info.get("subtype")
-                        atomicals[id_ref]["dmitem_candidates"] = basic_info.get(
-                            "$dmitem_candidates"
-                        )
-                        atomicals[id_ref]["request_dmitem_status"] = basic_info.get(
-                            "$request_dmitem_status"
-                        )
-                        atomicals[id_ref]["request_dmitem"] = basic_info.get(
-                            "$request_dmitem"
-                        )
-                        atomicals[id_ref]["parent_container"] = basic_info.get(
-                            "$parent_container"
-                        )
+                        atomicals[id_ref]["dmitem_candidates"] = basic_info.get("$dmitem_candidates")
+                        atomicals[id_ref]["request_dmitem_status"] = basic_info.get("$request_dmitem_status")
+                        atomicals[id_ref]["request_dmitem"] = basic_info.get("$request_dmitem")
+                        atomicals[id_ref]["parent_container"] = basic_info.get("$parent_container")
                     elif basic_info.get("subtype") == "request_container":
                         atomicals[id_ref]["subtype"] = basic_info.get("subtype")
-                        atomicals[id_ref]["container_candidates"] = basic_info.get(
-                            "$container_candidates"
-                        )
-                        atomicals[id_ref]["request_container_status"] = basic_info.get(
-                            "$request_container_status"
-                        )
-                        atomicals[id_ref]["request_container"] = basic_info.get(
-                            "$request_container"
-                        )
+                        atomicals[id_ref]["container_candidates"] = basic_info.get("$container_candidates")
+                        atomicals[id_ref]["request_container_status"] = basic_info.get("$request_container_status")
+                        atomicals[id_ref]["request_container"] = basic_info.get("$request_container")
                     elif basic_info.get("$request_ticker_status"):
                         atomicals[id_ref]["subtype"] = basic_info.get("subtype")
-                        atomicals[id_ref]["ticker_candidates"] = basic_info.get(
-                            "$ticker_candidates"
-                        )
-                        atomicals[id_ref]["request_ticker_status"] = basic_info.get(
-                            "$request_ticker_status"
-                        )
-                        atomicals[id_ref]["request_ticker"] = basic_info.get(
-                            "$request_ticker"
-                        )
+                        atomicals[id_ref]["ticker_candidates"] = basic_info.get("$ticker_candidates")
+                        atomicals[id_ref]["request_ticker_status"] = basic_info.get("$request_ticker_status")
+                        atomicals[id_ref]["request_ticker"] = basic_info.get("$request_ticker")
 
                 if returned_utxo["height"] <= 0:
-                    atomicals[id_ref]["unconfirmed"] += returned_utxo["atomicals"][
-                        id_ref
-                    ]
+                    atomicals[id_ref]["unconfirmed"] += returned_utxo["atomicals"][id_ref]
                 else:
                     atomicals[id_ref]["confirmed"] += returned_utxo["atomicals"][id_ref]
 
@@ -1794,9 +1528,7 @@ class SharedSession(object):
         offset=0,
         is_verified_only=False,
     ):
-        db_entries = self.db.get_name_entries_template_limited(
-            db_prefix, parent_prefix, prefix, reverse, limit, offset
-        )
+        db_entries = self.db.get_name_entries_template_limited(db_prefix, parent_prefix, prefix, reverse, limit, offset)
         formatted_results = []
         for item in db_entries:
             height = self.bp.height
@@ -1814,9 +1546,7 @@ class SharedSession(object):
                     b"co", item["name"], height, self.bp.container_data_cache
                 )
             elif name_type_str == "subrealm":
-                status, _, _ = self.bp.get_effective_subrealm(
-                    parent_prefix, item["name"], height
-                )
+                status, _, _ = self.bp.get_effective_subrealm(parent_prefix, item["name"], height)
             obj = {
                 "atomical_id": location_id_bytes_to_compact(item["atomical_id"]),
                 "tx_num": item["tx_num"],
@@ -1830,9 +1560,7 @@ class SharedSession(object):
                 formatted_results.append(obj)
         return {"result": formatted_results}
 
-    async def get_transaction_detail_by_height(
-        self, height, limit, offset, op_type, reverse=True
-    ):
+    async def get_transaction_detail_by_height(self, height, limit, offset, op_type, reverse=True):
         res = []
         txs_list = []
         txs = self.db.get_atomicals_block_txs(height)
@@ -1843,9 +1571,7 @@ class SharedSession(object):
 
         txs_list.sort(key=lambda x: x["tx_num"], reverse=reverse)
         for tx in txs_list:
-            data = await self.session_mgr.get_transaction_detail(
-                tx["tx_hash"], height, tx["tx_num"]
-            )
+            data = await self.session_mgr.get_transaction_detail(tx["tx_hash"], height, tx["tx_num"])
             if (op_type and op_type == data["op"]) or (not op_type and data["op"]):
                 res.append(data)
         total = len(res)

@@ -75,10 +75,7 @@ async def query(args):
         n = None
         history = await db.limited_history(hashX, limit=limit)
         for n, (tx_hash, height) in enumerate(history, start=1):
-            print(
-                f"History #{n:,d}: height {height:,d} "
-                f"tx_hash {hash_to_hex_str(tx_hash)}"
-            )
+            print(f"History #{n:,d}: height {height:,d} " f"tx_hash {hash_to_hex_str(tx_hash)}")
         if n is None:
             print("No history found")
         n = None
@@ -112,9 +109,7 @@ def main():
         default=10,
         help=f"maximum number of entries to " f"return (default: {default_limit})",
     )
-    parser.add_argument(
-        "scripts", nargs="*", default=[], type=str, help="hex scripts to query"
-    )
+    parser.add_argument("scripts", nargs="*", default=[], type=str, help="hex scripts to query")
     args = parser.parse_args()
     asyncio.run(query(args))
 

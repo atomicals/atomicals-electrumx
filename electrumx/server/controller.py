@@ -96,9 +96,7 @@ class Controller(ServerBase):
         Daemon = env.coin.DAEMON
         BlockProcessor = env.coin.BLOCK_PROCESSOR
 
-        async with Daemon(
-            env.coin, env.daemon_url, proxy_url=env.daemon_proxy_url
-        ) as daemon:
+        async with Daemon(env.coin, env.daemon_url, proxy_url=env.daemon_proxy_url) as daemon:
             db = DB(env)
             bp = BlockProcessor(env, db, daemon, notifications)
 

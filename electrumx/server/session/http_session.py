@@ -61,9 +61,7 @@ class HttpSession(object):
             params = json_data.get("params", [])
         else:
             params = []
-        self.logger.debug(
-            f"HTTP request handling: [method] {method}, [params]: {params}"
-        )
+        self.logger.debug(f"HTTP request handling: [method] {method}, [params]: {params}")
         try:
             result = call(*params)
             if isinstance(result, Awaitable):
@@ -73,10 +71,7 @@ class HttpSession(object):
             method = request.method
             path = request.url
             s = traceback.format_exc()
-            self.logger.error(
-                f"Exception during formatting request: {method} {path}, "
-                f"exception: {e}, stack: {s}"
-            )
+            self.logger.error(f"Exception during formatting request: {method} {path}, " f"exception: {e}, stack: {s}")
             return error_resp(500, e)
 
     async def add_endpoints(self, router, protocols):
@@ -150,17 +145,11 @@ class HttpSession(object):
             "blockchain.atomicals.transaction_global": self.session_mgr.transaction_global,
         }
         if protocols >= (1, 4, 2):
-            handlers[
-                "blockchain.scripthash.unsubscribe"
-            ] = self.ss.scripthash_unsubscribe
+            handlers["blockchain.scripthash.unsubscribe"] = self.ss.scripthash_unsubscribe
         for m, h in handlers.items():
             method = f"/proxy/{m}"
-            router.add_get(
-                method, lambda r, handler=h: self.formatted_request(r, handler)
-            )
-            router.add_post(
-                method, lambda r, handler=h: self.formatted_request(r, handler)
-            )
+            router.add_get(method, lambda r, handler=h: self.formatted_request(r, handler))
+            router.add_post(method, lambda r, handler=h: self.formatted_request(r, handler))
 
         # Fallback proxy recognition
         router.add_get("/proxy", self.proxy)
@@ -175,10 +164,7 @@ class HttpSession(object):
 
     @classmethod
     def protocol_min_max_strings(cls):
-        return [
-            util.version_string(ver)
-            for ver in (SESSION_PROTOCOL_MIN, SESSION_PROTOCOL_MAX)
-        ]
+        return [util.version_string(ver) for ver in (SESSION_PROTOCOL_MIN, SESSION_PROTOCOL_MAX)]
 
     @classmethod
     def server_features(cls, env):
@@ -206,9 +192,7 @@ class HttpSession(object):
         params = json.loads(request.query.get("params", "[]"))
 
         rpc_service = await self.get_rpc_server()
-        async with aiorpcx.connect_rs(
-            str(rpc_service.address.host), int(rpc_service.address.port)
-        ) as session:
+        async with aiorpcx.connect_rs(str(rpc_service.address.host), int(rpc_service.address.port)) as session:
             result = await session.send_request(method, params)
             await session.close()
 
@@ -219,9 +203,7 @@ class HttpSession(object):
         method = request.match_info.get("method", None)
         params = json_data.get("params", "[]")
         rpc_service = await self.get_rpc_server()
-        async with aiorpcx.connect_rs(
-            str(rpc_service.address.host), int(rpc_service.address.port)
-        ) as session:
+        async with aiorpcx.connect_rs(str(rpc_service.address.host), int(rpc_service.address.port)) as session:
             result = await session.send_request(method, params)
             await session.close()
 

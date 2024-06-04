@@ -58,10 +58,7 @@ class SessionBase(RPCSession):
         context = {"conn_id": f"{self.session_id}"}
         logger = util.class_logger(__name__, self.__class__.__name__)
         self.logger = util.ConnectionLogger(logger, context)
-        self.logger.info(
-            f"{self.kind} {self.remote_address_string()}, "
-            f"{self.session_mgr.session_count():,d} total"
-        )
+        self.logger.info(f"{self.kind} {self.remote_address_string()}, " f"{self.session_mgr.session_count():,d} total")
         self.session_mgr.add_session(self)
         self.recalc_concurrency()  # must be called after session_mgr.add_session
         self.protocol_tuple: Optional[Tuple[int, ...]] = None
@@ -131,15 +128,9 @@ class SessionBase(RPCSession):
 
         # If DROP_CLIENT_UNKNOWN is enabled, check if the client identified
         # by calling server.version previously. If not, disconnect the session
-        if (
-            self.env.drop_client_unknown
-            and method != "server.version"
-            and self.client == "unknown"
-        ):
+        if self.env.drop_client_unknown and method != "server.version" and self.client == "unknown":
             self.logger.info(f"disconnecting because client is unknown")
-            raise ReplyAndDisconnect(
-                BAD_REQUEST, f"use server.version to identify client"
-            )
+            raise ReplyAndDisconnect(BAD_REQUEST, f"use server.version to identify client")
 
         self.session_mgr.method_counts[method] += 1
         coro = handler_invocation(handler, request)()

@@ -15,9 +15,7 @@ from electrumx.lib.coins import Coin, Namecoin
 from electrumx.lib.hash import hash_to_hex_str
 from electrumx.lib.script import OpCodes, Script
 
-TRANSACTION_DIR = os.path.join(
-    os.path.dirname(os.path.realpath(__file__)), "transactions"
-)
+TRANSACTION_DIR = os.path.join(os.path.dirname(os.path.realpath(__file__)), "transactions")
 
 # Find out which db engines to test
 # Those that are not installed will be skipped
@@ -70,13 +68,9 @@ def test_transaction(transaction_details):
                 OP_NAME_UPDATE = OpCodes.OP_3
                 normalized_name_op_script = bytearray()
                 normalized_name_op_script.append(OP_NAME_UPDATE)
-                normalized_name_op_script.extend(
-                    Script.push_data(spk["nameOp"]["name"].encode("ascii"))
-                )
+                normalized_name_op_script.extend(Script.push_data(spk["nameOp"]["name"].encode("ascii")))
                 normalized_name_op_script.extend(Script.push_data(bytes([])))
                 normalized_name_op_script.append(OpCodes.OP_2DROP)
                 normalized_name_op_script.append(OpCodes.OP_DROP)
                 normalized_name_op_script.append(OpCodes.OP_RETURN)
-                assert coin.name_hashX_from_script(tx_pks) == Coin.hashX_from_script(
-                    normalized_name_op_script
-                )
+                assert coin.name_hashX_from_script(tx_pks) == Coin.hashX_from_script(normalized_name_op_script)

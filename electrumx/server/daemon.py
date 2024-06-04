@@ -127,9 +127,7 @@ class Daemon:
     async def _send_data(self, data):
         async with self.workqueue_semaphore:
             if self.session:
-                async with self.session.post(
-                    self.current_url(), data=data, proxy=self.proxy_url
-                ) as resp:
+                async with self.session.post(self.current_url(), data=data, proxy=self.proxy_url) as resp:
                     kind = resp.headers.get("Content-Type", None)
                     if kind == "application/json":
                         return await resp.json(loads=json_deserialize)
@@ -221,10 +219,7 @@ class Daemon:
                 return [item["result"] for item in result]
             raise DaemonError(errs)
 
-        payload = [
-            {"method": method, "params": p, "id": next(self.id_counter)}
-            for p in params_iterable
-        ]
+        payload = [{"method": method, "params": p, "id": next(self.id_counter)} for p in params_iterable]
         if payload:
             return await self._send(payload, processor)
         return []
@@ -306,9 +301,7 @@ class Daemon:
 
         Replaces errors with None by default."""
         params_iterable = ((hex_hash, 0) for hex_hash in hex_hashes)
-        txs = await self._send_vector(
-            "getrawtransaction", params_iterable, replace_errs=replace_errs
-        )
+        txs = await self._send_vector("getrawtransaction", params_iterable, replace_errs=replace_errs)
         # Convert hex strings to bytes
         return [hex_to_bytes(tx) if tx else None for tx in txs]
 
@@ -535,10 +528,7 @@ class SmartCashDaemon(Daemon):
 class ZcoinMtpDaemon(Daemon):
     def strip_mtp_data(self, raw_block):
         if self.coin.is_mtp(raw_block):
-            return (
-                raw_block[: self.coin.MTP_HEADER_DATA_START * 2]
-                + raw_block[self.coin.MTP_HEADER_DATA_END * 2 :]
-            )
+            return raw_block[: self.coin.MTP_HEADER_DATA_START * 2] + raw_block[self.coin.MTP_HEADER_DATA_END * 2 :]
         return raw_block
 
     async def raw_blocks(self, hex_hashes):

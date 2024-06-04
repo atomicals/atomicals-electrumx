@@ -146,9 +146,7 @@ class MemPool:
 
     async def _logging(self, synchronized_event):
         """Print regular logs of mempool stats."""
-        self.logger.info(
-            "beginning processing of daemon mempool.  " "This can take some time..."
-        )
+        self.logger.info("beginning processing of daemon mempool.  " "This can take some time...")
         start = time.monotonic()
         await synchronized_event.wait()
         elapsed = time.monotonic() - start
@@ -156,8 +154,7 @@ class MemPool:
         while True:
             mempool_size = sum(tx.size for tx in self.txs.values()) / 1_000_000
             self.logger.info(
-                f"{len(self.txs):,d} txs {mempool_size:.2f} MB "
-                f"touching {len(self.hashXs):,d} addresses"
+                f"{len(self.txs):,d} txs {mempool_size:.2f} MB " f"touching {len(self.hashXs):,d} addresses"
             )
             await sleep(self.log_status_secs)
             await synchronized_event.wait()
@@ -188,9 +185,7 @@ class MemPool:
         self.cached_compact_histogram = compact
 
     @classmethod
-    def _compress_histogram(
-        cls, histogram: Dict[float, int], *, bin_size: int
-    ) -> Sequence[Tuple[float, int]]:
+    def _compress_histogram(cls, histogram: Dict[float, int], *, bin_size: int) -> Sequence[Tuple[float, int]]:
         """Calculate and return a compact fee histogram as needed for
         "mempool.get_fee_histogram" protocol request.
 
@@ -259,9 +254,7 @@ class MemPool:
             tx.in_pairs = tuple(in_pairs)
             # Avoid negative fees if dealing with generation-like transactions
             # because some in_parts would be missing
-            tx.fee = max(
-                0, (sum(v for _, v in tx.in_pairs) - sum(v for _, v in tx.out_pairs))
-            )
+            tx.fee = max(0, (sum(v for _, v in tx.in_pairs) - sum(v for _, v in tx.out_pairs)))
             txs[hash] = tx
 
             for hashX, _value in itertools.chain(tx.in_pairs, tx.out_pairs):
@@ -399,11 +392,7 @@ class MemPool:
                 try:
                     tx, tx_size = deserializer(raw_tx).read_tx_and_vsize()
                     try:
-                        operations_found_at_inputs = (
-                            parse_protocols_operations_from_witness_array(
-                                tx, hash, True
-                            )
-                        )
+                        operations_found_at_inputs = parse_protocols_operations_from_witness_array(tx, hash, True)
                         create_or_delete_atomical_from_definition(
                             operations_found_at_inputs, tx, hash, atomicals_updates_map
                         )
@@ -417,14 +406,8 @@ class MemPool:
                     continue
                 # Convert the inputs and outputs into (hashX, value) pairs
                 # Drop generation-like inputs from MemPoolTx.prevouts
-                txin_pairs = tuple(
-                    (txin.prev_hash, txin.prev_idx)
-                    for txin in tx.inputs
-                    if not txin.is_generation()
-                )
-                txout_pairs = tuple(
-                    (to_hashX(txout.pk_script), txout.value) for txout in tx.outputs
-                )
+                txin_pairs = tuple((txin.prev_hash, txin.prev_idx) for txin in tx.inputs if not txin.is_generation())
+                txout_pairs = tuple((to_hashX(txout.pk_script), txout.value) for txout in tx.outputs)
                 txs[hash] = MemPoolTx(txin_pairs, None, txout_pairs, 0, tx_size)
             return txs, atomicals_updates_map
 
@@ -436,12 +419,7 @@ class MemPool:
         # return None - concurrent database updates happen - which is
         # relied upon by _accept_transactions. Ignore prevouts that are
         # generation-like.
-        prevouts = tuple(
-            prevout
-            for tx in tx_map.values()
-            for prevout in tx.prevouts
-            if prevout[0] not in all_hashes
-        )
+        prevouts = tuple(prevout for tx in tx_map.values() for prevout in tx.prevouts if prevout[0] not in all_hashes)
         utxos = await self.api.lookup_utxos(prevouts)
         utxo_map = {prevout: utxo for prevout, utxo in zip(prevouts, utxos)}
 

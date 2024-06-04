@@ -47,9 +47,7 @@ def test_Base58_decode():
     with pytest.raises(lib_hash.Base58Error):
         lib_hash.Base58.decode("")
     assert (
-        lib_hash.Base58.decode(
-            "123456789ABCDEFGHJKLMNPQRSTUVWXYZabcdefghijkmnopqrstuvwxyz"
-        )
+        lib_hash.Base58.decode("123456789ABCDEFGHJKLMNPQRSTUVWXYZabcdefghijkmnopqrstuvwxyz")
         == b"\x00\x01\x11\xd3\x8e_\xc9\x07\x1f\xfc\xd2\x0bJv<\xc9\xaeO%+\xb4\xe4\x8f\xd6j\x83^%*\xda\x93\xffH\rm\xd4=\xc6*d\x11U\xa5"
     )
     assert lib_hash.Base58.decode("3i37NcgooY8f1S") == b"0123456789"

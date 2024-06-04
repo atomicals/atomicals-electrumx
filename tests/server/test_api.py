@@ -92,11 +92,7 @@ def _test_transaction_get():
         await sut.transaction_get("cafe")
         sut.daemon_request.assert_not_called()
 
-    loop.run_until_complete(
-        asyncio.gather(
-            *[test_verbose_ignore_by_backend(), test_verbose_ok(), test_no_verbose()]
-        )
-    )
+    loop.run_until_complete(asyncio.gather(*[test_verbose_ignore_by_backend(), test_verbose_ok(), test_no_verbose()]))
 
     for error_test in [test_verbose_failure, test_wrong_txhash]:
         ensure_text_exception(error_test(), RPCError)

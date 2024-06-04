@@ -52,9 +52,7 @@ class BadPeerError(Exception):
 
 def assert_good(message, result, instance):
     if not isinstance(result, instance):
-        raise BadPeerError(
-            f"{message} returned bad result type " f"{type(result).__name__}"
-        )
+        raise BadPeerError(f"{message} returned bad result type " f"{type(result).__name__}")
 
 
 class PeerSession(RPCSession):
@@ -62,10 +60,7 @@ class PeerSession(RPCSession):
 
     async def handle_request(self, request):
         # We subscribe so might be unlucky enough to get a notification...
-        if (
-            isinstance(request, Notification)
-            and request.method == "blockchain.headers.subscribe"
-        ):
+        if isinstance(request, Notification) and request.method == "blockchain.headers.subscribe":
             pass
         else:
             await handler_invocation(None, request)  # Raises
@@ -87,10 +82,7 @@ class PeerManager:
 
         # Our reported clearnet and Tor Peers, if any
         sclass = env.coin.SESSIONCLS
-        self.myselves = [
-            Peer(str(service.host), sclass.server_features(env), "env")
-            for service in env.report_services
-        ]
+        self.myselves = [Peer(str(service.host), sclass.server_features(env), "env") for service in env.report_services]
         self.server_version_args = sclass.server_version_args()
         # Peers have one entry per hostname.  Once connected, the
         # ip_addr property is either None, an onion peer, or the
@@ -152,10 +144,7 @@ class PeerManager:
         imported_peers = self.myselves.copy()
         # Add the hard-coded ones unless only reporting ourself
         if self.env.peer_discovery != self.env.PD_SELF:
-            imported_peers.extend(
-                Peer.from_real_name(real_name, "coins.py")
-                for real_name in self.env.coin.PEERS
-            )
+            imported_peers.extend(Peer.from_real_name(real_name, "coins.py") for real_name in self.env.coin.PEERS)
         await self._note_peers(imported_peers, limit=None)
 
     async def _refresh_blacklist(self):
@@ -175,9 +164,7 @@ class PeerManager:
             except Exception as e:
                 self.logger.error(f"could not retrieve blacklist from {url}: {e}")
             else:
-                self.logger.info(
-                    f"blacklist from {url} has {len(self.blacklist)} entries"
-                )
+                self.logger.info(f"blacklist from {url} has {len(self.blacklist)} entries")
                 # Got new blacklist. Now check our current peers against it
                 for peer in self.peers:
                     if self._is_blacklisted(peer):
@@ -187,17 +174,11 @@ class PeerManager:
     def _is_blacklisted(self, peer):
         host = peer.host.lower()
         second_level_domain = "*." + ".".join(host.split(".")[-2:])
-        return any(
-            item in self.blacklist for item in (host, second_level_domain, peer.ip_addr)
-        )
+        return any(item in self.blacklist for item in (host, second_level_domain, peer.ip_addr))
 
     def _get_recent_good_peers(self):
         cutoff = time.time() - STALE_SECS
-        recent = [
-            peer
-            for peer in self.peers
-            if peer.last_good > cutoff and not peer.bad and peer.is_public
-        ]
+        recent = [peer for peer in self.peers if peer.last_good > cutoff and not peer.bad and peer.is_public]
         recent = [peer for peer in recent if not self._is_blacklisted(peer)]
         return recent
 
@@ -222,9 +203,7 @@ class PeerManager:
             self.logger.info("no proxy detected, will try later")
             await sleep(900)
 
-    async def _note_peers(
-        self, peers, limit: Optional[int] = 2, check_ports=False, source=None
-    ):
+    async def _note_peers(self, peers, limit: Optional[int] = 2, check_ports=False, source=None):
         """Add a limited number of peers that are not already present."""
         new_peers = []
         match_set = self.peers.copy()
@@ -301,17 +280,14 @@ class PeerManager:
                 local_hosts = {
                     service.host
                     for service in self.env.services
-                    if isinstance(service.host, (IPv4Address, IPv6Address))
-                    and service.protocol != "rpc"
+                    if isinstance(service.host, (IPv4Address, IPv6Address)) and service.protocol != "rpc"
                 }
                 if local_hosts:
                     kwargs["local_addr"] = (str(local_hosts.pop()), None)
 
             peer_text = f"[{peer}:{port} {kind}]"
             try:
-                async with connect_rs(
-                    peer.host, port, session_factory=PeerSession, **kwargs
-                ) as session:
+                async with connect_rs(peer.host, port, session_factory=PeerSession, **kwargs) as session:
                     session.sent_request_timeout = 120 if peer.is_tor else 30
                     await self._verify_peer(session, peer)
                 is_good = True
@@ -347,11 +323,7 @@ class PeerManager:
                 elif peer.host in match.features["hosts"]:
                     match.update_features_from_peer(peer)
             # Trim this data structure
-            self.recent_peer_adds = {
-                k: v
-                for k, v in self.recent_peer_adds.items()
-                if v + PEER_ADD_PAUSE < now
-            }
+            self.recent_peer_adds = {k: v for k, v in self.recent_peer_adds.items() if v + PEER_ADD_PAUSE < now}
         else:
             # Forget the peer if long-term unreachable
             if peer.last_good and not peer.bad:
@@ -441,9 +413,7 @@ class PeerManager:
         if not isinstance(their_height, int):
             raise BadPeerError(f"invalid height {their_height}")
         if abs(our_height - their_height) > 5:
-            raise BadPeerError(
-                f"bad height {their_height:,d} " f"(ours: {our_height:,d})"
-            )
+            raise BadPeerError(f"bad height {their_height:,d} " f"(ours: {our_height:,d})")
 
         # Check prior header too in case of hard fork.
         check_height = min(our_height, their_height)
@@ -478,9 +448,7 @@ class PeerManager:
         # Call add_peer if the remote doesn't appear to know about us.
         try:
             real_names = [" ".join([u[1]] + u[2]) for u in raw_peers]
-            return [
-                Peer.from_real_name(real_name, str(peer)) for real_name in real_names
-            ]
+            return [Peer.from_real_name(real_name, str(peer)) for real_name in real_names]
         except Exception:
             raise BadPeerError("bad server.peers.subscribe response")
 
@@ -522,9 +490,7 @@ class PeerManager:
 
     async def add_localRPC_peer(self, real_name):
         """Add a peer passed by the admin over LocalRPC."""
-        await self._note_peers(
-            [Peer.from_real_name(real_name, "RPC")], check_ports=True
-        )
+        await self._note_peers([Peer.from_real_name(real_name, "RPC")], check_ports=True)
 
     async def on_add_peer(self, features, source_addr):
         """Add a peer (but only if the peer resolves to the source)."""
@@ -572,9 +538,7 @@ class PeerManager:
             self.logger.info(f"accepted add_peer request from {source} for {host}")
             await self._note_peers([peer], check_ports=True)
         else:
-            self.logger.warning(
-                f"rejected add_peer request from {source} " f"for {host} ({reason})"
-            )
+            self.logger.warning(f"rejected add_peer request from {source} " f"for {host} ({reason})")
 
         return permit
 

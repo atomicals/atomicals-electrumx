@@ -25,8 +25,12 @@ class MockLogger:
 
 
 def test_get_subname_request_candidate_status_verified_self():
-    subject_atomical_id = b"A\x03\x8f'\xe7\x85`l\xa0\xcc\x1e\xfd\x8e:\xa9\x12\xa1\\r\xd0o5\x9a\xeb\x05$=\xab+p\xa8V\x01\x00\x00\x00"
-    subject_atomical_id2 = b"A\x03\x8f'\xe7\x85`l\xa0\xcc\x1e\xfd\x8e:\xa9\x12\xa1\\r\xd0o5\x9a\xeb\x05$=\xab+p\xa8V\x02\x00\x00\x00"
+    subject_atomical_id = (
+        b"A\x03\x8f'\xe7\x85`l\xa0\xcc\x1e\xfd\x8e:\xa9\x12\xa1\\r\xd0o5\x9a\xeb\x05$=\xab+p\xa8V\x01\x00\x00\x00"
+    )
+    subject_atomical_id2 = (
+        b"A\x03\x8f'\xe7\x85`l\xa0\xcc\x1e\xfd\x8e:\xa9\x12\xa1\\r\xd0o5\x9a\xeb\x05$=\xab+p\xa8V\x02\x00\x00\x00"
+    )
     subject_atomical_id_compact = location_id_bytes_to_compact(subject_atomical_id)
     subject_atomical_id_compact2 = location_id_bytes_to_compact(subject_atomical_id2)
     # status can be one of at first:
@@ -50,9 +54,7 @@ def test_get_subname_request_candidate_status_verified_self():
         "atomical_id": subject_atomical_id,
         "mint_info": {"commit_height": 890000, "reveal_location_height": 890000},
     }
-    result = get_subname_request_candidate_status(
-        890000, atomical_info, "verified", subject_atomical_id, "realm"
-    )
+    result = get_subname_request_candidate_status(890000, atomical_info, "verified", subject_atomical_id, "realm")
     assert {
         "status": "verified",
         "verified_atomical_id": subject_atomical_id_compact,
@@ -61,8 +63,12 @@ def test_get_subname_request_candidate_status_verified_self():
 
 
 def test_get_subname_request_candidate_status_verified_claimed_by_other():
-    subject_atomical_id = b"A\x03\x8f'\xe7\x85`l\xa0\xcc\x1e\xfd\x8e:\xa9\x12\xa1\\r\xd0o5\x9a\xeb\x05$=\xab+p\xa8V\x01\x00\x00\x00"
-    subject_atomical_id2 = b"A\x03\x8f'\xe7\x85`l\xa0\xcc\x1e\xfd\x8e:\xa9\x12\xa1\\r\xd0o5\x9a\xeb\x05$=\xab+p\xa8V\x02\x00\x00\x00"
+    subject_atomical_id = (
+        b"A\x03\x8f'\xe7\x85`l\xa0\xcc\x1e\xfd\x8e:\xa9\x12\xa1\\r\xd0o5\x9a\xeb\x05$=\xab+p\xa8V\x01\x00\x00\x00"
+    )
+    subject_atomical_id2 = (
+        b"A\x03\x8f'\xe7\x85`l\xa0\xcc\x1e\xfd\x8e:\xa9\x12\xa1\\r\xd0o5\x9a\xeb\x05$=\xab+p\xa8V\x02\x00\x00\x00"
+    )
     subject_atomical_id_compact = location_id_bytes_to_compact(subject_atomical_id)
     subject_atomical_id_compact2 = location_id_bytes_to_compact(subject_atomical_id2)
     # status can be one of at first:
@@ -105,9 +111,7 @@ def test_get_subname_request_candidate_status_verified_claimed_by_other():
         #     "p": "8$"
         # }
     }
-    result = get_subname_request_candidate_status(
-        890006, atomical_info, "verified", subject_atomical_id2, "realm"
-    )
+    result = get_subname_request_candidate_status(890006, atomical_info, "verified", subject_atomical_id2, "realm")
     assert {
         "status": "claimed_by_other",
         "claimed_by_atomical_id": subject_atomical_id_compact2,
@@ -116,8 +120,12 @@ def test_get_subname_request_candidate_status_verified_claimed_by_other():
 
 
 def test_get_subname_request_candidate_status_verified_pending_candidate():
-    subject_atomical_id = b"A\x03\x8f'\xe7\x85`l\xa0\xcc\x1e\xfd\x8e:\xa9\x12\xa1\\r\xd0o5\x9a\xeb\x05$=\xab+p\xa8V\x01\x00\x00\x00"
-    subject_atomical_id2 = b"A\x03\x8f'\xe7\x85`l\xa0\xcc\x1e\xfd\x8e:\xa9\x12\xa1\\r\xd0o5\x9a\xeb\x05$=\xab+p\xa8V\x02\x00\x00\x00"
+    subject_atomical_id = (
+        b"A\x03\x8f'\xe7\x85`l\xa0\xcc\x1e\xfd\x8e:\xa9\x12\xa1\\r\xd0o5\x9a\xeb\x05$=\xab+p\xa8V\x01\x00\x00\x00"
+    )
+    subject_atomical_id2 = (
+        b"A\x03\x8f'\xe7\x85`l\xa0\xcc\x1e\xfd\x8e:\xa9\x12\xa1\\r\xd0o5\x9a\xeb\x05$=\xab+p\xa8V\x02\x00\x00\x00"
+    )
     subject_atomical_id_compact = location_id_bytes_to_compact(subject_atomical_id)
     subject_atomical_id_compact2 = location_id_bytes_to_compact(subject_atomical_id2)
     # status can be one of at first:
@@ -160,9 +168,7 @@ def test_get_subname_request_candidate_status_verified_pending_candidate():
         #     "p": "8$"
         # }
     }
-    result = get_subname_request_candidate_status(
-        890006, atomical_info, "pending", subject_atomical_id2, "realm"
-    )
+    result = get_subname_request_candidate_status(890006, atomical_info, "pending", subject_atomical_id2, "realm")
     assert {
         "status": "pending_awaiting_confirmations",
         "pending_candidate_atomical_id": subject_atomical_id_compact2,
@@ -171,8 +177,12 @@ def test_get_subname_request_candidate_status_verified_pending_candidate():
 
 
 def test_get_subname_request_candidate_status_pending_awaiting_confirmations():
-    subject_atomical_id = b"A\x03\x8f'\xe7\x85`l\xa0\xcc\x1e\xfd\x8e:\xa9\x12\xa1\\r\xd0o5\x9a\xeb\x05$=\xab+p\xa8V\x01\x00\x00\x00"
-    subject_atomical_id2 = b"A\x03\x8f'\xe7\x85`l\xa0\xcc\x1e\xfd\x8e:\xa9\x12\xa1\\r\xd0o5\x9a\xeb\x05$=\xab+p\xa8V\x02\x00\x00\x00"
+    subject_atomical_id = (
+        b"A\x03\x8f'\xe7\x85`l\xa0\xcc\x1e\xfd\x8e:\xa9\x12\xa1\\r\xd0o5\x9a\xeb\x05$=\xab+p\xa8V\x01\x00\x00\x00"
+    )
+    subject_atomical_id2 = (
+        b"A\x03\x8f'\xe7\x85`l\xa0\xcc\x1e\xfd\x8e:\xa9\x12\xa1\\r\xd0o5\x9a\xeb\x05$=\xab+p\xa8V\x02\x00\x00\x00"
+    )
     subject_atomical_id_compact = location_id_bytes_to_compact(subject_atomical_id)
     subject_atomical_id_compact2 = location_id_bytes_to_compact(subject_atomical_id2)
     # status can be one of at first:
@@ -224,9 +234,7 @@ def test_get_subname_request_candidate_status_pending_awaiting_confirmations():
         #     "p": "8$"
         # }
     }
-    result = get_subname_request_candidate_status(
-        890006, atomical_info, "pending", subject_atomical_id2, "realm"
-    )
+    result = get_subname_request_candidate_status(890006, atomical_info, "pending", subject_atomical_id2, "realm")
     assert {
         "status": "pending_awaiting_confirmations",
         "pending_candidate_atomical_id": subject_atomical_id_compact2,
@@ -235,8 +243,12 @@ def test_get_subname_request_candidate_status_pending_awaiting_confirmations():
 
 
 def test_get_subname_request_candidate_status_pending_awaiting_confirmations_for_payment_window():
-    subject_atomical_id = b"A\x03\x8f'\xe7\x85`l\xa0\xcc\x1e\xfd\x8e:\xa9\x12\xa1\\r\xd0o5\x9a\xeb\x05$=\xab+p\xa8V\x01\x00\x00\x00"
-    subject_atomical_id2 = b"A\x03\x8f'\xe7\x85`l\xa0\xcc\x1e\xfd\x8e:\xa9\x12\xa1\\r\xd0o5\x9a\xeb\x05$=\xab+p\xa8V\x02\x00\x00\x00"
+    subject_atomical_id = (
+        b"A\x03\x8f'\xe7\x85`l\xa0\xcc\x1e\xfd\x8e:\xa9\x12\xa1\\r\xd0o5\x9a\xeb\x05$=\xab+p\xa8V\x01\x00\x00\x00"
+    )
+    subject_atomical_id2 = (
+        b"A\x03\x8f'\xe7\x85`l\xa0\xcc\x1e\xfd\x8e:\xa9\x12\xa1\\r\xd0o5\x9a\xeb\x05$=\xab+p\xa8V\x02\x00\x00\x00"
+    )
     subject_atomical_id_compact = location_id_bytes_to_compact(subject_atomical_id)
     subject_atomical_id_compact2 = location_id_bytes_to_compact(subject_atomical_id2)
     # status can be one of at first:
@@ -275,15 +287,12 @@ def test_get_subname_request_candidate_status_pending_awaiting_confirmations_for
                 "commit_height": 890005,
                 "reveal_location_height": 890005,
                 "payment_type": "applicable_rule",
-                "payment_due_no_later_than_height": 890005
-                + MINT_SUBNAME_COMMIT_PAYMENT_DELAY_BLOCKS,
+                "payment_due_no_later_than_height": 890005 + MINT_SUBNAME_COMMIT_PAYMENT_DELAY_BLOCKS,
                 "applicable_rule": {"o": {"0123456789": {"v": 600}}, "p": "8$"},
             },
         ],
     }
-    result = get_subname_request_candidate_status(
-        890006, atomical_info, "pending", subject_atomical_id2, "subrealm"
-    )
+    result = get_subname_request_candidate_status(890006, atomical_info, "pending", subject_atomical_id2, "subrealm")
     assert {
         "status": "pending_awaiting_confirmations_for_payment_window",
         "pending_candidate_atomical_id": subject_atomical_id_compact2,
@@ -292,8 +301,12 @@ def test_get_subname_request_candidate_status_pending_awaiting_confirmations_for
 
 
 def test_get_subname_request_candidate_status_pending_awaiting_confirmations_payment_received_prematurely():
-    subject_atomical_id = b"A\x03\x8f'\xe7\x85`l\xa0\xcc\x1e\xfd\x8e:\xa9\x12\xa1\\r\xd0o5\x9a\xeb\x05$=\xab+p\xa8V\x01\x00\x00\x00"
-    subject_atomical_id2 = b"A\x03\x8f'\xe7\x85`l\xa0\xcc\x1e\xfd\x8e:\xa9\x12\xa1\\r\xd0o5\x9a\xeb\x05$=\xab+p\xa8V\x02\x00\x00\x00"
+    subject_atomical_id = (
+        b"A\x03\x8f'\xe7\x85`l\xa0\xcc\x1e\xfd\x8e:\xa9\x12\xa1\\r\xd0o5\x9a\xeb\x05$=\xab+p\xa8V\x01\x00\x00\x00"
+    )
+    subject_atomical_id2 = (
+        b"A\x03\x8f'\xe7\x85`l\xa0\xcc\x1e\xfd\x8e:\xa9\x12\xa1\\r\xd0o5\x9a\xeb\x05$=\xab+p\xa8V\x02\x00\x00\x00"
+    )
     subject_atomical_id_compact = location_id_bytes_to_compact(subject_atomical_id)
     subject_atomical_id_compact2 = location_id_bytes_to_compact(subject_atomical_id2)
     # status can be one of at first:
@@ -333,15 +346,12 @@ def test_get_subname_request_candidate_status_pending_awaiting_confirmations_pay
                 "reveal_location_height": 890005,
                 "payment_type": "applicable_rule",
                 "payment": "77720718393b73ca9f862681f3093a045c5358e6ebe26bbdedc8eca79144371i3",
-                "payment_due_no_later_than_height": 890005
-                + MINT_SUBNAME_COMMIT_PAYMENT_DELAY_BLOCKS,
+                "payment_due_no_later_than_height": 890005 + MINT_SUBNAME_COMMIT_PAYMENT_DELAY_BLOCKS,
                 "applicable_rule": {"o": {"0123456789": {"v": 600}}, "p": "8$"},
             },
         ],
     }
-    result = get_subname_request_candidate_status(
-        890006, atomical_info, "pending", subject_atomical_id, "subrealm"
-    )
+    result = get_subname_request_candidate_status(890006, atomical_info, "pending", subject_atomical_id, "subrealm")
     assert {
         "status": "pending_awaiting_confirmations_payment_received_prematurely",
         "pending_candidate_atomical_id": subject_atomical_id_compact,
@@ -361,9 +371,7 @@ def test_get_subname_request_candidate_status_pending_awaiting_confirmations_pay
         "note": "The minimum delay of 3 blocks has not yet elapsed to declare a winner.",
     } == result
 
-    result = get_subname_request_candidate_status(
-        890009, atomical_info, "verified", subject_atomical_id, "subrealm"
-    )
+    result = get_subname_request_candidate_status(890009, atomical_info, "verified", subject_atomical_id, "subrealm")
     assert {
         "status": "verified",
         "verified_atomical_id": subject_atomical_id_compact,
@@ -372,8 +380,12 @@ def test_get_subname_request_candidate_status_pending_awaiting_confirmations_pay
 
 
 def test_get_subname_request_candidate_status_expired_payment_not_received():
-    subject_atomical_id = b"A\x03\x8f'\xe7\x85`l\xa0\xcc\x1e\xfd\x8e:\xa9\x12\xa1\\r\xd0o5\x9a\xeb\x05$=\xab+p\xa8V\x01\x00\x00\x00"
-    subject_atomical_id2 = b"A\x03\x8f'\xe7\x85`l\xa0\xcc\x1e\xfd\x8e:\xa9\x12\xa1\\r\xd0o5\x9a\xeb\x05$=\xab+p\xa8V\x02\x00\x00\x00"
+    subject_atomical_id = (
+        b"A\x03\x8f'\xe7\x85`l\xa0\xcc\x1e\xfd\x8e:\xa9\x12\xa1\\r\xd0o5\x9a\xeb\x05$=\xab+p\xa8V\x01\x00\x00\x00"
+    )
+    subject_atomical_id2 = (
+        b"A\x03\x8f'\xe7\x85`l\xa0\xcc\x1e\xfd\x8e:\xa9\x12\xa1\\r\xd0o5\x9a\xeb\x05$=\xab+p\xa8V\x02\x00\x00\x00"
+    )
     subject_atomical_id_compact = location_id_bytes_to_compact(subject_atomical_id)
     subject_atomical_id_compact2 = location_id_bytes_to_compact(subject_atomical_id2)
     # status can be one of at first:
@@ -413,16 +425,13 @@ def test_get_subname_request_candidate_status_expired_payment_not_received():
                 "reveal_location_height": 890005,
                 "payment_type": "applicable_rule",
                 "payment": None,
-                "payment_due_no_later_than_height": 890005
-                + MINT_SUBNAME_COMMIT_PAYMENT_DELAY_BLOCKS,
+                "payment_due_no_later_than_height": 890005 + MINT_SUBNAME_COMMIT_PAYMENT_DELAY_BLOCKS,
                 "applicable_rule": {"o": {"0123456789": {"v": 600}}, "p": "8$"},
             },
         ],
     }
 
-    result = get_subname_request_candidate_status(
-        890120, atomical_info, "pending", subject_atomical_id, "subrealm"
-    )
+    result = get_subname_request_candidate_status(890120, atomical_info, "pending", subject_atomical_id, "subrealm")
     assert {
         "status": "expired_payment_not_received",
         "note": 'A valid payment was not received before the "payment_due_no_later_than_height" limit.',

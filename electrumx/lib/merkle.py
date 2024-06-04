@@ -81,9 +81,7 @@ class Merkle:
                 hashes.append(hashes[-1])
             branch.append(hashes[index ^ 1])
             index >>= 1
-            hashes = [
-                hash_func(hashes[n] + hashes[n + 1]) for n in range(0, len(hashes), 2)
-            ]
+            hashes = [hash_func(hashes[n] + hashes[n + 1]) for n in range(0, len(hashes), 2)]
 
         return branch, hashes[0]
 
@@ -121,10 +119,7 @@ class Merkle:
         higher than the bottom row of the original tree."""
         size = 1 << depth_higher
         root = self.root
-        return [
-            root(hashes[n : n + size], depth_higher)
-            for n in range(0, len(hashes), size)
-        ]
+        return [root(hashes[n : n + size], depth_higher) for n in range(0, len(hashes), size)]
 
     def branch_and_root_from_level(self, level, leaf_hashes, index, depth_higher):
         """Return a (merkle branch, merkle_root) pair when a merkle-tree has a
@@ -149,9 +144,7 @@ class Merkle:
         if not isinstance(leaf_hashes, list):
             raise TypeError("leaf_hashes must be a list")
         leaf_index = (index >> depth_higher) << depth_higher
-        leaf_branch, leaf_root = self.branch_and_root(
-            leaf_hashes, index - leaf_index, depth_higher
-        )
+        leaf_branch, leaf_root = self.branch_and_root(leaf_hashes, index - leaf_index, depth_higher)
         index >>= depth_higher
         level_branch, root = self.branch_and_root(level, index)
         # Check last so that we know index is in-range
@@ -254,6 +247,4 @@ class MerkleCache:
         if length < self._segment_length():
             return self.merkle.branch_and_root(leaf_hashes, index)
         level = await self._level_for(length)
-        return self.merkle.branch_and_root_from_level(
-            level, leaf_hashes, index, self.depth_higher
-        )
+        return self.merkle.branch_and_root_from_level(level, leaf_hashes, index, self.depth_higher)

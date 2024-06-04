@@ -200,11 +200,7 @@ class ScriptPubKey:
 
     @classmethod
     def P2SH_script(cls, hash160):
-        return (
-            bytes((OpCodes.OP_HASH160,))
-            + Script.push_data(hash160)
-            + bytes((OpCodes.OP_EQUAL,))
-        )
+        return bytes((OpCodes.OP_HASH160,)) + Script.push_data(hash160) + bytes((OpCodes.OP_EQUAL,))
 
     @classmethod
     def P2PKH_script(cls, hash160):

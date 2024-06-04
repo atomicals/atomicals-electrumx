@@ -24,8 +24,12 @@ class MockLogger:
 
 
 def test_get_name_request_candidate_status_invalid_height():
-    subject_atomical_id = b"A\x03\x8f'\xe7\x85`l\xa0\xcc\x1e\xfd\x8e:\xa9\x12\xa1\\r\xd0o5\x9a\xeb\x05$=\xab+p\xa8V\x01\x00\x00\x00"
-    subject_atomical_id2 = b"A\x03\x8f'\xe7\x85`l\xa0\xcc\x1e\xfd\x8e:\xa9\x12\xa1\\r\xd0o5\x9a\xeb\x05$=\xab+p\xa8V\x02\x00\x00\x00"
+    subject_atomical_id = (
+        b"A\x03\x8f'\xe7\x85`l\xa0\xcc\x1e\xfd\x8e:\xa9\x12\xa1\\r\xd0o5\x9a\xeb\x05$=\xab+p\xa8V\x01\x00\x00\x00"
+    )
+    subject_atomical_id2 = (
+        b"A\x03\x8f'\xe7\x85`l\xa0\xcc\x1e\xfd\x8e:\xa9\x12\xa1\\r\xd0o5\x9a\xeb\x05$=\xab+p\xa8V\x02\x00\x00\x00"
+    )
     subject_atomical_id_compact = location_id_bytes_to_compact(subject_atomical_id)
     subject_atomical_id_compact2 = location_id_bytes_to_compact(subject_atomical_id2)
 
@@ -54,8 +58,12 @@ def test_get_name_request_candidate_status_invalid_height():
 
 
 def test_get_name_request_candidate_status_valid_pending_claimed_by_other():
-    subject_atomical_id = b"A\x03\x8f'\xe7\x85`l\xa0\xcc\x1e\xfd\x8e:\xa9\x12\xa1\\r\xd0o5\x9a\xeb\x05$=\xab+p\xa8V\x01\x00\x00\x00"
-    subject_atomical_id2 = b"A\x03\x8f'\xe7\x85`l\xa0\xcc\x1e\xfd\x8e:\xa9\x12\xa1\\r\xd0o5\x9a\xeb\x05$=\xab+p\xa8V\x02\x00\x00\x00"
+    subject_atomical_id = (
+        b"A\x03\x8f'\xe7\x85`l\xa0\xcc\x1e\xfd\x8e:\xa9\x12\xa1\\r\xd0o5\x9a\xeb\x05$=\xab+p\xa8V\x01\x00\x00\x00"
+    )
+    subject_atomical_id2 = (
+        b"A\x03\x8f'\xe7\x85`l\xa0\xcc\x1e\xfd\x8e:\xa9\x12\xa1\\r\xd0o5\x9a\xeb\x05$=\xab+p\xa8V\x02\x00\x00\x00"
+    )
     subject_atomical_id_compact = location_id_bytes_to_compact(subject_atomical_id)
     subject_atomical_id_compact2 = location_id_bytes_to_compact(subject_atomical_id2)
     # status can be one of: verified pending pending_awaiting_payment None
@@ -63,9 +71,7 @@ def test_get_name_request_candidate_status_valid_pending_claimed_by_other():
         "atomical_id": subject_atomical_id,
         "mint_info": {"commit_height": 890000, "reveal_location_height": 890000},
     }
-    result = get_name_request_candidate_status(
-        atomical_info, "pending", subject_atomical_id2, "realm"
-    )
+    result = get_name_request_candidate_status(atomical_info, "pending", subject_atomical_id2, "realm")
     assert {
         "status": "pending_claimed_by_other",
         "pending_claimed_by_atomical_id": subject_atomical_id_compact2,
@@ -74,8 +80,12 @@ def test_get_name_request_candidate_status_valid_pending_claimed_by_other():
 
 
 def test_get_name_request_candidate_status_valid_pending_candidate():
-    subject_atomical_id = b"A\x03\x8f'\xe7\x85`l\xa0\xcc\x1e\xfd\x8e:\xa9\x12\xa1\\r\xd0o5\x9a\xeb\x05$=\xab+p\xa8V\x01\x00\x00\x00"
-    subject_atomical_id2 = b"A\x03\x8f'\xe7\x85`l\xa0\xcc\x1e\xfd\x8e:\xa9\x12\xa1\\r\xd0o5\x9a\xeb\x05$=\xab+p\xa8V\x02\x00\x00\x00"
+    subject_atomical_id = (
+        b"A\x03\x8f'\xe7\x85`l\xa0\xcc\x1e\xfd\x8e:\xa9\x12\xa1\\r\xd0o5\x9a\xeb\x05$=\xab+p\xa8V\x01\x00\x00\x00"
+    )
+    subject_atomical_id2 = (
+        b"A\x03\x8f'\xe7\x85`l\xa0\xcc\x1e\xfd\x8e:\xa9\x12\xa1\\r\xd0o5\x9a\xeb\x05$=\xab+p\xa8V\x02\x00\x00\x00"
+    )
     subject_atomical_id_compact = location_id_bytes_to_compact(subject_atomical_id)
     subject_atomical_id_compact2 = location_id_bytes_to_compact(subject_atomical_id2)
     # status can be one of: verified pending pending_awaiting_payment None
@@ -83,9 +93,7 @@ def test_get_name_request_candidate_status_valid_pending_candidate():
         "atomical_id": subject_atomical_id2,
         "mint_info": {"commit_height": 890000, "reveal_location_height": 890000},
     }
-    result = get_name_request_candidate_status(
-        atomical_info, "pending", subject_atomical_id2, "realm"
-    )
+    result = get_name_request_candidate_status(atomical_info, "pending", subject_atomical_id2, "realm")
     assert {
         "status": "pending_candidate",
         "pending_candidate_atomical_id": subject_atomical_id_compact2,
@@ -95,8 +103,12 @@ def test_get_name_request_candidate_status_valid_pending_candidate():
 
 
 def test_get_name_request_candidate_status_valid_pending_candidate():
-    subject_atomical_id = b"A\x03\x8f'\xe7\x85`l\xa0\xcc\x1e\xfd\x8e:\xa9\x12\xa1\\r\xd0o5\x9a\xeb\x05$=\xab+p\xa8V\x01\x00\x00\x00"
-    subject_atomical_id2 = b"A\x03\x8f'\xe7\x85`l\xa0\xcc\x1e\xfd\x8e:\xa9\x12\xa1\\r\xd0o5\x9a\xeb\x05$=\xab+p\xa8V\x02\x00\x00\x00"
+    subject_atomical_id = (
+        b"A\x03\x8f'\xe7\x85`l\xa0\xcc\x1e\xfd\x8e:\xa9\x12\xa1\\r\xd0o5\x9a\xeb\x05$=\xab+p\xa8V\x01\x00\x00\x00"
+    )
+    subject_atomical_id2 = (
+        b"A\x03\x8f'\xe7\x85`l\xa0\xcc\x1e\xfd\x8e:\xa9\x12\xa1\\r\xd0o5\x9a\xeb\x05$=\xab+p\xa8V\x02\x00\x00\x00"
+    )
     subject_atomical_id_compact = location_id_bytes_to_compact(subject_atomical_id)
     subject_atomical_id_compact2 = location_id_bytes_to_compact(subject_atomical_id2)
     # status can be one of: verified pending pending_awaiting_payment None
@@ -104,9 +116,7 @@ def test_get_name_request_candidate_status_valid_pending_candidate():
         "atomical_id": subject_atomical_id,
         "mint_info": {"commit_height": 890000, "reveal_location_height": 890000},
     }
-    result = get_name_request_candidate_status(
-        atomical_info, "verified", subject_atomical_id2, "realm"
-    )
+    result = get_name_request_candidate_status(atomical_info, "verified", subject_atomical_id2, "realm")
     assert {
         "status": "claimed_by_other",
         "claimed_by_atomical_id": subject_atomical_id_compact2,
@@ -115,8 +125,12 @@ def test_get_name_request_candidate_status_valid_pending_candidate():
 
 
 def test_get_name_request_candidate_status_valid_none():
-    subject_atomical_id = b"A\x03\x8f'\xe7\x85`l\xa0\xcc\x1e\xfd\x8e:\xa9\x12\xa1\\r\xd0o5\x9a\xeb\x05$=\xab+p\xa8V\x01\x00\x00\x00"
-    subject_atomical_id2 = b"A\x03\x8f'\xe7\x85`l\xa0\xcc\x1e\xfd\x8e:\xa9\x12\xa1\\r\xd0o5\x9a\xeb\x05$=\xab+p\xa8V\x02\x00\x00\x00"
+    subject_atomical_id = (
+        b"A\x03\x8f'\xe7\x85`l\xa0\xcc\x1e\xfd\x8e:\xa9\x12\xa1\\r\xd0o5\x9a\xeb\x05$=\xab+p\xa8V\x01\x00\x00\x00"
+    )
+    subject_atomical_id2 = (
+        b"A\x03\x8f'\xe7\x85`l\xa0\xcc\x1e\xfd\x8e:\xa9\x12\xa1\\r\xd0o5\x9a\xeb\x05$=\xab+p\xa8V\x02\x00\x00\x00"
+    )
     subject_atomical_id_compact = location_id_bytes_to_compact(subject_atomical_id)
     subject_atomical_id_compact2 = location_id_bytes_to_compact(subject_atomical_id2)
     # status can be one of: verified pending pending_awaiting_payment None
@@ -129,8 +143,12 @@ def test_get_name_request_candidate_status_valid_none():
 
 
 def test_get_name_request_candidate_status_valid_pending_candidate():
-    subject_atomical_id = b"A\x03\x8f'\xe7\x85`l\xa0\xcc\x1e\xfd\x8e:\xa9\x12\xa1\\r\xd0o5\x9a\xeb\x05$=\xab+p\xa8V\x01\x00\x00\x00"
-    subject_atomical_id2 = b"A\x03\x8f'\xe7\x85`l\xa0\xcc\x1e\xfd\x8e:\xa9\x12\xa1\\r\xd0o5\x9a\xeb\x05$=\xab+p\xa8V\x02\x00\x00\x00"
+    subject_atomical_id = (
+        b"A\x03\x8f'\xe7\x85`l\xa0\xcc\x1e\xfd\x8e:\xa9\x12\xa1\\r\xd0o5\x9a\xeb\x05$=\xab+p\xa8V\x01\x00\x00\x00"
+    )
+    subject_atomical_id2 = (
+        b"A\x03\x8f'\xe7\x85`l\xa0\xcc\x1e\xfd\x8e:\xa9\x12\xa1\\r\xd0o5\x9a\xeb\x05$=\xab+p\xa8V\x02\x00\x00\x00"
+    )
     subject_atomical_id_compact = location_id_bytes_to_compact(subject_atomical_id)
     subject_atomical_id_compact2 = location_id_bytes_to_compact(subject_atomical_id2)
     # status can be one of: verified pending pending_awaiting_payment None
@@ -138,9 +156,7 @@ def test_get_name_request_candidate_status_valid_pending_candidate():
         "atomical_id": subject_atomical_id2,
         "mint_info": {"commit_height": 890000, "reveal_location_height": 890000},
     }
-    result = get_name_request_candidate_status(
-        atomical_info, "verified", subject_atomical_id2, "realm"
-    )
+    result = get_name_request_candidate_status(atomical_info, "verified", subject_atomical_id2, "realm")
     assert {
         "status": "verified",
         "verified_atomical_id": subject_atomical_id_compact2,
@@ -149,8 +165,12 @@ def test_get_name_request_candidate_status_valid_pending_candidate():
 
 
 def test_get_name_request_candidate_status_valid_pending_candidate_subrealm():
-    subject_atomical_id = b"A\x03\x8f'\xe7\x85`l\xa0\xcc\x1e\xfd\x8e:\xa9\x12\xa1\\r\xd0o5\x9a\xeb\x05$=\xab+p\xa8V\x01\x00\x00\x00"
-    subject_atomical_id2 = b"A\x03\x8f'\xe7\x85`l\xa0\xcc\x1e\xfd\x8e:\xa9\x12\xa1\\r\xd0o5\x9a\xeb\x05$=\xab+p\xa8V\x02\x00\x00\x00"
+    subject_atomical_id = (
+        b"A\x03\x8f'\xe7\x85`l\xa0\xcc\x1e\xfd\x8e:\xa9\x12\xa1\\r\xd0o5\x9a\xeb\x05$=\xab+p\xa8V\x01\x00\x00\x00"
+    )
+    subject_atomical_id2 = (
+        b"A\x03\x8f'\xe7\x85`l\xa0\xcc\x1e\xfd\x8e:\xa9\x12\xa1\\r\xd0o5\x9a\xeb\x05$=\xab+p\xa8V\x02\x00\x00\x00"
+    )
     subject_atomical_id_compact = location_id_bytes_to_compact(subject_atomical_id)
     subject_atomical_id_compact2 = location_id_bytes_to_compact(subject_atomical_id2)
     # status can be one of: verified pending pending_awaiting_payment None
@@ -158,9 +178,7 @@ def test_get_name_request_candidate_status_valid_pending_candidate_subrealm():
         "atomical_id": subject_atomical_id2,
         "mint_info": {"commit_height": 890000, "reveal_location_height": 890000},
     }
-    result = get_name_request_candidate_status(
-        atomical_info, "pending", subject_atomical_id2, "subrealm"
-    )
+    result = get_name_request_candidate_status(atomical_info, "pending", subject_atomical_id2, "subrealm")
     assert {
         "status": "pending",
         "pending_candidate_atomical_id": subject_atomical_id_compact2,
@@ -168,8 +186,12 @@ def test_get_name_request_candidate_status_valid_pending_candidate_subrealm():
 
 
 def test_get_name_request_candidate_status_valid_pending_candidate_dmitem():
-    subject_atomical_id = b"A\x03\x8f'\xe7\x85`l\xa0\xcc\x1e\xfd\x8e:\xa9\x12\xa1\\r\xd0o5\x9a\xeb\x05$=\xab+p\xa8V\x01\x00\x00\x00"
-    subject_atomical_id2 = b"A\x03\x8f'\xe7\x85`l\xa0\xcc\x1e\xfd\x8e:\xa9\x12\xa1\\r\xd0o5\x9a\xeb\x05$=\xab+p\xa8V\x02\x00\x00\x00"
+    subject_atomical_id = (
+        b"A\x03\x8f'\xe7\x85`l\xa0\xcc\x1e\xfd\x8e:\xa9\x12\xa1\\r\xd0o5\x9a\xeb\x05$=\xab+p\xa8V\x01\x00\x00\x00"
+    )
+    subject_atomical_id2 = (
+        b"A\x03\x8f'\xe7\x85`l\xa0\xcc\x1e\xfd\x8e:\xa9\x12\xa1\\r\xd0o5\x9a\xeb\x05$=\xab+p\xa8V\x02\x00\x00\x00"
+    )
     subject_atomical_id_compact = location_id_bytes_to_compact(subject_atomical_id)
     subject_atomical_id_compact2 = location_id_bytes_to_compact(subject_atomical_id2)
     # status can be one of: verified pending pending_awaiting_payment None
@@ -177,9 +199,7 @@ def test_get_name_request_candidate_status_valid_pending_candidate_dmitem():
         "atomical_id": subject_atomical_id2,
         "mint_info": {"commit_height": 890000, "reveal_location_height": 890000},
     }
-    result = get_name_request_candidate_status(
-        atomical_info, "pending", subject_atomical_id2, "dmitem"
-    )
+    result = get_name_request_candidate_status(atomical_info, "pending", subject_atomical_id2, "dmitem")
     assert {
         "status": "pending",
         "pending_candidate_atomical_id": subject_atomical_id_compact2,

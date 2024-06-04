@@ -48,9 +48,7 @@ class EnvBase:
         try:
             return int(value)
         except Exception:
-            raise cls.Error(
-                f"cannot convert envvar {envvar} value {value} to " f"an integer"
-            )
+            raise cls.Error(f"cannot convert envvar {envvar} value {value} to " f"an integer")
 
     @classmethod
     def custom(cls, envvar, default, parse):

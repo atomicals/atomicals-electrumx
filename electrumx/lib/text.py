@@ -7,11 +7,7 @@ def sessions_lines(data):
     """A generator returning lines for a list of sessions.
 
     data is the return value of rpc_sessions()."""
-    fmt = (
-        "{:<6} {:<5} {:>17} {:>5} "
-        "{:>7} {:>7} {:>5} {:>5} {:>7} "
-        "{:>7} {:>7} {:>7} {:>7} {:>9} {:>21}"
-    )
+    fmt = "{:<6} {:<5} {:>17} {:>5} " "{:>7} {:>7} {:>5} {:>5} {:>7} " "{:>7} {:>7} {:>7} {:>7} {:>9} {:>21}"
     yield fmt.format(
         "ID",
         "Flags",
@@ -123,10 +119,7 @@ def peers_lines(data):
         return util.formatted_time(now - t)
 
     now = time.time()
-    fmt = (
-        "{:<62} {:<6} {:>5} {:>5} {:<17} {:>4} "
-        "{:>4} {:>8} {:>11} {:>11} {:>5} {:>20} {:<15}"
-    )
+    fmt = "{:<62} {:<6} {:>5} {:>5} {:<17} {:>4} " "{:>4} {:>8} {:>11} {:>11} {:>5} {:>20} {:<15}"
     yield fmt.format(
         "Host",
         "Status",

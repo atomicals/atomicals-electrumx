@@ -52,9 +52,7 @@ MINT_GENERAL_COMMIT_REVEAL_DELAY_BLOCKS = 100
 # This is needed to prevent front-running of realms.
 MINT_REALM_CONTAINER_TICKER_COMMIT_REVEAL_DELAY_BLOCKS = 3
 
-MINT_SUBNAME_RULES_BECOME_EFFECTIVE_IN_BLOCKS = (
-    1  # magic number that rules become effective in one block
-)
+MINT_SUBNAME_RULES_BECOME_EFFECTIVE_IN_BLOCKS = 1  # magic number that rules become effective in one block
 
 # The path namespace to look for when determining what price/regex patterns are allowed if any
 SUBREALM_MINT_PATH = "subrealms"
@@ -232,9 +230,7 @@ def compact_to_location_id_bytes(value):
     num = int(value[65:])
 
     if num < 0 or num > 100000:
-        raise TypeError(
-            f"{value} index output number was parsed to be less than 0 or greater than 100000"
-        )
+        raise TypeError(f"{value} index output number was parsed to be less than 0 or greater than 100000")
 
     return raw_hash + pack_le_uint32(num)
 
@@ -284,12 +280,7 @@ def is_validate_pow_prefix_string(pow_prefix, pow_prefix_ext):
     m = re.compile(r"^[a-f0-9]{1,64}$")
     if pow_prefix:
         if pow_prefix_ext:
-            if (
-                isinstance(pow_prefix_ext, int)
-                and pow_prefix_ext >= 0
-                and pow_prefix_ext <= 15
-                and m.match(pow_prefix)
-            ):
+            if isinstance(pow_prefix_ext, int) and pow_prefix_ext >= 0 and pow_prefix_ext <= 15 and m.match(pow_prefix):
                 return True
             else:
                 return False
@@ -432,9 +423,7 @@ def has_requested_proof_of_work(operations_found_at_inputs):
 # Return whether the provided parent atomical id was spent in the inputs
 # Used to enforce the '$parents' check for those Atomicals which requested a parent to be
 # included in the spent inputs in order to allow the mint to succeed
-def get_if_parent_spent_in_same_tx(
-    parent_atomical_id_compact, expected_minimum_total_value, atomicals_spent_at_inputs
-):
+def get_if_parent_spent_in_same_tx(parent_atomical_id_compact, expected_minimum_total_value, atomicals_spent_at_inputs):
     parent_atomical_id = compact_to_location_id_bytes(parent_atomical_id_compact)
     id_to_total_value_map = {}
     for idx, atomical_entry_list in atomicals_spent_at_inputs.items():
@@ -443,13 +432,9 @@ def get_if_parent_spent_in_same_tx(
             # Only sum up the relevant atomical
             if atomical_id != parent_atomical_id:
                 continue
-            id_to_total_value_map[atomical_id] = (
-                id_to_total_value_map.get(atomical_id) or 0
-            )
+            id_to_total_value_map[atomical_id] = id_to_total_value_map.get(atomical_id) or 0
             input_value = unpack_le_uint64(
-                atomical_entry["value"][
-                    HASHX_LEN + SCRIPTHASH_LEN : HASHX_LEN + SCRIPTHASH_LEN + 8
-                ]
+                atomical_entry["value"][HASHX_LEN + SCRIPTHASH_LEN : HASHX_LEN + SCRIPTHASH_LEN + 8]
             )
             id_to_total_value_map[atomical_id] += input_value
     total_sum = id_to_total_value_map.get(parent_atomical_id)
@@ -463,17 +448,13 @@ def get_if_parent_spent_in_same_tx(
 
 
 # Get the mint information structure if it's a valid mint event type
-def get_mint_info_op_factory(
-    coin, tx, tx_hash, op_found_struct, atomicals_spent_at_inputs, height, logger
-):
+def get_mint_info_op_factory(coin, tx, tx_hash, op_found_struct, atomicals_spent_at_inputs, height, logger):
     script_hashX = coin.hashX_from_script
     if not op_found_struct:
         return None, None
 
     # Builds the base mint information that's common to all minted Atomicals
-    def build_base_mint_info(
-        commit_txid, commit_index, reveal_location_txid, reveal_location_index
-    ):
+    def build_base_mint_info(commit_txid, commit_index, reveal_location_txid, reveal_location_index):
         # The first output is always imprinted
         expected_output_index = 0
         txout = tx.outputs[expected_output_index]
@@ -543,21 +524,15 @@ def get_mint_info_op_factory(
     reveal_location_txid = op_found_struct["reveal_location_txid"]
     reveal_location_index = op_found_struct["reveal_location_index"]
     # Create the base mint information structure
-    mint_info = build_base_mint_info(
-        commit_txid, commit_index, reveal_location_txid, reveal_location_index
-    )
+    mint_info = build_base_mint_info(commit_txid, commit_index, reveal_location_txid, reveal_location_index)
     if not populate_args_meta_ctx_init(mint_info, op_found_struct["payload"]):
-        logger.warning(
-            f"get_mint_info_op_factory - not populate_args_meta_ctx_init {hash_to_hex_str(tx_hash)}"
-        )
+        logger.warning(f"get_mint_info_op_factory - not populate_args_meta_ctx_init {hash_to_hex_str(tx_hash)}")
         return None, None
 
     # The 'args.i' field indicates it is immutable and no mod/evt state allowed
     is_immutable = mint_info["args"].get("i")
     if is_immutable and not isinstance(is_immutable, bool):
-        logger.warning(
-            f"get_mint_info_op_factory - not valid due to invalid i param {hash_to_hex_str(tx_hash)}"
-        )
+        logger.warning(f"get_mint_info_op_factory - not valid due to invalid i param {hash_to_hex_str(tx_hash)}")
         return None, None
 
     # Check if there was requested proof of work, and if there was then only allow the mint to happen if it was successfully executed the proof of work
@@ -568,20 +543,14 @@ def get_mint_info_op_factory(
         )
         return None, None
 
-    if (
-        is_pow_requested
-        and pow_result
-        and (pow_result["pow_commit"] or pow_result["pow_reveal"])
-    ):
+    if is_pow_requested and pow_result and (pow_result["pow_commit"] or pow_result["pow_reveal"]):
         mint_info["$bitwork"] = {
             "bitworkc": pow_result["pow_commit"],
             "bitworkr": pow_result["pow_reveal"],
         }
 
     is_name_type_require_bitwork = False
-    request_counter = (
-        0  # Ensure that only one of the following may be requested or fail
-    )
+    request_counter = 0  # Ensure that only one of the following may be requested or fail
     realm = mint_info["args"].get("request_realm")
     subrealm = mint_info["args"].get("request_subrealm")
     container = mint_info["args"].get("request_container")
@@ -622,9 +591,7 @@ def get_mint_info_op_factory(
 
         for parent_atomical_id, value in parents_enforced.items():
             if not is_compact_atomical_id(parent_atomical_id):
-                logger.warning(
-                    f"Ignoring operation due to invalid parent id {parent_atomical_id}"
-                )
+                logger.warning(f"Ignoring operation due to invalid parent id {parent_atomical_id}")
                 return None, None
 
             if not isinstance(value, int) or value < 0:
@@ -633,13 +600,9 @@ def get_mint_info_op_factory(
 
             # The atomicals spent at the inputs will have a dictionary provided in all cases except mempool
             # Use the information to reject the operation/mint if the requested parent is not spent along
-            found_parent = get_if_parent_spent_in_same_tx(
-                parent_atomical_id, value, atomicals_spent_at_inputs
-            )
+            found_parent = get_if_parent_spent_in_same_tx(parent_atomical_id, value, atomicals_spent_at_inputs)
             if not found_parent:
-                logger.warning(
-                    f"Ignoring operation due to invalid parent input not provided"
-                )
+                logger.warning(f"Ignoring operation due to invalid parent input not provided")
                 return None, None
         mint_info["$parents"] = parents_enforced
 
@@ -680,19 +643,13 @@ def get_mint_info_op_factory(
         if realm:
             logger.debug(f"NFT request_realm {hash_to_hex_str(tx_hash)}, {realm}")
             if not isinstance(realm, str) or not is_valid_realm_string_name(realm):
-                logger.warning(
-                    f"NFT request_realm is invalid {hash_to_hex_str(tx_hash)}, {realm}. Skipping...."
-                )
+                logger.warning(f"NFT request_realm is invalid {hash_to_hex_str(tx_hash)}, {realm}. Skipping....")
                 return None, None
             mint_info["$request_realm"] = realm
 
         elif subrealm:
-            if not isinstance(subrealm, str) or not is_valid_subrealm_string_name(
-                subrealm
-            ):
-                logger.warning(
-                    f"NFT request_subrealm is invalid {hash_to_hex_str(tx_hash)}, {subrealm}. Skipping..."
-                )
+            if not isinstance(subrealm, str) or not is_valid_subrealm_string_name(subrealm):
+                logger.warning(f"NFT request_subrealm is invalid {hash_to_hex_str(tx_hash)}, {subrealm}. Skipping...")
                 return None, None
             # The parent realm id is in a compact form string to make it easier for users and developers
             # Only store the details if the pid is also set correctly
@@ -709,9 +666,7 @@ def get_mint_info_op_factory(
                 return None, None
             mint_info["$claim_type"] = claim_type
             parent_realm_id_compact = mint_info["args"].get("parent_realm")
-            if not isinstance(
-                parent_realm_id_compact, str
-            ) or not is_compact_atomical_id(parent_realm_id_compact):
+            if not isinstance(parent_realm_id_compact, str) or not is_compact_atomical_id(parent_realm_id_compact):
                 logger.warning(
                     f"NFT request_subrealm parent_realm is invalid {hash_to_hex_str(tx_hash)}, {parent_realm_id_compact}. Skipping..."
                 )
@@ -721,19 +676,15 @@ def get_mint_info_op_factory(
             # It requires an extra step to convert, but it makes it easier to understand the format
             mint_info["$parent_realm"] = parent_realm_id_compact
         elif dmitem:
-            if not isinstance(dmitem, str) or not is_valid_container_dmitem_string_name(
-                dmitem
-            ):
-                logger.warning(
-                    f"NFT request_dmitem is invalid {hash_to_hex_str(tx_hash)}, {dmitem}. Skipping..."
-                )
+            if not isinstance(dmitem, str) or not is_valid_container_dmitem_string_name(dmitem):
+                logger.warning(f"NFT request_dmitem is invalid {hash_to_hex_str(tx_hash)}, {dmitem}. Skipping...")
                 return None, None
             # The parent container id is in a compact form string to make it easier for users and developers
             # Only store the details if the pid is also set correctly
             parent_container_id_compact = mint_info["args"].get("parent_container")
-            if not isinstance(
-                parent_container_id_compact, str
-            ) or not is_compact_atomical_id(parent_container_id_compact):
+            if not isinstance(parent_container_id_compact, str) or not is_compact_atomical_id(
+                parent_container_id_compact
+            ):
                 logger.warning(
                     f"NFT request_dmitem parent_container is invalid {hash_to_hex_str(tx_hash)}, {parent_container_id_compact}. Skipping..."
                 )
@@ -743,12 +694,8 @@ def get_mint_info_op_factory(
             # It requires an extra step to convert, but it makes it easier to understand the format
             mint_info["$parent_container"] = parent_container_id_compact
         elif container:
-            if not isinstance(container, str) or not is_valid_container_string_name(
-                container
-            ):
-                logger.warning(
-                    f"NFT request_container is invalid {hash_to_hex_str(tx_hash)}, {container}. Skipping..."
-                )
+            if not isinstance(container, str) or not is_valid_container_string_name(container):
+                logger.warning(f"NFT request_container is invalid {hash_to_hex_str(tx_hash)}, {container}. Skipping...")
                 return None, None
             mint_info["$request_container"] = container
         # containers, realms or subrealms cannot be immutable
@@ -770,17 +717,13 @@ def get_mint_info_op_factory(
         mint_info["subtype"] = "direct"
         ticker = mint_info["args"].get("request_ticker", None)
         if not isinstance(ticker, str) or not is_valid_ticker_string(ticker):
-            logger.warning(
-                f"FT mint has invalid ticker {tx_hash}, {ticker}. Skipping..."
-            )
+            logger.warning(f"FT mint has invalid ticker {tx_hash}, {ticker}. Skipping...")
             return None, None
         mint_info["$request_ticker"] = ticker
 
         # FTs are not allowed to be immutable
         if is_immutable:
-            logger.warning(
-                f"FT cannot be is_immutable is invalid {hash_to_hex_str(tx_hash)}, {ticker}. Skipping..."
-            )
+            logger.warning(f"FT cannot be is_immutable is invalid {hash_to_hex_str(tx_hash)}, {ticker}. Skipping...")
             return None, None
 
     elif op_found_struct["op"] == "dft" and op_found_struct["input_index"] == 0:
@@ -788,39 +731,23 @@ def get_mint_info_op_factory(
         mint_info["subtype"] = "decentralized"
         ticker = mint_info["args"].get("request_ticker", None)
         if not isinstance(ticker, str) or not is_valid_ticker_string(ticker):
-            logger.warning(
-                f"DFT init has invalid ticker {hash_to_hex_str(tx_hash)}, {ticker}. Skipping..."
-            )
+            logger.warning(f"DFT init has invalid ticker {hash_to_hex_str(tx_hash)}, {ticker}. Skipping...")
             return None, None
         mint_info["$request_ticker"] = ticker
 
         mint_height = mint_info["args"].get("mint_height", None)
-        if (
-            not isinstance(mint_height, int)
-            or mint_height < DFT_MINT_HEIGHT_MIN
-            or mint_height > DFT_MINT_HEIGHT_MAX
-        ):
-            logger.warning(
-                f"DFT init has invalid mint_height {hash_to_hex_str(tx_hash)}, {mint_height}. Skipping..."
-            )
+        if not isinstance(mint_height, int) or mint_height < DFT_MINT_HEIGHT_MIN or mint_height > DFT_MINT_HEIGHT_MAX:
+            logger.warning(f"DFT init has invalid mint_height {hash_to_hex_str(tx_hash)}, {mint_height}. Skipping...")
             return None, None
 
         mint_amount = mint_info["args"].get("mint_amount", None)
-        if (
-            not isinstance(mint_amount, int)
-            or mint_amount < DFT_MINT_AMOUNT_MIN
-            or mint_amount > DFT_MINT_AMOUNT_MAX
-        ):
-            logger.warning(
-                f"DFT init has invalid mint_amount {hash_to_hex_str(tx_hash)}, {mint_amount}. Skipping..."
-            )
+        if not isinstance(mint_amount, int) or mint_amount < DFT_MINT_AMOUNT_MIN or mint_amount > DFT_MINT_AMOUNT_MAX:
+            logger.warning(f"DFT init has invalid mint_amount {hash_to_hex_str(tx_hash)}, {mint_amount}. Skipping...")
             return None, None
 
         max_mints = mint_info["args"].get("max_mints", None)
         if not isinstance(max_mints, int) or max_mints < DFT_MINT_MAX_MIN_COUNT:
-            logger.warning(
-                f"DFT init has invalid max_mints {hash_to_hex_str(tx_hash)}, {max_mints}. Skipping..."
-            )
+            logger.warning(f"DFT init has invalid max_mints {hash_to_hex_str(tx_hash)}, {max_mints}. Skipping...")
             return None, None
 
         if height < coin.ATOMICALS_ACTIVATION_HEIGHT_DENSITY:
@@ -832,9 +759,7 @@ def get_mint_info_op_factory(
 
         elif height >= coin.ATOMICALS_ACTIVATION_HEIGHT_DENSITY:
             if max_mints > DFT_MINT_MAX_MAX_COUNT_DENSITY:
-                logger.warning(
-                    f"DFT init has invalid max_mints {hash_to_hex_str(tx_hash)}, {max_mints}. Skipping..."
-                )
+                logger.warning(f"DFT init has invalid max_mints {hash_to_hex_str(tx_hash)}, {max_mints}. Skipping...")
                 return None, None
 
         mint_info["$mint_height"] = mint_height
@@ -845,9 +770,7 @@ def get_mint_info_op_factory(
         # If set it requires the mint commit tx to have POW matching the mint_commit_powprefix to claim a mint
         mint_pow_commit = mint_info["args"].get("mint_bitworkc")
         if mint_pow_commit:
-            valid_commit_str, bitwork_commit_parts = is_valid_bitwork_string(
-                mint_pow_commit
-            )
+            valid_commit_str, bitwork_commit_parts = is_valid_bitwork_string(mint_pow_commit)
             if valid_commit_str:
                 mint_info["$mint_bitworkc"] = mint_pow_commit
             else:
@@ -857,9 +780,7 @@ def get_mint_info_op_factory(
         # If set it requires the mint reveal tx to have POW matching the mint_reveal_powprefix to claim a mint
         mint_pow_reveal = mint_info["args"].get("mint_bitworkr")
         if mint_pow_reveal:
-            valid_reveal_str, bitwork_reveal_parts = is_valid_bitwork_string(
-                mint_pow_reveal
-            )
+            valid_reveal_str, bitwork_reveal_parts = is_valid_bitwork_string(mint_pow_reveal)
             if valid_reveal_str:
                 mint_info["$mint_bitworkr"] = mint_pow_reveal
             else:
@@ -869,16 +790,12 @@ def get_mint_info_op_factory(
 
         # DFTs are not allowed to be immutable
         if is_immutable:
-            logger.warning(
-                f"DFT cannot be is_immutable is invalid {tx_hash}, {ticker}. Skipping..."
-            )
+            logger.warning(f"DFT cannot be is_immutable is invalid {tx_hash}, {ticker}. Skipping...")
             return None, None
 
         dft_mode = mint_info["args"].get("md")
         if dft_mode != 1 and dft_mode != 0 and dft_mode is not None:
-            logger.warning(
-                f"DFT init has invalid md {hash_to_hex_str(tx_hash)}, {dft_mode}. Skipping..."
-            )
+            logger.warning(f"DFT init has invalid md {hash_to_hex_str(tx_hash)}, {dft_mode}. Skipping...")
             return None, None
 
         # Perpetual mint mode available on activation
@@ -913,32 +830,24 @@ def get_mint_info_op_factory(
             if bci is None:
                 pass
             elif not isinstance(bci, int) or bci < 0 or bci > 64:
-                logger.warning(
-                    f"DFT init has invalid bci {hash_to_hex_str(tx_hash)}, {bci}. Skipping..."
-                )
+                logger.warning(f"DFT init has invalid bci {hash_to_hex_str(tx_hash)}, {bci}. Skipping...")
                 return None, None
 
             if bci:
                 if not isinstance(bcs, int) or bcs < 64 or bcs > 256:
-                    logger.warning(
-                        f"DFT init has invalid bcs {hash_to_hex_str(tx_hash)}, {bcs}. Skipping..."
-                    )
+                    logger.warning(f"DFT init has invalid bcs {hash_to_hex_str(tx_hash)}, {bcs}. Skipping...")
                     return None, None
 
             # Do not require mint bitworkr if there is no mint bitworkr increment
             if bri is None:
                 pass
             elif not isinstance(bri, int) or bri < 0 or bri > 64:
-                logger.warning(
-                    f"DFT init has invalid bri {hash_to_hex_str(tx_hash)}, {bri}. Skipping..."
-                )
+                logger.warning(f"DFT init has invalid bri {hash_to_hex_str(tx_hash)}, {bri}. Skipping...")
                 return None, None
 
             if bri:
                 if not isinstance(brs, int) or brs < 64 or brs > 256:
-                    logger.warning(
-                        f"DFT init has invalid brs {hash_to_hex_str(tx_hash)}, {brs}. Skipping..."
-                    )
+                    logger.warning(f"DFT init has invalid brs {hash_to_hex_str(tx_hash)}, {brs}. Skipping...")
                     return None, None
 
             mint_info["$mint_mode"] = "perpetual"
@@ -981,15 +890,11 @@ def get_mint_info_op_factory(
     # To require proof of work to mint `dft` (decentralized fungible tokens) use the mint_pow_commit and mint_pow_reveal in the `dft` operation args
     request_pow_commit = mint_info["args"].get("bitworkc")
     if request_pow_commit:
-        valid_commit_str, bitwork_commit_parts = is_valid_bitwork_string(
-            request_pow_commit
-        )
+        valid_commit_str, bitwork_commit_parts = is_valid_bitwork_string(request_pow_commit)
         if valid_commit_str:
             if is_name_type_require_bitwork and len(bitwork_commit_parts["prefix"]) < 4:
                 # Fail to create due to insufficient prefix length for name claim
-                logger.warning(
-                    f"Name type mint does not have prefix of at least length 4 of bitworkc. Skipping..."
-                )
+                logger.warning(f"Name type mint does not have prefix of at least length 4 of bitworkc. Skipping...")
                 return None, None
             mint_info["$bitworkc"] = request_pow_commit
         else:
@@ -1004,9 +909,7 @@ def get_mint_info_op_factory(
 
     request_pow_reveal = mint_info["args"].get("bitworkr")
     if request_pow_reveal:
-        valid_reveal_str, bitwork_reveal_parts = is_valid_bitwork_string(
-            request_pow_reveal
-        )
+        valid_reveal_str, bitwork_reveal_parts = is_valid_bitwork_string(request_pow_reveal)
         if valid_reveal_str:
             mint_info["$bitworkr"] = request_pow_reveal
         else:
@@ -1042,16 +945,10 @@ def format_name_type_candidates_to_rpc(raw_entries, atomical_id_to_candidate_inf
 
 
 # Same formatting as format_name_type_candidates_to_rpc but also adds in the expected payment price and any payments found for the candidate
-def format_name_type_candidates_to_rpc_for_subname(
-    raw_entries, atomical_id_to_candidate_info_map
-):
-    reformatted = format_name_type_candidates_to_rpc(
-        raw_entries, atomical_id_to_candidate_info_map
-    )
+def format_name_type_candidates_to_rpc_for_subname(raw_entries, atomical_id_to_candidate_info_map):
+    reformatted = format_name_type_candidates_to_rpc(raw_entries, atomical_id_to_candidate_info_map)
     for base_candidate in reformatted:
-        dataset = atomical_id_to_candidate_info_map[
-            compact_to_location_id_bytes(base_candidate["atomical_id"])
-        ]
+        dataset = atomical_id_to_candidate_info_map[compact_to_location_id_bytes(base_candidate["atomical_id"])]
         base_atomical_id = base_candidate["atomical_id"]
         base_candidate["payment"] = dataset.get("payment")
         base_candidate["payment_type"] = dataset.get("payment_type")
@@ -1061,8 +958,7 @@ def format_name_type_candidates_to_rpc_for_subname(
             # The reason is that in case someone else has yet to reveal a competing name request
             # After MINT_REALM_CONTAINER_TICKER_COMMIT_REVEAL_DELAY_BLOCKS blocks from the commit, it is no longer possible for someone else to have an earlier commit
             base_candidate["make_payment_from_height"] = (
-                dataset["commit_height"]
-                + MINT_REALM_CONTAINER_TICKER_COMMIT_REVEAL_DELAY_BLOCKS
+                dataset["commit_height"] + MINT_REALM_CONTAINER_TICKER_COMMIT_REVEAL_DELAY_BLOCKS
             )
             base_candidate["payment_due_no_later_than_height"] = (
                 dataset["commit_height"] + MINT_SUBNAME_COMMIT_PAYMENT_DELAY_BLOCKS
@@ -1075,30 +971,18 @@ def format_name_type_candidates_to_rpc_for_subname(
 # Format the relevant byte fields in the mint raw data into strings to send on rpc calls well formatted
 def convert_db_mint_info_to_rpc_mint_info_format(header_hash, mint_info):
     mint_info["atomical_id"] = location_id_bytes_to_compact(mint_info["atomical_id"])
-    mint_info["mint_info"]["commit_txid"] = hash_to_hex_str(
-        mint_info["mint_info"]["commit_txid"]
-    )
-    mint_info["mint_info"]["commit_location"] = location_id_bytes_to_compact(
-        mint_info["mint_info"]["commit_location"]
-    )
-    mint_info["mint_info"]["reveal_location_txid"] = hash_to_hex_str(
-        mint_info["mint_info"]["reveal_location_txid"]
-    )
-    mint_info["mint_info"]["reveal_location"] = location_id_bytes_to_compact(
-        mint_info["mint_info"]["reveal_location"]
-    )
+    mint_info["mint_info"]["commit_txid"] = hash_to_hex_str(mint_info["mint_info"]["commit_txid"])
+    mint_info["mint_info"]["commit_location"] = location_id_bytes_to_compact(mint_info["mint_info"]["commit_location"])
+    mint_info["mint_info"]["reveal_location_txid"] = hash_to_hex_str(mint_info["mint_info"]["reveal_location_txid"])
+    mint_info["mint_info"]["reveal_location"] = location_id_bytes_to_compact(mint_info["mint_info"]["reveal_location"])
     mint_info["mint_info"]["reveal_location_blockhash"] = header_hash(
         mint_info["mint_info"]["reveal_location_header"]
     ).hex()
-    mint_info["mint_info"]["reveal_location_header"] = mint_info["mint_info"][
-        "reveal_location_header"
-    ].hex()
+    mint_info["mint_info"]["reveal_location_header"] = mint_info["mint_info"]["reveal_location_header"].hex()
     mint_info["mint_info"]["reveal_location_scripthash"] = hash_to_hex_str(
         mint_info["mint_info"]["reveal_location_scripthash"]
     )
-    mint_info["mint_info"]["reveal_location_script"] = mint_info["mint_info"][
-        "reveal_location_script"
-    ].hex()
+    mint_info["mint_info"]["reveal_location_script"] = mint_info["mint_info"]["reveal_location_script"].hex()
     return mint_info
 
 
@@ -1220,9 +1104,7 @@ def parse_atomicals_data_definition_operation(script, n):
                 accumulated_encoded_bytes = accumulated_encoded_bytes + data
         return accumulated_encoded_bytes
     except Exception as e:
-        raise ScriptError(
-            f"parse_atomicals_data_definition_operation script error {e}"
-        ) from None
+        raise ScriptError(f"parse_atomicals_data_definition_operation script error {e}") from None
 
 
 # Parses the valid operations in an Atomicals script
@@ -1241,9 +1123,7 @@ def parse_operation_from_script(script, n):
         if atom_op == "036e6674":
             atom_op_decoded = "nft"  # nft - Mint non-fungible token
         elif atom_op == "03646674":
-            atom_op_decoded = (
-                "dft"  # dft - Deploy distributed mint fungible token starting point
-            )
+            atom_op_decoded = "dft"  # dft - Deploy distributed mint fungible token starting point
         elif atom_op == "036d6f64":
             atom_op_decoded = "mod"  # mod - Modify general state
         elif atom_op == "03657674":
@@ -1253,9 +1133,7 @@ def parse_operation_from_script(script, n):
         elif atom_op == "03646174":
             atom_op_decoded = "dat"  # dat - Store data on a transaction (dat)
         if atom_op_decoded:
-            return atom_op_decoded, parse_atomicals_data_definition_operation(
-                script, n + three_letter_op_len
-            )
+            return atom_op_decoded, parse_atomicals_data_definition_operation(script, n + three_letter_op_len)
 
     # check the 2 letter protocol operations
     if n + two_letter_op_len < script_len:
@@ -1263,14 +1141,10 @@ def parse_operation_from_script(script, n):
         if atom_op == "026674":
             atom_op_decoded = "ft"  # ft - Mint fungible token with direct fixed supply
         elif atom_op == "02736c":
-            atom_op_decoded = (
-                "sl"  # sl - Seal an NFT and lock it from further changes forever
-            )
+            atom_op_decoded = "sl"  # sl - Seal an NFT and lock it from further changes forever
 
         if atom_op_decoded:
-            return atom_op_decoded, parse_atomicals_data_definition_operation(
-                script, n + two_letter_op_len
-            )
+            return atom_op_decoded, parse_atomicals_data_definition_operation(script, n + two_letter_op_len)
 
     # check the 1 letter
     if n + one_letter_op_len < script_len:
@@ -1283,9 +1157,7 @@ def parse_operation_from_script(script, n):
         elif atom_op == "017a":
             atom_op_decoded = "z"
         if atom_op_decoded:
-            return atom_op_decoded, parse_atomicals_data_definition_operation(
-                script, n + one_letter_op_len
-            )
+            return atom_op_decoded, parse_atomicals_data_definition_operation(script, n + one_letter_op_len)
 
     print(f'Invalid Atomicals Operation Code. Skipping... "{script[n : n + 4].hex()}"')
     return None, None
@@ -1400,9 +1272,7 @@ def parse_protocols_operations_from_witness_for_input(txinwitness):
                         if ATOMICALS_ENVELOPE_MARKER_BYTES == script[n : n + 5].hex():
                             found_operation_definition = True
                             # Parse to ensure it is in the right format
-                            operation_type, payload = parse_operation_from_script(
-                                script, n + 5
-                            )
+                            operation_type, payload = parse_operation_from_script(script, n + 5)
                             if operation_type is not None:
                                 return operation_type, payload
                             break
@@ -1414,18 +1284,14 @@ def parse_protocols_operations_from_witness_for_input(txinwitness):
 
 
 # Parses and detects the witness script array and detects the Atomicals operations
-def parse_protocols_operations_from_witness_array(
-    tx, tx_hash, allow_args_bytes
-) -> dict | None:
+def parse_protocols_operations_from_witness_array(tx, tx_hash, allow_args_bytes) -> dict | None:
     """Detect and parse all operations of atomicals across the witness input arrays (inputs 0 and 1) from a tx"""
     if not hasattr(tx, "witness"):
         return {}
     txin_idx = 0
     for txinwitness in tx.witness:
         # All inputs are parsed but further upstream most operations will only function if placed in the 0'th input
-        op_name, payload = parse_protocols_operations_from_witness_for_input(
-            txinwitness
-        )
+        op_name, payload = parse_protocols_operations_from_witness_for_input(txinwitness)
         if not op_name:
             continue
         decoded_object = {}
@@ -1448,13 +1314,9 @@ def parse_protocols_operations_from_witness_array(
             # Ensure that they are not allowed to contain bytes like objects
             if (
                 not is_sanitized_dict_whitelist_only(decoded_object.get("meta", {}))
-                or not is_sanitized_dict_whitelist_only(
-                    decoded_object.get("args", {}), allow_args_bytes
-                )
+                or not is_sanitized_dict_whitelist_only(decoded_object.get("args", {}), allow_args_bytes)
                 or not is_sanitized_dict_whitelist_only(decoded_object.get("ctx", {}))
-                or not is_sanitized_dict_whitelist_only(
-                    decoded_object.get("init", {}), True
-                )
+                or not is_sanitized_dict_whitelist_only(decoded_object.get("init", {}), True)
             ):
                 print(
                     f"parse_protocols_operations_from_witness_array found {op_name} but decoded CBOR payload has an args, meta, ctx, or init that has not permitted data type {tx} {decoded_object}. Skipping tx input..."
@@ -1580,22 +1442,13 @@ def auto_encode_bytes_items(state):
 
 
 # Base atomical commit to reveal delay allowed
-def is_within_acceptable_blocks_for_general_reveal(
-    commit_height, reveal_location_height
-):
-    return (
-        commit_height
-        >= reveal_location_height - MINT_GENERAL_COMMIT_REVEAL_DELAY_BLOCKS
-    )
+def is_within_acceptable_blocks_for_general_reveal(commit_height, reveal_location_height):
+    return commit_height >= reveal_location_height - MINT_GENERAL_COMMIT_REVEAL_DELAY_BLOCKS
 
 
 # A realm, ticker, or container reveal is valid as long as it is within MINT_REALM_CONTAINER_TICKER_COMMIT_REVEAL_DELAY_BLOCKS of the reveal and commit
 def is_within_acceptable_blocks_for_name_reveal(commit_height, reveal_location_height):
-    return (
-        commit_height
-        >= reveal_location_height
-        - MINT_REALM_CONTAINER_TICKER_COMMIT_REVEAL_DELAY_BLOCKS
-    )
+    return commit_height >= reveal_location_height - MINT_REALM_CONTAINER_TICKER_COMMIT_REVEAL_DELAY_BLOCKS
 
 
 # A payment for a subrealm is acceptable as long as it is within MINT_SUBNAME_COMMIT_PAYMENT_DELAY_BLOCKS of the commit_height
@@ -1612,44 +1465,29 @@ def print_subrealm_calculate_log(item):
 def validate_subrealm_rules_outputs_format(outputs):
     # Validate all of the outputs
     if not isinstance(outputs, dict) or len(outputs.keys()) <= 0:
-        print_subrealm_calculate_log(
-            f"validate_subrealm_rules_outputs_format: outputs is not a dict or is empty"
-        )
+        print_subrealm_calculate_log(f"validate_subrealm_rules_outputs_format: outputs is not a dict or is empty")
         return False
     for expected_output_script, expected_output_value in outputs.items():
         # Check that expected_output_value value is a dict
         if not isinstance(expected_output_value, dict):
-            print_subrealm_calculate_log(
-                f"validate_subrealm_rules_outputs_format: invalid expected output dict"
-            )
+            print_subrealm_calculate_log(f"validate_subrealm_rules_outputs_format: invalid expected output dict")
             return False  # Reject if one of the entries expects less than the minimum payment amount
         expected_output_id = expected_output_value.get("id")
         expected_output_qty = expected_output_value.get("v")
-        if (
-            not is_integer_num(expected_output_qty)
-            or expected_output_qty < SUBNAME_MIN_PAYMENT_DUST_LIMIT
-        ):
-            print_subrealm_calculate_log(
-                f"validate_subrealm_rules_outputs_format: invalid expected output value"
-            )
+        if not is_integer_num(expected_output_qty) or expected_output_qty < SUBNAME_MIN_PAYMENT_DUST_LIMIT:
+            print_subrealm_calculate_log(f"validate_subrealm_rules_outputs_format: invalid expected output value")
             return False  # Reject if one of the entries expects less than the minimum payment amount
         # If there is a type restriction on the payment type then ensure it is a valid atomical id
         if expected_output_id:
-            if not isinstance(expected_output_id, str) or not is_compact_atomical_id(
-                expected_output_id
-            ):
-                print_subrealm_calculate_log(
-                    f"validate_subrealm_rules_outputs_format: invalid expected id value"
-                )
+            if not isinstance(expected_output_id, str) or not is_compact_atomical_id(expected_output_id):
+                print_subrealm_calculate_log(f"validate_subrealm_rules_outputs_format: invalid expected id value")
                 return False
         # script must be paid to mint a subrealm
         if not is_hex_string(expected_output_script):
             print_subrealm_calculate_log(
                 f"validate_subrealm_rules_outputs_format: expected output script is not a valid hex string"
             )
-            return (
-                False  # Reject if one of the payment output script is not a valid hex
-            )
+            return False  # Reject if one of the payment output script is not a valid hex
     return True
 
 
@@ -1691,9 +1529,7 @@ def apply_delete_state_mutation(current_object, state_mutation_map, is_top_level
         # The property value is a boolean true, which means to delete the field
         if isinstance(value, bool) and value == True:
             current_object.pop(prop, None)
-        elif isinstance(value, dict) and isinstance(
-            current_object.get(prop, None), dict
-        ):
+        elif isinstance(value, dict) and isinstance(current_object.get(prop, None), dict):
             # It is a dictionary key, we recurse underneath to delete the properties below
             apply_delete_state_mutation(current_object[prop], value, False)
     return current_object
@@ -1708,11 +1544,7 @@ def calculate_latest_state_from_mod_history(mod_history):
         action_to_perform = 0  # Set/update = 0
         # We assume there is only the default $action (which can explicitly be indicated with 'set') and 'delete'
         # If omitted we just assume
-        if (
-            has_action_prop
-            and isinstance(has_action_prop, int)
-            and has_action_prop == 1
-        ):  # delete = 1
+        if has_action_prop and isinstance(has_action_prop, int) and has_action_prop == 1:  # delete = 1
             apply_delete_state_mutation(current_object_state, element["data"], True)
         else:
             apply_set_state_mutation(current_object_state, element["data"], True)
@@ -1757,9 +1589,7 @@ def validate_rules(namespace_data):
             return None
         if len(regex_pattern) > MAX_SUBNAME_RULE_SIZE_LEN or len(regex_pattern) < 1:
             print_subrealm_calculate_log(f"rule empty or too large")
-            return (
-                None  # Reject if the rule has more than MAX_SUBNAME_RULE_SIZE_LEN chars
-            )
+            return None  # Reject if the rule has more than MAX_SUBNAME_RULE_SIZE_LEN chars
         # Output is the output script that must be paid to mint the subrealm
         outputs = rule_set_entry.get("o")
         bitworkc = rule_set_entry.get("bitworkc")
@@ -1852,9 +1682,7 @@ def get_name_request_candidate_status(atomical_info, status, candidate_id, name_
     MAX_BLOCKS_STR = str(MINT_REALM_CONTAINER_TICKER_COMMIT_REVEAL_DELAY_BLOCKS)
     # Check if the candidates are different or for the current atomical requested
     mint_info = atomical_info["mint_info"]
-    if not is_within_acceptable_blocks_for_name_reveal(
-        mint_info["commit_height"], mint_info["reveal_location_height"]
-    ):
+    if not is_within_acceptable_blocks_for_name_reveal(mint_info["commit_height"], mint_info["reveal_location_height"]):
         return {
             "status": "expired_revealed_late",
             "note": f"The maximum number of blocks between commit and reveal is {MAX_BLOCKS_STR} blocks.",
@@ -1901,19 +1729,12 @@ def get_name_request_candidate_status(atomical_info, status, candidate_id, name_
     return {"status": status, "pending_candidate_atomical_id": candidate_id_compact}
 
 
-def get_subname_request_candidate_status(
-    current_height, atomical_info, status, candidate_id, entity_type
-):
+def get_subname_request_candidate_status(current_height, atomical_info, status, candidate_id, entity_type):
     max_blocks_str = str(MINT_REALM_CONTAINER_TICKER_COMMIT_REVEAL_DELAY_BLOCKS)
 
-    base_status = get_name_request_candidate_status(
-        atomical_info, status, candidate_id, entity_type
-    )
+    base_status = get_name_request_candidate_status(atomical_info, status, candidate_id, entity_type)
     # Return the base status if it is common also to entity_type
-    if (
-        base_status["status"] == "verified"
-        or base_status["status"] == "expired_revealed_late"
-    ):
+    if base_status["status"] == "verified" or base_status["status"] == "expired_revealed_late":
         return base_status
 
     # The following logic determines the derived status for the entity_type and atomical
@@ -1969,15 +1790,9 @@ def get_subname_request_candidate_status(
             }
 
     payment = current_candidate_atomical.get("payment")
-    payment_due_no_later_than_height = current_candidate_atomical.get(
-        "payment_due_no_later_than_height"
-    )
+    payment_due_no_later_than_height = current_candidate_atomical.get("payment_due_no_later_than_height")
     # The scenario where there is an applicable rule, but the payment was not received in time
-    if (
-        payment_type == "applicable_rule"
-        and payment is None
-        and current_height > payment_due_no_later_than_height
-    ):
+    if payment_type == "applicable_rule" and payment is None and current_height > payment_due_no_later_than_height:
         return {
             "status": "expired_payment_not_received",
             "note": 'A valid payment was not received before the "payment_due_no_later_than_height" limit.',
@@ -2056,9 +1871,7 @@ def is_txid_valid_for_perpetual_bitwork(
     return False, None
 
 
-def calculate_expected_bitwork(
-    bitwork_vec, actual_mints, max_mints, target_increment, starting_target
-):
+def calculate_expected_bitwork(bitwork_vec, actual_mints, max_mints, target_increment, starting_target):
     if starting_target < 64 or starting_target > 256:
         raise Exception(f"Invalid starting target {starting_target}")
     if max_mints < 1 or max_mints > 100000:
@@ -2123,12 +1936,8 @@ def is_mint_pow_valid(txid, mint_pow_commit):
 
 
 def expand_spend_utxo_data(data):
-    (sat_value,) = unpack_le_uint64(
-        data[HASHX_LEN + SCRIPTHASH_LEN : HASHX_LEN + SCRIPTHASH_LEN + 8]
-    )
-    (atomical_value,) = unpack_le_uint64_from(
-        data[HASHX_LEN + SCRIPTHASH_LEN + 8 : HASHX_LEN + SCRIPTHASH_LEN + 8 + 8]
-    )
+    (sat_value,) = unpack_le_uint64(data[HASHX_LEN + SCRIPTHASH_LEN : HASHX_LEN + SCRIPTHASH_LEN + 8])
+    (atomical_value,) = unpack_le_uint64_from(data[HASHX_LEN + SCRIPTHASH_LEN + 8 : HASHX_LEN + SCRIPTHASH_LEN + 8 + 8])
     return {"sat_value": sat_value, "atomical_value": atomical_value}
 
 
@@ -2136,35 +1945,25 @@ def validate_dmitem_mint_args_with_container_dmint(mint_args, mint_data_payload,
     args = mint_args
     proof = args.get("proof")
     if not proof or not isinstance(proof, list) or len(proof) == 0:
-        print(
-            f"validate_dmitem_mint_args_with_container_dmint: proof is not valid list"
-        )
+        print(f"validate_dmitem_mint_args_with_container_dmint: proof is not valid list")
         return False
     else:
         for proof_item in proof:
             if not isinstance(proof_item, dict) or len(proof_item) == 0:
-                print(
-                    f"validate_dmitem_mint_args_with_container_dmint: proof item is not a valid dict"
-                )
+                print(f"validate_dmitem_mint_args_with_container_dmint: proof item is not a valid dict")
                 return False
             if proof_item.get("p") != True and proof_item.get("p") != False:
-                print(
-                    f"validate_dmitem_mint_args_with_container_dmint: proof item position not True or False"
-                )
+                print(f"validate_dmitem_mint_args_with_container_dmint: proof item position not True or False")
                 return False
             d = proof_item.get("d")
             if not d or not isinstance(d, str) or len(d) != 64:
-                print(
-                    f"validate_dmitem_mint_args_with_container_dmint: proof data hash is not 64 hex characters"
-                )
+                print(f"validate_dmitem_mint_args_with_container_dmint: proof data hash is not 64 hex characters")
                 return False
     expect_immutable_value = dmint.get("immutable", False)
     if expect_immutable_value:
         args_i = args.get("i")
         if not args_i or not isinstance(args_i, bool):
-            print(
-                f"validate_dmitem_mint_args_with_container_dmint: immutable is expected"
-            )
+            print(f"validate_dmitem_mint_args_with_container_dmint: immutable is expected")
             return False
     request_dmitem = args.get("request_dmitem")
     merkle = dmint.get("merkle")
@@ -2275,50 +2074,20 @@ def validate_merkle_proof_dmint(
 
     # Case 2: specific_bitworkc/any
     if possible_bitworkc:
-        concat_str2 = (
-            item_name
-            + ":"
-            + possible_bitworkc
-            + ":"
-            + "any"
-            + ":"
-            + main
-            + ":"
-            + main_hash
-        )
+        concat_str2 = item_name + ":" + possible_bitworkc + ":" + "any" + ":" + main + ":" + main_hash
         target_hash = sha256(concat_str2.encode()).hex()
         if check_validate_proof(target_hash, proof):
             return True, concat_str2, target_hash
 
     # Case 3: any/specific_bitworkr
     if possible_bitworkr:
-        concat_str3 = (
-            item_name
-            + ":"
-            + "any"
-            + ":"
-            + possible_bitworkr
-            + ":"
-            + main
-            + ":"
-            + main_hash
-        )
+        concat_str3 = item_name + ":" + "any" + ":" + possible_bitworkr + ":" + main + ":" + main_hash
         target_hash = sha256(concat_str3.encode()).hex()
         if check_validate_proof(target_hash, proof):
             return True, concat_str3, target_hash
 
     if possible_bitworkc and possible_bitworkr:
-        concat_str4 = (
-            item_name
-            + ":"
-            + possible_bitworkc
-            + ":"
-            + possible_bitworkr
-            + ":"
-            + main
-            + ":"
-            + main_hash
-        )
+        concat_str4 = item_name + ":" + possible_bitworkc + ":" + possible_bitworkr + ":" + main + ":" + main_hash
         target_hash = sha256(concat_str4.encode()).hex()
         if check_validate_proof(target_hash, proof):
             return True, concat_str4, target_hash

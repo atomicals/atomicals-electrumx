@@ -121,9 +121,7 @@ class SessionManager:
     def _ssl_context(self):
         if self._sslc is None:
             self._sslc = ssl.SSLContext(ssl.PROTOCOL_TLS)
-            self._sslc.load_cert_chain(
-                self.env.ssl_certfile, keyfile=self.env.ssl_keyfile
-            )
+            self._sslc.load_cert_chain(self.env.ssl_certfile, keyfile=self.env.ssl_keyfile)
         return self._sslc
 
     async def _start_servers(self, services):
@@ -139,9 +137,7 @@ class SessionManager:
                             request_middleware(self),
                         ]
                     )
-                    handler = HttpSession(
-                        self, self.db, self.mempool, self.peer_mgr, kind
-                    )
+                    handler = HttpSession(self, self.db, self.mempool, self.peer_mgr, kind)
                     await handler.add_endpoints(app.router, SESSION_PROTOCOL_MAX)
                     app["rate_limiter"] = rate_limiter
                     runner = web.AppRunner(app)
@@ -149,9 +145,7 @@ class SessionManager:
                     site = web.TCPSite(runner, host, service.port)
                     await site.start()
                 except Exception as e:
-                    self.logger.error(
-                        f"{kind} server failed to listen on {service.address}: {e}"
-                    )
+                    self.logger.error(f"{kind} server failed to listen on {service.address}: {e}")
                 else:
                     self.logger.info(f"{kind} server listening on {service.address}")
             else:
@@ -168,18 +162,12 @@ class SessionManager:
                 else:
                     serve = serve_rs
                 # FIXME: pass the service not the kind
-                session_factory = partial(
-                    session_class, self, self.db, self.mempool, self.peer_mgr, kind
-                )
+                session_factory = partial(session_class, self, self.db, self.mempool, self.peer_mgr, kind)
                 host = None if service.host == "all_interfaces" else str(service.host)
                 try:
-                    self.servers[service] = await serve(
-                        session_factory, host, service.port, ssl=sslc
-                    )
+                    self.servers[service] = await serve(session_factory, host, service.port, ssl=sslc)
                 except OSError as e:  # don't suppress CancelledError
-                    self.logger.error(
-                        f"{kind} server failed to listen on {service.address}: {e}"
-                    )
+                    self.logger.error(f"{kind} server failed to listen on {service.address}: {e}")
                 else:
                     self.logger.info(f"{kind} server listening on {service.address}")
 
@@ -187,17 +175,12 @@ class SessionManager:
         """Start listening on TCP and SSL ports, but only if the respective
         port was given in the environment.
         """
-        await self._start_servers(
-            service for service in self.env.services if service.protocol != "rpc"
-        )
+        await self._start_servers(service for service in self.env.services if service.protocol != "rpc")
         self.server_listening.set()
 
     async def _stop_servers(self, services):
         """Stop the servers of the given protocols."""
-        server_map = {
-            service: self.servers.pop(service)
-            for service in set(services).intersection(self.servers)
-        }
+        server_map = {service: self.servers.pop(service) for service in set(services).intersection(self.servers)}
         # Close all before waiting
         for service, server in server_map.items():
             self.logger.info(f"closing down server for {service}")
@@ -219,9 +202,7 @@ class SessionManager:
                     f"reached, stopping new connections until "
                     f"count drops to {low_watermark:,d}"
                 )
-                await self._stop_servers(
-                    service for service in self.servers if service.protocol != "rpc"
-                )
+                await self._stop_servers(service for service in self.servers if service.protocol != "rpc")
                 paused = True
             # Start listening for incoming connections if paused and
             # session count has fallen
@@ -253,9 +234,7 @@ class SessionManager:
         while True:
             await sleep(60)
             stale_cutoff = time.time() - self.env.session_timeout
-            stale_sessions = [
-                session for session in self.sessions if session.last_recv < stale_cutoff
-            ]
+            stale_sessions = [session for session in self.sessions if session.last_recv < stale_cutoff]
             await self._disconnect_sessions(stale_sessions, "closing stale")
             del stale_sessions
 
@@ -291,9 +270,7 @@ class SessionManager:
             # cost_decay_per_sec.
             for session in self.sessions:
                 # Subs have an on-going cost so decay more slowly with more subs
-                session.cost_decay_per_sec = hard_limit / (
-                    10000 + 5 * session.sub_count()
-                )
+                session.cost_decay_per_sec = hard_limit / (10000 + 5 * session.sub_count())
                 session.recalc_concurrency()
 
     def _get_info(self):
@@ -307,21 +284,15 @@ class SessionManager:
             "db height": self.db.db_height,
             "db_flush_count": self.db.history.flush_count,
             "groups": len(self.session_groups),
-            "history cache": cache_fmt.format(
-                self._history_lookups, self._history_hits, len(self._history_cache)
-            ),
-            "merkle cache": cache_fmt.format(
-                self._merkle_lookups, self._merkle_hits, len(self._merkle_cache)
-            ),
+            "history cache": cache_fmt.format(self._history_lookups, self._history_hits, len(self._history_cache)),
+            "merkle cache": cache_fmt.format(self._merkle_lookups, self._merkle_hits, len(self._merkle_cache)),
             "pid": os.getpid(),
             "peers": self.peer_mgr.info(),
             "request counts": self.method_counts,
             "request total": sum(self.method_counts.values()),
             "sessions": {
                 "count": len(sessions),
-                "count with subs": sum(
-                    len(getattr(s, "hashX_subs", ())) > 0 for s in sessions
-                ),
+                "count with subs": sum(len(getattr(s, "hashX_subs", ())) > 0 for s in sessions),
                 "errors": sum(s.errors for s in sessions),
                 "logged": len([s for s in sessions if s.log_me]),
                 "pending requests": sum(s.unanswered_request_count() for s in sessions),
@@ -396,9 +367,7 @@ class SessionManager:
 
     def _session_references(self, items, special_strings):
         """Return a SessionReferences object."""
-        if not isinstance(items, list) or not all(
-            isinstance(item, str) for item in items
-        ):
+        if not isinstance(items, list) or not all(isinstance(item, str) for item in items):
             raise RPCError(BAD_REQUEST, "expected a list of session IDs")
 
         sessions_by_id = {session.session_id: session for session in self.sessions}
@@ -452,9 +421,7 @@ class SessionManager:
             result.append("disconnecting all sessions")
         else:
             sessions = refs.sessions
-            result.extend(
-                f"disconnecting session {session.session_id}" for session in sessions
-            )
+            result.extend(f"disconnecting session {session.session_id}" for session in sessions)
             for group in refs.groups:
                 result.append(f"disconnecting group {group.name}")
                 sessions.update(group.sessions)
@@ -527,10 +494,7 @@ class SessionManager:
             n = None
             history = await db.limited_history(hashX, limit=limit)
             for n, (tx_hash, height) in enumerate(history):
-                lines.append(
-                    f"History #{n:,d}: height {height:,d} "
-                    f"tx_hash {hash_to_hex_str(tx_hash)}"
-                )
+                lines.append(f"History #{n:,d}: height {height:,d} " f"tx_hash {hash_to_hex_str(tx_hash)}")
             if n is None:
                 lines.append("No history found")
             n = None
@@ -548,9 +512,7 @@ class SessionManager:
                 lines.append("No UTXOs found")
 
             balance = sum(utxo.value for utxo in utxos)
-            lines.append(
-                f"Balance: {coin.decimal_value(balance):,f} " f"{coin.SHORTNAME}"
-            )
+            lines.append(f"Balance: {coin.decimal_value(balance):,f} " f"{coin.SHORTNAME}")
 
         return lines
 
@@ -610,9 +572,7 @@ class SessionManager:
         """Start the RPC server if enabled.  When the event is triggered,
         start TCP and SSL servers."""
         try:
-            await self._start_servers(
-                service for service in self.env.services if service.protocol == "rpc"
-            )
+            await self._start_servers(service for service in self.env.services if service.protocol == "rpc")
             await event.wait()
 
             session_class = self.env.coin.SESSIONCLS
@@ -635,9 +595,7 @@ class SessionManager:
 
             self.logger.info(f"max response size {self.env.max_send:,d} bytes")
             if self.env.drop_client is not None:
-                self.logger.info(
-                    f"drop clients matching: {self.env.drop_client.pattern}"
-                )
+                self.logger.info(f"drop clients matching: {self.env.drop_client.pattern}")
             for service in self.env.report_services:
                 self.logger.info(f"advertising service {service}")
             # Start notifications; initialize hsub_results
@@ -775,9 +733,7 @@ class SessionManager:
             self.txs_sent += 1
             return hex_hash
         else:
-            tx, tx_hash = self.env.coin.DESERIALIZER(
-                bytes.fromhex(raw_tx), 0
-            ).read_tx_and_hash()
+            tx, tx_hash = self.env.coin.DESERIALIZER(bytes.fromhex(raw_tx), 0).read_tx_and_hash()
             return hash_to_hex_str(tx_hash)
 
     async def limited_history(self, hashX):
@@ -808,9 +764,7 @@ class SessionManager:
         if not history_data:
             history_data = []
             txnum_padding = bytes(8 - TXNUM_LEN)
-            for _key, hist in self.db.history.db.iterator(
-                prefix=hashX, reverse=reverse
-            ):
+            for _key, hist in self.db.history.db.iterator(prefix=hashX, reverse=reverse):
                 for tx_numb in util.chunks(hist, TXNUM_LEN):
                     (tx_num,) = util.unpack_le_uint64(tx_numb + txnum_padding)
                     op_data = self._tx_num_op_cache.get(tx_num)
@@ -833,21 +787,13 @@ class SessionManager:
     # Helper method to validate if the transaction correctly cleanly assigns all Atomicals.
     # This method simulates coloring according to split and regular rules.
     # Note: This does not apply to mempool but only prevout utxos that are confirmed.
-    def validate_raw_tx_blueprint(
-        self, raw_tx, raise_if_burned=True
-    ) -> AtomicalsValidation:
+    def validate_raw_tx_blueprint(self, raw_tx, raise_if_burned=True) -> AtomicalsValidation:
         # Deserialize the transaction
-        tx, tx_hash = self.env.coin.DESERIALIZER(
-            bytes.fromhex(raw_tx), 0
-        ).read_tx_and_hash()
+        tx, tx_hash = self.env.coin.DESERIALIZER(bytes.fromhex(raw_tx), 0).read_tx_and_hash()
         # Determine if there are any other operations at the transfer
-        operations_found_at_inputs = parse_protocols_operations_from_witness_array(
-            tx, tx_hash, True
-        )
+        operations_found_at_inputs = parse_protocols_operations_from_witness_array(tx, tx_hash, True)
         # Build the map of the atomicals potential spent at the tx
-        atomicals_spent_at_inputs = (
-            self.bp.build_atomicals_spent_at_inputs_for_validation_only(tx)
-        )
+        atomicals_spent_at_inputs = self.bp.build_atomicals_spent_at_inputs_for_validation_only(tx)
         # Build a structure of organizing into NFT and FTs
         # Note: We do not validate anything with NFTs, just FTs
         # Build the "blueprint" for how to assign all atomicals
@@ -865,15 +811,9 @@ class SessionManager:
         nft_output_blueprint = blueprint_builder.get_nft_output_blueprint()
         # Log that there were tokens burned due to not being cleanly assigned
         if blueprint_builder.get_are_fts_burned() and raise_if_burned:
-            encoded_atomicals_spent_at_inputs = encode_atomical_ids_hex(
-                atomicals_spent_at_inputs
-            )
-            encoded_ft_output_blueprint = auto_encode_bytes_items(
-                encode_atomical_ids_hex(ft_output_blueprint)
-            )
-            encoded_nft_output_blueprint = auto_encode_bytes_items(
-                encode_atomical_ids_hex(nft_output_blueprint)
-            )
+            encoded_atomicals_spent_at_inputs = encode_atomical_ids_hex(atomicals_spent_at_inputs)
+            encoded_ft_output_blueprint = auto_encode_bytes_items(encode_atomical_ids_hex(ft_output_blueprint))
+            encoded_nft_output_blueprint = auto_encode_bytes_items(encode_atomical_ids_hex(nft_output_blueprint))
             ft_outputs = encoded_ft_output_blueprint["outputs"]
             fts_burned = encoded_ft_output_blueprint["fts_burned"]
             nft_outputs = encoded_nft_output_blueprint["outputs"]
@@ -908,13 +848,9 @@ class SessionManager:
             return cache_res
 
         # Determine if there are any other operations at the transfer
-        operations_found_at_inputs = parse_protocols_operations_from_witness_array(
-            tx, tx_hash, True
-        )
+        operations_found_at_inputs = parse_protocols_operations_from_witness_array(tx, tx_hash, True)
         # Build the map of the atomicals potential spent at the tx
-        atomicals_spent_at_inputs: Dict[
-            int:List
-        ] = self.bp.build_atomicals_spent_at_inputs_for_validation_only(tx)
+        atomicals_spent_at_inputs: Dict[int:List] = self.bp.build_atomicals_spent_at_inputs_for_validation_only(tx)
         # Build a structure of organizing into NFT and FTs
         # Note: We do not validate anything with NFTs, just FTs
         # Build the "blueprint" for how to assign all atomicals
@@ -932,12 +868,8 @@ class SessionManager:
         nft_output_blueprint = blueprint_builder.get_nft_output_blueprint()
         # Log that there were tokens burned due to not being cleanly assigned
         encoded_spent_at_inputs = encode_atomical_ids_hex(atomicals_spent_at_inputs)
-        encoded_ft_output_blueprint: Dict[str, Dict] = dict(
-            encode_atomical_ids_hex(ft_output_blueprint)
-        )
-        encoded_nft_output_blueprint: Dict[str, Dict] = dict(
-            encode_atomical_ids_hex(nft_output_blueprint)
-        )
+        encoded_ft_output_blueprint: Dict[str, Dict] = dict(encode_atomical_ids_hex(ft_output_blueprint))
+        encoded_nft_output_blueprint: Dict[str, Dict] = dict(encode_atomical_ids_hex(nft_output_blueprint))
         op = operations_found_at_inputs.get("op") or "transfer"
         payload = operations_found_at_inputs.get("payload")
         ret = {
@@ -978,9 +910,7 @@ class SessionManager:
             if op in ["dmt", "ft"]:
                 tx_out = tx.outputs[0]
                 ticker_name = payload.get("args", {}).get("mint_ticker", "")
-                status, candidate_atomical_id, _ = self.bp.get_effective_ticker(
-                    ticker_name, self.bp.height
-                )
+                status, candidate_atomical_id, _ = self.bp.get_effective_ticker(ticker_name, self.bp.height)
                 atomical_id = location_id_bytes_to_compact(candidate_atomical_id)
                 mint_info = {
                     "atomical_id": atomical_id,
@@ -991,15 +921,9 @@ class SessionManager:
                     },
                 }
             elif op == "nft":
-                _receive_at_outputs = (
-                    self.bp.build_atomicals_receive_at_ouutput_for_validation_only(
-                        tx, tx_hash
-                    )
-                )
+                _receive_at_outputs = self.bp.build_atomicals_receive_at_ouutput_for_validation_only(tx, tx_hash)
                 tx_out = tx.outputs[0]
-                atomical_id = location_id_bytes_to_compact(
-                    _receive_at_outputs[0][-1]["atomical_id"]
-                )
+                atomical_id = location_id_bytes_to_compact(_receive_at_outputs[0][-1]["atomical_id"])
                 mint_info = {
                     "atomical_id": atomical_id,
                     "outputs": {
@@ -1020,9 +944,7 @@ class SessionManager:
             payment_id,
             payment_idx,
             _,
-        ) = AtomicalsTransferBlueprintBuilder.get_atomical_id_for_payment_marker_if_found(
-            tx
-        )
+        ) = AtomicalsTransferBlueprintBuilder.get_atomical_id_for_payment_marker_if_found(tx)
         if payment_id:
             payment_info = {
                 "atomical_id": location_id_bytes_to_compact(payment_id),
@@ -1056,15 +978,9 @@ class SessionManager:
         ops = self.db.get_op_by_tx_num(tx_num)
         op_raw = self.bp.op_list_vk[ops[0]] if ops else ""
 
-        operation_found_at_inputs = parse_protocols_operations_from_witness_array(
-            tx, tx_hash, True
-        )
-        atomicals_spent_at_inputs = (
-            self.bp.build_atomicals_spent_at_inputs_for_validation_only(tx)
-        )
-        atomicals_receive_at_outputs = (
-            self.bp.build_atomicals_receive_at_ouutput_for_validation_only(tx, tx_hash)
-        )
+        operation_found_at_inputs = parse_protocols_operations_from_witness_array(tx, tx_hash, True)
+        atomicals_spent_at_inputs = self.bp.build_atomicals_spent_at_inputs_for_validation_only(tx)
+        atomicals_receive_at_outputs = self.bp.build_atomicals_receive_at_ouutput_for_validation_only(tx, tx_hash)
         blueprint_builder = AtomicalsTransferBlueprintBuilder(
             self.logger,
             atomicals_spent_at_inputs,
@@ -1096,9 +1012,7 @@ class SessionManager:
                 "is_cleanly_assigned": is_cleanly_assigned,
             },
         }
-        operation_type = (
-            operation_found_at_inputs.get("op", "") if operation_found_at_inputs else ""
-        )
+        operation_type = operation_found_at_inputs.get("op", "") if operation_found_at_inputs else ""
         if operation_found_at_inputs:
             payload = operation_found_at_inputs.get("payload")
             payload_not_none = payload or {}
@@ -1110,16 +1024,10 @@ class SessionManager:
                 # if save into the db, it means mint success
                 has_atomicals = self.db.get_atomicals_by_location_long_form(location)
                 if len(has_atomicals):
-                    ticker_name = payload_not_none.get("args", {}).get(
-                        "mint_ticker", ""
-                    )
-                    status, candidate_atomical_id, _ = self.bp.get_effective_ticker(
-                        ticker_name, self.bp.height
-                    )
+                    ticker_name = payload_not_none.get("args", {}).get("mint_ticker", "")
+                    status, candidate_atomical_id, _ = self.bp.get_effective_ticker(ticker_name, self.bp.height)
                     if status:
-                        atomical_id = location_id_bytes_to_compact(
-                            candidate_atomical_id
-                        )
+                        atomical_id = location_id_bytes_to_compact(candidate_atomical_id)
                         res["info"] = {
                             "atomical_id": atomical_id,
                             "location_id": location_id_bytes_to_compact(location),
@@ -1127,9 +1035,7 @@ class SessionManager:
                             "outputs": {
                                 expected_output_index: [
                                     {
-                                        "address": get_address_from_output_script(
-                                            tx_out.pk_script
-                                        ),
+                                        "address": get_address_from_output_script(tx_out.pk_script),
                                         "atomical_id": atomical_id,
                                         "type": "FT",
                                         "index": expected_output_index,
@@ -1144,9 +1050,7 @@ class SessionManager:
                     location = tx_hash + util.pack_le_uint32(expected_output_index)
                     tx_out = tx.outputs[expected_output_index]
                     atomical_id = location_id_bytes_to_compact(
-                        atomicals_receive_at_outputs[expected_output_index][-1][
-                            "atomical_id"
-                        ]
+                        atomicals_receive_at_outputs[expected_output_index][-1]["atomical_id"]
                     )
                     res["info"] = {
                         "atomical_id": atomical_id,
@@ -1155,9 +1059,7 @@ class SessionManager:
                         "outputs": {
                             expected_output_index: [
                                 {
-                                    "address": get_address_from_output_script(
-                                        tx_out.pk_script
-                                    ),
+                                    "address": get_address_from_output_script(tx_out.pk_script),
                                     "atomical_id": atomical_id,
                                     "type": "NFT",
                                     "index": expected_output_index,
@@ -1167,26 +1069,16 @@ class SessionManager:
                         },
                     }
 
-        async def make_transfer_inputs(
-            inputs, indexes, make_type
-        ) -> Dict[int, List[Dict]]:
+        async def make_transfer_inputs(inputs, indexes, make_type) -> Dict[int, List[Dict]]:
             result = {}
             for _i in indexes:
                 _prev_txid = hash_to_hex_str(inputs[_i.txin_index].prev_hash)
-                _prev_raw_tx = self.db.get_raw_tx_by_tx_hash(
-                    hex_str_to_hash(_prev_txid)
-                )
+                _prev_raw_tx = self.db.get_raw_tx_by_tx_hash(hex_str_to_hash(_prev_txid))
                 if not _prev_raw_tx:
-                    _prev_raw_tx = await self.daemon_request(
-                        "getrawtransaction", _prev_txid, False
-                    )
+                    _prev_raw_tx = await self.daemon_request("getrawtransaction", _prev_txid, False)
                     _prev_raw_tx = bytes.fromhex(_prev_raw_tx)
-                    self.bp.general_data_cache[
-                        b"rtx" + hex_str_to_hash(_prev_txid)
-                    ] = _prev_raw_tx
-                _prev_tx, _ = self.env.coin.DESERIALIZER(
-                    _prev_raw_tx, 0
-                ).read_tx_and_hash()
+                    self.bp.general_data_cache[b"rtx" + hex_str_to_hash(_prev_txid)] = _prev_raw_tx
+                _prev_tx, _ = self.env.coin.DESERIALIZER(_prev_raw_tx, 0).read_tx_and_hash()
                 _data = {
                     "address": get_address_from_output_script(
                         _prev_tx.outputs[inputs[_i.txin_index].prev_idx].pk_script
@@ -1207,9 +1099,7 @@ class SessionManager:
             for _atomical_id, _output in output["atomicals"].items():
                 _compact_atomical_id = location_id_bytes_to_compact(_atomical_id)
                 _data = {
-                    "address": get_address_from_output_script(
-                        tx.outputs[index].pk_script
-                    ),
+                    "address": get_address_from_output_script(tx.outputs[index].pk_script),
                     "atomical_id": _compact_atomical_id,
                     "type": _output.type,
                     "index": k,
@@ -1227,9 +1117,7 @@ class SessionManager:
                 op_raw = "transfer"
             for atomical_id, input_ft in blueprint_builder.ft_atomicals.items():
                 compact_atomical_id = location_id_bytes_to_compact(atomical_id)
-                res["transfers"]["inputs"] = await make_transfer_inputs(
-                    tx.inputs, input_ft.input_indexes, "FT"
-                )
+                res["transfers"]["inputs"] = await make_transfer_inputs(tx.inputs, input_ft.input_indexes, "FT")
             for k, v in blueprint_builder.ft_output_blueprint.outputs.items():
                 res["transfers"]["outputs"] = make_transfer_outputs(k, v)
         if blueprint_builder.nft_atomicals and atomicals_spent_at_inputs:
@@ -1237,9 +1125,7 @@ class SessionManager:
                 op_raw = "transfer"
             for atomical_id, input_nft in blueprint_builder.nft_atomicals.items():
                 compact_atomical_id = location_id_bytes_to_compact(atomical_id)
-                res["transfers"]["inputs"] = await make_transfer_inputs(
-                    tx.inputs, input_nft.input_indexes, "NFT"
-                )
+                res["transfers"]["inputs"] = await make_transfer_inputs(tx.inputs, input_nft.input_indexes, "NFT")
             for k, v in blueprint_builder.nft_output_blueprint.outputs.items():
                 outputs = make_transfer_outputs(k, v)
                 res["transfers"]["outputs"] = make_transfer_outputs(k, v)
@@ -1248,9 +1134,7 @@ class SessionManager:
             payment_id,
             payment_marker_idx,
             _,
-        ) = AtomicalsTransferBlueprintBuilder.get_atomical_id_for_payment_marker_if_found(
-            tx
-        )
+        ) = AtomicalsTransferBlueprintBuilder.get_atomical_id_for_payment_marker_if_found(tx)
         if payment_id:
             res["info"]["payment"] = {
                 "atomical_id": location_id_bytes_to_compact(payment_id),
@@ -1275,24 +1159,18 @@ class SessionManager:
         res = []
         count = 0
         history_list = []
-        for current_height in range(
-            height, self.env.coin.ATOMICALS_ACTIVATION_HEIGHT, -1
-        ):
+        for current_height in range(height, self.env.coin.ATOMICALS_ACTIVATION_HEIGHT, -1):
             txs = self.db.get_atomicals_block_txs(current_height)
             for tx in txs:
                 tx_num, _ = self.db.get_tx_num_height_from_tx_hash(hex_str_to_hash(tx))
-                history_list.append(
-                    {"tx_num": tx_num, "tx_hash": tx, "height": current_height}
-                )
+                history_list.append({"tx_num": tx_num, "tx_hash": tx, "height": current_height})
                 count += 1
             if count >= offset + limit:
                 break
         history_list.sort(key=lambda x: x["tx_num"], reverse=reverse)
 
         for history in history_list:
-            data = await self.get_transaction_detail(
-                history["tx_hash"], history["height"], history["tx_num"]
-            )
+            data = await self.get_transaction_detail(history["tx_hash"], history["height"], history["tx_num"])
             if (op_type and op_type == data["op"]) or (not op_type and data["op"]):
                 res.append(data)
         total = len(res)
@@ -1316,16 +1194,12 @@ class SessionManager:
                 op_cache.pop(hashX, None)
                 self.logger.info(f"refresh op cache {self.notified_height}")
                 time.sleep(2)
-                background_task = asyncio.create_task(
-                    self.get_history_op(hashX, 10, 0, None, True)
-                )
+                background_task = asyncio.create_task(self.get_history_op(hashX, 10, 0, None, True))
                 await background_task
 
         for session in self.sessions:
             if self._task_group.joined:  # this can happen during shutdown
-                self.logger.warning(
-                    f"task group already terminated. not notifying sessions."
-                )
+                self.logger.warning(f"task group already terminated. not notifying sessions.")
                 return
             await self._task_group.spawn(session.notify, touched, height_changed)
 
@@ -1344,9 +1218,7 @@ class SessionManager:
                 return str(subnet)
         return "unknown_addr"
 
-    def _session_group(
-        self, name: Optional[str], weight: float
-    ) -> Optional[SessionGroup]:
+    def _session_group(self, name: Optional[str], weight: float) -> Optional[SessionGroup]:
         if name is None:
             return None
         group = self.session_groups.get(name)

@@ -41,19 +41,13 @@ from electrumx.lib.util import (
 
 
 # https://github.com/dashpay/dips/blob/master/dip-0002.md
-class AxeTx(
-    namedtuple("AxeTx", "version inputs outputs locktime " "tx_type extra_payload")
-):
+class AxeTx(namedtuple("AxeTx", "version inputs outputs locktime " "tx_type extra_payload")):
     """Class representing a Axe transaction"""
 
     def serialize(self):
         nLocktime = pack_le_uint32(self.locktime)
-        txins = pack_varint(len(self.inputs)) + b"".join(
-            tx_in.serialize() for tx_in in self.inputs
-        )
-        txouts = pack_varint(len(self.outputs)) + b"".join(
-            tx_out.serialize() for tx_out in self.outputs
-        )
+        txins = pack_varint(len(self.inputs)) + b"".join(tx_in.serialize() for tx_in in self.inputs)
+        txouts = pack_varint(len(self.outputs)) + b"".join(tx_out.serialize() for tx_out in self.outputs)
 
         if self.tx_type:
             uVersion = pack_le_uint16(self.version)
@@ -72,10 +66,7 @@ class AxeTx(
             return pack_varbytes(extra)
 
         if not isinstance(extra, spec_tx_class):
-            raise ValueError(
-                "Axe tx_type does not conform with extra"
-                " payload class: %s, %s" % (self.tx_type, extra)
-            )
+            raise ValueError("Axe tx_type does not conform with extra" " payload class: %s, %s" % (self.tx_type, extra))
         return pack_varbytes(extra.serialize())
 
 
@@ -137,9 +128,7 @@ class AxeProRegTx(
 class AxeProUpServTx(
     namedtuple(
         "AxeProUpServTx",
-        "version proTxHash ipAddress port "
-        "scriptOperatorPayout inputsHash "
-        "payloadSig",
+        "version proTxHash ipAddress port " "scriptOperatorPayout inputsHash " "payloadSig",
     )
 ):
     """Class representing DIP3 ProUpServTx"""
@@ -177,9 +166,7 @@ class AxeProUpServTx(
 class AxeProUpRegTx(
     namedtuple(
         "AxeProUpRegTx",
-        "version proTxHash mode PubKeyOperator "
-        "KeyIdVoting scriptPayout inputsHash "
-        "payloadSig",
+        "version proTxHash mode PubKeyOperator " "KeyIdVoting scriptPayout inputsHash " "payloadSig",
     )
 ):
     """Class representing DIP3 ProUpRegTx"""
@@ -216,17 +203,11 @@ class AxeProUpRegTx(
         )
 
 
-class AxeProUpRevTx(
-    namedtuple("AxeProUpRevTx", "version proTxHash reason " "inputsHash payloadSig")
-):
+class AxeProUpRevTx(namedtuple("AxeProUpRevTx", "version proTxHash reason " "inputsHash payloadSig")):
     """Class representing DIP3 ProUpRevTx"""
 
     def serialize(self):
-        assert (
-            len(self.proTxHash) == 32
-            and len(self.inputsHash) == 32
-            and len(self.payloadSig) == 96
-        )
+        assert len(self.proTxHash) == 32 and len(self.inputsHash) == 32 and len(self.payloadSig) == 96
         return (
             pack_le_uint16(self.version)
             + self.proTxHash  # version
@@ -246,9 +227,7 @@ class AxeProUpRevTx(
         )
 
 
-class AxeCbTx(
-    namedtuple("AxeCbTx", "version height merkleRootMNList " "merkleRootQuorums")
-):
+class AxeCbTx(namedtuple("AxeCbTx", "version height merkleRootMNList " "merkleRootQuorums")):
     """Class representing DIP4 coinbase special tx"""
 
     def serialize(self):
@@ -274,9 +253,7 @@ class AxeCbTx(
         return AxeCbTx(version, height, merkleRootMNList, merkleRootQuorums)
 
 
-class AxeSubTxRegister(
-    namedtuple("AxeSubTxRegister", "version userName pubKey payloadSig")
-):
+class AxeSubTxRegister(namedtuple("AxeSubTxRegister", "version userName pubKey payloadSig")):
     """Class representing DIP5 SubTxRegister"""
 
     def serialize(self):
@@ -307,9 +284,7 @@ class AxeSubTxTopup(namedtuple("AxeSubTxTopup", "version regTxHash")):
 
     @classmethod
     def read_tx_extra(cls, deser):
-        return AxeSubTxTopup(
-            deser._read_le_uint16(), deser._read_nbytes(32)  # version  # regTxHash
-        )
+        return AxeSubTxTopup(deser._read_le_uint16(), deser._read_nbytes(32))  # version  # regTxHash
 
 
 class AxeSubTxResetKey(
@@ -357,11 +332,7 @@ class AxeSubTxCloseAccount(
     """Class representing DIP5 SubTxCloseAccount"""
 
     def serialize(self):
-        assert (
-            len(self.regTxHash) == 32
-            and len(self.hashPrevSubTx) == 32
-            and len(self.payloadSig) == 96
-        )
+        assert len(self.regTxHash) == 32 and len(self.hashPrevSubTx) == 32 and len(self.payloadSig) == 96
         return (
             pack_le_uint16(self.version)
             + self.regTxHash  # version
@@ -391,9 +362,7 @@ class TxOutPoint(namedtuple("TxOutPoint", "hash index")):
 
     @classmethod
     def read_outpoint(cls, deser):
-        return TxOutPoint(
-            deser._read_nbytes(32), deser._read_le_uint32()  # hash  # index
-        )
+        return TxOutPoint(deser._read_nbytes(32), deser._read_le_uint32())  # hash  # index
 
 
 class DeserializerAxe(Deserializer):

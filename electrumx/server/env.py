@@ -92,12 +92,8 @@ class Env(EnvBase):
         self.blacklist_url = self.default("BLACKLIST_URL", self.coin.BLACKLIST_URL)
         self.cache_MB = self.integer("CACHE_MB", 1200)
         self.reorg_limit = self.integer("REORG_LIMIT", self.coin.REORG_LIMIT)
-        self.daemon_poll_interval_blocks_msec = self.integer(
-            "DAEMON_POLL_INTERVAL_BLOCKS", 5000
-        )
-        self.daemon_poll_interval_mempool_msec = self.integer(
-            "DAEMON_POLL_INTERVAL_MEMPOOL", 5000
-        )
+        self.daemon_poll_interval_blocks_msec = self.integer("DAEMON_POLL_INTERVAL_BLOCKS", 5000)
+        self.daemon_poll_interval_mempool_msec = self.integer("DAEMON_POLL_INTERVAL_MEMPOOL", 5000)
 
         # Server limits to help prevent DoS
 
@@ -111,21 +107,15 @@ class Env(EnvBase):
         self.request_sleep = self.integer("REQUEST_SLEEP", 2500)
         self.request_timeout = self.integer("REQUEST_TIMEOUT", 30)
         self.session_timeout = self.integer("SESSION_TIMEOUT", 600)
-        self.session_group_by_subnet_ipv4 = self.integer(
-            "SESSION_GROUP_BY_SUBNET_IPV4", 24
-        )
-        self.session_group_by_subnet_ipv6 = self.integer(
-            "SESSION_GROUP_BY_SUBNET_IPV6", 48
-        )
+        self.session_group_by_subnet_ipv4 = self.integer("SESSION_GROUP_BY_SUBNET_IPV4", 24)
+        self.session_group_by_subnet_ipv6 = self.integer("SESSION_GROUP_BY_SUBNET_IPV6", 48)
         self._check_and_fix_cost_limits()
         self.enable_rate_limit = self.boolean("ENABLE_RATE_LIMIT", True)
 
         # Services last - uses some env vars above
 
         self.services = self.services_to_run()
-        if {service.protocol for service in self.services}.intersection(
-            self.SSL_PROTOCOLS
-        ):
+        if {service.protocol for service in self.services}.intersection(self.SSL_PROTOCOLS):
             self.ssl_certfile = self.required("SSL_CERTFILE")
             self.ssl_keyfile = self.required("SSL_KEYFILE")
         self.report_services = self.services_to_report()
@@ -161,10 +151,7 @@ class Env(EnvBase):
             )
         # hard limit should be strictly higher than soft limit (unless both are 0)
         if self.cost_hard_limit == self.cost_soft_limit and self.cost_soft_limit > 0:
-            self.logger.info(
-                "found COST_HARD_LIMIT == COST_SOFT_LIMIT. "
-                "bumping COST_HARD_LIMIT by 1."
-            )
+            self.logger.info("found COST_HARD_LIMIT == COST_SOFT_LIMIT. " "bumping COST_HARD_LIMIT by 1.")
             self.cost_hard_limit = self.cost_soft_limit + 1
 
     def _parse_services(self, services_str, default_func):
@@ -194,10 +181,7 @@ class Env(EnvBase):
         def default_part(protocol, part):
             return default_services.get(protocol, {}).get(part)
 
-        default_services = {
-            protocol: {ServicePart.HOST: "all_interfaces"}
-            for protocol in self.KNOWN_PROTOCOLS
-        }
+        default_services = {protocol: {ServicePart.HOST: "all_interfaces"} for protocol in self.KNOWN_PROTOCOLS}
         default_services["rpc"] = {
             ServicePart.HOST: "localhost",
             ServicePart.PORT: 8000,
@@ -216,16 +200,10 @@ class Env(EnvBase):
 
         for service in services:
             if service.protocol == "rpc":
-                raise ServiceError(
-                    f"bad protocol for REPORT_SERVICES: {service.protocol}"
-                )
+                raise ServiceError(f"bad protocol for REPORT_SERVICES: {service.protocol}")
             if isinstance(service.host, (IPv4Address, IPv6Address)):
                 ip_addr = service.host
-                if (
-                    ip_addr.is_multicast
-                    or ip_addr.is_unspecified
-                    or (ip_addr.is_private and self.peer_announce)
-                ):
+                if ip_addr.is_multicast or ip_addr.is_unspecified or (ip_addr.is_private and self.peer_announce):
                     raise ServiceError(f"bad IP address for REPORT_SERVICES: {ip_addr}")
             elif service.host.lower() == "localhost":
                 raise ServiceError(f"bad host for REPORT_SERVICES: {service.host}")
