@@ -1069,9 +1069,9 @@ class SessionManager:
                         },
                     }
 
-        async def make_transfer_inputs(inputs, indexes, make_type) -> Dict[int, List[Dict]]:
+        async def make_transfer_inputs(inputs, compact_atomical_id, input_data, make_type) -> Dict[int, List[Dict]]:
             result = {}
-            for _i in indexes:
+            for _i in input_data.input_indexes:
                 _prev_txid = hash_to_hex_str(inputs[_i.txin_index].prev_hash)
                 _prev_raw_tx = self.db.get_raw_tx_by_tx_hash(hex_str_to_hash(_prev_txid))
                 if not _prev_raw_tx:
@@ -1086,7 +1086,7 @@ class SessionManager:
                     "atomical_id": compact_atomical_id,
                     "type": make_type,
                     "index": _i.txin_index,
-                    "value": _prev_tx.outputs[inputs[_i.txin_index].prev_idx].value,
+                    "value": _i.atomical_value,
                 }
                 if not result.get(_i.txin_index):
                     result[_i.txin_index] = [_data]
@@ -1103,7 +1103,7 @@ class SessionManager:
                     "atomical_id": _compact_atomical_id,
                     "type": _output.type,
                     "index": k,
-                    "value": _output.sat_value,
+                    "value": _output.atomical_value,
                 }
                 if not result.get(index):
                     result[index] = [_data]
@@ -1117,7 +1117,7 @@ class SessionManager:
                 op_raw = "transfer"
             for atomical_id, input_ft in blueprint_builder.ft_atomicals.items():
                 compact_atomical_id = location_id_bytes_to_compact(atomical_id)
-                res["transfers"]["inputs"] = await make_transfer_inputs(tx.inputs, input_ft.input_indexes, "FT")
+                res["transfers"]["inputs"] = await make_transfer_inputs(tx.inputs, compact_atomical_id, input_ft, "FT")
             for k, v in blueprint_builder.ft_output_blueprint.outputs.items():
                 res["transfers"]["outputs"] = make_transfer_outputs(k, v)
         if blueprint_builder.nft_atomicals and atomicals_spent_at_inputs:
@@ -1125,9 +1125,10 @@ class SessionManager:
                 op_raw = "transfer"
             for atomical_id, input_nft in blueprint_builder.nft_atomicals.items():
                 compact_atomical_id = location_id_bytes_to_compact(atomical_id)
-                res["transfers"]["inputs"] = await make_transfer_inputs(tx.inputs, input_nft.input_indexes, "NFT")
+                res["transfers"]["inputs"] = await make_transfer_inputs(
+                    tx.inputs, compact_atomical_id, input_nft, "NFT"
+                )
             for k, v in blueprint_builder.nft_output_blueprint.outputs.items():
-                outputs = make_transfer_outputs(k, v)
                 res["transfers"]["outputs"] = make_transfer_outputs(k, v)
 
         (
