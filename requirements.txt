@@ -9,6 +9,7 @@ krock32>=0.1.1,<0.2
 merkletools @ git+https://github.com/tierion/pymerkletools@f10d71e
 requests>=2.32.0,<2.33
 python-dotenv>=1.0.0,<1.1
+pre-commit==3.7.1
 
 # For LevelDB
 plyvel>=1.5.0,<1.6

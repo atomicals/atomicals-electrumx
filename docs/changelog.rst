@@ -9,25 +9,25 @@ Fork to support Atomicals on BTC
 Supports indexing Atomicals, with new RPC methods:
 
 blockchain.atomicals.listscripthash
-blockchain.atomicals.list 
-blockchain.atomicals.at_location 
-blockchain.atomicals.get_location 
-blockchain.atomicals.get 
-blockchain.atomicals.get_global 
-blockchain.atomicals.get_state_by_path 
-blockchain.atomicals.get_state_history 
-blockchain.atomicals.get_events_by_path 
-blockchain.atomicals.get_events 
-blockchain.atomicals.get_tx_history 
-blockchain.atomicals.get_realm_info 
-blockchain.atomicals.get_by_realm 
-blockchain.atomicals.get_by_subrealm 
-blockchain.atomicals.get_by_ticker 
-blockchain.atomicals.get_by_container 
-blockchain.atomicals.find_tickers 
-blockchain.atomicals.find_realms 
-blockchain.atomicals.find_subrealms 
-blockchain.atomicals.find_containers 
+blockchain.atomicals.list
+blockchain.atomicals.at_location
+blockchain.atomicals.get_location
+blockchain.atomicals.get
+blockchain.atomicals.get_global
+blockchain.atomicals.get_state_by_path
+blockchain.atomicals.get_state_history
+blockchain.atomicals.get_events_by_path
+blockchain.atomicals.get_events
+blockchain.atomicals.get_tx_history
+blockchain.atomicals.get_realm_info
+blockchain.atomicals.get_by_realm
+blockchain.atomicals.get_by_subrealm
+blockchain.atomicals.get_by_ticker
+blockchain.atomicals.get_by_container
+blockchain.atomicals.find_tickers
+blockchain.atomicals.find_realms
+blockchain.atomicals.find_subrealms
+blockchain.atomicals.find_containers
 
 Version 1.16.0 (10 Dec 2020)
 ============================

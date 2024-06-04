@@ -1,38 +1,37 @@
-from typing import Any
-
-import aiohttp
 import asyncio
 import json
 import logging
+from typing import Any
 
+import aiohttp
 import pytest
+from aiorpcx import JSONRPCLoose, JSONRPCv1, Request, RPCError, ignore_after
 
-from aiorpcx import JSONRPCv1, JSONRPCLoose, RPCError, ignore_after, Request
-from electrumx.lib.coins import BitcoinCash, CoinError, Bitzeny, Dash
+from electrumx.lib.coins import BitcoinCash, Bitzeny, CoinError, Dash
 from electrumx.server.daemon import Daemon, FakeEstimateFeeDaemon
-
 
 coin = BitcoinCash
 
 # These should be full, canonical URLs
-urls = ['http://rpc_user:rpc_pass@127.0.0.1:8332/',
-        'http://rpc_user:rpc_pass@192.168.0.1:8332/']
+urls = [
+    "http://rpc_user:rpc_pass@127.0.0.1:8332/",
+    "http://rpc_user:rpc_pass@192.168.0.1:8332/",
+]
 
 
 @pytest.fixture(params=[BitcoinCash, Bitzeny])
 def daemon(request):
     coin = request.param
-    return coin.DAEMON(coin, ','.join(urls))
+    return coin.DAEMON(coin, ",".join(urls))
 
 
 @pytest.fixture(params=[Dash])
 def dash_daemon(request):
     coin = request.param
-    return coin.DAEMON(coin, ','.join(urls))
+    return coin.DAEMON(coin, ",".join(urls))
 
 
 class ResponseBase:
-
     def __init__(self, headers, status):
         self.headers = headers
         self.status = status
@@ -45,9 +44,8 @@ class ResponseBase:
 
 
 class JSONResponse(ResponseBase):
-
     def __init__(self, result, msg_id, status=200):
-        super().__init__({'Content-Type': 'application/json'}, status)
+        super().__init__({"Content-Type": "application/json"}, status)
         self.result = result
         self.msg_id = msg_id
 
@@ -55,17 +53,14 @@ class JSONResponse(ResponseBase):
         if isinstance(self.msg_id, int):
             message = JSONRPCv1.response_message(self.result, self.msg_id)
         else:
-            parts = [JSONRPCv1.response_message(item, msg_id)
-                     for item, msg_id in zip(self.result, self.msg_id)]
+            parts = [JSONRPCv1.response_message(item, msg_id) for item, msg_id in zip(self.result, self.msg_id)]
             message = JSONRPCv1.batch_message_from_parts(parts)
         return loads(message.decode())
 
 
 class HTMLResponse(ResponseBase):
-
     def __init__(self, text, reason, status):
-        super().__init__({'Content-Type': 'text/html; charset=ISO-8859-1'},
-                         status)
+        super().__init__({"Content-Type": "text/html; charset=ISO-8859-1"}, status)
         self._text = text
         self.reason = reason
 
@@ -74,7 +69,7 @@ class HTMLResponse(ResponseBase):
 
 
 class ClientSessionGood:
-    '''Imitate aiohttp for testing purposes.'''
+    """Imitate aiohttp for testing purposes."""
 
     def __init__(self, *triples):
         self.triples = triples  # each a (method, args, result)
@@ -95,28 +90,24 @@ class ClientSessionGood:
             assert isinstance(batch, list)
             request_ids = []
             for payload, args in zip(batch, args):
-                assert payload['method'] == method
-                assert payload['params'] == args
-                request_ids.append(payload['id'])
+                assert payload["method"] == method
+                assert payload["params"] == args
+                request_ids.append(payload["id"])
             return JSONResponse(result, request_ids)
 
 
 class ClientSessionBadAuth:
-
     def post(self, url, data="", **kwargs: Any):
-         return HTMLResponse('', 'Unauthorized', 401)
+        return HTMLResponse("", "Unauthorized", 401)
 
 
 class ClientSessionWorkQueueFull(ClientSessionGood):
-
     def post(self, url, data="", **kwargs: Any):
         self.post = super().post
-        return HTMLResponse('Work queue depth exceeded',
-                            'Internal server error', 500)
+        return HTMLResponse("Work queue depth exceeded", "Internal server error", 500)
 
 
 class ClientSessionPostError(ClientSessionGood):
-
     def __init__(self, exception, *args):
         super().__init__(*args)
         self.exception = exception
@@ -130,7 +121,6 @@ class ClientSessionPostError(ClientSessionGood):
 
 
 class ClientSessionFailover(ClientSessionGood):
-
     def post(self, url, data="", **kwargs: Any):
         # If not failed over; simulate disconnecting
         if url == self.expected_url:
@@ -141,19 +131,20 @@ class ClientSessionFailover(ClientSessionGood):
 
 
 def in_caplog(caplog, message, count=1):
-    return sum(message in record.message
-               for record in caplog.records) == count
+    return sum(message in record.message for record in caplog.records) == count
+
 
 #
 # Tests
 #
 
+
 @pytest.mark.asyncio
 async def test_set_urls_bad():
     with pytest.raises(CoinError):
-        Daemon(coin, '')
+        Daemon(coin, "")
     with pytest.raises(CoinError):
-        Daemon(coin, 'a')
+        Daemon(coin, "a")
 
 
 @pytest.mark.asyncio
@@ -163,50 +154,49 @@ async def test_set_urls_one(caplog):
         assert daemon.current_url() == urls[0]
         assert len(daemon.urls) == 1
         logged_url = daemon.logged_url()
-        assert logged_url == '127.0.0.1:8332/'
-        assert in_caplog(caplog, f'daemon #1 at {logged_url} (current)')
+        assert logged_url == "127.0.0.1:8332/"
+        assert in_caplog(caplog, f"daemon #1 at {logged_url} (current)")
 
 
 @pytest.mark.asyncio
 async def test_set_urls_two(caplog):
     with caplog.at_level(logging.INFO):
-        daemon = Daemon(coin, ','.join(urls))
+        daemon = Daemon(coin, ",".join(urls))
         assert daemon.current_url() == urls[0]
         assert len(daemon.urls) == 2
         logged_url = daemon.logged_url()
-        assert logged_url == '127.0.0.1:8332/'
-        assert in_caplog(caplog, f'daemon #1 at {logged_url} (current)')
-        assert in_caplog(caplog, 'daemon #2 at 192.168.0.1:8332')
+        assert logged_url == "127.0.0.1:8332/"
+        assert in_caplog(caplog, f"daemon #1 at {logged_url} (current)")
+        assert in_caplog(caplog, "daemon #2 at 192.168.0.1:8332")
 
 
 @pytest.mark.asyncio
 async def test_set_urls_short():
-    no_prefix_urls = ['/'.join(part for part in url.split('/')[2:])
-                      for url in urls]
-    daemon = Daemon(coin, ','.join(no_prefix_urls))
+    no_prefix_urls = ["/".join(part for part in url.split("/")[2:]) for url in urls]
+    daemon = Daemon(coin, ",".join(no_prefix_urls))
     assert daemon.current_url() == urls[0]
     assert len(daemon.urls) == 2
 
     no_slash_urls = [url[:-1] for url in urls]
-    daemon = Daemon(coin, ','.join(no_slash_urls))
+    daemon = Daemon(coin, ",".join(no_slash_urls))
     assert daemon.current_url() == urls[0]
     assert len(daemon.urls) == 2
 
-    no_port_urls = [url[:url.rfind(':')] for url in urls]
-    daemon = Daemon(coin, ','.join(no_port_urls))
+    no_port_urls = [url[: url.rfind(":")] for url in urls]
+    daemon = Daemon(coin, ",".join(no_port_urls))
     assert daemon.current_url() == urls[0]
     assert len(daemon.urls) == 2
 
 
 @pytest.mark.asyncio
 async def test_failover_good(caplog):
-    daemon = Daemon(coin, ','.join(urls))
+    daemon = Daemon(coin, ",".join(urls))
     with caplog.at_level(logging.INFO):
         result = daemon.failover()
     assert result is True
     assert daemon.current_url() == urls[1]
     logged_url = daemon.logged_url()
-    assert in_caplog(caplog, f'failing over to {logged_url}')
+    assert in_caplog(caplog, f"failing over to {logged_url}")
     # And again
     result = daemon.failover()
     assert result is True
@@ -220,23 +210,23 @@ async def test_failover_fail(caplog):
         result = daemon.failover()
     assert result is False
     assert daemon.current_url() == urls[0]
-    assert not in_caplog(caplog, f'failing over')
+    assert not in_caplog(caplog, f"failing over")
 
 
 @pytest.mark.asyncio
 async def test_height(daemon):
     assert daemon.cached_height() is None
     height = 300
-    daemon.session = ClientSessionGood(('getblockcount', [], height))
+    daemon.session = ClientSessionGood(("getblockcount", [], height))
     assert await daemon.height() == height
     assert daemon.cached_height() == height
 
 
 @pytest.mark.asyncio
 async def test_broadcast_transaction(daemon):
-    raw_tx = 'deadbeef'
-    tx_hash = 'hash'
-    daemon.session = ClientSessionGood(('sendrawtransaction', [raw_tx], tx_hash))
+    raw_tx = "deadbeef"
+    tx_hash = "hash"
+    daemon.session = ClientSessionGood(("sendrawtransaction", [raw_tx], tx_hash))
     assert await daemon.broadcast_transaction(raw_tx) == tx_hash
 
 
@@ -247,86 +237,80 @@ async def test_relayfee(daemon):
     else:
         sats = 2
     response = {"relayfee": sats, "other:": "cruft"}
-    daemon.session = ClientSessionGood(('getnetworkinfo', [], response))
+    daemon.session = ClientSessionGood(("getnetworkinfo", [], response))
     assert await daemon.relayfee() == sats
 
 
 @pytest.mark.asyncio
 async def test_mempool_hashes(daemon):
-    hashes = ['hex_hash1', 'hex_hash2']
-    daemon.session = ClientSessionGood(('getrawmempool', [], hashes))
+    hashes = ["hex_hash1", "hex_hash2"]
+    daemon.session = ClientSessionGood(("getrawmempool", [], hashes))
     assert await daemon.mempool_hashes() == hashes
 
 
 @pytest.mark.asyncio
 async def test_deserialised_block(daemon):
-    block_hash = 'block_hash'
-    result = {'some': 'mess'}
-    daemon.session = ClientSessionGood(('getblock', [block_hash, True], result))
+    block_hash = "block_hash"
+    result = {"some": "mess"}
+    daemon.session = ClientSessionGood(("getblock", [block_hash, True], result))
     assert await daemon.deserialised_block(block_hash) == result
 
 
 @pytest.mark.asyncio
 async def test_estimatefee(daemon):
-    method_not_found = RPCError(JSONRPCv1.METHOD_NOT_FOUND, 'nope')
+    method_not_found = RPCError(JSONRPCv1.METHOD_NOT_FOUND, "nope")
     if isinstance(daemon, FakeEstimateFeeDaemon):
         result = daemon.coin.ESTIMATE_FEE
     else:
         result = -1
-    daemon.session = ClientSessionGood(
-            ('estimatesmartfee', [], method_not_found),
-            ('estimatefee', [2], result)
-    )
+    daemon.session = ClientSessionGood(("estimatesmartfee", [], method_not_found), ("estimatefee", [2], result))
     assert await daemon.estimatefee(2) == result
 
 
 @pytest.mark.asyncio
 async def test_estimatefee_smart(daemon):
-    bad_args = RPCError(JSONRPCv1.INVALID_ARGS, 'bad args')
+    bad_args = RPCError(JSONRPCv1.INVALID_ARGS, "bad args")
     if isinstance(daemon, FakeEstimateFeeDaemon):
         return
     rate = 0.0002
-    result = {'feerate': rate}
-    daemon.session = ClientSessionGood(
-        ('estimatesmartfee', [], bad_args),
-        ('estimatesmartfee', [2], result)
-    )
+    result = {"feerate": rate}
+    daemon.session = ClientSessionGood(("estimatesmartfee", [], bad_args), ("estimatesmartfee", [2], result))
     assert await daemon.estimatefee(2) == rate
 
     # Test the rpc_available_cache is used
-    daemon.session = ClientSessionGood(('estimatesmartfee', [2], result))
+    daemon.session = ClientSessionGood(("estimatesmartfee", [2], result))
     assert await daemon.estimatefee(2) == rate
 
 
 @pytest.mark.asyncio
 async def test_getrawtransaction(daemon):
-    hex_hash = 'deadbeef'
-    simple = 'tx_in_hex'
-    verbose = {'hex': hex_hash, 'other': 'cruft'}
+    hex_hash = "deadbeef"
+    simple = "tx_in_hex"
+    verbose = {"hex": hex_hash, "other": "cruft"}
     # Test False is converted to 0 - old daemon's reject False
-    daemon.session = ClientSessionGood(('getrawtransaction', [hex_hash, 0], simple))
+    daemon.session = ClientSessionGood(("getrawtransaction", [hex_hash, 0], simple))
     assert await daemon.getrawtransaction(hex_hash) == simple
 
     # Test True is converted to 1
-    daemon.session = ClientSessionGood(('getrawtransaction', [hex_hash, 1], verbose))
-    assert await daemon.getrawtransaction(
-        hex_hash, True) == verbose
+    daemon.session = ClientSessionGood(("getrawtransaction", [hex_hash, 1], verbose))
+    assert await daemon.getrawtransaction(hex_hash, True) == verbose
 
 
 @pytest.mark.asyncio
 async def test_protx(dash_daemon):
-    protx_hash = 'deadbeaf'
-    dash_daemon.session = ClientSessionGood(('protx', ['info', protx_hash], {}))
-    assert await dash_daemon.protx(['info', protx_hash]) == {}
+    protx_hash = "deadbeaf"
+    dash_daemon.session = ClientSessionGood(("protx", ["info", protx_hash], {}))
+    assert await dash_daemon.protx(["info", protx_hash]) == {}
 
 
 # Batch tests
+
 
 @pytest.mark.asyncio
 async def test_empty_send(daemon):
     first = 5
     count = 0
-    daemon.session = ClientSessionGood(('getblockhash', [], []))
+    daemon.session = ClientSessionGood(("getblockhash", [], []))
     assert await daemon.block_hex_hashes(first, count) == []
 
 
@@ -334,44 +318,43 @@ async def test_empty_send(daemon):
 async def test_block_hex_hashes(daemon):
     first = 5
     count = 3
-    hashes = [f'hex_hash{n}' for n in range(count)]
-    daemon.session = ClientSessionGood(('getblockhash',
-                                        [[n] for n in range(first, first + count)],
-                                        hashes))
+    hashes = [f"hex_hash{n}" for n in range(count)]
+    daemon.session = ClientSessionGood(("getblockhash", [[n] for n in range(first, first + count)], hashes))
     assert await daemon.block_hex_hashes(first, count) == hashes
 
 
 @pytest.mark.asyncio
 async def test_raw_blocks(daemon):
     count = 3
-    hex_hashes = [f'hex_hash{n}' for n in range(count)]
+    hex_hashes = [f"hex_hash{n}" for n in range(count)]
     args_list = [[hex_hash, False] for hex_hash in hex_hashes]
     iterable = (hex_hash for hex_hash in hex_hashes)
     blocks = ["00", "019a", "02fe"]
     blocks_raw = [bytes.fromhex(block) for block in blocks]
-    daemon.session = ClientSessionGood(('getblock', args_list, blocks))
+    daemon.session = ClientSessionGood(("getblock", args_list, blocks))
     assert await daemon.raw_blocks(iterable) == blocks_raw
 
 
 @pytest.mark.asyncio
 async def test_get_raw_transactions(daemon):
-    hex_hashes = ['deadbeef0', 'deadbeef1']
+    hex_hashes = ["deadbeef0", "deadbeef1"]
     args_list = [[hex_hash, 0] for hex_hash in hex_hashes]
-    raw_txs_hex = ['fffefdfc', '0a0b0c0d']
+    raw_txs_hex = ["fffefdfc", "0a0b0c0d"]
     raw_txs = [bytes.fromhex(raw_tx) for raw_tx in raw_txs_hex]
     # Test 0 - old daemon's reject False
-    daemon.session = ClientSessionGood(('getrawtransaction', args_list, raw_txs_hex))
+    daemon.session = ClientSessionGood(("getrawtransaction", args_list, raw_txs_hex))
     assert await daemon.getrawtransactions(hex_hashes) == raw_txs
 
     # Test one error
-    tx_not_found = RPCError(-1, 'some error message')
-    results = ['ff0b7d', tx_not_found]
+    tx_not_found = RPCError(-1, "some error message")
+    results = ["ff0b7d", tx_not_found]
     raw_txs = [bytes.fromhex(results[0]), None]
-    daemon.session = ClientSessionGood(('getrawtransaction', args_list, results))
+    daemon.session = ClientSessionGood(("getrawtransaction", args_list, results))
     assert await daemon.getrawtransactions(hex_hashes) == raw_txs
 
 
 # Other tests
+
 
 @pytest.mark.asyncio
 async def test_bad_auth(daemon, caplog):
@@ -388,7 +371,7 @@ async def test_workqueue_depth(daemon, caplog):
     daemon.init_retry = 0.01
     height = 125
     with caplog.at_level(logging.INFO):
-        daemon.session = ClientSessionWorkQueueFull(('getblockcount', [], height))
+        daemon.session = ClientSessionWorkQueueFull(("getblockcount", [], height))
         await daemon.height() == height
 
     assert in_caplog(caplog, "Work queue depth exceeded")
@@ -400,8 +383,7 @@ async def test_connection_error(daemon, caplog):
     height = 100
     daemon.init_retry = 0.01
     with caplog.at_level(logging.INFO):
-        daemon.session = ClientSessionPostError(aiohttp.ClientConnectionError,
-                                                ('getblockcount', [], height))
+        daemon.session = ClientSessionPostError(aiohttp.ClientConnectionError, ("getblockcount", [], height))
         await daemon.height() == height
 
     assert in_caplog(caplog, "connection problem - check your daemon is running")
@@ -413,8 +395,7 @@ async def test_timeout_error(daemon, caplog):
     height = 100
     daemon.init_retry = 0.01
     with caplog.at_level(logging.INFO):
-        daemon.session = ClientSessionPostError(asyncio.TimeoutError,
-                                                ('getblockcount', [], height))
+        daemon.session = ClientSessionPostError(asyncio.TimeoutError, ("getblockcount", [], height))
         await daemon.height() == height
 
     assert in_caplog(caplog, "timeout error")
@@ -425,8 +406,7 @@ async def test_disconnected(daemon, caplog):
     height = 100
     daemon.init_retry = 0.01
     with caplog.at_level(logging.INFO):
-        daemon.session = ClientSessionPostError(aiohttp.ServerDisconnectedError,
-                                                ('getblockcount', [], height))
+        daemon.session = ClientSessionPostError(aiohttp.ServerDisconnectedError, ("getblockcount", [], height))
         await daemon.height() == height
 
     assert in_caplog(caplog, "disconnected")
@@ -435,14 +415,11 @@ async def test_disconnected(daemon, caplog):
 
 @pytest.mark.asyncio
 async def test_warming_up(daemon, caplog):
-    warming_up = RPCError(-28, 'reading block index')
+    warming_up = RPCError(-28, "reading block index")
     height = 100
     daemon.init_retry = 0.01
     with caplog.at_level(logging.INFO):
-        daemon.session = ClientSessionGood(
-            ('getblockcount', [], warming_up),
-            ('getblockcount', [], height)
-        )
+        daemon.session = ClientSessionGood(("getblockcount", [], warming_up), ("getblockcount", [], height))
         assert await daemon.height() == height
 
     assert in_caplog(caplog, "starting up checking blocks")
@@ -451,14 +428,16 @@ async def test_warming_up(daemon, caplog):
 
 @pytest.mark.asyncio
 async def test_warming_up_batch(daemon, caplog):
-    warming_up = RPCError(-28, 'reading block index')
+    warming_up = RPCError(-28, "reading block index")
     first = 5
     count = 1
     daemon.init_retry = 0.01
-    hashes = ['hex_hash5']
+    hashes = ["hex_hash5"]
     with caplog.at_level(logging.INFO):
-        daemon.session = ClientSessionGood(('getblockhash', [[first]], [warming_up]),
-                                           ('getblockhash', [[first]], hashes))
+        daemon.session = ClientSessionGood(
+            ("getblockhash", [[first]], [warming_up]),
+            ("getblockhash", [[first]], hashes),
+        )
         assert await daemon.block_hex_hashes(first, count) == hashes
 
     assert in_caplog(caplog, "starting up checking blocks")
@@ -471,7 +450,7 @@ async def test_failover(daemon, caplog):
     daemon.init_retry = 0.01
     daemon.max_retry = 0.04
     with caplog.at_level(logging.INFO):
-        daemon.session = ClientSessionFailover(('getblockcount', [], height))
+        daemon.session = ClientSessionFailover(("getblockcount", [], height))
         await daemon.height() == height
 
     assert in_caplog(caplog, "disconnected", 1)

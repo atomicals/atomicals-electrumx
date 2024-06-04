@@ -23,34 +23,54 @@
 # OF CONTRACT, TORT OR OTHERWISE, ARISING FROM, OUT OF OR IN CONNECTION
 # WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE.
 
-'''Representation of a peer server.'''
+"""Representation of a peer server."""
 
-from ipaddress import ip_address, IPv4Address, IPv6Address, IPv4Network, IPv6Network
+from ipaddress import IPv4Address, IPv4Network, IPv6Address, IPv6Network, ip_address
 from socket import AF_INET, AF_INET6
 
 from aiorpcx import is_valid_hostname
+
 from electrumx.lib.util import cachedproperty, protocol_tuple, version_string
 
 
 class Peer:
-
     # Protocol version
-    ATTRS = ('host', 'features',
-             # metadata
-             'source', 'ip_addr',
-             'last_good', 'last_try', 'try_count')
-    FEATURES = ('pruning', 'server_version', 'protocol_min', 'protocol_max',
-                'ssl_port', 'tcp_port')
+    ATTRS = (
+        "host",
+        "features",
+        # metadata
+        "source",
+        "ip_addr",
+        "last_good",
+        "last_try",
+        "try_count",
+    )
+    FEATURES = (
+        "pruning",
+        "server_version",
+        "protocol_min",
+        "protocol_max",
+        "ssl_port",
+        "tcp_port",
+    )
     # This should be set by the application
     DEFAULT_PORTS = {}
 
-    def __init__(self, host, features, source='unknown', ip_addr=None,
-                 last_good=0, last_try=0, try_count=0):
-        '''Create a peer given a host name (or IP address as a string),
-        a dictionary of features, and a record of the source.'''
+    def __init__(
+        self,
+        host,
+        features,
+        source="unknown",
+        ip_addr=None,
+        last_good=0,
+        last_try=0,
+        try_count=0,
+    ):
+        """Create a peer given a host name (or IP address as a string),
+        a dictionary of features, and a record of the source."""
         assert isinstance(host, str)
         assert isinstance(features, dict)
-        assert host in features.get('hosts', {})
+        assert host in features.get("hosts", {})
         self.host = host
         self.features = features.copy()
         # Canonicalize / clean-up
@@ -74,32 +94,29 @@ class Peer:
     def peers_from_features(cls, features, source):
         peers = []
         if isinstance(features, dict):
-            hosts = features.get('hosts')
+            hosts = features.get("hosts")
             if isinstance(hosts, dict):
-                peers = [Peer(host, features, source=source)
-                         for host in hosts if isinstance(host, str)]
+                peers = [Peer(host, features, source=source) for host in hosts if isinstance(host, str)]
         return peers
 
     @classmethod
     def deserialize(cls, item):
-        '''Deserialize from a dictionary.'''
+        """Deserialize from a dictionary."""
         return cls(**item)
 
     def matches(self, peers):
-        '''Return peers whose host matches our hostname or IP address.
+        """Return peers whose host matches our hostname or IP address.
         Additionally include all peers whose IP address matches our
         hostname if that is an IP address.
-        '''
+        """
         candidates = (self.host.lower(), self.ip_addr)
-        return [peer for peer in peers
-                if peer.host.lower() in candidates
-                or peer.ip_addr == self.host]
+        return [peer for peer in peers if peer.host.lower() in candidates or peer.ip_addr == self.host]
 
     def __str__(self):
         return self.host
 
     def update_features(self, features):
-        '''Update features in-place.'''
+        """Update features in-place."""
         try:
             tmp = Peer(self.host, features)
         except AssertionError:
@@ -114,12 +131,12 @@ class Peer:
                 setattr(self, feature, getattr(peer, feature))
 
     def connection_tuples(self):
-        '''Return a list of (kind, port, family) tuples to try when making a
+        """Return a list of (kind, port, family) tuples to try when making a
         connection.
-        '''
+        """
         # Use a list not a set - it's important to try the registered
         # ports first.
-        pairs = [('SSL', self.ssl_port), ('TCP', self.tcp_port)]
+        pairs = [("SSL", self.ssl_port), ("TCP", self.tcp_port)]
         while self.other_port_pairs:
             pairs.append(self.other_port_pairs.pop())
         if isinstance(self.ip_address, IPv4Address):
@@ -128,34 +145,31 @@ class Peer:
             families = (AF_INET6,)
         else:
             families = (AF_INET, AF_INET6)
-        return [(kind, port, family)
-                for kind, port in pairs if port
-                for family in families]
+        return [(kind, port, family) for kind, port in pairs if port for family in families]
 
     def mark_bad(self):
-        '''Mark as bad to avoid reconnects but also to remember for a
-        while.'''
+        """Mark as bad to avoid reconnects but also to remember for a
+        while."""
         self.bad = True
 
     def check_ports(self, other):
-        '''Remember differing ports in case server operator changed them
-        or removed one.'''
+        """Remember differing ports in case server operator changed them
+        or removed one."""
         if other.ssl_port != self.ssl_port:
-            self.other_port_pairs.add(('SSL', other.ssl_port))
+            self.other_port_pairs.add(("SSL", other.ssl_port))
         if other.tcp_port != self.tcp_port:
-            self.other_port_pairs.add(('TCP', other.tcp_port))
+            self.other_port_pairs.add(("TCP", other.tcp_port))
         return bool(self.other_port_pairs)
 
     @cachedproperty
     def is_tor(self):
-        return self.host.endswith('.onion')
+        return self.host.endswith(".onion")
 
     @cachedproperty
     def is_valid(self):
         ip = self.ip_address
         if ip:
-            return ((ip.is_global or ip.is_private)
-                    and not (ip.is_multicast or ip.is_unspecified))
+            return (ip.is_global or ip.is_private) and not (ip.is_multicast or ip.is_unspecified)
         return is_valid_hostname(self.host)
 
     @cachedproperty
@@ -164,55 +178,55 @@ class Peer:
         if ip:
             return self.is_valid and not ip.is_private
         else:
-            return self.is_valid and self.host != 'localhost'
+            return self.is_valid and self.host != "localhost"
 
     @cachedproperty
     def ip_address(self):
-        '''The host as a python ip_address object, or None.'''
+        """The host as a python ip_address object, or None."""
         try:
             return ip_address(self.host)
         except ValueError:
             return None
 
     def bucket_for_internal_purposes(self):
-        '''Used for keeping the internal peer list manageable in size.
+        """Used for keeping the internal peer list manageable in size.
         Restrictions are loose.
-        '''
+        """
         if self.is_tor:
-            return 'onion'
+            return "onion"
         if not self.ip_addr:
-            return ''
+            return ""
         ip_addr = ip_address(self.ip_addr)
         if ip_addr.version == 4:
             return str(ip_addr)
         elif ip_addr.version == 6:
-            slash64 = IPv6Network(self.ip_addr).supernet(prefixlen_diff=128-64)
+            slash64 = IPv6Network(self.ip_addr).supernet(prefixlen_diff=128 - 64)
             return str(slash64)
-        return ''
+        return ""
 
     def bucket_for_external_interface(self):
-        '''Used when responding to RPC queries to return a distributed list
+        """Used when responding to RPC queries to return a distributed list
         of peers. Restrictions are stricter than internal bucketing.
-        '''
+        """
         if self.is_tor:
-            return 'onion'
+            return "onion"
         if not self.ip_addr:
-            return ''
+            return ""
         ip_addr = ip_address(self.ip_addr)
         if ip_addr.version == 4:
-            slash16 = IPv4Network(self.ip_addr).supernet(prefixlen_diff=32-16)
+            slash16 = IPv4Network(self.ip_addr).supernet(prefixlen_diff=32 - 16)
             return str(slash16)
         elif ip_addr.version == 6:
-            slash56 = IPv6Network(self.ip_addr).supernet(prefixlen_diff=128-56)
+            slash56 = IPv6Network(self.ip_addr).supernet(prefixlen_diff=128 - 56)
             return str(slash56)
-        return ''
+        return ""
 
     def serialize(self):
-        '''Serialize to a dictionary.'''
+        """Serialize to a dictionary."""
         return {attr: getattr(self, attr) for attr in self.ATTRS}
 
     def _port(self, key):
-        hosts = self.features.get('hosts')
+        hosts = self.features.get("hosts")
         if isinstance(hosts, dict):
             host = hosts.get(self.host)
             port = self._integer(key, host)
@@ -236,29 +250,29 @@ class Peer:
 
     @cachedproperty
     def genesis_hash(self):
-        '''Returns the network genesis block hash as a string if known, otherwise None.'''
-        return self._string('genesis_hash')
+        """Returns the network genesis block hash as a string if known, otherwise None."""
+        return self._string("genesis_hash")
 
     @cachedproperty
     def ssl_port(self):
-        '''Returns None if no SSL port, otherwise the port as an integer.'''
-        return self._port('ssl_port')
+        """Returns None if no SSL port, otherwise the port as an integer."""
+        return self._port("ssl_port")
 
     @cachedproperty
     def tcp_port(self):
-        '''Returns None if no TCP port, otherwise the port as an integer.'''
-        return self._port('tcp_port')
+        """Returns None if no TCP port, otherwise the port as an integer."""
+        return self._port("tcp_port")
 
     @cachedproperty
     def server_version(self):
-        '''Returns the server version as a string if known, otherwise None.'''
-        return self._string('server_version')
+        """Returns the server version as a string if known, otherwise None."""
+        return self._string("server_version")
 
     @cachedproperty
     def pruning(self):
-        '''Returns the pruning level as an integer.  None indicates no
-        pruning.'''
-        pruning = self._integer('pruning')
+        """Returns the pruning level as an integer.  None indicates no
+        pruning."""
+        pruning = self._integer("pruning")
         if pruning and pruning > 0:
             return pruning
         return None
@@ -270,66 +284,67 @@ class Peer:
 
     @cachedproperty
     def protocol_min(self):
-        '''Minimum protocol version as a string, e.g., 1.0'''
-        return self._protocol_version_string('protocol_min')
+        """Minimum protocol version as a string, e.g., 1.0"""
+        return self._protocol_version_string("protocol_min")
 
     @cachedproperty
     def protocol_max(self):
-        '''Maximum protocol version as a string, e.g., 1.1'''
-        return self._protocol_version_string('protocol_max')
+        """Maximum protocol version as a string, e.g., 1.1"""
+        return self._protocol_version_string("protocol_max")
 
     def to_tuple(self):
-        '''The tuple ((ip, host, details) expected in response
-        to a peers subscription.'''
+        """The tuple ((ip, host, details) expected in response
+        to a peers subscription."""
         details = self.real_name().split()[1:]
         return (self.ip_addr or self.host, self.host, details)
 
     def real_name(self):
-        '''Real name of this peer as used on IRC.'''
+        """Real name of this peer as used on IRC."""
+
         def port_text(letter, port):
             if port == self.DEFAULT_PORTS.get(letter):
                 return letter
             else:
                 return letter + str(port)
 
-        parts = [self.host, 'v' + self.protocol_max]
+        parts = [self.host, "v" + self.protocol_max]
         if self.pruning:
-            parts.append(f'p{self.pruning:d}')
-        for letter, port in (('s', self.ssl_port), ('t', self.tcp_port)):
+            parts.append(f"p{self.pruning:d}")
+        for letter, port in (("s", self.ssl_port), ("t", self.tcp_port)):
             if port:
                 parts.append(port_text(letter, port))
-        return ' '.join(parts)
+        return " ".join(parts)
 
     @classmethod
     def from_real_name(cls, real_name, source):
-        '''Real name is a real name as on IRC, such as
+        """Real name is a real name as on IRC, such as
 
             "erbium1.sytes.net v1.0 s t"
 
         Returns an instance of this Peer class.
-        '''
-        host = 'nohost'
+        """
+        host = "nohost"
         features = {}
         ports = {}
         for n, part in enumerate(real_name.split()):
             if n == 0:
                 host = part
                 continue
-            if part[0] in ('s', 't'):
+            if part[0] in ("s", "t"):
                 if len(part) == 1:
                     port = cls.DEFAULT_PORTS[part[0]]
                 else:
                     port = part[1:]
-                if part[0] == 's':
-                    ports['ssl_port'] = port
+                if part[0] == "s":
+                    ports["ssl_port"] = port
                 else:
-                    ports['tcp_port'] = port
-            elif part[0] == 'v':
-                features['protocol_max'] = features['protocol_min'] = part[1:]
-            elif part[0] == 'p':
-                features['pruning'] = part[1:]
+                    ports["tcp_port"] = port
+            elif part[0] == "v":
+                features["protocol_max"] = features["protocol_min"] = part[1:]
+            elif part[0] == "p":
+                features["pruning"] = part[1:]
 
         features.update(ports)
-        features['hosts'] = {host: ports}
+        features["hosts"] = {host: ports}
 
         return cls(host, features, source)

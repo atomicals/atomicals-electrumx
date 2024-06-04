@@ -1,4 +1,4 @@
-'''Test of compaction code in server/history.py'''
+"""Test of compaction code in server/history.py"""
 import array
 import random
 from os import environ, urandom
@@ -7,22 +7,21 @@ import pytest
 
 from electrumx.lib.hash import HASHX_LEN
 from electrumx.lib.util import pack_be_uint16, pack_be_uint32, pack_le_uint64
-from electrumx.server.env import Env
 from electrumx.server.db import DB
+from electrumx.server.env import Env
 
 
 def create_histories(history, hashX_count=100):
-    '''Creates a bunch of random transaction histories, and write them
-    to disk in a series of small flushes.'''
+    """Creates a bunch of random transaction histories, and write them
+    to disk in a series of small flushes."""
     hashXs = [urandom(HASHX_LEN) for n in range(hashX_count)]
-    mk_array = lambda : array.array('Q')
-    histories = {hashX : mk_array() for hashX in hashXs}
+    mk_array = lambda: array.array("Q")
+    histories = {hashX: mk_array() for hashX in hashXs}
     unflushed = history.unflushed
     tx_num = 0
     while hashXs:
         tx_numb = pack_le_uint64(tx_num)[:5]
-        hash_indexes = set(random.randrange(len(hashXs))
-                           for n in range(1 + random.randrange(4)))
+        hash_indexes = set(random.randrange(len(hashXs)) for n in range(1 + random.randrange(4)))
         for index in hash_indexes:
             histories[hashXs[index]].append(tx_num)
             unflushed[hashXs[index]].extend(tx_numb)
@@ -41,7 +40,7 @@ def create_histories(history, hashX_count=100):
 def check_hashX_compaction(history):
     history.max_hist_row_entries = 40
     row_size = history.max_hist_row_entries * 5
-    full_hist = b''.join(pack_le_uint64(tx_num)[:5] for tx_num in range(100))
+    full_hist = b"".join(pack_le_uint64(tx_num)[:5] for tx_num in range(100))
     hashX = urandom(HASHX_LEN)
     pairs = ((1, 20), (26, 50), (56, 30))
 
@@ -50,23 +49,24 @@ def check_hashX_compaction(history):
     hist_map = {}
     for flush_count, count in pairs:
         key = hashX + pack_be_uint32(flush_count)
-        hist = full_hist[cum * 5: (cum+count) * 5]
+        hist = full_hist[cum * 5 : (cum + count) * 5]
         hist_map[key] = hist
         hist_list.append(hist)
         cum += count
 
     write_items = []
     keys_to_delete = set()
-    write_size = history._compact_hashX(hashX, hist_map, hist_list,
-                                        write_items, keys_to_delete)
+    write_size = history._compact_hashX(hashX, hist_map, hist_list, write_items, keys_to_delete)
     # Check results for sanity
     assert write_size == len(full_hist)
     assert len(write_items) == 3
     assert len(keys_to_delete) == 3
     assert len(hist_map) == len(pairs)
     for n, item in enumerate(write_items):
-        assert item == (hashX + pack_be_uint16(n),
-                        full_hist[n * row_size: (n + 1) * row_size])
+        assert item == (
+            hashX + pack_be_uint16(n),
+            full_hist[n * row_size : (n + 1) * row_size],
+        )
     for flush_count, count in pairs:
         assert hashX + pack_be_uint32(flush_count) in keys_to_delete
 
@@ -75,17 +75,15 @@ def check_hashX_compaction(history):
     hist_list = [value for key, value in write_items]
     write_items.clear()
     keys_to_delete.clear()
-    write_size = history._compact_hashX(hashX, hist_map, hist_list,
-                                        write_items, keys_to_delete)
+    write_size = history._compact_hashX(hashX, hist_map, hist_list, write_items, keys_to_delete)
     assert write_size == 0
     assert len(write_items) == 0
     assert len(keys_to_delete) == 0
     assert len(hist_map) == len(pairs)
 
     # Check re-compaction adding a single tx writes the one row
-    hist_list[-1] += array.array('I', [100]).tobytes()
-    write_size = history._compact_hashX(hashX, hist_map, hist_list,
-                                        write_items, keys_to_delete)
+    hist_list[-1] += array.array("I", [100]).tobytes()
+    write_size = history._compact_hashX(hashX, hist_map, hist_list, write_items, keys_to_delete)
     assert write_size == len(hist_list[-1])
     assert write_items == [(hashX + pack_be_uint16(2), hist_list[-1])]
     assert len(keys_to_delete) == 1
@@ -95,12 +93,12 @@ def check_hashX_compaction(history):
 
 def check_written(history, histories):
     for hashX, hist in histories.items():
-        db_hist = array.array('I', history.get_txnums(hashX, limit=None))
+        db_hist = array.array("I", history.get_txnums(hashX, limit=None))
         assert hist == db_hist
 
 
 def compact_history(history):
-    '''Synchronously compact the DB history.'''
+    """Synchronously compact the DB history."""
     history.comp_cursor = 0
 
     history.comp_flush_count = max(history.comp_flush_count, 1)
@@ -115,11 +113,11 @@ def compact_history(history):
 @pytest.mark.asyncio
 async def test_compaction(tmpdir):
     db_dir = str(tmpdir)
-    print(f'Temp dir: {db_dir}')
+    print(f"Temp dir: {db_dir}")
     environ.clear()
-    environ['DB_DIRECTORY'] = db_dir
-    environ['DAEMON_URL'] = ''
-    environ['COIN'] = 'BitcoinSV'
+    environ["DB_DIRECTORY"] = db_dir
+    environ["DAEMON_URL"] = ""
+    environ["COIN"] = "BitcoinSV"
     db = DB(Env())
     await db.open_for_serving()
     history = db.history

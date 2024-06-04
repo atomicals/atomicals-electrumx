@@ -14,7 +14,7 @@ from typing import Type
 import electrumx.lib.util as util
 
 
-def db_class(name) -> Type['Storage']:
+def db_class(name) -> Type["Storage"]:
     """Returns a DB engine class."""
     for db_cls in util.subclasses(Storage):
         if db_cls.__name__.lower() == name.lower():
@@ -58,7 +58,7 @@ class Storage:
         """
         raise NotImplementedError
 
-    def iterator(self, prefix=b'', reverse=False):
+    def iterator(self, prefix=b"", reverse=False):
         """Return an iterator that yields (key, value) pairs from the
         database sorted by key.
 
@@ -75,19 +75,18 @@ class LevelDB(Storage):
     @classmethod
     def import_module(cls):
         import plyvel
+
         cls.module = plyvel
 
     def open(self, name, create):
         mof = 512 if self.for_sync else 128
         # Use snappy compression (the default)
-        self.db = self.module.DB(name, create_if_missing=create,
-                                 max_open_files=mof)
+        self.db = self.module.DB(name, create_if_missing=create, max_open_files=mof)
         self.close = self.db.close
         self.get = self.db.get
         self.put = self.db.put
         self.iterator = self.db.iterator
-        self.write_batch = partial(self.db.write_batch, transaction=True,
-                                   sync=True)
+        self.write_batch = partial(self.db.write_batch, transaction=True, sync=True)
 
 
 class RocksDB(Storage):
@@ -96,15 +95,18 @@ class RocksDB(Storage):
     @classmethod
     def import_module(cls):
         import rocksdb
+
         cls.module = rocksdb
 
     def open(self, name, create):
         mof = 512 if self.for_sync else 128
         # Use snappy compression (the default)
-        options = self.module.Options(create_if_missing=create,
-                                      use_fsync=True,
-                                      target_file_size_base=33554432,
-                                      max_open_files=mof)
+        options = self.module.Options(
+            create_if_missing=create,
+            use_fsync=True,
+            target_file_size_base=33554432,
+            max_open_files=mof,
+        )
         self.db = self.module.DB(name, options)
         self.get = self.db.get
         self.put = self.db.put
@@ -113,12 +115,13 @@ class RocksDB(Storage):
         # PyRocksDB doesn't provide a close method; hopefully this is enough
         self.db = self.get = self.put = None
         import gc
+
         gc.collect()
 
     def write_batch(self):
         return RocksDBWriteBatch(self.db)
 
-    def iterator(self, prefix=b'', reverse=False):
+    def iterator(self, prefix=b"", reverse=False):
         return RocksDBIterator(self.db, prefix, reverse)
 
 

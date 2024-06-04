@@ -1,6 +1,6 @@
 from aiorpcx import RPCError
 
-from electrumx.lib.hash import hex_str_to_hash, HASHX_LEN
+from electrumx.lib.hash import HASHX_LEN, hex_str_to_hash
 from electrumx.server.session import BAD_REQUEST
 
 SESSION_BASE_MAX_CHUNK_SIZE = 2016
@@ -15,7 +15,7 @@ def scripthash_to_hash_x(scripthash):
             return bin_hash[:HASHX_LEN]
     except (ValueError, TypeError):
         pass
-    raise RPCError(BAD_REQUEST, f'{scripthash} is not a valid script hash')
+    raise RPCError(BAD_REQUEST, f"{scripthash} is not a valid script hash")
 
 
 def non_negative_integer(value):
@@ -27,7 +27,7 @@ def non_negative_integer(value):
             return value
     except (ValueError, TypeError):
         pass
-    raise RPCError(BAD_REQUEST, f'{value} should be a non-negative integer')
+    raise RPCError(BAD_REQUEST, f"{value} should be a non-negative integer")
 
 
 def assert_tx_hash(value):
@@ -40,7 +40,7 @@ def assert_tx_hash(value):
             return raw_hash
     except (ValueError, TypeError):
         pass
-    raise RPCError(BAD_REQUEST, f'{value} should be a transaction hash')
+    raise RPCError(BAD_REQUEST, f"{value} should be a transaction hash")
 
 
 def assert_atomical_id(value):
@@ -48,14 +48,14 @@ def assert_atomical_id(value):
     If it is valid, return it as 32-byte binary hash."""
     try:
         if value is None or value == "":
-            raise RPCError(BAD_REQUEST, f'atomical_id required')
+            raise RPCError(BAD_REQUEST, f"atomical_id required")
         index_of_i = value.find("i")
         if index_of_i != 64:
-            raise RPCError(BAD_REQUEST, f'{value} should be an atomical_id')
-        raw_hash = hex_str_to_hash(value[: 64])
+            raise RPCError(BAD_REQUEST, f"{value} should be an atomical_id")
+        raw_hash = hex_str_to_hash(value[:64])
         if len(raw_hash) == 32:
             return raw_hash
     except (ValueError, TypeError):
         pass
 
-    raise RPCError(BAD_REQUEST, f'{value} should be an atomical_id')
+    raise RPCError(BAD_REQUEST, f"{value} should be an atomical_id")

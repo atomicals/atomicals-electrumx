@@ -20,12 +20,17 @@ from aiorpcx import JSONRPC
 
 from electrumx.lib.hash import hash_to_hex_str, hex_str_to_hash
 from electrumx.lib.tx import DeserializerDecred
-from electrumx.lib.util import (class_logger, hex_to_bytes, json_deserialize,
-                                json_serialize, pack_varint,
-                                unpack_le_uint16_from)
+from electrumx.lib.util import (
+    class_logger,
+    hex_to_bytes,
+    json_deserialize,
+    json_serialize,
+    pack_varint,
+    unpack_le_uint16_from,
+)
 
 if TYPE_CHECKING:
-    from electrumx.lib.coins import Coin, AtomicalsCoinMixin
+    from electrumx.lib.coins import AtomicalsCoinMixin, Coin
 
 
 class DaemonError(Exception):
@@ -48,14 +53,14 @@ class Daemon:
     id_counter = itertools.count()
 
     def __init__(
-            self,
-            coin: Type[Union['Coin', 'AtomicalsCoinMixin']],
-            url,
-            *,
-            max_workqueue=10,
-            init_retry=0.25,
-            max_retry=4.0,
-            proxy_url=None
+        self,
+        coin: Type[Union["Coin", "AtomicalsCoinMixin"]],
+        url,
+        *,
+        max_workqueue=10,
+        init_retry=0.25,
+        max_retry=4.0,
+        proxy_url=None,
     ):
         self.coin = coin
         self.logger = class_logger(__name__, self.__class__.__name__)
@@ -64,7 +69,7 @@ class Daemon:
         self.set_url(url)
         self.proxy_url: str | None = proxy_url
         if proxy_url:
-            self.logger.info(f'Using proxy {proxy_url} for daemon.')
+            self.logger.info(f"Using proxy {proxy_url} for daemon.")
         # Limit concurrent RPC calls to this number.
         # See DEFAULT_HTTP_WORKQUEUE in bitcoind, which is typically 16
         self.workqueue_semaphore = asyncio.Semaphore(value=max_workqueue)
@@ -90,12 +95,12 @@ class Daemon:
 
     def set_url(self, url):
         """Set the URLS to the given list, and switch to the first one."""
-        urls = url.split(',')
+        urls = url.split(",")
         urls = [self.coin.sanitize_url(url) for url in urls]
         for n, url in enumerate(urls):
-            status = '' if n else ' (current)'
+            status = "" if n else " (current)"
             logged_url = self.logged_url(url)
-            self.logger.info(f'daemon #{n + 1} at {logged_url}{status}')
+            self.logger.info(f"daemon #{n + 1} at {logged_url}{status}")
         self.url_index = 0
         self.urls = urls
 
@@ -106,7 +111,7 @@ class Daemon:
     def logged_url(self, url=None):
         """The host and port part, for logging."""
         url = url or self.current_url()
-        return url[url.rindex('@') + 1:]
+        return url[url.rindex("@") + 1 :]
 
     def failover(self):
         """Call to fail-over to the next daemon URL.
@@ -115,7 +120,7 @@ class Daemon:
         """
         if len(self.urls) > 1:
             self.url_index = (self.url_index + 1) % len(self.urls)
-            self.logger.info(f'failing over to {self.logged_url()}')
+            self.logger.info(f"failing over to {self.logged_url()}")
             return True
         return False
 
@@ -123,8 +128,8 @@ class Daemon:
         async with self.workqueue_semaphore:
             if self.session:
                 async with self.session.post(self.current_url(), data=data, proxy=self.proxy_url) as resp:
-                    kind = resp.headers.get('Content-Type', None)
-                    if kind == 'application/json':
+                    kind = resp.headers.get("Content-Type", None)
+                    if kind == "application/json":
                         return await resp.json(loads=json_deserialize)
                     text = await resp.text()
                     text = text.strip() or resp.reason
@@ -144,7 +149,7 @@ class Daemon:
             now = time.monotonic()
             if now - last_error_log > 60:
                 last_error_log = now
-                self.logger.error(f'{error}.  Retrying occasionally...')
+                self.logger.error(f"{error}.  Retrying occasionally...")
             if retry == self.max_retry and self.failover():
                 retry = 0
 
@@ -160,25 +165,25 @@ class Daemon:
                     self.logger.info(on_good_message)
                 return result
             except asyncio.TimeoutError:
-                log_error('timeout error')
+                log_error("timeout error")
             except aiohttp.ServerDisconnectedError:
-                log_error('disconnected')
-                on_good_message = 'connection restored'
+                log_error("disconnected")
+                on_good_message = "connection restored"
             except ConnectionResetError:
-                log_error('connection reset')
-                on_good_message = 'connection restored'
+                log_error("connection reset")
+                on_good_message = "connection restored"
             except aiohttp.ClientConnectionError:
-                log_error('connection problem - check your daemon is running')
-                on_good_message = 'connection restored'
+                log_error("connection problem - check your daemon is running")
+                on_good_message = "connection restored"
             except aiohttp.ClientError as e:
-                log_error(f'daemon error: {e}')
-                on_good_message = 'running normally'
+                log_error(f"daemon error: {e}")
+                on_good_message = "running normally"
             except ServiceRefusedError as e:
-                log_error(f'daemon service refused: {e}')
-                on_good_message = 'running normally'
+                log_error(f"daemon service refused: {e}")
+                on_good_message = "running normally"
             except WarmingUpError:
-                log_error('starting up checking blocks')
-                on_good_message = 'running normally'
+                log_error("starting up checking blocks")
+                on_good_message = "running normally"
 
             await asyncio.sleep(retry)
             retry = max(min(self.max_retry, retry * 2), self.init_retry)
@@ -187,16 +192,16 @@ class Daemon:
         """Send a single request to the daemon."""
 
         def processor(result):
-            err = result['error']
+            err = result["error"]
             if not err:
-                return result['result']
-            if err.get('code') == self.WARMING_UP:
+                return result["result"]
+            if err.get("code") == self.WARMING_UP:
                 raise WarmingUpError
             raise DaemonError(err)
 
-        payload = {'method': method, 'id': next(self.id_counter)}
+        payload = {"method": method, "id": next(self.id_counter)}
         if params:
-            payload['params'] = params
+            payload["params"] = params
         return await self._send(payload, processor)
 
     async def _send_vector(self, method, params_iterable, replace_errs=False):
@@ -207,15 +212,14 @@ class Daemon:
         otherwise an exception is raised."""
 
         def processor(result):
-            errs = [item['error'] for item in result if item['error']]
-            if any(err.get('code') == self.WARMING_UP for err in errs):
+            errs = [item["error"] for item in result if item["error"]]
+            if any(err.get("code") == self.WARMING_UP for err in errs):
                 raise WarmingUpError
             if not errs or replace_errs:
-                return [item['result'] for item in result]
+                return [item["result"] for item in result]
             raise DaemonError(errs)
 
-        payload = [{'method': method, 'params': p, 'id': next(self.id_counter)}
-                   for p in params_iterable]
+        payload = [{"method": method, "params": p, "id": next(self.id_counter)} for p in params_iterable]
         if payload:
             return await self._send(payload, processor)
         return []
@@ -240,22 +244,22 @@ class Daemon:
     async def block_hex_hashes(self, first, count):
         """Return the hex hashes of count block starting at height first."""
         params_iterable = ((h,) for h in range(first, first + count))
-        return await self._send_vector('getblockhash', params_iterable)
+        return await self._send_vector("getblockhash", params_iterable)
 
     async def deserialised_block(self, hex_hash):
         """Return the deserialised block with the given hex hash."""
-        return await self._send_single('getblock', (hex_hash, True))
+        return await self._send_single("getblock", (hex_hash, True))
 
     async def raw_blocks(self, hex_hashes):
         """Return the raw binary blocks with the given hex hashes."""
         params_iterable = ((h, False) for h in hex_hashes)
-        blocks = await self._send_vector('getblock', params_iterable)
+        blocks = await self._send_vector("getblock", params_iterable)
         # Convert hex string to bytes
         return [hex_to_bytes(block) for block in blocks]
 
     async def mempool_hashes(self):
         """Update our record of the daemon's mempool hashes."""
-        return await self._send_single('getrawmempool')
+        return await self._send_single("getrawmempool")
 
     async def estimatefee(self, block_count, estimate_mode=None):
         """Return the fee estimate for the block count.  Units are whole
@@ -266,10 +270,10 @@ class Daemon:
             args = (block_count, estimate_mode)
         else:
             args = (block_count,)
-        if await self._is_rpc_available('estimatesmartfee'):
-            estimate = await self._send_single('estimatesmartfee', args)
-            return estimate.get('feerate', -1)
-        return await self._send_single('estimatefee', args)
+        if await self._is_rpc_available("estimatesmartfee"):
+            estimate = await self._send_single("estimatesmartfee", args)
+            return estimate.get("feerate", -1)
+        return await self._send_single("estimatefee", args)
 
     async def getnetworkinfo(self):
         """Return the result of the 'getnetworkinfo' RPC call."""
@@ -277,7 +281,7 @@ class Daemon:
             cache_val, cache_time = self._networkinfo_cache
             if time.time() - cache_time < 60:  # seconds
                 return cache_val
-            val = await self._send_single('getnetworkinfo')
+            val = await self._send_single("getnetworkinfo")
             self._networkinfo_cache = (val, time.time())
             return val
 
@@ -285,31 +289,29 @@ class Daemon:
         """The minimum fee a low-priority tx must pay in order to be accepted
         to the daemon's memory pool."""
         network_info = await self.getnetworkinfo()
-        return network_info['relayfee']
+        return network_info["relayfee"]
 
     async def getrawtransaction(self, hex_hash, verbose=False):
         """Return the serialized raw transaction with the given hash."""
         # Cast to int because some coin daemons are old and require it
-        return await self._send_single('getrawtransaction',
-                                       (hex_hash, int(verbose)))
+        return await self._send_single("getrawtransaction", (hex_hash, int(verbose)))
 
     async def getrawtransactions(self, hex_hashes, replace_errs=True):
         """Return the serialized raw transactions with the given hashes.
 
         Replaces errors with None by default."""
         params_iterable = ((hex_hash, 0) for hex_hash in hex_hashes)
-        txs = await self._send_vector('getrawtransaction', params_iterable,
-                                      replace_errs=replace_errs)
+        txs = await self._send_vector("getrawtransaction", params_iterable, replace_errs=replace_errs)
         # Convert hex strings to bytes
         return [hex_to_bytes(tx) if tx else None for tx in txs]
 
     async def broadcast_transaction(self, raw_tx):
         """Broadcast a transaction to the network."""
-        return await self._send_single('sendrawtransaction', (raw_tx,))
+        return await self._send_single("sendrawtransaction", (raw_tx,))
 
     async def height(self):
         """Query the daemon for its current height."""
-        self._height = await self._send_single('getblockcount')
+        self._height = await self._send_single("getblockcount")
         return self._height
         # return self.coin.ATOMICALS_ACTIVATION_HEIGHT - 1
 
@@ -322,18 +324,17 @@ class Daemon:
 
 
 class DashDaemon(Daemon):
-
     async def masternode_broadcast(self, params):
         """Broadcast a transaction to the network."""
-        return await self._send_single('masternodebroadcast', params)
+        return await self._send_single("masternodebroadcast", params)
 
     async def masternode_list(self, params):
         """Return the masternode status."""
-        return await self._send_single('masternodelist', params)
+        return await self._send_single("masternodelist", params)
 
     async def protx(self, params):
         """Set of commands to execute ProTx related actions."""
-        return await self._send_single('protx', params)
+        return await self._send_single("protx", params)
 
 
 class FakeEstimateFeeDaemon(Daemon):
@@ -362,7 +363,7 @@ class LegacyRPCDaemon(Daemon):
     async def raw_blocks(self, hex_hashes):
         """Return the raw binary blocks with the given hex hashes."""
         params_iterable = ((h,) for h in hex_hashes)
-        block_info = await self._send_vector('getblock', params_iterable)
+        block_info = await self._send_vector("getblock", params_iterable)
 
         blocks = []
         for i in block_info:
@@ -373,17 +374,19 @@ class LegacyRPCDaemon(Daemon):
         return blocks
 
     async def make_raw_header(self, b):
-        pbh = b.get('previousblockhash')
+        pbh = b.get("previousblockhash")
         if pbh is None:
-            pbh = '0' * 64
-        return b''.join([
-            pack('<L', b.get('version')),
-            hex_str_to_hash(pbh),
-            hex_str_to_hash(b.get('merkleroot')),
-            pack('<L', self.timestamp_safe(b['time'])),
-            pack('<L', int(b.get('bits'), 16)),
-            pack('<L', int(b.get('nonce')))
-        ])
+            pbh = "0" * 64
+        return b"".join(
+            [
+                pack("<L", b.get("version")),
+                hex_str_to_hash(pbh),
+                hex_str_to_hash(b.get("merkleroot")),
+                pack("<L", self.timestamp_safe(b["time"])),
+                pack("<L", int(b.get("bits"), 16)),
+                pack("<L", int(b.get("nonce"))),
+            ]
+        )
 
     async def make_raw_block(self, b):
         """Construct a raw block"""
@@ -391,16 +394,16 @@ class LegacyRPCDaemon(Daemon):
         header = await self.make_raw_header(b)
 
         transactions = []
-        if b.get('height') > 0:
-            transactions = await self.getrawtransactions(b.get('tx'), False)
+        if b.get("height") > 0:
+            transactions = await self.getrawtransactions(b.get("tx"), False)
 
         raw_block = header
         num_txs = len(transactions)
         if num_txs > 0:
             raw_block += pack_varint(num_txs)
-            raw_block += b''.join(transactions)
+            raw_block += b"".join(transactions)
         else:
-            raw_block += b'\x00'
+            raw_block += b"\x00"
 
         return raw_block
 
@@ -419,7 +422,7 @@ class DecredDaemon(Daemon):
         """Return the raw binary blocks with the given hex hashes."""
 
         params_iterable = ((h, False) for h in hex_hashes)
-        blocks = await self._send_vector('getblock', params_iterable)
+        blocks = await self._send_vector("getblock", params_iterable)
 
         raw_blocks = []
         valid_tx_tree = {}
@@ -438,19 +441,18 @@ class DecredDaemon(Daemon):
                 is_valid = valid_tx_tree[hash]
             else:
                 # Do something complicated to figure out if this block is valid
-                header = await self._send_single('getblockheader', (hash,))
-                if 'nextblockhash' not in header:
-                    raise DaemonError(f'Could not find next block for {hash}')
-                next_hash = header['nextblockhash']
-                next_header = await self._send_single('getblockheader',
-                                                      (next_hash,))
-                is_valid = self.is_valid_tx_tree(next_header['votebits'])
+                header = await self._send_single("getblockheader", (hash,))
+                if "nextblockhash" not in header:
+                    raise DaemonError(f"Could not find next block for {hash}")
+                next_hash = header["nextblockhash"]
+                next_header = await self._send_single("getblockheader", (next_hash,))
+                is_valid = self.is_valid_tx_tree(next_header["votebits"])
 
             if is_valid:
                 processed_raw_blocks.append(raw_block)
             else:
                 # If this block is invalid remove the normal transactions
-                self.logger.info(f'block {hash} is invalidated')
+                self.logger.info(f"block {hash} is invalidated")
                 processed_raw_blocks.append(self.strip_tx_tree(raw_block))
 
         return processed_raw_blocks
@@ -470,7 +472,7 @@ class DecredDaemon(Daemon):
         d = c.DESERIALIZER(raw_block, start=c.BASIC_HEADER_SIZE)
         d.read_tx_tree()  # Skip normal transactions
         # Create a fake block without any normal transactions
-        return raw_block[:c.BASIC_HEADER_SIZE] + b'\x00' + raw_block[d.cursor:]
+        return raw_block[: c.BASIC_HEADER_SIZE] + b"\x00" + raw_block[d.cursor :]
 
     async def height(self):
         height = await super().height()
@@ -483,13 +485,13 @@ class DecredDaemon(Daemon):
     async def mempool_hashes(self):
         mempool = await super().mempool_hashes()
         # Add current tip transactions to the 'fake' mempool.
-        real_height = await self._send_single('getblockcount')
-        tip_hash = await self._send_single('getblockhash', (real_height,))
+        real_height = await self._send_single("getblockcount")
+        tip_hash = await self._send_single("getblockhash", (real_height,))
         tip = await self.deserialised_block(tip_hash)
         # Add normal transactions except coinbase
-        mempool += tip['tx'][1:]
+        mempool += tip["tx"][1:]
         # Add stake transactions if applicable
-        mempool += tip.get('stx', [])
+        mempool += tip.get("stx", [])
         return mempool
 
     def connector(self):
@@ -506,48 +508,44 @@ class PreLegacyRPCDaemon(LegacyRPCDaemon):
 
     async def deserialised_block(self, hex_hash):
         """Return the deserialised block with the given hex hash."""
-        return await self._send_single('getblock', (hex_hash, False))
+        return await self._send_single("getblock", (hex_hash, False))
 
 
 class SmartCashDaemon(Daemon):
-
     async def masternode_broadcast(self, params):
         """Broadcast a smartnode to the network."""
-        return await self._send_single('smartnodebroadcast', params)
+        return await self._send_single("smartnodebroadcast", params)
 
     async def masternode_list(self, params):
         """Return the smartnode status."""
-        return await self._send_single('smartnodelist', params)
+        return await self._send_single("smartnodelist", params)
 
     async def smartrewards(self, params):
         """Return smartrewards data."""
-        return await self._send_single('smartrewards', params)
+        return await self._send_single("smartrewards", params)
 
 
 class ZcoinMtpDaemon(Daemon):
-
     def strip_mtp_data(self, raw_block):
         if self.coin.is_mtp(raw_block):
-            return \
-                    raw_block[:self.coin.MTP_HEADER_DATA_START * 2] + \
-                    raw_block[self.coin.MTP_HEADER_DATA_END * 2:]
+            return raw_block[: self.coin.MTP_HEADER_DATA_START * 2] + raw_block[self.coin.MTP_HEADER_DATA_END * 2 :]
         return raw_block
 
     async def raw_blocks(self, hex_hashes):
         """Return the raw binary blocks with the given hex hashes."""
         params_iterable = ((h, False) for h in hex_hashes)
-        blocks = await self._send_vector('getblock', params_iterable)
+        blocks = await self._send_vector("getblock", params_iterable)
         # Convert hex string to bytes
         return [hex_to_bytes(self.strip_mtp_data(block)) for block in blocks]
 
     async def masternode_broadcast(self, params):
         """Broadcast a transaction to the network."""
-        return await self._send_single('znodebroadcast', params)
+        return await self._send_single("znodebroadcast", params)
 
     async def masternode_list(self, params):
         """Return the masternode status."""
-        return await self._send_single('znodelist', params)
+        return await self._send_single("znodelist", params)
 
     async def protx(self, params):
         """Set of commands to execute ProTx related actions."""
-        return await self._send_single('protx', params)
+        return await self._send_single("protx", params)
