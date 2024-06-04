@@ -1096,7 +1096,7 @@ class SessionManager:
             return result
 
         def make_transfer_outputs(result, outputs: Dict) -> Dict[int, List[Dict]]:
-            for k, v in outputs:
+            for k, v in outputs.items():
                 for _atomical_id, _output in v["atomicals"].items():
                     _compact_atomical_id = location_id_bytes_to_compact(_atomical_id)
                     _data = {
