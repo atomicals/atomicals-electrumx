@@ -1095,8 +1095,8 @@ class SessionManager:
                         result[_i.txin_index].append(_data)
             return result
 
-        async def make_transfer_outputs(result, output: Dict) -> Dict[int, List[Dict]]:
-            for k, v in blueprint_builder.ft_output_blueprint.outputs.items():
+        async def make_transfer_outputs(result, outputs: Dict) -> Dict[int, List[Dict]]:
+            for k, v in outputs:
                 for _atomical_id, _output in v["atomicals"].items():
                     _compact_atomical_id = location_id_bytes_to_compact(_atomical_id)
                     _data = {
