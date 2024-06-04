@@ -480,15 +480,18 @@ class AtomicalsTransferBlueprintBuilder:
             remaining_value = atomical_info.atomical_value
             for out_idx, txout in enumerate(tx.outputs):
                 compact_atomical_id = location_id_bytes_to_compact(atomical_id)
-                compact_atomical_id_data = operations_found_at_inputs["payload"].get(compact_atomical_id, {})
-                expected_value = compact_atomical_id_data.get(str(out_idx), 0)
+                compact_atomical_id_data = {
+                    int(k): v
+                    for k, v in operations_found_at_inputs.get("payload", {}).get(compact_atomical_id, {}).items()
+                }
+                expected_value = compact_atomical_id_data.get(out_idx, 0)
                 if expected_value <= 0 or remaining_value <= 0:
                     continue
                 # if payload try to color two or more outputs, it will try to color output 0.
                 if len(compact_atomical_id_data.keys()) > 1:
                     expected_output_index = 0
                 else:
-                    if str(out_idx) not in compact_atomical_id_data.keys():  # if out_idx not in payload keys, skip
+                    if out_idx not in compact_atomical_id_data.keys():  # if out_idx not in payload keys, skip
                         continue
                     expected_output_index = out_idx
                 if not output_colored_map.get(expected_output_index):
@@ -573,11 +576,11 @@ class AtomicalsTransferBlueprintBuilder:
             for out_idx, txout in enumerate(tx.outputs):
                 expected_output_index = out_idx
                 compact_atomical_id = location_id_bytes_to_compact(atomical_id)
-                expected_value = (
-                    operations_found_at_inputs["payload"]
-                    .get(compact_atomical_id, {})
-                    .get(str(expected_output_index), 0)
-                )
+                compact_atomical_id_data = {
+                    int(k): v
+                    for k, v in operations_found_at_inputs.get("payload", {}).get(compact_atomical_id, {}).items()
+                }
+                expected_value = compact_atomical_id_data.get(expected_output_index, 0)
                 # if expected_value <= 0, ft will burn
                 if expected_value <= 0 or remaining_value <= 0:
                     continue
