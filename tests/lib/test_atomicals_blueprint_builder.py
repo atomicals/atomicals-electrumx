@@ -1617,7 +1617,7 @@ def test_custom_colored_nft_normal():
     operation_found_at_inputs = parse_protocols_operations_from_witness_array(tx, tx_hash, True)
     # try to custom nft to output 1
     operation_found_at_inputs["payload"]["6787f39b5d2fc020eb0f8e68cd925f297065c5c82c86d175cce1a9beaa411239i0"] = {
-        "1": 546
+        1: 546
     }
     atomicals_spent_at_inputs = {
         0: [
