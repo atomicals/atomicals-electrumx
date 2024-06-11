@@ -979,12 +979,9 @@ class SharedSession(object):
     async def transaction_decode_tx(self, tx: str):
         raw_tx = bytes.fromhex(tx)
         self.bump_cost(0.25 + len(raw_tx) / 5000)
-        result = self.session_mgr.transaction_decode_raw_tx_blueprint(raw_tx)
-        atomical_ids = result["atomicals"]
-        atomicals = [await self._atomical_id_get(atomical_id) for atomical_id in atomical_ids]
-        result["atomicals"] = atomicals
+        result = await self.session_mgr.transaction_decode_raw_tx_blueprint(raw_tx)
         self.logger.debug(f"transaction_decode: {result}")
-        return {"result": dict(result)}
+        return {"result": result}
 
     async def transaction_get(self, tx_hash, verbose=False):
         """Return the serialized raw transaction given its hash
@@ -1094,15 +1091,7 @@ class SharedSession(object):
 
     # Get atomicals base information from db or placeholder information if mint is still in the mempool and unconfirmed
     async def _atomical_id_get(self, compact_atomical_id):
-        atomical_id = compact_to_location_id_bytes(compact_atomical_id)
-        atomical = await self.bp.get_base_mint_info_rpc_format_by_atomical_id(atomical_id)
-        if atomical:
-            return atomical
-        # Check mempool
-        atomical_in_mempool = await self.mempool.get_atomical_mint(atomical_id)
-        if atomical_in_mempool is None:
-            raise RPCError(BAD_REQUEST, f'"{compact_atomical_id}" is not found')
-        return atomical_in_mempool
+        return await self.session_mgr.atomical_id_get(compact_atomical_id)
 
     async def _atomical_id_get_location(self, compact_atomical_id):
         atomical_id = compact_to_location_id_bytes(compact_atomical_id)
