@@ -837,7 +837,7 @@ class SessionManager:
         )
 
     # Helper method to decode the transaction and returns formatted structure.
-    def transaction_decode_raw_tx_blueprint(self, raw_tx: bytes) -> dict:
+    async def transaction_decode_raw_tx_blueprint(self, raw_tx: bytes) -> dict:
         # Deserialize the transaction
         tx, tx_hash = self.env.coin.DESERIALIZER(raw_tx, 0).read_tx_and_hash()
         cache_res = self._tx_decode_cache.get(tx_hash)
@@ -950,7 +950,7 @@ class SessionManager:
                 "atomical_id": location_id_bytes_to_compact(payment_id),
                 "payment_marker_idx": payment_idx,
             }
-        ret["atomicals"] = atomicals
+        ret["atomicals"] = [await self.atomical_id_get(atomical_id) for atomical_id in atomicals]
         ret["inputs"] = inputs
         ret["outputs"] = outputs
         ret["payment"] = payment_info
@@ -1174,6 +1174,18 @@ class SessionManager:
             "limit": limit,
             "offset": offset,
         }
+
+    # Get atomicals base information from db or placeholder information if mint is still in the mempool and unconfirmed
+    async def atomical_id_get(self, compact_atomical_id):
+        atomical_id = compact_to_location_id_bytes(compact_atomical_id)
+        atomical = await self.bp.get_base_mint_info_rpc_format_by_atomical_id(atomical_id)
+        if atomical:
+            return atomical
+        # Check mempool
+        atomical_in_mempool = await self.mempool.get_atomical_mint(atomical_id)
+        if atomical_in_mempool is None:
+            raise RPCError(BAD_REQUEST, f'"{compact_atomical_id}" is not found')
+        return atomical_in_mempool
 
     async def _notify_sessions(self, height, touched):
         """Notify sessions about height changes and touched addresses."""
