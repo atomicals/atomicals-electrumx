@@ -1247,12 +1247,45 @@ def is_op_return_dmitem_payment_marker_atomical_id(script):
     return script[start_index + 5 + 2 + 1 : start_index + 5 + 2 + 1 + 36]
 
 
+def parse_atomicals_operations_from_tap_leafs(scripts, allow_args_bytes: bool):
+    # All inputs are parsed but further upstream most operations will only function if placed in the 0'th input
+    op_name, payload, index = parse_protocols_operations_from_witness_for_input(scripts)
+    if not op_name:
+        return None
+    decoded_object = {}
+    if payload:
+        # Ensure that the payload is cbor encoded dictionary or empty
+        try:
+            decoded_object = loads(payload)
+            if not isinstance(decoded_object, dict):
+                return None
+        except Exception as e:
+            return None
+        # Also enforce that if there are meta, args, or ctx fields that they must be dicts
+        # This is done to ensure that these fields are always easily parseable and do not contain unexpected data
+        # which could cause parsing problems later.
+        # Ensure that they are not allowed to contain bytes like objects
+        if (
+            not is_sanitized_dict_whitelist_only(decoded_object.get("meta", {}))
+            or not is_sanitized_dict_whitelist_only(decoded_object.get("args", {}), allow_args_bytes)
+            or not is_sanitized_dict_whitelist_only(decoded_object.get("ctx", {}))
+            or not is_sanitized_dict_whitelist_only(decoded_object.get("init", {}), True)
+        ):
+            return None
+        return {
+            "op": op_name,
+            "payload": decoded_object,
+            "input_index": index,
+        }
+    return None
+
+
 # Parses and detects valid Atomicals protocol operations in a witness script
 # Stops when it finds the first operation in the first input
 def parse_protocols_operations_from_witness_for_input(txinwitness):
     """Detect and parse all operations across the witness input arrays from a tx"""
     atomical_operation_type_map = {}
-    for script in txinwitness:
+    for i, script in enumerate(txinwitness):
         n = 0
         script_entry_len = len(script)
         if script_entry_len < 39 or script[0] != 0x20:
@@ -1274,13 +1307,13 @@ def parse_protocols_operations_from_witness_for_input(txinwitness):
                             # Parse to ensure it is in the right format
                             operation_type, payload = parse_operation_from_script(script, n + 5)
                             if operation_type is not None:
-                                return operation_type, payload
+                                return operation_type, payload, i
                             break
                 if found_operation_definition:
                     break
             else:
                 break
-    return None, None
+    return None, None, None
 
 
 # Parses and detects the witness script array and detects the Atomicals operations
@@ -1291,7 +1324,7 @@ def parse_protocols_operations_from_witness_array(tx, tx_hash, allow_args_bytes)
     txin_idx = 0
     for txinwitness in tx.witness:
         # All inputs are parsed but further upstream most operations will only function if placed in the 0'th input
-        op_name, payload = parse_protocols_operations_from_witness_for_input(txinwitness)
+        op_name, payload, _ = parse_protocols_operations_from_witness_for_input(txinwitness)
         if not op_name:
             continue
         decoded_object = {}

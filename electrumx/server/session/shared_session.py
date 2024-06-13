@@ -7,8 +7,8 @@ from aiorpcx import RPCError
 
 from electrumx.lib import util
 from electrumx.lib.atomicals_blueprint_builder import AtomicalsValidationError
+from electrumx.lib.psbt import parse_psbt_hex_and_operations
 from electrumx.lib.script2addr import get_address_from_output_script
-from electrumx.lib.tx import psbt_hex_to_tx_hex
 from electrumx.lib.util_atomicals import *
 from electrumx.server.daemon import DaemonError
 from electrumx.server.session import ATOMICALS_INVALID_TX, BAD_REQUEST
@@ -964,7 +964,7 @@ class SharedSession(object):
             return hex_hash
 
     def transaction_validate_psbt_blueprint(self, psbt_hex: str):
-        raw_tx = psbt_hex_to_tx_hex(psbt_hex)
+        raw_tx, _ = parse_psbt_hex_and_operations(psbt_hex)
         return self.transaction_validate_tx_blueprint(raw_tx)
 
     def transaction_validate_tx_blueprint(self, raw_tx: str):
@@ -973,13 +973,16 @@ class SharedSession(object):
         return {"result": dict(result)}
 
     async def transaction_decode_psbt(self, psbt_hex: str):
-        tx = psbt_hex_to_tx_hex(psbt_hex)
-        return await self.transaction_decode_tx(tx)
+        tx, tap_leafs = parse_psbt_hex_and_operations(psbt_hex)
+        return await self._transaction_decode(tx, tap_leafs)
 
     async def transaction_decode_tx(self, tx: str):
+        return await self._transaction_decode(tx)
+
+    async def _transaction_decode(self, tx: str, tap_leafs=None):
         raw_tx = bytes.fromhex(tx)
         self.bump_cost(0.25 + len(raw_tx) / 5000)
-        result = await self.session_mgr.transaction_decode_raw_tx_blueprint(raw_tx)
+        result = await self.session_mgr.transaction_decode_raw_tx_blueprint(raw_tx, tap_leafs)
         self.logger.debug(f"transaction_decode: {result}")
         return {"result": result}
 

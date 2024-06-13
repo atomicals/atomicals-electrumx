@@ -1,5 +1,6 @@
 import bitcointx.core.psbt as psbt
 
+import electrumx.lib.psbt as psbt_lib
 import electrumx.lib.tx as tx_lib
 
 tests = [
@@ -74,7 +75,7 @@ def test_psbt_parse():
         "c5f5be0001012ba086010000000000225120bf3b636c6e2727c374ee2cf87d3c44515c27c5c771c9a81aa6eee938ef6a6f8e0117208e4a"
         "17bed47864479d5259371382debdb949c03185c1ac6603eb4946cd7da3f30000000000000000000000"
     )
-    decoded = tx_lib.psbt_hex_to_tx_hex(psbt_hex)
+    decoded, operations = psbt_lib.parse_psbt_hex_and_operations(psbt_hex)
     expected_tx = (
         psbt.PartiallySignedTransaction.from_base64_or_binary(
             bytes.fromhex(psbt_hex),

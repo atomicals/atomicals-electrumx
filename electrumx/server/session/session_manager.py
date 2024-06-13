@@ -837,7 +837,11 @@ class SessionManager:
         )
 
     # Helper method to decode the transaction and returns formatted structure.
-    async def transaction_decode_raw_tx_blueprint(self, raw_tx: bytes) -> dict:
+    async def transaction_decode_raw_tx_blueprint(
+        self,
+        raw_tx: bytes,
+        tap_leafs: Optional[List[bytes]],
+    ) -> dict:
         # Deserialize the transaction
         tx, tx_hash = self.env.coin.DESERIALIZER(raw_tx, 0).read_tx_and_hash()
         cache_res = self._tx_decode_cache.get(tx_hash)
@@ -848,7 +852,10 @@ class SessionManager:
             return cache_res
 
         # Determine if there are any other operations at the transfer
-        operations_found_at_inputs = parse_protocols_operations_from_witness_array(tx, tx_hash, True)
+        if tap_leafs:
+            found_operations = parse_atomicals_operations_from_tap_leafs(tap_leafs, True)
+        else:
+            found_operations = parse_protocols_operations_from_witness_array(tx, tx_hash, True)
         # Build the map of the atomicals potential spent at the tx
         atomicals_spent_at_inputs: Dict[int:List] = self.bp.build_atomicals_spent_at_inputs_for_validation_only(tx)
         # Build a structure of organizing into NFT and FTs
@@ -857,7 +864,7 @@ class SessionManager:
         blueprint_builder = AtomicalsTransferBlueprintBuilder(
             self.logger,
             atomicals_spent_at_inputs,
-            operations_found_at_inputs,
+            found_operations,
             tx_hash,
             tx,
             self.bp.get_atomicals_id_mint_info,
@@ -870,15 +877,16 @@ class SessionManager:
         encoded_spent_at_inputs = encode_atomical_ids_hex(atomicals_spent_at_inputs)
         encoded_ft_output_blueprint: Dict[str, Dict] = dict(encode_atomical_ids_hex(ft_output_blueprint))
         encoded_nft_output_blueprint: Dict[str, Dict] = dict(encode_atomical_ids_hex(nft_output_blueprint))
-        op = operations_found_at_inputs.get("op") or "transfer"
-        payload = operations_found_at_inputs.get("payload")
+        op = found_operations.get("op") or "transfer"
+        burned = {
+            **auto_encode_bytes_items(encoded_ft_output_blueprint["fts_burned"]),
+            **auto_encode_bytes_items(encoded_nft_output_blueprint["nfts_burned"]),
+        }
         ret = {
             "op": [op],
-            "burned": {
-                **auto_encode_bytes_items(encoded_ft_output_blueprint["fts_burned"]),
-                **auto_encode_bytes_items(encoded_nft_output_blueprint["nfts_burned"]),
-            },
+            "burned": dict(sorted(burned.items())),
         }
+        payload = found_operations.get("payload")
         if payload:
             ret["op_payload"] = payload
         atomicals = []
@@ -905,7 +913,7 @@ class SessionManager:
                 if not outputs.get(k3):
                     outputs[k3] = {}
                 outputs[k3][atomical_id] = item3.atomical_value
-        mint_info = {}
+        mint_info: Dict | None = None
         if blueprint_builder.is_mint:
             if op in ["dmt", "ft"]:
                 tx_out = tx.outputs[0]
@@ -915,7 +923,6 @@ class SessionManager:
                 mint_info = {
                     "atomical_id": atomical_id,
                     "outputs": {
-                        "atomical_id": atomical_id,
                         "index": 0,
                         "value": tx_out.value,
                     },
@@ -927,7 +934,6 @@ class SessionManager:
                 mint_info = {
                     "atomical_id": atomical_id,
                     "outputs": {
-                        "atomical_id": atomical_id,
                         "index": 0,
                         "value": tx_out.value,
                     },
@@ -939,7 +945,7 @@ class SessionManager:
             if not outputs.get(index):
                 outputs[index] = {}
             outputs[index][atomical_id] = value
-        payment_info = {}
+        payment_info: Dict | None = None
         (
             payment_id,
             payment_idx,
@@ -951,8 +957,8 @@ class SessionManager:
                 "payment_marker_idx": payment_idx,
             }
         ret["atomicals"] = [await self.atomical_id_get(atomical_id) for atomical_id in atomicals]
-        ret["inputs"] = inputs
-        ret["outputs"] = outputs
+        ret["inputs"] = dict(sorted(inputs.items()))
+        ret["outputs"] = dict(sorted(outputs.items()))
         ret["payment"] = payment_info
         self._tx_decode_cache[tx_hash] = ret
         return ret
