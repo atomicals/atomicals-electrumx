@@ -4398,7 +4398,7 @@ class BlockProcessor:
         """
         # Fast track is it being in the cache
         idx_packed = pack_le_uint32(tx_idx)
-        cache_value: bytes | None = self.utxo_cache.pop(tx_hash + idx_packed, None)
+        cache_value: Optional[bytes] = self.utxo_cache.pop(tx_hash + idx_packed, None)
         if cache_value:
             return cache_value
 

@@ -13,7 +13,7 @@ import itertools
 import time
 from calendar import timegm
 from struct import pack
-from typing import TYPE_CHECKING, Type, Union
+from typing import TYPE_CHECKING, Optional, Type, Union
 
 import aiohttp
 from aiorpcx import JSONRPC
@@ -67,7 +67,7 @@ class Daemon:
         self.url_index = None
         self.urls = []
         self.set_url(url)
-        self.proxy_url: str | None = proxy_url
+        self.proxy_url = proxy_url
         if proxy_url:
             self.logger.info(f"Using proxy {proxy_url} for daemon.")
         # Limit concurrent RPC calls to this number.
@@ -77,7 +77,7 @@ class Daemon:
         self.max_retry = max_retry
         self._height = None
         self.available_rpcs = {}
-        self.session: aiohttp.ClientSession | None = None
+        self.session: Optional[aiohttp.ClientSession] = None
 
         self._networkinfo_cache = (None, 0)
         self._networkinfo_lock = asyncio.Lock()

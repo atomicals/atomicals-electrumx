@@ -29,6 +29,7 @@
 
 import math
 import re
+from typing import Optional
 
 import krock32
 from cbor2 import CBORTag, dumps, loads
@@ -1317,7 +1318,7 @@ def parse_protocols_operations_from_witness_for_input(txinwitness):
 
 
 # Parses and detects the witness script array and detects the Atomicals operations
-def parse_protocols_operations_from_witness_array(tx, tx_hash, allow_args_bytes) -> dict | None:
+def parse_protocols_operations_from_witness_array(tx, tx_hash, allow_args_bytes) -> Optional[dict]:
     """Detect and parse all operations of atomicals across the witness input arrays (inputs 0 and 1) from a tx"""
     if not hasattr(tx, "witness"):
         return {}
