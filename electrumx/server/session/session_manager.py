@@ -913,7 +913,7 @@ class SessionManager:
                 if not outputs.get(k3):
                     outputs[k3] = {}
                 outputs[k3][atomical_id] = item3.atomical_value
-        mint_info: Dict | None = None
+        mint_info: Optional[Dict] = None
         if blueprint_builder.is_mint:
             if op in ["dmt", "ft"]:
                 tx_out = tx.outputs[0]
@@ -945,7 +945,7 @@ class SessionManager:
             if not outputs.get(index):
                 outputs[index] = {}
             outputs[index][atomical_id] = value
-        payment_info: Dict | None = None
+        payment_info: Optional[Dict] = None
         (
             payment_id,
             payment_idx,
