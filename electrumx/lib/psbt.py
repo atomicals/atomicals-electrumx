@@ -1,12 +1,16 @@
-from typing import Tuple, List
+from typing import List, Tuple
 
-from electrumx.lib.util import unpack_le_uint16_from, unpack_le_uint32_from, unpack_le_uint64_from
+from electrumx.lib.util import (
+    unpack_le_uint16_from,
+    unpack_le_uint32_from,
+    unpack_le_uint64_from,
+)
 
 
 def read_bytes(data, offset, length):
     if offset + length > len(data):
         raise IndexError(f"Offset out of range while reading bytes at offset {offset}")
-    return data[offset:offset + length], offset + length
+    return data[offset : offset + length], offset + length
 
 
 def find_tapleaf_scripts(inputs):

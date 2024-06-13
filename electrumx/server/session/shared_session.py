@@ -1,7 +1,7 @@
 import asyncio
 import datetime
 from logging import LoggerAdapter
-from typing import TYPE_CHECKING, Callable, Union, Optional
+from typing import TYPE_CHECKING, Callable, Optional, Union
 
 from aiorpcx import RPCError
 
