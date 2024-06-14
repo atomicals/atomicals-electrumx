@@ -793,7 +793,7 @@ class AtomicalsTransferBlueprintBuilder:
             #     atomicals_entry['data'][HASHX_LEN + SCRIPTHASH_LEN : HASHX_LEN + SCRIPTHASH_LEN + 8]
             # )
             # exponent, = unpack_le_uint16_from(
-            #     atomicals_entry['data'][HASHX_LEN + SCRIPTHASH_LEN + 8: HASHX_LEN + SCRIPTHASH_LEN + 8 + 2]
+            #     atomicals_entry['data'][HASHX_LEN + SCRIPTHASH_LEN + 8: HASHX_LEN + SCRIPTHASH_LEN + 8 + 8]
             # )
             sat_value = atomicals_entry["data_value"]["sat_value"]
             atomical_value = atomicals_entry["data_value"]["atomical_value"]

@@ -4150,7 +4150,7 @@ class BlockProcessor:
         if atomicals_undo_info is None:
             raise ChainError(f"no atomicals undo information found for height " f"{self.height:,d}")
         m = len(atomicals_undo_info)
-        atomicals_undo_entry_len = ATOMICAL_ID_LEN + ATOMICAL_ID_LEN + HASHX_LEN + SCRIPTHASH_LEN + 8 + 2 + TXNUM_LEN
+        atomicals_undo_entry_len = ATOMICAL_ID_LEN + ATOMICAL_ID_LEN + HASHX_LEN + SCRIPTHASH_LEN + 8 + 8 + TXNUM_LEN
         atomicals_count = m / atomicals_undo_entry_len
         # has_undo_info_for_atomicals = False
         # if m > 0:
