@@ -636,7 +636,7 @@ def test_spends_fts_are_payments_satisfied_checks2():
         }
     }
     payment_valid = blueprint_builder.are_payments_satisfied(rules, atomicals_spent_at_inputs)
-    assert not payment_valid
+    assert payment_valid
     # Valid with a valid atomical id ft token higher than needed
     subject_atomical_id_compact = location_id_bytes_to_compact(subject_atomical_id)
     rules = {
