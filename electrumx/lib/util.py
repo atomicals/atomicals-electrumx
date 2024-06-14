@@ -24,20 +24,18 @@
 # WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE.
 # and warranty status of this software.
 
-'''Miscellaneous utility classes and functions.'''
-
-
-from array import array
-import asyncio
+"""Miscellaneous utility classes and functions."""
 import inspect
-from ipaddress import ip_address
 import logging
 import sys
+from abc import ABC
+from array import array
 from collections.abc import Container, Mapping
+from ipaddress import ip_address
 from struct import Struct
+from typing import Iterable
 
 import aiorpcx
-
 
 # Use system-compiled JSON lib if available, fallback to stdlib
 try:
@@ -51,25 +49,37 @@ except ImportError:
 json_deserialize = json.loads
 json_serialize = json.dumps
 
+
+class IterableReprMixin(Iterable, ABC):
+    """A mixin that makes the class as an iterable and can be formatted while calling the printing method."""
+
+    def __repr__(self):
+        cls_name = self.__class__.__name__
+        attrs = [f"{key}: {value}" for key, value in self]
+        return f'{cls_name}({", ".join(attrs)})'
+
+
 # Logging utilities
 
 
 class ConnectionLogger(logging.LoggerAdapter):
-    '''Prepends a connection identifier to a logging message.'''
+    """Prepends a connection identifier to a logging message."""
+
     def process(self, msg, kwargs):
-        conn_id = self.extra.get('conn_id', 'unknown')
-        return f'[{conn_id}] {msg}', kwargs
+        conn_id = self.extra.get("conn_id", "unknown")
+        return f"[{conn_id}] {msg}", kwargs
 
 
 class CompactFormatter(logging.Formatter):
-    '''Strips the module from the logger name to leave the class only.'''
+    """Strips the module from the logger name to leave the class only."""
+
     def format(self, record):
-        record.name = record.name.rpartition('.')[-1]
+        record.name = record.name.rpartition(".")[-1]
         return super().format(record)
 
 
 def make_logger(name, *, handler, level):
-    '''Return the root ElectrumX logger.'''
+    """Return the root ElectrumX logger."""
     logger = logging.getLogger(name)
     logger.addHandler(handler)
     logger.setLevel(level)
@@ -78,7 +88,7 @@ def make_logger(name, *, handler, level):
 
 
 def class_logger(path, classname):
-    '''Return a hierarchical logger for a class.'''
+    """Return a hierarchical logger for a class."""
     return logging.getLogger(path).getChild(classname)
 
 
@@ -96,11 +106,11 @@ class cachedproperty:
         return value
 
 
-def formatted_time(t, sep=' '):
-    '''Return a number of seconds as a string in days, hours, mins and
-    maybe secs.'''
+def formatted_time(t, sep=" "):
+    """Return a number of seconds as a string in days, hours, mins and
+    maybe secs."""
     t = int(t)
-    fmts = (('{:d}d', 86400), ('{:02d}h', 3600), ('{:02d}m', 60))
+    fmts = (("{:d}d", 86400), ("{:02d}h", 3600), ("{:02d}m", 60))
     parts = []
     for fmt, n in fmts:
         val = t // n
@@ -108,7 +118,7 @@ def formatted_time(t, sep=' '):
             parts.append(fmt.format(val))
         t %= n
     if len(parts) < 3:
-        parts.append(f'{t:02d}s')
+        parts.append(f"{t:02d}s")
     return sep.join(parts)
 
 
@@ -150,19 +160,19 @@ def deep_getsizeof(obj):
 
 
 def subclasses(base_class, strict=True):
-    '''Return a list of subclasses of base_class in its module.'''
+    """Return a list of subclasses of base_class in its module."""
+
     def select(obj):
-        return (inspect.isclass(obj) and issubclass(obj, base_class) and
-                (not strict or obj != base_class))
+        return inspect.isclass(obj) and issubclass(obj, base_class) and (not strict or obj != base_class)
 
     pairs = inspect.getmembers(sys.modules[base_class.__module__], select)
     return [pair[1] for pair in pairs]
 
 
 def chunks(items, size):
-    '''Break up items, an iterable, into chunks of length size.'''
+    """Break up items, an iterable, into chunks of length size."""
     for i in range(0, len(items), size):
-        yield items[i: i + size]
+        yield items[i : i + size]
 
 
 def resolve_limit(limit):
@@ -173,37 +183,37 @@ def resolve_limit(limit):
 
 
 def bytes_to_int(be_bytes):
-    '''Interprets a big-endian sequence of bytes as an integer'''
-    return int.from_bytes(be_bytes, 'big')
+    """Interprets a big-endian sequence of bytes as an integer"""
+    return int.from_bytes(be_bytes, "big")
 
 
 def int_to_bytes(value):
-    '''Converts an integer to a big-endian sequence of bytes'''
-    return value.to_bytes((value.bit_length() + 7) // 8, 'big')
+    """Converts an integer to a big-endian sequence of bytes"""
+    return value.to_bytes((value.bit_length() + 7) // 8, "big")
 
 
 def increment_byte_string(bs):
-    '''Return the lexicographically next byte string of the same length.
+    """Return the lexicographically next byte string of the same length.
 
-    Return None if there is none (when the input is all 0xff bytes).'''
+    Return None if there is none (when the input is all 0xff bytes)."""
     try:
-        return (int.from_bytes(bs, 'big') + 1).to_bytes(len(bs), 'big')
+        return (int.from_bytes(bs, "big") + 1).to_bytes(len(bs), "big")
     except OverflowError:
         return None
 
 
 class LogicalFile:
-    '''A logical binary file split across several separate files on disk.'''
+    """A logical binary file split across several separate files on disk."""
 
     def __init__(self, prefix, digits, file_size):
-        self.filename_fmt = f'{prefix}{{:0{digits:d}d}}'
+        self.filename_fmt = f"{prefix}{{:0{digits:d}d}}"
         self.file_size = file_size
 
     def read(self, start, size=-1):
-        '''Read up to size bytes from the virtual file, starting at offset
+        """Read up to size bytes from the virtual file, starting at offset
         start, and return them.
 
-        If size is -1 all bytes are read.'''
+        If size is -1 all bytes are read."""
         parts = []
         while size != 0:
             try:
@@ -217,10 +227,10 @@ class LogicalFile:
             start += len(part)
             if size > 0:
                 size -= len(part)
-        return b''.join(parts)
+        return b"".join(parts)
 
     def write(self, start, b):
-        '''Write the bytes-like object, b, to the underlying virtual file.'''
+        """Write the bytes-like object, b, to the underlying virtual file."""
         while b:
             size = min(len(b), self.file_size - (start % self.file_size))
             with self.open_file(start, True) as f:
@@ -229,10 +239,10 @@ class LogicalFile:
             start += size
 
     def open_file(self, start, create):
-        '''Open the virtual file and seek to start.  Return a file handle.
+        """Open the virtual file and seek to start.  Return a file handle.
         Raise FileNotFoundError if the file does not exist and create
         is False.
-        '''
+        """
         file_num, offset = divmod(start, self.file_size)
         filename = self.filename_fmt.format(file_num)
         f = open_file(filename, create)
@@ -241,22 +251,22 @@ class LogicalFile:
 
 
 def open_file(filename, create=False):
-    '''Open the file name.  Return its handle.'''
+    """Open the file name.  Return its handle."""
     try:
-        return open(filename, 'rb+')
+        return open(filename, "rb+")
     except FileNotFoundError:
         if create:
-            return open(filename, 'wb+')
+            return open(filename, "wb+")
         raise
 
 
 def open_truncate(filename):
-    '''Open the file name.  Return its handle.'''
-    return open(filename, 'wb+')
+    """Open the file name.  Return its handle."""
+    return open(filename, "wb+")
 
 
 def address_string(address):
-    '''Return an address as a correctly formatted string.'''
+    """Return an address as a correctly formatted string."""
     host, port = address
     try:
         host = ip_address(host)
@@ -264,37 +274,37 @@ def address_string(address):
         pass
     else:
         if host.version == 6:
-            return f'[{host}]:{port:d}'
-    return f'{host}:{port:d}'
+            return f"[{host}]:{port:d}"
+    return f"{host}:{port:d}"
 
 
 def protocol_tuple(s):
-    '''Converts a protocol version number, such as "1.0" to a tuple (1, 0).
+    """Converts a protocol version number, such as "1.0" to a tuple (1, 0).
 
-    If the version number is bad, (0, ) indicating version 0 is returned.'''
+    If the version number is bad, (0, ) indicating version 0 is returned."""
     try:
-        return tuple(int(part) for part in s.split('.'))
+        return tuple(int(part) for part in s.split("."))
     except (TypeError, ValueError, AttributeError):
-        return (0, )
+        return (0,)
 
 
 def version_string(ptuple):
-    '''Convert a version tuple such as (1, 2) to "1.2".
-    There is always at least one dot, so (1, ) becomes "1.0".'''
+    """Convert a version tuple such as (1, 2) to "1.2".
+    There is always at least one dot, so (1, ) becomes "1.0"."""
     while len(ptuple) < 2:
-        ptuple += (0, )
-    return '.'.join(str(p) for p in ptuple)
+        ptuple += (0,)
+    return ".".join(str(p) for p in ptuple)
 
 
 def protocol_version(client_req, min_tuple, max_tuple):
-    '''Given a client's protocol version string, return a pair of
+    """Given a client's protocol version string, return a pair of
     protocol tuples:
 
            (negotiated version, client min request)
 
     If the request is unsupported, the negotiated protocol tuple is
     None.
-    '''
+    """
     if client_req is None:
         client_min = client_max = min_tuple
     else:
@@ -306,21 +316,21 @@ def protocol_version(client_req, min_tuple, max_tuple):
         client_max = protocol_tuple(client_max)
 
     result = min(client_max, max_tuple)
-    if result < max(client_min, min_tuple) or result == (0, ):
+    if result < max(client_min, min_tuple) or result == (0,):
         result = None
 
     return result, client_min
 
 
-struct_le_i = Struct('<i')
-struct_le_q = Struct('<q')
-struct_le_H = Struct('<H')
-struct_le_I = Struct('<I')
-struct_le_Q = Struct('<Q')
-struct_be_Q = Struct('>Q')
-struct_be_H = Struct('>H')
-struct_be_I = Struct('>I')
-structB = Struct('B')
+struct_le_i = Struct("<i")
+struct_le_q = Struct("<q")
+struct_le_H = Struct("<H")
+struct_le_I = Struct("<I")
+struct_le_Q = Struct("<Q")
+struct_be_Q = Struct(">Q")
+struct_be_H = Struct(">H")
+struct_be_I = Struct(">I")
+structB = Struct("B")
 
 unpack_le_int32_from = struct_le_i.unpack_from
 unpack_le_int64_from = struct_le_q.unpack_from
@@ -347,6 +357,7 @@ pack_byte = structB.pack
 
 hex_to_bytes = bytes.fromhex
 
+
 def pack_varint(n):
     if n < 253:
         return pack_byte(n)
@@ -356,11 +367,14 @@ def pack_varint(n):
         return pack_byte(254) + pack_le_uint32(n)
     return pack_byte(255) + pack_le_uint64(n)
 
+
 def pack_varbytes(data):
     return pack_varint(len(data)) + data
 
+
 class OldTaskGroup(aiorpcx.TaskGroup):
     """Automatically raises exceptions on join; as in aiorpcx prior to version 0.20"""
+
     async def join(self):
         if self._wait is all:
             exc = False
@@ -387,7 +401,7 @@ class OldTaskGroup(aiorpcx.TaskGroup):
 #       but we are not using them anyway.
 # TODO: this monkey-patch can be removed once we require aiorpcx versions that
 #       have the upstream fix for #46.
-def _patched_TaskGroup_add_task(self: 'aiorpcx.TaskGroup', task):
+def _patched_TaskGroup_add_task(self: "aiorpcx.TaskGroup", task):
     self._orig_add_task(self, task)
     if not hasattr(self, "_retain"):
         self.tasks.clear()
@@ -423,6 +437,7 @@ def _aiorpcx_monkeypatched_set_new_deadline(task, deadline):
         task._orig_cancel(*args, **kwargs)
         task._externally_cancelled = True
         task._timed_out = None
+
     if not hasattr(task, "_orig_cancel"):
         task._orig_cancel = task.cancel
         task.cancel = mycancel

@@ -7,7 +7,7 @@
 # See the file "LICENCE" for information about the copyright
 # and warranty status of this software.
 
-'''Script to compact the history database.  This should save space and
+"""Script to compact the history database.  This should save space and
 will reset the flush counter to a low number, avoiding overflow when
 the flush count reaches 65,536.
 
@@ -29,7 +29,7 @@ Compaction can be interrupted and restarted harmlessly and will pick
 up where it left off.  However, if you restart ElectrumX without
 running the compaction to completion, it will not benefit and
 subsequent compactions will restart from the beginning.
-'''
+"""
 
 import asyncio
 import logging
@@ -38,17 +38,18 @@ import traceback
 from os import environ
 
 from dotenv import load_dotenv
-from electrumx import Env
+
 from electrumx.server.db import DB
+from electrumx.server.env import Env
 
 load_dotenv()
 
 
 async def compact_history():
-    if sys.version_info < (3, 8):
-        raise RuntimeError('Python >= 3.8 is required to run ElectrumX')
+    if sys.version_info < (3, 10):
+        raise RuntimeError("Python >= 3.10 is required to run ElectrumX")
 
-    environ['DAEMON_URL'] = ''   # Avoid Env erroring out
+    environ["DAEMON_URL"] = ""  # Avoid Env erroring out
     env = Env()
     db = DB(env)
     await db.open_for_compacting()
@@ -68,18 +69,19 @@ async def compact_history():
     # When completed also update the UTXO flush count
     db.set_flush_count(history.flush_count)
 
+
 def main():
     logging.basicConfig(level=logging.INFO)
-    logging.info('Starting history compaction...')
+    logging.info("Starting history compaction...")
     loop = asyncio.get_event_loop()
     try:
         loop.run_until_complete(compact_history())
     except Exception:
         traceback.print_exc()
-        logging.critical('History compaction terminated abnormally')
+        logging.critical("History compaction terminated abnormally")
     else:
-        logging.info('History compaction complete')
+        logging.info("History compaction complete")
 
 
-if __name__ == '__main__':
+if __name__ == "__main__":
     main()

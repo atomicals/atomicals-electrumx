@@ -1,4 +1,4 @@
-requests==2.31.0
+requests>=2.32.0,<2.33
 pycodestyle
 pytest-asyncio
 pytest-cov
@@ -20,3 +20,5 @@ git+https://github.com/VerusCoin/verushashpy
 bell-yespower
 cpupower
 bitweb_yespower==1.0.5
+python-bitcointx==1.1.5
+secp256k1==0.14.0

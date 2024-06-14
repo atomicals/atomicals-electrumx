@@ -33,8 +33,7 @@ import pytest
 from electrumx.lib.coins import Coin
 from electrumx.lib.hash import hex_str_to_hash
 
-BLOCKS_DIR = os.path.join(
-    os.path.dirname(os.path.realpath(__file__)), 'blocks')
+BLOCKS_DIR = os.path.join(os.path.dirname(os.path.realpath(__file__)), "blocks")
 
 # Find out which db engines to test
 # Those that are not installed will be skipped
@@ -58,16 +57,14 @@ def block_details(request):
 def test_block(block_details):
     coin, block_info = block_details
 
-    raw_block = unhexlify(block_info['block'])
-    block = coin.block(raw_block, block_info['height'])
+    raw_block = unhexlify(block_info["block"])
+    block = coin.block(raw_block, block_info["height"])
 
     try:
-        assert coin.header_hash(
-            block.header) == hex_str_to_hash(block_info['hash'])
+        assert coin.header_hash(block.header) == hex_str_to_hash(block_info["hash"])
     except ImportError as e:
         pytest.skip(str(e))
-    assert (coin.header_prevhash(block.header)
-            == hex_str_to_hash(block_info['previousblockhash']))
-    assert len(block_info['tx']) == len(block.transactions)
+    assert coin.header_prevhash(block.header) == hex_str_to_hash(block_info["previousblockhash"])
+    assert len(block_info["tx"]) == len(block.transactions)
     for n, (tx, txid) in enumerate(block.transactions):
-        assert txid == hex_str_to_hash(block_info['tx'][n])
+        assert txid == hex_str_to_hash(block_info["tx"][n])

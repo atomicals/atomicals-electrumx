@@ -7,50 +7,54 @@
 # See the file "LICENCE" for information about the copyright
 # and warranty status of this software.
 
-'''Script to kick off the server.'''
+"""Script to kick off the server."""
 
 import asyncio
 import logging
+import logging.handlers
 import os
 import sys
-import logging.handlers
 
 from dotenv import load_dotenv
-from electrumx import Controller, Env
+
 from electrumx.lib.util import CompactFormatter, make_logger
+from electrumx.server.controller import Controller
+from electrumx.server.env import Env
 
 load_dotenv()
 
 
 def main():
-    '''Set up logging and run the server.'''
-    log_fmt = Env.default('LOG_FORMAT', '%(levelname)s:%(name)s:%(message)s')
-    log_level = Env.default('LOG_LEVEL', 'INFO').upper()
-    log_path = Env.default('LOG_PATH', None)
+    """Set up logging and run the server."""
+    log_fmt = Env.default("LOG_FORMAT", "%(levelname)s:%(name)s:%(message)s")
+    log_level = Env.default("LOG_LEVEL", "INFO").upper()
+    log_path = Env.default("LOG_PATH", None)
     if log_path:
-        exist =os.path.exists(log_path)
+        exist = os.path.exists(log_path)
         if not exist:
             os.makedirs(log_path)
         handler = logging.handlers.WatchedFileHandler(log_path + "/electrumx.log")
     else:
         handler = logging.StreamHandler(sys.stdout)
     handler.setFormatter(CompactFormatter(log_fmt))
-    logger = make_logger('electrumx', handler=handler, level=log_level)
+    logger = make_logger("electrumx", handler=handler, level=log_level)
 
-    logger.info('ElectrumX server starting')
+    logger.info("ElectrumX server starting")
     try:
-        if sys.version_info < (3, 8):
-            raise RuntimeError('ElectrumX requires Python 3.8 or greater')
+        if sys.version_info < (3, 10):
+            raise RuntimeError("ElectrumX requires Python 3.10 or greater")
         env = Env()
-        logger.info(f'logging level: {env.log_level}')
+        logger.info(f"logging level: {env.log_level}")
         logger.setLevel(env.log_level)
         controller = Controller(env)
         asyncio.run(controller.run())
-    except Exception:
-        logger.exception('ElectrumX server terminated abnormally')
+    except KeyboardInterrupt:
+        logger.info("ElectrumX server terminated by keyboard interrupt")
+    except Exception as e:
+        logger.exception(f"ElectrumX server terminated abnormally: {e}")
     else:
-        logger.info('ElectrumX server terminated normally')
+        logger.info("ElectrumX server terminated normally")
 
 
-if __name__ == '__main__':
+if __name__ == "__main__":
     main()

@@ -4,17 +4,16 @@ import logging
 import os
 from collections import defaultdict
 from functools import partial
-from random import randrange, choice, seed
+from random import choice, randrange, seed
 
 import pytest
-from aiorpcx import Event, sleep, ignore_after
+from aiorpcx import Event, ignore_after, sleep
 
-from electrumx.server.mempool import MemPool, MemPoolAPI
 from electrumx.lib.coins import BitcoinCash
-from electrumx.lib.hash import HASHX_LEN, hex_str_to_hash, hash_to_hex_str
+from electrumx.lib.hash import HASHX_LEN, hash_to_hex_str, hex_str_to_hash
 from electrumx.lib.tx import Tx, TxInput, TxOutput
 from electrumx.lib.util import OldTaskGroup
-
+from electrumx.server.mempool import MemPool, MemPoolAPI
 
 coin = BitcoinCash
 tx_hash_fn = coin.DESERIALIZER.TX_HASH_FN
@@ -23,9 +22,9 @@ seed(datetime.date.today().toordinal)
 
 
 def random_tx(hash160s, utxos):
-    '''Create a random TX paying to some of the hash160s using some of the
+    """Create a random TX paying to some of the hash160s using some of the
     UTXOS.  Return the TX.  UTXOs is updated for the effects of the TX.
-    '''
+    """
     inputs = []
     n_inputs = min(randrange(1, 4), len(utxos))
     input_value = 0
@@ -33,13 +32,13 @@ def random_tx(hash160s, utxos):
     for n in range(n_inputs):
         prevout = choice(list(utxos))
         hashX, value = utxos.pop(prevout)
-        inputs.append(TxInput(prevout[0], prevout[1], b'', 4294967295))
+        inputs.append(TxInput(prevout[0], prevout[1], b"", 4294967295))
         input_value += value
 
     # Seomtimes add a generation/coinbase like input that is present
     # in some coins
     if randrange(0, 10) == 0:
-        inputs.append(TxInput(bytes(32), 4294967295, b'', 4294967295))
+        inputs.append(TxInput(bytes(32), 4294967295, b"", 4294967295))
 
     fee = min(input_value, randrange(500))
     input_value -= fee
@@ -55,13 +54,11 @@ def random_tx(hash160s, utxos):
     tx_bytes = tx.serialize()
     tx_hash = tx_hash_fn(tx_bytes)
     for n, output in enumerate(tx.outputs):
-        utxos[(tx_hash, n)] = (coin.hashX_from_script(output.pk_script),
-                               output.value)
+        utxos[(tx_hash, n)] = (coin.hashX_from_script(output.pk_script), output.value)
     return tx, tx_hash, tx_bytes
 
 
 class API(MemPoolAPI):
-
     def __init__(self):
         self._height = 0
         self._cached_height = self._db_height = self._height
@@ -80,13 +77,10 @@ class API(MemPoolAPI):
 
     def initialize(self, addr_count=100, db_utxo_count=100, mempool_size=50):
         hash160s = [os.urandom(20) for n in range(addr_count)]
-        self.hashXs = [coin.hash160_to_P2PKH_hashX(hash160)
-                       for hash160 in hash160s]
-        prevouts = [(os.urandom(32), randrange(0, 10))
-                    for n in range (db_utxo_count)]
+        self.hashXs = [coin.hash160_to_P2PKH_hashX(hash160) for hash160 in hash160s]
+        prevouts = [(os.urandom(32), randrange(0, 10)) for n in range(db_utxo_count)]
         random_value = partial(randrange, coin.VALUE_PER_COIN * 10)
-        self.db_utxos = {prevout: (choice(self.hashXs), random_value())
-                         for prevout in prevouts}
+        self.db_utxos = {prevout: (choice(self.hashXs), random_value()) for prevout in prevouts}
 
         unspent_utxos = self.db_utxos.copy()
         for n in range(mempool_size):
@@ -104,9 +98,12 @@ class API(MemPoolAPI):
         return utxos
 
     def mempool_spends(self):
-        return [(input.prev_hash, input.prev_idx)
-                for tx in self.txs.values() for input in tx.inputs
-                if not input.is_generation()]
+        return [
+            (input.prev_hash, input.prev_idx)
+            for tx in self.txs.values()
+            for input in tx.inputs
+            if not input.is_generation()
+        ]
 
     def balance_deltas(self):
         # Return mempool balance deltas indexed by hashX
@@ -211,39 +208,38 @@ class API(MemPoolAPI):
         return self._cached_height
 
     async def mempool_hashes(self):
-        '''Query bitcoind for the hashes of all transactions in its
-        mempool, returned as a list.'''
+        """Query bitcoind for the hashes of all transactions in its
+        mempool, returned as a list."""
         await sleep(0)
         return [hash_to_hex_str(hash) for hash in self.txs]
 
     async def raw_transactions(self, hex_hashes):
-        '''Query bitcoind for the serialized raw transactions with the given
+        """Query bitcoind for the serialized raw transactions with the given
         hashes.  Missing transactions are returned as None.
 
-        hex_hashes is an iterable of hexadecimal hash strings.'''
+        hex_hashes is an iterable of hexadecimal hash strings."""
         await sleep(0)
         hashes = [hex_str_to_hash(hex_hash) for hex_hash in hex_hashes]
         return [self.raw_txs.get(hash) for hash in hashes]
 
     async def lookup_utxos(self, prevouts):
-        '''Return a list of (hashX, value) pairs each prevout if unspent,
+        """Return a list of (hashX, value) pairs each prevout if unspent,
         otherwise return None if spent or not found.
 
         prevouts - an iterable of (hash, index) pairs
-        '''
+        """
         await sleep(0)
         return [self.db_utxos.get(prevout) for prevout in prevouts]
 
     async def on_mempool(self, touched, height):
-        '''Called each time the mempool is synchronized.  touched is a set of
+        """Called each time the mempool is synchronized.  touched is a set of
         hashXs touched since the previous call.  height is the
-        daemon's height at the time the mempool was obtained.'''
+        daemon's height at the time the mempool was obtained."""
         self.on_mempool_calls.append((touched, height))
         await sleep(0)
 
 
 class DropAPI(API):
-
     def __init__(self, drop_count):
         super().__init__()
         self.drop_count = drop_count
@@ -252,7 +248,7 @@ class DropAPI(API):
     async def raw_transactions(self, hex_hashes):
         if not self.dropped:
             self.dropped = True
-            for hash in self.ordered_adds[-self.drop_count:]:
+            for hash in self.ordered_adds[-self.drop_count :]:
                 del self.raw_txs[hash]
                 del self.txs[hash]
         return await super().raw_transactions(hex_hashes)
@@ -273,12 +269,12 @@ async def test_keep_synchronized(caplog):
             await event.wait()
             await group.cancel_remaining()
 
-    assert in_caplog(caplog, 'beginning processing of daemon mempool')
-    assert in_caplog(caplog, 'compact fee histogram')
-    assert in_caplog(caplog, 'synced in ')
-    assert in_caplog(caplog, '0 txs')
-    assert in_caplog(caplog, 'touching 0 addresses')
-    assert not in_caplog(caplog, 'txs dropped')
+    assert in_caplog(caplog, "beginning processing of daemon mempool")
+    assert in_caplog(caplog, "compact fee histogram")
+    assert in_caplog(caplog, "synced in ")
+    assert in_caplog(caplog, "0 txs")
+    assert in_caplog(caplog, "touching 0 addresses")
+    assert not in_caplog(caplog, "txs dropped")
 
 
 @pytest.mark.asyncio
@@ -344,7 +340,15 @@ def test_compress_histogram():
     compact = MemPool._compress_histogram(histogram, bin_size=100_000)
     assert compact == [(19, 78000), (18, 900000), (13, 5000), (12, 10000000)]
     compact = MemPool._compress_histogram(histogram, bin_size=30_000)
-    assert compact == [(22, 1000), (21, 75000), (19, 2000), (18, 900000), (13, 5000), (12, 10000000), (10, 101000)]
+    assert compact == [
+        (22, 1000),
+        (21, 75000),
+        (19, 2000),
+        (18, 900000),
+        (13, 5000),
+        (12, 10000000),
+        (10, 101000),
+    ]
 
     histogram = {
         1.0: 10_000_000,
@@ -386,8 +390,7 @@ async def _test_summaries(mempool, api):
     summaries = api.summaries()
     for hashX in api.hashXs:
         mempool_result = await mempool.transaction_summaries(hashX)
-        mempool_result = [(item.hash, item.fee, item.has_unconfirmed_inputs)
-                          for item in mempool_result]
+        mempool_result = [(item.hash, item.fee, item.has_unconfirmed_inputs) for item in mempool_result]
         our_result = summaries.get(hashX, [])
         assert set(our_result) == set(mempool_result)
 
@@ -410,7 +413,7 @@ async def test_transaction_summaries(caplog):
     assert prior_len == len(mempool.hashXs)
 
     await _test_summaries(mempool, api)
-    assert not in_caplog(caplog, 'txs dropped')
+    assert not in_caplog(caplog, "txs dropped")
 
 
 @pytest.mark.asyncio
@@ -434,10 +437,7 @@ async def test_unordered_UTXOs():
     for hashX in api.hashXs:
         mempool_result = await mempool.unordered_UTXOs(hashX)
         our_result = utxos.get(hashX, [])
-        assert set(our_result) == {
-            dataclasses.astuple(mr)
-            for mr in mempool_result
-        }
+        assert set(our_result) == {dataclasses.astuple(mr) for mr in mempool_result}
 
 
 @pytest.mark.asyncio
@@ -531,10 +531,10 @@ async def test_notifications(caplog):
         api.raw_txs = {hash: raw_txs[hash] for hash in second_hashes}
         api.txs = {hash: txs[hash] for hash in second_hashes}
         # Delay the DB update
-        assert not in_caplog(caplog, 'waiting for DB to sync')
+        assert not in_caplog(caplog, "waiting for DB to sync")
         async with ignore_after(max(mempool.refresh_secs * 2, 0.5)):
             await event.wait()
-        assert in_caplog(caplog, 'waiting for DB to sync')
+        assert in_caplog(caplog, "waiting for DB to sync")
         assert len(api.on_mempool_calls) == 2
         assert not event.is_set()
         assert api._height == api._cached_height == new_height
@@ -569,4 +569,4 @@ async def test_dropped_txs(caplog):
             await event.wait()
             await group.cancel_remaining()
 
-    assert in_caplog(caplog, 'txs dropped')
+    assert in_caplog(caplog, "txs dropped")

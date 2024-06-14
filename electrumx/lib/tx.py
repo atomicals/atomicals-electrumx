@@ -25,19 +25,27 @@
 # WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE.
 # and warranty status of this software.
 
-'''Transaction-related classes and functions.'''
+"""Transaction-related classes and functions."""
 
 from dataclasses import dataclass
 from hashlib import blake2s
 from typing import Sequence
 
-from electrumx.lib.hash import sha256, double_sha256, hash_to_hex_str
+from electrumx.lib.hash import double_sha256, hash_to_hex_str, sha256
 from electrumx.lib.script import OpCodes
 from electrumx.lib.util import (
-    unpack_le_int32_from, unpack_le_int64_from, unpack_le_uint16_from,
+    pack_le_int32,
+    pack_le_int64,
+    pack_le_uint16,
+    pack_le_uint32,
+    pack_varbytes,
+    pack_varint,
     unpack_be_uint16_from,
-    unpack_le_uint32_from, unpack_le_uint64_from, pack_le_int32, pack_varint,
-    pack_le_uint16, pack_le_uint32, pack_le_int64, pack_varbytes,
+    unpack_le_int32_from,
+    unpack_le_int64_from,
+    unpack_le_uint16_from,
+    unpack_le_uint32_from,
+    unpack_le_uint64_from,
 )
 
 ZERO = bytes(32)
@@ -45,35 +53,39 @@ MINUS_1 = 4294967295
 
 
 class SkipTxDeserialize(Exception):
-    '''Exception used to indicate transactions that should be skipped
+    """Exception used to indicate transactions that should be skipped
     on account of certain deserialization issues.
-    '''
+    """
 
 
 @dataclass
 class Tx:
-    '''Class representing a transaction.'''
-    __slots__ = 'version', 'inputs', 'outputs', 'locktime'
+    """Class representing a transaction."""
+
+    __slots__ = "version", "inputs", "outputs", "locktime"
     version: int
-    inputs: Sequence['TxInput']
-    outputs: Sequence['TxOutput']
+    inputs: Sequence["TxInput"]
+    outputs: Sequence["TxOutput"]
     locktime: int
 
     def serialize(self):
-        return b''.join((
-            pack_le_int32(self.version),
-            pack_varint(len(self.inputs)),
-            b''.join(tx_in.serialize() for tx_in in self.inputs),
-            pack_varint(len(self.outputs)),
-            b''.join(tx_out.serialize() for tx_out in self.outputs),
-            pack_le_uint32(self.locktime)
-        ))
+        return b"".join(
+            (
+                pack_le_int32(self.version),
+                pack_varint(len(self.inputs)),
+                b"".join(tx_in.serialize() for tx_in in self.inputs),
+                pack_varint(len(self.outputs)),
+                b"".join(tx_out.serialize() for tx_out in self.outputs),
+                pack_le_uint32(self.locktime),
+            )
+        )
 
 
 @dataclass
 class TxInput:
-    '''Class representing a transaction input.'''
-    __slots__ = 'prev_hash', 'prev_idx', 'script', 'sequence'
+    """Class representing a transaction input."""
+
+    __slots__ = "prev_hash", "prev_idx", "script", "sequence"
     prev_hash: bytes
     prev_idx: int
     script: bytes
@@ -82,44 +94,47 @@ class TxInput:
     def __str__(self):
         script = self.script.hex()
         prev_hash = hash_to_hex_str(self.prev_hash)
-        return (f"Input({prev_hash}, {self.prev_idx:d}, script={script}, "
-                f"sequence={self.sequence:d})")
+        return f"Input({prev_hash}, {self.prev_idx:d}, script={script}, " f"sequence={self.sequence:d})"
 
     def is_generation(self):
-        '''Test if an input is generation/coinbase like'''
+        """Test if an input is generation/coinbase like"""
         return self.prev_idx == MINUS_1 and self.prev_hash == ZERO
 
     def serialize(self):
-        return b''.join((
-            self.prev_hash,
-            pack_le_uint32(self.prev_idx),
-            pack_varbytes(self.script),
-            pack_le_uint32(self.sequence),
-        ))
+        return b"".join(
+            (
+                self.prev_hash,
+                pack_le_uint32(self.prev_idx),
+                pack_varbytes(self.script),
+                pack_le_uint32(self.sequence),
+            )
+        )
 
 
 @dataclass
 class TxOutput:
-    __slots__ = 'value', 'pk_script'
+    __slots__ = "value", "pk_script"
     value: int
     pk_script: bytes
 
     def serialize(self):
-        return b''.join((
-            pack_le_int64(self.value),
-            pack_varbytes(self.pk_script),
-        ))
+        return b"".join(
+            (
+                pack_le_int64(self.value),
+                pack_varbytes(self.pk_script),
+            )
+        )
 
 
 class Deserializer:
-    '''Deserializes blocks into transactions.
+    """Deserializes blocks into transactions.
 
     External entry points are read_tx(), read_tx_and_hash(),
     read_tx_and_vsize() and read_block().
 
     This code is performance sensitive as it is executed 100s of
     millions of times during sync.
-    '''
+    """
 
     TX_HASH_FN = staticmethod(double_sha256)
 
@@ -130,29 +145,29 @@ class Deserializer:
         self.cursor = start
 
     def read_tx(self):
-        '''Return a deserialized transaction.'''
+        """Return a deserialized transaction."""
         return Tx(
             self._read_le_int32(),  # version
-            self._read_inputs(),    # inputs
-            self._read_outputs(),   # outputs
-            self._read_le_uint32()  # locktime
+            self._read_inputs(),  # inputs
+            self._read_outputs(),  # outputs
+            self._read_le_uint32(),  # locktime
         )
 
     def read_tx_and_hash(self):
-        '''Return a (deserialized TX, tx_hash) pair.
+        """Return a (deserialized TX, tx_hash) pair.
 
         The hash needs to be reversed for human display; for efficiency
         we process it in the natural serialized order.
-        '''
+        """
         start = self.cursor
-        return self.read_tx(), self.TX_HASH_FN(self.binary[start:self.cursor])
+        return self.read_tx(), self.TX_HASH_FN(self.binary[start : self.cursor])
 
     def read_tx_and_vsize(self):
-        '''Return a (deserialized TX, vsize) pair.'''
+        """Return a (deserialized TX, vsize) pair."""
         return self.read_tx(), self.binary_length
 
     def read_tx_block(self):
-        '''Returns a list of (deserialized_tx, tx_hash) pairs.'''
+        """Returns a list of (deserialized_tx, tx_hash) pairs."""
         read = self.read_tx_and_hash
         # Some coins have excess data beyond the end of the transactions
         return [read() for _ in range(self._read_varint())]
@@ -163,10 +178,10 @@ class Deserializer:
 
     def _read_input(self):
         return TxInput(
-            self._read_nbytes(32),   # prev_hash
+            self._read_nbytes(32),  # prev_hash
             self._read_le_uint32(),  # prev_idx
-            self._read_varbytes(),   # script
-            self._read_le_uint32()   # sequence
+            self._read_varbytes(),  # script
+            self._read_le_uint32(),  # sequence
         )
 
     def _read_outputs(self):
@@ -205,41 +220,49 @@ class Deserializer:
         return self._read_le_uint64()
 
     def _read_le_int32(self):
-        result, = unpack_le_int32_from(self.binary, self.cursor)
+        (result,) = unpack_le_int32_from(self.binary, self.cursor)
         self.cursor += 4
         return result
 
     def _read_le_int64(self):
-        result, = unpack_le_int64_from(self.binary, self.cursor)
+        (result,) = unpack_le_int64_from(self.binary, self.cursor)
         self.cursor += 8
         return result
 
     def _read_le_uint16(self):
-        result, = unpack_le_uint16_from(self.binary, self.cursor)
+        (result,) = unpack_le_uint16_from(self.binary, self.cursor)
         self.cursor += 2
         return result
 
     def _read_be_uint16(self):
-        result, = unpack_be_uint16_from(self.binary, self.cursor)
+        (result,) = unpack_be_uint16_from(self.binary, self.cursor)
         self.cursor += 2
         return result
 
     def _read_le_uint32(self):
-        result, = unpack_le_uint32_from(self.binary, self.cursor)
+        (result,) = unpack_le_uint32_from(self.binary, self.cursor)
         self.cursor += 4
         return result
 
     def _read_le_uint64(self):
-        result, = unpack_le_uint64_from(self.binary, self.cursor)
+        (result,) = unpack_le_uint64_from(self.binary, self.cursor)
         self.cursor += 8
         return result
 
 
 @dataclass
 class TxSegWit:
-    '''Class representing a SegWit transaction.'''
-    __slots__ = ('version', 'marker', 'flag', 'inputs', 'outputs', 'witness',
-                 'locktime')
+    """Class representing a SegWit transaction."""
+
+    __slots__ = (
+        "version",
+        "marker",
+        "flag",
+        "inputs",
+        "outputs",
+        "witness",
+        "locktime",
+    )
     version: int
     marker: int
     flag: int
@@ -249,27 +272,30 @@ class TxSegWit:
     locktime: int
 
     def serialize(self):
-        return b''.join((
-            pack_le_int32(self.version),
-            bytes([self.marker]),
-            bytes([self.flag]),
-            pack_varint(len(self.inputs)),
-            b''.join(tx_in.serialize() for tx_in in self.inputs),
-            pack_varint(len(self.outputs)),
-            b''.join(tx_out.serialize() for tx_out in self.outputs),
-            b''.join(self._serialize_witness_field(witness_field) for witness_field in self.witness),
-            pack_le_uint32(self.locktime)
-        ))
+        return b"".join(
+            (
+                pack_le_int32(self.version),
+                bytes([self.marker]),
+                bytes([self.flag]),
+                pack_varint(len(self.inputs)),
+                b"".join(tx_in.serialize() for tx_in in self.inputs),
+                pack_varint(len(self.outputs)),
+                b"".join(tx_out.serialize() for tx_out in self.outputs),
+                b"".join(self._serialize_witness_field(witness_field) for witness_field in self.witness),
+                pack_le_uint32(self.locktime),
+            )
+        )
 
     def _serialize_witness_field(self, witness_field):
-        return b''.join((
-            pack_varint(len(witness_field)),
-            b''.join(pack_varbytes(item) for item in witness_field)
-        ))
-    
+        return b"".join(
+            (
+                pack_varint(len(witness_field)),
+                b"".join(pack_varbytes(item) for item in witness_field),
+            )
+        )
+
 
 class DeserializerSegWit(Deserializer):
-
     # https://bitcoincore.org/en/segwit_wallet_dev/#transaction-serialization
 
     def _read_witness(self, fields):
@@ -281,7 +307,7 @@ class DeserializerSegWit(Deserializer):
         return [read_varbytes() for i in range(self._read_varint())]
 
     def _read_tx_parts(self):
-        '''Return a (deserialized TX, tx_hash, vsize) tuple.'''
+        """Return a (deserialized TX, tx_hash, vsize) tuple."""
         start = self.cursor
         marker = self.binary[self.cursor + 4]
         if marker:
@@ -289,16 +315,16 @@ class DeserializerSegWit(Deserializer):
             # expensive when executed millions of times.
             tx = Tx(
                 self._read_le_int32(),  # version
-                self._read_inputs(),    # inputs
-                self._read_outputs(),   # outputs
-                self._read_le_uint32()  # locktime
+                self._read_inputs(),  # inputs
+                self._read_outputs(),  # outputs
+                self._read_le_uint32(),  # locktime
             )
-            tx_hash = self.TX_HASH_FN(self.binary[start:self.cursor])
+            tx_hash = self.TX_HASH_FN(self.binary[start : self.cursor])
             return tx, tx_hash, self.binary_length
 
         # Ugh, this is tasty.
         version = self._read_le_int32()
-        orig_ser = self.binary[start:self.cursor]
+        orig_ser = self.binary[start : self.cursor]
 
         marker = self._read_byte()
         flag = self._read_byte()
@@ -306,18 +332,21 @@ class DeserializerSegWit(Deserializer):
         start = self.cursor
         inputs = self._read_inputs()
         outputs = self._read_outputs()
-        orig_ser += self.binary[start:self.cursor]
+        orig_ser += self.binary[start : self.cursor]
 
         base_size = self.cursor - start
         witness = self._read_witness(len(inputs))
 
         start = self.cursor
         locktime = self._read_le_uint32()
-        orig_ser += self.binary[start:self.cursor]
+        orig_ser += self.binary[start : self.cursor]
         vsize = (3 * base_size + self.binary_length) // 4
 
-        return TxSegWit(version, marker, flag, inputs, outputs, witness,
-                        locktime), self.TX_HASH_FN(orig_ser), vsize
+        return (
+            TxSegWit(version, marker, flag, inputs, outputs, witness, locktime),
+            self.TX_HASH_FN(orig_ser),
+            vsize,
+        )
 
     def read_tx(self):
         return self._read_tx_parts()[0]
@@ -332,7 +361,7 @@ class DeserializerSegWit(Deserializer):
 
 
 class DeserializerLitecoin(DeserializerSegWit):
-    '''Class representing Litecoin transactions, which may have the MW flag set.
+    """Class representing Litecoin transactions, which may have the MW flag set.
 
     This handles regular and segwit Litecoin transactions, with special handling
     for a limited set of MW transactions. All transactions in a block are parsed
@@ -349,9 +378,10 @@ class DeserializerLitecoin(DeserializerSegWit):
     transactions in the getrawmempool result even though when served with the MW
     data stripped they are invalid. Presently, such transactions are of no
     interest to electrumx, and they vanish into the MWEB when mined.
-    '''
+    """
+
     def _read_tx_parts(self):
-        '''Return a (deserialized TX, tx_hash, vsize) tuple.'''
+        """Return a (deserialized TX, tx_hash, vsize) tuple."""
         start = self.cursor
         marker = self.binary[self.cursor + 4]
         if marker:
@@ -359,15 +389,15 @@ class DeserializerLitecoin(DeserializerSegWit):
             # expensive when executed millions of times.
             tx = Tx(
                 self._read_le_int32(),  # version
-                self._read_inputs(),    # inputs
-                self._read_outputs(),   # outputs
-                self._read_le_uint32()  # locktime
+                self._read_inputs(),  # inputs
+                self._read_outputs(),  # outputs
+                self._read_le_uint32(),  # locktime
             )
-            tx_hash = self.TX_HASH_FN(self.binary[start:self.cursor])
+            tx_hash = self.TX_HASH_FN(self.binary[start : self.cursor])
             return tx, tx_hash, self.binary_length
 
         version = self._read_le_int32()
-        orig_ser = self.binary[start:self.cursor]
+        orig_ser = self.binary[start : self.cursor]
 
         marker = self._read_byte()
         flag = self._read_byte()
@@ -379,12 +409,12 @@ class DeserializerLitecoin(DeserializerSegWit):
         # incorrectly interpreted as a marker and flag. If what we parsed as
         # marker and flag are both zero, this is such an invalid transaction.
         if flag == 0:
-            raise SkipTxDeserialize('invalid MW-only transaction with no regular inputs or outputs')
+            raise SkipTxDeserialize("invalid MW-only transaction with no regular inputs or outputs")
 
         start = self.cursor
         inputs = self._read_inputs()
         outputs = self._read_outputs()
-        orig_ser += self.binary[start:self.cursor]
+        orig_ser += self.binary[start : self.cursor]
 
         base_size = self.cursor - start
 
@@ -420,25 +450,28 @@ class DeserializerLitecoin(DeserializerSegWit):
             # data will be stripped from transactions and this tx flag will be
             # cleared.
             if self._read_byte() != 0:
-                raise SkipTxDeserialize('non-null mwtx bytes are not parseable')
+                raise SkipTxDeserialize("non-null mwtx bytes are not parseable")
 
         start = self.cursor
         locktime = self._read_le_uint32()
-        orig_ser += self.binary[start:self.cursor]
+        orig_ser += self.binary[start : self.cursor]
         vsize = (3 * base_size + self.binary_length) // 4
 
-        return TxSegWit(version, marker, flag, inputs, outputs, witness,
-                        locktime), self.TX_HASH_FN(orig_ser), vsize
+        return (
+            TxSegWit(version, marker, flag, inputs, outputs, witness, locktime),
+            self.TX_HASH_FN(orig_ser),
+            vsize,
+        )
 
     def read_tx(self):
         return self._read_tx_parts()[0]
 
 
 class DeserializerAuxPow(Deserializer):
-    VERSION_AUXPOW = (1 << 8)
+    VERSION_AUXPOW = 1 << 8
 
     def read_auxpow(self):
-        '''Reads and returns the CAuxPow data'''
+        """Reads and returns the CAuxPow data"""
 
         # We first calculate the size of the CAuxPow instance and then
         # read it as bytes in the final step.
@@ -459,7 +492,7 @@ class DeserializerAuxPow(Deserializer):
         return self._read_nbytes(end - start)
 
     def read_header(self, static_header_size):
-        '''Return the AuxPow block header bytes'''
+        """Return the AuxPow block header bytes"""
 
         # We are going to calculate the block size then read it as bytes
         start = self.cursor
@@ -483,7 +516,7 @@ class DeserializerAuxPowSegWit(DeserializerSegWit, DeserializerAuxPow):
 
 class DeserializerEquihash(Deserializer):
     def read_header(self, static_header_size):
-        '''Return the block header bytes'''
+        """Return the block header bytes"""
         start = self.cursor
         # We are going to calculate the block size then read it as bytes
         self.cursor += static_header_size
@@ -501,9 +534,9 @@ class DeserializerEquihashSegWit(DeserializerSegWit, DeserializerEquihash):
 class DeserializerZcash(DeserializerEquihash):
     def read_tx(self):
         header = self._read_le_uint32()
-        overwintered = ((header >> 31) == 1)
+        overwintered = (header >> 31) == 1
         if overwintered:
-            version = header & 0x7fffffff
+            version = header & 0x7FFFFFFF
             self.cursor += 4  # versionGroupId
         else:
             version = header
@@ -513,9 +546,9 @@ class DeserializerZcash(DeserializerEquihash):
 
         base_tx = Tx(
             version,
-            self._read_inputs(),    # inputs
-            self._read_outputs(),   # outputs
-            self._read_le_uint32()  # locktime
+            self._read_inputs(),  # inputs
+            self._read_outputs(),  # outputs
+            self._read_le_uint32(),  # locktime
         )
 
         if is_overwinter_v3 or is_sapling_v4:
@@ -547,24 +580,27 @@ class DeserializerZcash(DeserializerEquihash):
 
 @dataclass
 class TxPIVX:
-    '''Class representing a PIVX transaction.'''
-    __slots__ = 'version', "txtype", 'inputs', 'outputs', 'locktime'
+    """Class representing a PIVX transaction."""
+
+    __slots__ = "version", "txtype", "inputs", "outputs", "locktime"
     version: int
     txtype: int
-    inputs: Sequence['TxInput']
-    outputs: Sequence['TxOutput']
+    inputs: Sequence["TxInput"]
+    outputs: Sequence["TxOutput"]
     locktime: int
 
     def serialize(self):
-        return b''.join((
-            pack_le_uint16(self.version),
-            pack_le_uint16(self.txtype),
-            pack_varint(len(self.inputs)),
-            b''.join(tx_in.serialize() for tx_in in self.inputs),
-            pack_varint(len(self.outputs)),
-            b''.join(tx_out.serialize() for tx_out in self.outputs),
-            pack_le_uint32(self.locktime)
-        ))
+        return b"".join(
+            (
+                pack_le_uint16(self.version),
+                pack_le_uint16(self.txtype),
+                pack_varint(len(self.inputs)),
+                b"".join(tx_in.serialize() for tx_in in self.inputs),
+                pack_varint(len(self.outputs)),
+                b"".join(tx_out.serialize() for tx_out in self.outputs),
+                pack_le_uint32(self.locktime),
+            )
+        )
 
 
 class DeserializerPIVX(Deserializer):
@@ -572,7 +608,7 @@ class DeserializerPIVX(Deserializer):
         header = self._read_le_uint32()
         tx_type = header >> 16  # DIP2 tx type
         if tx_type:
-            version = header & 0x0000ffff
+            version = header & 0x0000FFFF
         else:
             version = header
 
@@ -585,7 +621,7 @@ class DeserializerPIVX(Deserializer):
             tx_type,
             self._read_inputs(),  # inputs
             self._read_outputs(),  # outputs
-            self._read_le_uint32()  # locktime
+            self._read_le_uint32(),  # locktime
         )
 
         if version >= 3:  # >= sapling
@@ -596,7 +632,7 @@ class DeserializerPIVX(Deserializer):
             shielded_output_size = self._read_varint()
             self.cursor += shielded_output_size * 948  # vShieldedOutput
             self.cursor += 64  # bindingSig
-            if (tx_type > 0):
+            if tx_type > 0:
                 self.cursor += 2  # extraPayload
 
         return base_tx
@@ -604,8 +640,9 @@ class DeserializerPIVX(Deserializer):
 
 @dataclass
 class TxTime:
-    '''Class representing transaction that has a time field.'''
-    __slots__ = 'version', 'time', 'inputs', 'outputs', 'locktime'
+    """Class representing transaction that has a time field."""
+
+    __slots__ = "version", "time", "inputs", "outputs", "locktime"
     version: int
     time: int
     inputs: Sequence
@@ -616,19 +653,28 @@ class TxTime:
 class DeserializerTxTime(Deserializer):
     def read_tx(self):
         return TxTime(
-            self._read_le_int32(),   # version
+            self._read_le_int32(),  # version
             self._read_le_uint32(),  # time
-            self._read_inputs(),     # inputs
-            self._read_outputs(),    # outputs
+            self._read_inputs(),  # inputs
+            self._read_outputs(),  # outputs
             self._read_le_uint32(),  # locktime
         )
 
 
 @dataclass
 class TxTimeSegWit:
-    '''Class representing a SegWit transaction with time.'''
-    __slots__ = ('version', 'time', 'marker', 'flag', 'inputs', 'outputs',
-                 'witness', 'locktime')
+    """Class representing a SegWit transaction with time."""
+
+    __slots__ = (
+        "version",
+        "time",
+        "marker",
+        "flag",
+        "inputs",
+        "outputs",
+        "witness",
+        "locktime",
+    )
     version: int
     time: int
     marker: int
@@ -649,17 +695,17 @@ class DeserializerTxTimeSegWit(DeserializerTxTime):
         return [read_varbytes() for _ in range(self._read_varint())]
 
     def _read_tx_parts(self):
-        '''Return a (deserialized TX, tx_hash, vsize) tuple.'''
+        """Return a (deserialized TX, tx_hash, vsize) tuple."""
         start = self.cursor
         marker = self.binary[self.cursor + 8]
         if marker:
             tx = super().read_tx()
-            tx_hash = self.TX_HASH_FN(self.binary[start:self.cursor])
+            tx_hash = self.TX_HASH_FN(self.binary[start : self.cursor])
             return tx, tx_hash, self.binary_length
 
         version = self._read_le_int32()
         time = self._read_le_uint32()
-        orig_ser = self.binary[start:self.cursor]
+        orig_ser = self.binary[start : self.cursor]
 
         marker = self._read_byte()
         flag = self._read_byte()
@@ -667,19 +713,21 @@ class DeserializerTxTimeSegWit(DeserializerTxTime):
         start = self.cursor
         inputs = self._read_inputs()
         outputs = self._read_outputs()
-        orig_ser += self.binary[start:self.cursor]
+        orig_ser += self.binary[start : self.cursor]
 
         base_size = self.cursor - start
         witness = self._read_witness(len(inputs))
 
         start = self.cursor
         locktime = self._read_le_uint32()
-        orig_ser += self.binary[start:self.cursor]
+        orig_ser += self.binary[start : self.cursor]
         vsize = (3 * base_size + self.binary_length) // 4
 
-        return TxTimeSegWit(
-            version, time, marker, flag, inputs, outputs, witness, locktime),\
-            self.TX_HASH_FN(orig_ser), vsize
+        return (
+            TxTimeSegWit(version, time, marker, flag, inputs, outputs, witness, locktime),
+            self.TX_HASH_FN(orig_ser),
+            vsize,
+        )
 
     def read_tx(self):
         return self._read_tx_parts()[0]
@@ -711,26 +759,20 @@ class DeserializerTxTimeSegWitNavCoin(DeserializerTxTime):
         strDZeel = ""
         if version >= 2:
             strDZeel = self._read_varbytes()
-        return TxTime(
-            version,
-            time,
-            inputs,
-            outputs,
-            locktime
-        )
+        return TxTime(version, time, inputs, outputs, locktime)
 
     def _read_tx_parts(self):
-        '''Return a (deserialized TX, tx_hash, vsize) tuple.'''
+        """Return a (deserialized TX, tx_hash, vsize) tuple."""
         start = self.cursor
         marker = self.binary[self.cursor + 8]
         if marker:
             tx = self.read_tx_no_segwit()
-            tx_hash = self.TX_HASH_FN(self.binary[start:self.cursor])
+            tx_hash = self.TX_HASH_FN(self.binary[start : self.cursor])
             return tx, tx_hash, self.binary_length
 
         version = self._read_le_int32()
         time = self._read_le_uint32()
-        orig_ser = self.binary[start:self.cursor]
+        orig_ser = self.binary[start : self.cursor]
 
         marker = self._read_byte()
         flag = self._read_byte()
@@ -738,7 +780,7 @@ class DeserializerTxTimeSegWitNavCoin(DeserializerTxTime):
         start = self.cursor
         inputs = self._read_inputs()
         outputs = self._read_outputs()
-        orig_ser += self.binary[start:self.cursor]
+        orig_ser += self.binary[start : self.cursor]
 
         base_size = self.cursor - start
         witness = self._read_witness(len(inputs))
@@ -751,11 +793,13 @@ class DeserializerTxTimeSegWitNavCoin(DeserializerTxTime):
             strDZeel = self._read_varbytes()
 
         vsize = (3 * base_size + self.binary_length) // 4
-        orig_ser += self.binary[start:self.cursor]
+        orig_ser += self.binary[start : self.cursor]
 
-        return TxTimeSegWit(
-            version, time, marker, flag, inputs, outputs, witness, locktime),\
-            self.TX_HASH_FN(orig_ser), vsize
+        return (
+            TxTimeSegWit(version, time, marker, flag, inputs, outputs, witness, locktime),
+            self.TX_HASH_FN(orig_ser),
+            vsize,
+        )
 
     def read_tx(self):
         return self._read_tx_parts()[0]
@@ -771,9 +815,9 @@ class DeserializerTxTimeSegWitNavCoin(DeserializerTxTime):
 
 @dataclass
 class TxTrezarcoin:
-    '''Class representing transaction that has a time and txcomment field.'''
-    __slots__ = ('version', 'time', 'inputs', 'outputs', 'locktime',
-                 'txcomment')
+    """Class representing transaction that has a time and txcomment field."""
+
+    __slots__ = ("version", "time", "inputs", "outputs", "locktime", "txcomment")
     version: int
     time: int
     inputs: Sequence
@@ -783,7 +827,6 @@ class TxTrezarcoin:
 
 
 class DeserializerTrezarcoin(Deserializer):
-
     def read_tx(self):
         version = self._read_le_int32()
         time = self._read_le_uint32()
@@ -793,9 +836,8 @@ class DeserializerTrezarcoin(Deserializer):
         if version >= 2:
             txcomment = self._read_varbytes()
         else:
-            txcomment = b''
-        return TxTrezarcoin(version, time, inputs, outputs, locktime,
-                            txcomment)
+            txcomment = b""
+        return TxTrezarcoin(version, time, inputs, outputs, locktime, txcomment)
 
     @staticmethod
     def blake2s_gen(data):
@@ -810,8 +852,13 @@ class DeserializerTrezarcoin(Deserializer):
         # Prepare 112Byte Header
         blake2s_hash = blake2s(_input112, digest_size=32, key=_key)
         # TrezarFlips - Only for Genesis
-        return ''.join(map(str.__add__, blake2s_hash.hexdigest()[-2::-2],
-                           blake2s_hash.hexdigest()[-1::-2]))
+        return "".join(
+            map(
+                str.__add__,
+                blake2s_hash.hexdigest()[-2::-2],
+                blake2s_hash.hexdigest()[-1::-2],
+            )
+        )
 
     @staticmethod
     def blake2s(data):
@@ -833,25 +880,25 @@ class DeserializerBlackcoin(Deserializer):
     BLACKCOIN_TX_VERSION = 2
 
     def _get_version(self):
-        result, = unpack_le_int32_from(self.binary, self.cursor)
+        (result,) = unpack_le_int32_from(self.binary, self.cursor)
         return result
 
     def read_tx(self):
         version = self._get_version()
         if version < self.BLACKCOIN_TX_VERSION:
             return TxTime(
-                self._read_le_int32(),   # version
+                self._read_le_int32(),  # version
                 self._read_le_uint32(),  # time
-                self._read_inputs(),     # inputs
-                self._read_outputs(),    # outputs
+                self._read_inputs(),  # inputs
+                self._read_outputs(),  # outputs
                 self._read_le_uint32(),  # locktime
             )
         else:
             return Tx(
                 self._read_le_int32(),  # version
-                self._read_inputs(),    # inputs
-                self._read_outputs(),   # outputs
-                self._read_le_uint32()  # locktime
+                self._read_inputs(),  # inputs
+                self._read_outputs(),  # outputs
+                self._read_le_uint32(),  # locktime
             )
 
 
@@ -881,7 +928,7 @@ class DeserializerVerge(Deserializer):
 
 
 class DeserializerEmercoin(DeserializerTxTimeSegWit):
-    VERSION_AUXPOW = (1 << 8)
+    VERSION_AUXPOW = 1 << 8
 
     def is_merged_block(self):
         start = self.cursor
@@ -893,7 +940,7 @@ class DeserializerEmercoin(DeserializerTxTimeSegWit):
         return False
 
     def read_header(self, static_header_size):
-        '''Return the AuxPow block header bytes'''
+        """Return the AuxPow block header bytes"""
         start = self.cursor
         version = self._read_le_uint32()
         if version & self.VERSION_AUXPOW:
@@ -920,7 +967,7 @@ class DeserializerBitcoinAtom(DeserializerSegWit):
     FORK_BLOCK_HEIGHT = 505888
 
     def read_header(self, height, static_header_size):
-        '''Return the block header bytes'''
+        """Return the block header bytes"""
         header_len = static_header_size
         if height >= self.FORK_BLOCK_HEIGHT:
             header_len += 4  # flags
@@ -932,16 +979,18 @@ class DeserializerGroestlcoin(DeserializerSegWit):
 
 
 class TxInputTokenPay(TxInput):
-    '''Class representing a TokenPay transaction input.'''
+    """Class representing a TokenPay transaction input."""
 
-    OP_ANON_MARKER = 0xb9
+    OP_ANON_MARKER = 0xB9
     # 2byte marker (cpubkey + sigc + sigr)
     MIN_ANON_IN_SIZE = 2 + (33 + 32 + 32)
 
     def _is_anon_input(self):
-        return (len(self.script) >= self.MIN_ANON_IN_SIZE and
-                self.script[0] == OpCodes.OP_RETURN and
-                self.script[1] == self.OP_ANON_MARKER)
+        return (
+            len(self.script) >= self.MIN_ANON_IN_SIZE
+            and self.script[0] == OpCodes.OP_RETURN
+            and self.script[1] == self.OP_ANON_MARKER
+        )
 
     def is_generation(self):
         # Transactions comming in from stealth addresses are seen by
@@ -955,8 +1004,9 @@ class TxInputTokenPay(TxInput):
 
 @dataclass
 class TxInputTokenPayStealth:
-    '''Class representing a TokenPay stealth transaction input.'''
-    __slots__ = 'keyimage', 'ringsize', 'script', 'sequence'
+    """Class representing a TokenPay stealth transaction input."""
+
+    __slots__ = "keyimage", "ringsize", "script", "sequence"
     keyimage: bytes
     ringsize: bytes
     script: bytes
@@ -965,28 +1015,28 @@ class TxInputTokenPayStealth:
     def __str__(self):
         script = self.script.hex()
         keyimage = bytes(self.keyimage).hex()
-        return (f"Input({keyimage}, {self.ringsize[1]:d}, script={script}, "
-                f"sequence={self.sequence:d})")
+        return f"Input({keyimage}, {self.ringsize[1]:d}, script={script}, " f"sequence={self.sequence:d})"
 
     def is_generation(self):
         return True
 
     def serialize(self):
-        return b''.join((
-            self.keyimage,
-            self.ringsize,
-            pack_varbytes(self.script),
-            pack_le_uint32(self.sequence),
-        ))
+        return b"".join(
+            (
+                self.keyimage,
+                self.ringsize,
+                pack_varbytes(self.script),
+                pack_le_uint32(self.sequence),
+            )
+        )
 
 
 class DeserializerTokenPay(DeserializerTxTime):
-
     def _read_input(self):
         txin = TxInputTokenPay(
-            self._read_nbytes(32),   # prev_hash
+            self._read_nbytes(32),  # prev_hash
             self._read_le_uint32(),  # prev_idx
-            self._read_varbytes(),   # script
+            self._read_varbytes(),  # script
             self._read_le_uint32(),  # sequence
         )
         if txin._is_anon_input():
@@ -997,9 +1047,9 @@ class DeserializerTokenPay(DeserializerTxTime):
             deserializer = Deserializer(raw)
             txin = TxInputTokenPayStealth(
                 deserializer._read_nbytes(33),  # keyimage
-                deserializer._read_nbytes(3),   # ringsize
+                deserializer._read_nbytes(3),  # ringsize
                 deserializer._read_varbytes(),  # script
-                deserializer._read_le_uint32()  # sequence
+                deserializer._read_le_uint32(),  # sequence
             )
         return txin
 
@@ -1007,8 +1057,9 @@ class DeserializerTokenPay(DeserializerTxTime):
 # Decred
 @dataclass
 class TxInputDcr:
-    '''Class representing a Decred transaction input.'''
-    __slots__ = 'prev_hash', 'prev_idx', 'tree', 'sequence'
+    """Class representing a Decred transaction input."""
+
+    __slots__ = "prev_hash", "prev_idx", "tree", "sequence"
     prev_hash: bytes
     prev_idx: int
     tree: int
@@ -1016,18 +1067,18 @@ class TxInputDcr:
 
     def __str__(self):
         prev_hash = hash_to_hex_str(self.prev_hash)
-        return (f"Input({prev_hash}, {self.prev_idx:d}, tree={self.tree}, "
-                f"sequence={self.sequence:d})")
+        return f"Input({prev_hash}, {self.prev_idx:d}, tree={self.tree}, " f"sequence={self.sequence:d})"
 
     def is_generation(self):
-        '''Test if an input is generation/coinbase like'''
+        """Test if an input is generation/coinbase like"""
         return self.prev_idx == MINUS_1 and self.prev_hash == ZERO
 
 
 @dataclass
 class TxOutputDcr:
-    '''Class representing a Decred transaction output.'''
-    __slots__ = 'value', 'version', 'pk_script'
+    """Class representing a Decred transaction output."""
+
+    __slots__ = "value", "version", "pk_script"
     value: int
     version: int
     pk_script: bytes
@@ -1035,8 +1086,9 @@ class TxOutputDcr:
 
 @dataclass
 class TxDcr:
-    '''Class representing a Decred  transaction.'''
-    __slots__ = 'version', 'inputs', 'outputs', 'locktime', 'expiry', 'witness'
+    """Class representing a Decred  transaction."""
+
+    __slots__ = "version", "inputs", "outputs", "locktime", "expiry", "witness"
     version: int
     inputs: Sequence
     outputs: Sequence
@@ -1049,11 +1101,13 @@ class DeserializerDecred(Deserializer):
     @staticmethod
     def blake256(data):
         from blake256.blake256 import blake_hash
+
         return blake_hash(data)
 
     @staticmethod
     def blake256d(data):
         from blake256.blake256 import blake_hash
+
         return blake_hash(blake_hash(data))
 
     def read_tx(self):
@@ -1068,22 +1122,22 @@ class DeserializerDecred(Deserializer):
         return tx, vsize
 
     def read_tx_block(self):
-        '''Returns a list of (deserialized_tx, tx_hash) pairs.'''
+        """Returns a list of (deserialized_tx, tx_hash) pairs."""
         read = self.read_tx_and_hash
         txs = [read() for _ in range(self._read_varint())]
         stxs = [read() for _ in range(self._read_varint())]
         return txs + stxs
 
     def read_tx_tree(self):
-        '''Returns a list of deserialized_tx without tx hashes.'''
+        """Returns a list of deserialized_tx without tx hashes."""
         read_tx = self.read_tx
         return [read_tx() for _ in range(self._read_varint())]
 
     def _read_input(self):
         return TxInputDcr(
-            self._read_nbytes(32),   # prev_hash
+            self._read_nbytes(32),  # prev_hash
             self._read_le_uint32(),  # prev_idx
-            self._read_byte(),       # tree
+            self._read_byte(),  # tree
             self._read_le_uint32(),  # sequence
         )
 
@@ -1118,39 +1172,37 @@ class DeserializerDecred(Deserializer):
 
         if produce_hash:
             # TxSerializeNoWitness << 16 == 0x10000
-            no_witness_header = pack_le_uint32(0x10000 | (version & 0xffff))
-            prefix_tx = no_witness_header + self.binary[start+4:end_prefix]
+            no_witness_header = pack_le_uint32(0x10000 | (version & 0xFFFF))
+            prefix_tx = no_witness_header + self.binary[start + 4 : end_prefix]
             tx_hash = self.blake256(prefix_tx)
         else:
             tx_hash = None
 
-        return TxDcr(
-            version,
-            inputs,
-            outputs,
-            locktime,
-            expiry,
-            witness
-        ), tx_hash, self.cursor - start
+        return (
+            TxDcr(version, inputs, outputs, locktime, expiry, witness),
+            tx_hash,
+            self.cursor - start,
+        )
 
 
 class DeserializerSmartCash(Deserializer):
-
     @staticmethod
     def keccak(data):
         from Cryptodome.Hash import keccak
+
         keccak_hash = keccak.new(data=data, digest_bits=256)
         return keccak_hash.digest()
 
     def read_tx_and_hash(self):
         start = self.cursor
-        return self.read_tx(), sha256(self.binary[start:self.cursor])
+        return self.read_tx(), sha256(self.binary[start : self.cursor])
 
 
 @dataclass
 class TxBitcoinDiamond:
-    '''Class representing a transaction.'''
-    __slots__ = 'version', 'preblockhash', 'inputs', 'outputs', 'locktime'
+    """Class representing a transaction."""
+
+    __slots__ = "version", "preblockhash", "inputs", "outputs", "locktime"
     version: int
     preblockhash: str
     inputs: Sequence
@@ -1167,9 +1219,9 @@ class DeserializerBitcoinDiamond(Deserializer):
         if version != self.bitcoin_diamond_tx_version:
             return Tx(
                 self._read_le_int32(),  # version
-                self._read_inputs(),    # inputs
-                self._read_outputs(),   # outputs
-                self._read_le_uint32()  # locktime
+                self._read_inputs(),  # inputs
+                self._read_outputs(),  # outputs
+                self._read_le_uint32(),  # locktime
             )
         else:
             return TxBitcoinDiamond(
@@ -1177,19 +1229,28 @@ class DeserializerBitcoinDiamond(Deserializer):
                 hash_to_hex_str(self._read_nbytes(32)),  # blockhash
                 self._read_inputs(),  # inputs
                 self._read_outputs(),  # outputs
-                self._read_le_uint32()  # locktime
+                self._read_le_uint32(),  # locktime
             )
 
     def _get_version(self):
-        result, = unpack_le_int32_from(self.binary, self.cursor)
+        (result,) = unpack_le_int32_from(self.binary, self.cursor)
         return result
 
 
 @dataclass
 class TxBitcoinDiamondSegWit:
-    '''Class representing a SegWit transaction.'''
-    __slots__ = ('version', 'preblockhash', 'marker', 'flag', 'inputs',
-                 'outputs', 'witness', 'locktime')
+    """Class representing a SegWit transaction."""
+
+    __slots__ = (
+        "version",
+        "preblockhash",
+        "marker",
+        "flag",
+        "inputs",
+        "outputs",
+        "witness",
+        "locktime",
+    )
     version: int
     preblockhash: str
     marker: int
@@ -1200,10 +1261,9 @@ class TxBitcoinDiamondSegWit:
     locktime: int
 
 
-class DeserializerBitcoinDiamondSegWit(DeserializerBitcoinDiamond,
-                                       DeserializerSegWit):
+class DeserializerBitcoinDiamondSegWit(DeserializerBitcoinDiamond, DeserializerSegWit):
     def _read_tx_parts(self):
-        '''Return a (deserialized TX, tx_hash, vsize) tuple.'''
+        """Return a (deserialized TX, tx_hash, vsize) tuple."""
         start = self.cursor
         tx_version = self._get_version()
         if tx_version == self.bitcoin_diamond_tx_version:
@@ -1213,7 +1273,7 @@ class DeserializerBitcoinDiamondSegWit(DeserializerBitcoinDiamond,
 
         if marker:
             tx = super().read_tx()
-            tx_hash = self.TX_HASH_FN(self.binary[start:self.cursor])
+            tx_hash = self.TX_HASH_FN(self.binary[start : self.cursor])
             return tx, tx_hash, self.binary_length
 
         # Ugh, this is nasty.
@@ -1221,7 +1281,7 @@ class DeserializerBitcoinDiamondSegWit(DeserializerBitcoinDiamond,
         present_block_hash = None
         if version == self.bitcoin_diamond_tx_version:
             present_block_hash = hash_to_hex_str(self._read_nbytes(32))
-        orig_ser = self.binary[start:self.cursor]
+        orig_ser = self.binary[start : self.cursor]
 
         marker = self._read_byte()
         flag = self._read_byte()
@@ -1229,31 +1289,44 @@ class DeserializerBitcoinDiamondSegWit(DeserializerBitcoinDiamond,
         start = self.cursor
         inputs = self._read_inputs()
         outputs = self._read_outputs()
-        orig_ser += self.binary[start:self.cursor]
+        orig_ser += self.binary[start : self.cursor]
 
         base_size = self.cursor - start
         witness = self._read_witness(len(inputs))
 
         start = self.cursor
         locktime = self._read_le_uint32()
-        orig_ser += self.binary[start:self.cursor]
+        orig_ser += self.binary[start : self.cursor]
         vsize = (3 * base_size + self.binary_length) // 4
 
         if present_block_hash is not None:
-            return TxBitcoinDiamondSegWit(
-                version, present_block_hash, marker, flag, inputs, outputs,
-                witness, locktime), self.TX_HASH_FN(orig_ser), vsize
+            return (
+                TxBitcoinDiamondSegWit(
+                    version,
+                    present_block_hash,
+                    marker,
+                    flag,
+                    inputs,
+                    outputs,
+                    witness,
+                    locktime,
+                ),
+                self.TX_HASH_FN(orig_ser),
+                vsize,
+            )
         else:
-            return TxSegWit(
-                version, marker, flag, inputs, outputs, witness,
-                locktime), self.TX_HASH_FN(orig_ser), vsize
+            return (
+                TxSegWit(version, marker, flag, inputs, outputs, witness, locktime),
+                self.TX_HASH_FN(orig_ser),
+                vsize,
+            )
 
     def read_tx(self):
-        '''Return a (Deserialized TX, TX_HASH) pair.
+        """Return a (Deserialized TX, TX_HASH) pair.
 
         The hash needs to be reversed for human display; for efficiency
         we process it in the natural serialized order.
-        '''
+        """
         return self._read_tx_parts()[0]
 
 
@@ -1261,25 +1334,25 @@ class DeserializerElectra(Deserializer):
     ELECTRA_TX_VERSION = 7
 
     def _get_version(self):
-        result, = unpack_le_int32_from(self.binary, self.cursor)
+        (result,) = unpack_le_int32_from(self.binary, self.cursor)
         return result
 
     def read_tx(self):
         version = self._get_version()
         if version != self.ELECTRA_TX_VERSION:
             return TxTime(
-                self._read_le_int32(),   # version
+                self._read_le_int32(),  # version
                 self._read_le_uint32(),  # time
-                self._read_inputs(),     # inputs
-                self._read_outputs(),    # outputs
+                self._read_inputs(),  # inputs
+                self._read_outputs(),  # outputs
                 self._read_le_uint32(),  # locktime
             )
         else:
             return Tx(
                 self._read_le_int32(),  # version
-                self._read_inputs(),    # inputs
-                self._read_outputs(),   # outputs
-                self._read_le_uint32()  # locktime
+                self._read_inputs(),  # inputs
+                self._read_outputs(),  # outputs
+                self._read_le_uint32(),  # locktime
             )
 
 
@@ -1303,22 +1376,17 @@ class DeserializerECCoin(Deserializer):
 class DeserializerZcoin(Deserializer):
     def _read_input(self):
         tx_input = TxInput(
-            self._read_nbytes(32),   # prev_hash
+            self._read_nbytes(32),  # prev_hash
             self._read_le_uint32(),  # prev_idx
-            self._read_varbytes(),   # script
-            self._read_le_uint32()   # sequence
+            self._read_varbytes(),  # script
+            self._read_le_uint32(),  # sequence
         )
 
         if tx_input.prev_idx == MINUS_1 and tx_input.prev_hash == ZERO:
             return tx_input
 
-        if tx_input.script[0] == 0xc4:  # This is a Sigma spend - mimic a generation tx
-            return TxInput(
-                ZERO,
-                MINUS_1,
-                tx_input.script,
-                tx_input.sequence
-            )
+        if tx_input.script[0] == 0xC4:  # This is a Sigma spend - mimic a generation tx
+            return TxInput(ZERO, MINUS_1, tx_input.script, tx_input.sequence)
 
         return tx_input
 
@@ -1361,31 +1429,31 @@ class DeserializerSimplicity(Deserializer):
     SIMPLICITY_TX_VERSION = 3
 
     def _get_version(self):
-        result, = unpack_le_int32_from(self.binary, self.cursor)
+        (result,) = unpack_le_int32_from(self.binary, self.cursor)
         return result
 
     def read_tx(self):
         version = self._get_version()
         if version < self.SIMPLICITY_TX_VERSION:
             return TxTime(
-                self._read_le_int32(),   # version
+                self._read_le_int32(),  # version
                 self._read_le_uint32(),  # time
-                self._read_inputs(),     # inputs
-                self._read_outputs(),    # outputs
+                self._read_inputs(),  # inputs
+                self._read_outputs(),  # outputs
                 self._read_le_uint32(),  # locktime
             )
         else:
             return Tx(
                 self._read_le_int32(),  # version
-                self._read_inputs(),    # inputs
-                self._read_outputs(),   # outputs
-                self._read_le_uint32()  # locktime
+                self._read_inputs(),  # inputs
+                self._read_outputs(),  # outputs
+                self._read_le_uint32(),  # locktime
             )
 
 
 class DeserializerPrimecoin(Deserializer):
     def read_header(self, static_header_size):
-        '''Return the block header bytes'''
+        """Return the block header bytes"""
         start = self.cursor
         # Decode the block header size including multiplier then read it as bytes
         self.cursor += static_header_size

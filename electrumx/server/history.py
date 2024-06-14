@@ -6,19 +6,24 @@
 # See the file "LICENCE" for information about the copyright
 # and warranty status of this software.
 
-'''History by script hash (address).'''
+"""History by script hash (address)."""
 
 import ast
 import bisect
 import time
 from array import array
 from collections import defaultdict
-from typing import TYPE_CHECKING, Type, Optional
+from typing import TYPE_CHECKING, Optional, Type
 
 import electrumx.lib.util as util
 from electrumx.lib.hash import HASHX_LEN, hash_to_hex_str
-from electrumx.lib.util import (pack_be_uint16, pack_be_uint32, pack_le_uint64,
-                                unpack_be_uint16_from, unpack_le_uint64)
+from electrumx.lib.util import (
+    pack_be_uint16,
+    pack_be_uint32,
+    pack_le_uint64,
+    unpack_be_uint16_from,
+    unpack_le_uint64,
+)
 
 if TYPE_CHECKING:
     from electrumx.server.storage import Storage
@@ -29,10 +34,9 @@ FLUSHID_LEN = 2
 
 
 class History:
-
     DB_VERSIONS = (0, 1)
 
-    db: Optional['Storage']
+    db: Optional["Storage"]
 
     def __init__(self):
         self.logger = util.class_logger(__name__, self.__class__.__name__)
@@ -51,13 +55,13 @@ class History:
         self.db = None
 
     def open_db(
-            self,
-            db_class: Type['Storage'],
-            for_sync: bool,
-            utxo_flush_count: int,
-            compacting: bool,
+        self,
+        db_class: Type["Storage"],
+        for_sync: bool,
+        utxo_flush_count: int,
+        compacting: bool,
     ):
-        self.db = db_class('hist', for_sync)
+        self.db = db_class("hist", for_sync)
         self.read_state()
         self.clear_excess(utxo_flush_count)
         # An incomplete compaction needs to be cancelled otherwise
@@ -72,16 +76,16 @@ class History:
             self.db = None
 
     def read_state(self):
-        state = self.db.get(b'state\0\0')
+        state = self.db.get(b"state\0\0")
         if state:
             state = ast.literal_eval(state.decode())
             if not isinstance(state, dict):
-                raise RuntimeError('failed reading state from history DB')
-            self.flush_count = state['flush_count']
-            self.comp_flush_count = state.get('comp_flush_count', -1)
-            self.comp_cursor = state.get('comp_cursor', -1)
-            self.db_version = state.get('db_version', 0)
-            self.upgrade_cursor = state.get('upgrade_cursor', -1)
+                raise RuntimeError("failed reading state from history DB")
+            self.flush_count = state["flush_count"]
+            self.comp_flush_count = state.get("comp_flush_count", -1)
+            self.comp_cursor = state.get("comp_cursor", -1)
+            self.db_version = state.get("db_version", 0)
+            self.upgrade_cursor = state.get("upgrade_cursor", -1)
         else:
             self.flush_count = 0
             self.comp_flush_count = -1
@@ -90,14 +94,16 @@ class History:
             self.upgrade_cursor = -1
 
         if self.db_version not in self.DB_VERSIONS:
-            msg = (f'your history DB version is {self.db_version} but '
-                   f'this software only handles DB versions {self.DB_VERSIONS}')
+            msg = (
+                f"your history DB version is {self.db_version} but "
+                f"this software only handles DB versions {self.DB_VERSIONS}"
+            )
             self.logger.error(msg)
             raise RuntimeError(msg)
         if self.db_version != max(self.DB_VERSIONS):
             self.upgrade_db()
-        self.logger.info(f'history DB version: {self.db_version}')
-        self.logger.info(f'flush count: {self.flush_count:,d}')
+        self.logger.info(f"history DB version: {self.db_version}")
+        self.logger.info(f"flush count: {self.flush_count:,d}")
 
     def clear_excess(self, utxo_flush_count):
         # < might happen at end of compaction as both DBs cannot be
@@ -105,16 +111,15 @@ class History:
         if self.flush_count <= utxo_flush_count:
             return
 
-        self.logger.info('DB shut down uncleanly.  Scanning for '
-                         'excess history flushes...')
+        self.logger.info("DB shut down uncleanly.  Scanning for " "excess history flushes...")
 
         keys = []
-        for key, _hist in self.db.iterator(prefix=b''):
-            flush_id, = unpack_be_uint16_from(key[-FLUSHID_LEN:])
+        for key, _hist in self.db.iterator(prefix=b""):
+            (flush_id,) = unpack_be_uint16_from(key[-FLUSHID_LEN:])
             if flush_id > utxo_flush_count:
                 keys.append(key)
 
-        self.logger.info(f'deleting {len(keys):,d} history entries')
+        self.logger.info(f"deleting {len(keys):,d} history entries")
 
         self.flush_count = utxo_flush_count
         with self.db.write_batch() as batch:
@@ -122,20 +127,20 @@ class History:
                 batch.delete(key)
             self.write_state(batch)
 
-        self.logger.info('deleted excess history entries')
+        self.logger.info("deleted excess history entries")
 
     def write_state(self, batch):
-        '''Write state to the history DB.'''
+        """Write state to the history DB."""
         state = {
-            'flush_count': self.flush_count,
-            'comp_flush_count': self.comp_flush_count,
-            'comp_cursor': self.comp_cursor,
-            'db_version': self.db_version,
-            'upgrade_cursor': self.upgrade_cursor,
+            "flush_count": self.flush_count,
+            "comp_flush_count": self.comp_flush_count,
+            "comp_cursor": self.comp_cursor,
+            "db_version": self.db_version,
+            "upgrade_cursor": self.upgrade_cursor,
         }
         # History entries are not prefixed; the suffix \0\0 ensures we
         # look similar to other entries and aren't interfered with
-        batch.put(b'state\0\0', repr(state).encode())
+        batch.put(b"state\0\0", repr(state).encode())
 
     def add_unflushed(self, hashXs_by_tx, first_tx_num):
         unflushed = self.unflushed
@@ -172,8 +177,7 @@ class History:
 
         if self.db.for_sync:
             elapsed = time.monotonic() - start_time
-            self.logger.info(f'flushed history in {elapsed:.1f}s '
-                             f'for {count:,d} addrs')
+            self.logger.info(f"flushed history in {elapsed:.1f}s " f"for {count:,d} addrs")
 
     def backup(self, hashXs, tx_count):
         # Not certain this is needed, but it doesn't hurt
@@ -182,21 +186,21 @@ class History:
         bisect_left = bisect.bisect_left
         chunks = util.chunks
 
-        txnum_padding = bytes(8-TXNUM_LEN)
+        txnum_padding = bytes(8 - TXNUM_LEN)
         with self.db.write_batch() as batch:
             for hashX in sorted(hashXs):
                 deletes = []
                 puts = {}
                 for key, hist in self.db.iterator(prefix=hashX, reverse=True):
                     a = array(
-                        'Q',
-                        b''.join(item + txnum_padding for item in chunks(hist, TXNUM_LEN))
+                        "Q",
+                        b"".join(item + txnum_padding for item in chunks(hist, TXNUM_LEN)),
                     )
                     # Remove all history entries >= tx_count
                     idx = bisect_left(a, tx_count)
                     nremoves += len(a) - idx
                     if idx > 0:
-                        puts[key] = hist[:TXNUM_LEN * idx]
+                        puts[key] = hist[: TXNUM_LEN * idx]
                         break
                     deletes.append(key)
 
@@ -206,21 +210,21 @@ class History:
                     batch.put(key, value)
             self.write_state(batch)
 
-        self.logger.info(f'backing up removed {nremoves:,d} history entries')
+        self.logger.info(f"backing up removed {nremoves:,d} history entries")
 
     def get_txnums(self, hashX, limit=1000):
-        '''Generator that returns an unpruned, sorted list of tx_nums in the
+        """Generator that returns an unpruned, sorted list of tx_nums in the
         history of a hashX.  Includes both spending and receiving
         transactions.  By default yields at most 1000 entries.  Set
-        limit to None to get them all.  '''
+        limit to None to get them all."""
         limit = util.resolve_limit(limit)
         chunks = util.chunks
-        txnum_padding = bytes(8-TXNUM_LEN)
+        txnum_padding = bytes(8 - TXNUM_LEN)
         for _key, hist in self.db.iterator(prefix=hashX):
             for tx_numb in chunks(hist, TXNUM_LEN):
                 if limit == 0:
                     return
-                tx_num, = unpack_le_uint64(tx_numb + txnum_padding)
+                (tx_num,) = unpack_le_uint64(tx_numb + txnum_padding)
                 yield tx_num
                 limit -= 1
 
@@ -244,7 +248,7 @@ class History:
     # flush_count is reset to comp_flush_count, and comp_flush_count to -1
 
     def _flush_compaction(self, cursor, write_items, keys_to_delete):
-        '''Flush a single compaction pass as a batch.'''
+        """Flush a single compaction pass as a batch."""
         # Update compaction state
         if cursor == 65536:
             self.flush_count = self.comp_flush_count
@@ -262,21 +266,20 @@ class History:
                 batch.put(key, value)
             self.write_state(batch)
 
-    def _compact_hashX(self, hashX, hist_map, hist_list,
-                       write_items, keys_to_delete):
-        '''Compres history for a hashX.  hist_list is an ordered list of
-        the histories to be compressed.'''
+    def _compact_hashX(self, hashX, hist_map, hist_list, write_items, keys_to_delete):
+        """Compres history for a hashX.  hist_list is an ordered list of
+        the histories to be compressed."""
         # History entries (tx numbers) are TXNUM_LEN bytes each.  Distribute
         # over rows of up to 50KB in size.  A fixed row size means
         # future compactions will not need to update the first N - 1
         # rows.
         max_row_size = self.max_hist_row_entries * TXNUM_LEN
-        full_hist = b''.join(hist_list)
+        full_hist = b"".join(hist_list)
         nrows = (len(full_hist) + max_row_size - 1) // max_row_size
         if nrows > 4:
             self.logger.info(
-                f'hashX {hash_to_hex_str(hashX)} is large: '
-                f'{len(full_hist) // TXNUM_LEN:,d} entries across {nrows:,d} rows'
+                f"hashX {hash_to_hex_str(hashX)} is large: "
+                f"{len(full_hist) // TXNUM_LEN:,d} entries across {nrows:,d} rows"
             )
 
         # Find what history needs to be written, and what keys need to
@@ -299,8 +302,8 @@ class History:
         return write_size
 
     def _compact_prefix(self, prefix, write_items, keys_to_delete):
-        '''Compact all history entries for hashXs beginning with the
-        given prefix.  Update keys_to_delete and write.'''
+        """Compact all history entries for hashXs beginning with the
+        given prefix.  Update keys_to_delete and write."""
         prior_hashX = None
         hist_map = {}
         hist_list = []
@@ -313,9 +316,7 @@ class History:
                 continue
             hashX = key[:-FLUSHID_LEN]
             if hashX != prior_hashX and prior_hashX:
-                write_size += self._compact_hashX(prior_hashX, hist_map,
-                                                  hist_list, write_items,
-                                                  keys_to_delete)
+                write_size += self._compact_hashX(prior_hashX, hist_map, hist_list, write_items, keys_to_delete)
                 hist_map.clear()
                 hist_list.clear()
             prior_hashX = hashX
@@ -323,40 +324,38 @@ class History:
             hist_list.append(hist)
 
         if prior_hashX:
-            write_size += self._compact_hashX(prior_hashX, hist_map, hist_list,
-                                              write_items, keys_to_delete)
+            write_size += self._compact_hashX(prior_hashX, hist_map, hist_list, write_items, keys_to_delete)
         return write_size
 
     def _compact_history(self, limit):
-        '''Inner loop of history compaction.  Loops until limit bytes have
+        """Inner loop of history compaction.  Loops until limit bytes have
         been processed.
-        '''
+        """
         keys_to_delete = set()
-        write_items = []   # A list of (key, value) pairs
+        write_items = []  # A list of (key, value) pairs
         write_size = 0
 
         # Loop over 2-byte prefixes
         cursor = self.comp_cursor
         while write_size < limit and cursor < 65536:
             prefix = pack_be_uint16(cursor)
-            write_size += self._compact_prefix(prefix, write_items,
-                                               keys_to_delete)
+            write_size += self._compact_prefix(prefix, write_items, keys_to_delete)
             cursor += 1
 
         max_rows = self.comp_flush_count + 1
         self._flush_compaction(cursor, write_items, keys_to_delete)
 
         self.logger.info(
-            f'history compaction: wrote {len(write_items):,d} rows '
-            f'({write_size / 1000000:.1f} MB), removed '
-            f'{len(keys_to_delete):,d} rows, largest: {max_rows:,d}, '
-            f'{100 * cursor / 65536:.1f}% complete'
+            f"history compaction: wrote {len(write_items):,d} rows "
+            f"({write_size / 1000000:.1f} MB), removed "
+            f"{len(keys_to_delete):,d} rows, largest: {max_rows:,d}, "
+            f"{100 * cursor / 65536:.1f}% complete"
         )
         return write_size
 
     def _cancel_compaction(self):
         if self.comp_cursor != -1:
-            self.logger.warning('cancelling in-progress history compaction')
+            self.logger.warning("cancelling in-progress history compaction")
             self.comp_flush_count = -1
             self.comp_cursor = -1
 
@@ -365,8 +364,8 @@ class History:
     #
 
     def upgrade_db(self):
-        self.logger.info(f'history DB version: {self.db_version}')
-        self.logger.info('Upgrading your history DB; this can take some time...')
+        self.logger.info(f"history DB version: {self.db_version}")
+        self.logger.info("Upgrading your history DB; this can take some time...")
 
         def upgrade_cursor(cursor):
             count = 0
@@ -380,7 +379,7 @@ class History:
                     if len(key) != key_len:
                         continue
                     count += 1
-                    hist = b''.join(item + b'\0' for item in chunks(hist, 4))
+                    hist = b"".join(item + b"\0" for item in chunks(hist, 4))
                     batch_put(key, hist)
                 self.upgrade_cursor = cursor
                 self.write_state(batch)
@@ -394,11 +393,10 @@ class History:
             now = time.monotonic()
             if now > last + 10:
                 last = now
-                self.logger.info(f'DB 3 of 3: {count:,d} entries updated, '
-                                 f'{cursor * 100 / 65536:.1f}% complete')
+                self.logger.info(f"DB 3 of 3: {count:,d} entries updated, " f"{cursor * 100 / 65536:.1f}% complete")
 
         self.db_version = max(self.DB_VERSIONS)
         self.upgrade_cursor = -1
         with self.db.write_batch() as batch:
             self.write_state(batch)
-        self.logger.info('DB 3 of 3 upgraded successfully')
+        self.logger.info("DB 3 of 3 upgraded successfully")

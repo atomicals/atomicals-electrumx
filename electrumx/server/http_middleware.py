@@ -4,6 +4,7 @@ import asyncio
 import base64
 import os
 import traceback
+
 from aiohttp import web, web_middlewares
 
 
@@ -38,7 +39,7 @@ rate_limiter = RateLimiter(
     max_tokens=os.environ.get("MAX_TOKENS", 10000),
     refill_interval=os.environ.get("RATE_LIMIT_WINDOW_SECONDS", 3),
     delay_after=os.environ.get("RATE_LIMIT_DELAY_AFTER", 5),
-    delay_ms=os.environ.get("RATE_LIMIT_DELAY_MS", 300)
+    delay_ms=os.environ.get("RATE_LIMIT_DELAY_MS", 300),
 )
 
 
@@ -46,11 +47,13 @@ def cors_middleware(self) -> web_middlewares:
     async def factory(app: web.Application, handler):
         async def middleware_handler(request):
             response = await handler(request)
-            response.headers['Access-Control-Allow-Origin'] = '*'
-            response.headers['Access-Control-Allow-Headers'] = '*'
-            response.headers['Access-Control-Expose-Headers'] = '*'
+            response.headers["Access-Control-Allow-Origin"] = "*"
+            response.headers["Access-Control-Allow-Headers"] = "*"
+            response.headers["Access-Control-Expose-Headers"] = "*"
             return response
+
         return middleware_handler
+
     return factory
 
 
@@ -67,16 +70,18 @@ def error_middleware(self) -> web_middlewares:
                     return error_resp(ex.status, ex)
                 raise
             except Exception as e:
-                self.logger.warning('Request {} has failed with exception: {}'.format(request, repr(e)))
+                self.logger.warning("Request {} has failed with exception: {}".format(request, repr(e)))
                 self.logger.warning(traceback.format_exc())
                 return error_resp(500, e)
+
         return middleware_handler
+
     return factory
 
 
 def serialize_data(data):
     if isinstance(data, bytes):
-        return base64.b64encode(data).decode('utf-8')
+        return base64.b64encode(data).decode("utf-8")
     elif isinstance(data, dict):
         return {key: serialize_data(value) for key, value in data.items()}
     elif isinstance(data, list):
@@ -98,25 +103,20 @@ def success_resp(data) -> web.Response:
 def request_middleware(self) -> web_middlewares:
     async def factory(app: web.Application, handler):
         async def middleware_handler(request: web.Request):
-            # Log request details as a future.
-            async def log_request():
-                method = request.path
-                params = await request.json() if request.content_length else None
-                self.logger.debug(f'HTTP request handling: [method] {method}, [params]: {params}')
-            asyncio.ensure_future(log_request())
-
             if not self.env.enable_rate_limit:
                 response = await handler(request)
                 if isinstance(response, web.Response):
                     return response
                 return success_resp(response)
-            if await request.app['rate_limiter'].check_limit():
+            if await request.app["rate_limiter"].check_limit():
                 # return await handler(request)
                 response = await handler(request)
                 if isinstance(response, web.Response):
                     return response
                 return success_resp(response)
-            await asyncio.sleep(request.app['rate_limiter'].delay_ms / 1000)
+            await asyncio.sleep(request.app["rate_limiter"].delay_ms / 1000)
             return error_resp(status_code=429, exception=Exception("Rate limit exceeded"))
+
         return middleware_handler
+
     return factory

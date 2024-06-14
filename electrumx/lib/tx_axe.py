@@ -24,27 +24,30 @@
 # OF CONTRACT, TORT OR OTHERWISE, ARISING FROM, OUT OF OR IN CONNECTION
 # WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE.
 
-'''Deserializer for AXE DIP2 special transaction types'''
+"""Deserializer for AXE DIP2 special transaction types"""
 
 from collections import namedtuple
 
 from electrumx.lib.tx import Deserializer
-from electrumx.lib.util import (pack_le_uint16, pack_le_int32, pack_le_uint32,
-                                pack_le_int64, pack_varint, pack_varbytes,
-                                pack_be_uint16)
+from electrumx.lib.util import (
+    pack_be_uint16,
+    pack_le_int32,
+    pack_le_int64,
+    pack_le_uint16,
+    pack_le_uint32,
+    pack_varbytes,
+    pack_varint,
+)
 
 
 # https://github.com/dashpay/dips/blob/master/dip-0002.md
-class AxeTx(namedtuple("AxeTx",
-                       "version inputs outputs locktime "
-                       "tx_type extra_payload")):
-    '''Class representing a Axe transaction'''
+class AxeTx(namedtuple("AxeTx", "version inputs outputs locktime " "tx_type extra_payload")):
+    """Class representing a Axe transaction"""
+
     def serialize(self):
         nLocktime = pack_le_uint32(self.locktime)
-        txins = (pack_varint(len(self.inputs)) +
-                 b''.join(tx_in.serialize() for tx_in in self.inputs))
-        txouts = (pack_varint(len(self.outputs)) +
-                  b''.join(tx_out.serialize() for tx_out in self.outputs))
+        txins = pack_varint(len(self.inputs)) + b"".join(tx_in.serialize() for tx_in in self.inputs)
+        txouts = pack_varint(len(self.outputs)) + b"".join(tx_out.serialize() for tx_out in self.outputs)
 
         if self.tx_type:
             uVersion = pack_le_uint16(self.version)
@@ -63,167 +66,180 @@ class AxeTx(namedtuple("AxeTx",
             return pack_varbytes(extra)
 
         if not isinstance(extra, spec_tx_class):
-            raise ValueError('Axe tx_type does not conform with extra'
-                             ' payload class: %s, %s' % (self.tx_type, extra))
+            raise ValueError("Axe tx_type does not conform with extra" " payload class: %s, %s" % (self.tx_type, extra))
         return pack_varbytes(extra.serialize())
 
 
 # https://github.com/dashpay/dips/blob/master/dip-0002-special-transactions.md
-class AxeProRegTx(namedtuple("AxeProRegTx",
-                             "version type mode collateralOutpoint "
-                             "ipAddress port KeyIdOwner PubKeyOperator "
-                             "KeyIdVoting operatorReward scriptPayout "
-                             "inputsHash payloadSig")):
-    '''Class representing DIP3 ProRegTx'''
+class AxeProRegTx(
+    namedtuple(
+        "AxeProRegTx",
+        "version type mode collateralOutpoint "
+        "ipAddress port KeyIdOwner PubKeyOperator "
+        "KeyIdVoting operatorReward scriptPayout "
+        "inputsHash payloadSig",
+    )
+):
+    """Class representing DIP3 ProRegTx"""
+
     def serialize(self):
-        assert (len(self.ipAddress) == 16
-                and len(self.KeyIdOwner) == 20
-                and len(self.PubKeyOperator) == 48
-                and len(self.KeyIdVoting) == 20
-                and len(self.inputsHash) == 32)
+        assert (
+            len(self.ipAddress) == 16
+            and len(self.KeyIdOwner) == 20
+            and len(self.PubKeyOperator) == 48
+            and len(self.KeyIdVoting) == 20
+            and len(self.inputsHash) == 32
+        )
         return (
-            pack_le_uint16(self.version) +              # version
-            pack_le_uint16(self.type) +                 # type
-            pack_le_uint16(self.mode) +                 # mode
-            self.collateralOutpoint.serialize() +       # collateralOutpoint
-            self.ipAddress +                            # ipAddress
-            pack_be_uint16(self.port) +                 # port
-            self.KeyIdOwner +                           # KeyIdOwner
-            self.PubKeyOperator +                       # PubKeyOperator
-            self.KeyIdVoting +                          # KeyIdVoting
-            pack_le_uint16(self.operatorReward) +       # operatorReward
-            pack_varbytes(self.scriptPayout) +          # scriptPayout
-            self.inputsHash +                           # inputsHash
-            pack_varbytes(self.payloadSig)              # payloadSig
+            pack_le_uint16(self.version)
+            + pack_le_uint16(self.type)  # version
+            + pack_le_uint16(self.mode)  # type
+            + self.collateralOutpoint.serialize()  # mode
+            + self.ipAddress  # collateralOutpoint
+            + pack_be_uint16(self.port)  # ipAddress
+            + self.KeyIdOwner  # port
+            + self.PubKeyOperator  # KeyIdOwner
+            + self.KeyIdVoting  # PubKeyOperator
+            + pack_le_uint16(self.operatorReward)  # KeyIdVoting
+            + pack_varbytes(self.scriptPayout)  # operatorReward
+            + self.inputsHash  # scriptPayout
+            + pack_varbytes(self.payloadSig)  # inputsHash  # payloadSig
         )
 
     @classmethod
     def read_tx_extra(cls, deser):
         return AxeProRegTx(
-            deser._read_le_uint16(),                    # version
-            deser._read_le_uint16(),                    # type
-            deser._read_le_uint16(),                    # mode
-            deser._read_outpoint(),                     # collateralOutpoint
-            deser._read_nbytes(16),                     # ipAddress
-            deser._read_be_uint16(),                    # port
-            deser._read_nbytes(20),                     # KeyIdOwner
-            deser._read_nbytes(48),                     # PubKeyOperator
-            deser._read_nbytes(20),                     # KeyIdVoting
-            deser._read_le_uint16(),                    # operatorReward
-            deser._read_varbytes(),                     # scriptPayout
-            deser._read_nbytes(32),                     # inputsHash
-            deser._read_varbytes()                      # payloadSig
+            deser._read_le_uint16(),  # version
+            deser._read_le_uint16(),  # type
+            deser._read_le_uint16(),  # mode
+            deser._read_outpoint(),  # collateralOutpoint
+            deser._read_nbytes(16),  # ipAddress
+            deser._read_be_uint16(),  # port
+            deser._read_nbytes(20),  # KeyIdOwner
+            deser._read_nbytes(48),  # PubKeyOperator
+            deser._read_nbytes(20),  # KeyIdVoting
+            deser._read_le_uint16(),  # operatorReward
+            deser._read_varbytes(),  # scriptPayout
+            deser._read_nbytes(32),  # inputsHash
+            deser._read_varbytes(),  # payloadSig
         )
 
 
-class AxeProUpServTx(namedtuple("AxeProUpServTx",
-                                "version proTxHash ipAddress port "
-                                "scriptOperatorPayout inputsHash "
-                                "payloadSig")):
-    '''Class representing DIP3 ProUpServTx'''
+class AxeProUpServTx(
+    namedtuple(
+        "AxeProUpServTx",
+        "version proTxHash ipAddress port " "scriptOperatorPayout inputsHash " "payloadSig",
+    )
+):
+    """Class representing DIP3 ProUpServTx"""
+
     def serialize(self):
-        assert (len(self.proTxHash) == 32
-                and len(self.ipAddress) == 16
-                and len(self.inputsHash) == 32
-                and len(self.payloadSig) == 96)
+        assert (
+            len(self.proTxHash) == 32
+            and len(self.ipAddress) == 16
+            and len(self.inputsHash) == 32
+            and len(self.payloadSig) == 96
+        )
         return (
-            pack_le_uint16(self.version) +              # version
-            self.proTxHash +                            # proTxHash
-            self.ipAddress +                            # ipAddress
-            pack_be_uint16(self.port) +                 # port
-            pack_varbytes(self.scriptOperatorPayout) +  # scriptOperatorPayout
-            self.inputsHash +                           # inputsHash
-            self.payloadSig                             # payloadSig
+            pack_le_uint16(self.version)
+            + self.proTxHash  # version
+            + self.ipAddress  # proTxHash
+            + pack_be_uint16(self.port)  # ipAddress
+            + pack_varbytes(self.scriptOperatorPayout)  # port
+            + self.inputsHash  # scriptOperatorPayout
+            + self.payloadSig  # inputsHash  # payloadSig
         )
 
     @classmethod
     def read_tx_extra(cls, deser):
         return AxeProUpServTx(
-            deser._read_le_uint16(),                    # version
-            deser._read_nbytes(32),                     # proTxHash
-            deser._read_nbytes(16),                     # ipAddress
-            deser._read_be_uint16(),                    # port
-            deser._read_varbytes(),                     # scriptOperatorPayout
-            deser._read_nbytes(32),                     # inputsHash
-            deser._read_nbytes(96)                      # payloadSig
+            deser._read_le_uint16(),  # version
+            deser._read_nbytes(32),  # proTxHash
+            deser._read_nbytes(16),  # ipAddress
+            deser._read_be_uint16(),  # port
+            deser._read_varbytes(),  # scriptOperatorPayout
+            deser._read_nbytes(32),  # inputsHash
+            deser._read_nbytes(96),  # payloadSig
         )
 
 
-class AxeProUpRegTx(namedtuple("AxeProUpRegTx",
-                               "version proTxHash mode PubKeyOperator "
-                               "KeyIdVoting scriptPayout inputsHash "
-                               "payloadSig")):
-    '''Class representing DIP3 ProUpRegTx'''
+class AxeProUpRegTx(
+    namedtuple(
+        "AxeProUpRegTx",
+        "version proTxHash mode PubKeyOperator " "KeyIdVoting scriptPayout inputsHash " "payloadSig",
+    )
+):
+    """Class representing DIP3 ProUpRegTx"""
+
     def serialize(self):
-        assert (len(self.proTxHash) == 32
-                and len(self.PubKeyOperator) == 48
-                and len(self.KeyIdVoting) == 20
-                and len(self.inputsHash) == 32)
+        assert (
+            len(self.proTxHash) == 32
+            and len(self.PubKeyOperator) == 48
+            and len(self.KeyIdVoting) == 20
+            and len(self.inputsHash) == 32
+        )
         return (
-            pack_le_uint16(self.version) +              # version
-            self.proTxHash +                            # proTxHash
-            pack_le_uint16(self.mode) +                 # mode
-            self.PubKeyOperator +                       # PubKeyOperator
-            self.KeyIdVoting +                          # KeyIdVoting
-            pack_varbytes(self.scriptPayout) +          # scriptPayout
-            self.inputsHash +                           # inputsHash
-            pack_varbytes(self.payloadSig)              # payloadSig
+            pack_le_uint16(self.version)
+            + self.proTxHash  # version
+            + pack_le_uint16(self.mode)  # proTxHash
+            + self.PubKeyOperator  # mode
+            + self.KeyIdVoting  # PubKeyOperator
+            + pack_varbytes(self.scriptPayout)  # KeyIdVoting
+            + self.inputsHash  # scriptPayout
+            + pack_varbytes(self.payloadSig)  # inputsHash  # payloadSig
         )
 
     @classmethod
     def read_tx_extra(cls, deser):
         return AxeProUpRegTx(
-            deser._read_le_uint16(),                    # version
-            deser._read_nbytes(32),                     # proTxHash
-            deser._read_le_uint16(),                    # mode
-            deser._read_nbytes(48),                     # PubKeyOperator
-            deser._read_nbytes(20),                     # KeyIdVoting
-            deser._read_varbytes(),                     # scriptPayout
-            deser._read_nbytes(32),                     # inputsHash
-            deser._read_varbytes()                      # payloadSig
+            deser._read_le_uint16(),  # version
+            deser._read_nbytes(32),  # proTxHash
+            deser._read_le_uint16(),  # mode
+            deser._read_nbytes(48),  # PubKeyOperator
+            deser._read_nbytes(20),  # KeyIdVoting
+            deser._read_varbytes(),  # scriptPayout
+            deser._read_nbytes(32),  # inputsHash
+            deser._read_varbytes(),  # payloadSig
         )
 
 
-class AxeProUpRevTx(namedtuple("AxeProUpRevTx",
-                               "version proTxHash reason "
-                               "inputsHash payloadSig")):
-    '''Class representing DIP3 ProUpRevTx'''
+class AxeProUpRevTx(namedtuple("AxeProUpRevTx", "version proTxHash reason " "inputsHash payloadSig")):
+    """Class representing DIP3 ProUpRevTx"""
+
     def serialize(self):
-        assert (len(self.proTxHash) == 32
-                and len(self.inputsHash) == 32
-                and len(self.payloadSig) == 96)
+        assert len(self.proTxHash) == 32 and len(self.inputsHash) == 32 and len(self.payloadSig) == 96
         return (
-            pack_le_uint16(self.version) +              # version
-            self.proTxHash +                            # proTxHash
-            pack_le_uint16(self.reason) +               # reason
-            self.inputsHash +                           # inputsHash
-            self.payloadSig                             # payloadSig
+            pack_le_uint16(self.version)
+            + self.proTxHash  # version
+            + pack_le_uint16(self.reason)  # proTxHash
+            + self.inputsHash  # reason
+            + self.payloadSig  # inputsHash  # payloadSig
         )
 
     @classmethod
     def read_tx_extra(cls, deser):
         return AxeProUpRevTx(
-            deser._read_le_uint16(),                    # version
-            deser._read_nbytes(32),                     # proTxHash
-            deser._read_le_uint16(),                    # reason
-            deser._read_nbytes(32),                     # inputsHash
-            deser._read_nbytes(96)                      # payloadSig
+            deser._read_le_uint16(),  # version
+            deser._read_nbytes(32),  # proTxHash
+            deser._read_le_uint16(),  # reason
+            deser._read_nbytes(32),  # inputsHash
+            deser._read_nbytes(96),  # payloadSig
         )
 
 
-class AxeCbTx(namedtuple("AxeCbTx", "version height merkleRootMNList "
-                                    "merkleRootQuorums")):
-    '''Class representing DIP4 coinbase special tx'''
+class AxeCbTx(namedtuple("AxeCbTx", "version height merkleRootMNList " "merkleRootQuorums")):
+    """Class representing DIP4 coinbase special tx"""
+
     def serialize(self):
         assert len(self.merkleRootMNList) == 32
         res = (
-            pack_le_uint16(self.version) +              # version
-            pack_le_uint32(self.height) +               # height
-            self.merkleRootMNList                       # merkleRootMNList
+            pack_le_uint16(self.version)
+            + pack_le_uint32(self.height)  # version
+            + self.merkleRootMNList  # height  # merkleRootMNList
         )
         if self.version > 1:
             assert len(self.merkleRootQuorums) == 32
-            res += self.merkleRootQuorums               # merkleRootQuorums
+            res += self.merkleRootQuorums  # merkleRootQuorums
         return res
 
     @classmethod
@@ -231,130 +247,127 @@ class AxeCbTx(namedtuple("AxeCbTx", "version height merkleRootMNList "
         version = deser._read_le_uint16()
         height = deser._read_le_uint32()
         merkleRootMNList = deser._read_nbytes(32)
-        merkleRootQuorums = b''
+        merkleRootQuorums = b""
         if version > 1:
             merkleRootQuorums = deser._read_nbytes(32)
         return AxeCbTx(version, height, merkleRootMNList, merkleRootQuorums)
 
 
-class AxeSubTxRegister(namedtuple("AxeSubTxRegister",
-                                  "version userName pubKey payloadSig")):
-    '''Class representing DIP5 SubTxRegister'''
+class AxeSubTxRegister(namedtuple("AxeSubTxRegister", "version userName pubKey payloadSig")):
+    """Class representing DIP5 SubTxRegister"""
+
     def serialize(self):
-        assert (len(self.pubKey) == 48
-                and len(self.payloadSig) == 96)
+        assert len(self.pubKey) == 48 and len(self.payloadSig) == 96
         return (
-            pack_le_uint16(self.version) +              # version
-            pack_varbytes(self.userName) +              # userName
-            self.pubKey +                               # pubKey
-            self.payloadSig                             # payloadSig
+            pack_le_uint16(self.version)
+            + pack_varbytes(self.userName)  # version
+            + self.pubKey  # userName
+            + self.payloadSig  # pubKey  # payloadSig
         )
 
     @classmethod
     def read_tx_extra(cls, deser):
         return AxeSubTxRegister(
-            deser._read_le_uint16(),                    # version
-            deser._read_varbytes(),                     # userName
-            deser._read_nbytes(48),                     # pubKey
-            deser._read_nbytes(96)                      # payloadSig
+            deser._read_le_uint16(),  # version
+            deser._read_varbytes(),  # userName
+            deser._read_nbytes(48),  # pubKey
+            deser._read_nbytes(96),  # payloadSig
         )
 
 
-class AxeSubTxTopup(namedtuple("AxeSubTxTopup",
-                               "version regTxHash")):
-    '''Class representing DIP5 SubTxTopup'''
+class AxeSubTxTopup(namedtuple("AxeSubTxTopup", "version regTxHash")):
+    """Class representing DIP5 SubTxTopup"""
+
     def serialize(self):
         assert len(self.regTxHash) == 32
-        return (
-            pack_le_uint16(self.version) +              # version
-            self.regTxHash                              # regTxHash
-        )
+        return pack_le_uint16(self.version) + self.regTxHash  # version  # regTxHash
 
     @classmethod
     def read_tx_extra(cls, deser):
-        return AxeSubTxTopup(
-            deser._read_le_uint16(),                    # version
-            deser._read_nbytes(32)                      # regTxHash
-        )
+        return AxeSubTxTopup(deser._read_le_uint16(), deser._read_nbytes(32))  # version  # regTxHash
 
 
-class AxeSubTxResetKey(namedtuple("AxeSubTxResetKey",
-                                  "version regTxHash hashPrevSubTx "
-                                  "creditFee newPubKey payloadSig")):
-    '''Class representing DIP5 SubTxResetKey'''
+class AxeSubTxResetKey(
+    namedtuple(
+        "AxeSubTxResetKey",
+        "version regTxHash hashPrevSubTx " "creditFee newPubKey payloadSig",
+    )
+):
+    """Class representing DIP5 SubTxResetKey"""
+
     def serialize(self):
-        assert (len(self.regTxHash) == 32
-                and len(self.hashPrevSubTx) == 32
-                and len(self.newPubKey) == 48
-                and len(self.payloadSig) == 96)
+        assert (
+            len(self.regTxHash) == 32
+            and len(self.hashPrevSubTx) == 32
+            and len(self.newPubKey) == 48
+            and len(self.payloadSig) == 96
+        )
         return (
-            pack_le_uint16(self.version) +              # version
-            self.regTxHash +                            # regTxHash
-            self.hashPrevSubTx +                        # hashPrevSubTx
-            pack_le_int64(self.creditFee) +             # creditFee
-            self.newPubKey +                            # newPubKey
-            self.payloadSig                             # payloadSig
+            pack_le_uint16(self.version)
+            + self.regTxHash  # version
+            + self.hashPrevSubTx  # regTxHash
+            + pack_le_int64(self.creditFee)  # hashPrevSubTx
+            + self.newPubKey  # creditFee
+            + self.payloadSig  # newPubKey  # payloadSig
         )
 
     @classmethod
     def read_tx_extra(cls, deser):
         return AxeSubTxResetKey(
-            deser._read_le_uint16(),                    # version
-            deser._read_nbytes(32),                     # regTxHash
-            deser._read_nbytes(32),                     # hashPrevSubTx
-            deser._read_le_int64(),                     # creditFee
-            deser._read_nbytes(48),                     # newPubKey
-            deser._read_nbytes(96)                      # payloadSig
+            deser._read_le_uint16(),  # version
+            deser._read_nbytes(32),  # regTxHash
+            deser._read_nbytes(32),  # hashPrevSubTx
+            deser._read_le_int64(),  # creditFee
+            deser._read_nbytes(48),  # newPubKey
+            deser._read_nbytes(96),  # payloadSig
         )
 
 
-class AxeSubTxCloseAccount(namedtuple("AxeSubTxCloseAccount",
-                                      "version regTxHash hashPrevSubTx "
-                                      "creditFee payloadSig")):
-    '''Class representing DIP5 SubTxCloseAccount'''
+class AxeSubTxCloseAccount(
+    namedtuple(
+        "AxeSubTxCloseAccount",
+        "version regTxHash hashPrevSubTx " "creditFee payloadSig",
+    )
+):
+    """Class representing DIP5 SubTxCloseAccount"""
+
     def serialize(self):
-        assert (len(self.regTxHash) == 32
-                and len(self.hashPrevSubTx) == 32
-                and len(self.payloadSig) == 96)
+        assert len(self.regTxHash) == 32 and len(self.hashPrevSubTx) == 32 and len(self.payloadSig) == 96
         return (
-            pack_le_uint16(self.version) +              # version
-            self.regTxHash +                            # regTxHash
-            self.hashPrevSubTx +                        # hashPrevSubTx
-            pack_le_int64(self.creditFee) +             # creditFee
-            self.payloadSig                             # payloadSig
+            pack_le_uint16(self.version)
+            + self.regTxHash  # version
+            + self.hashPrevSubTx  # regTxHash
+            + pack_le_int64(self.creditFee)  # hashPrevSubTx
+            + self.payloadSig  # creditFee  # payloadSig
         )
 
     @classmethod
     def read_tx_extra(cls, deser):
         return AxeSubTxCloseAccount(
-            deser._read_le_uint16(),                    # version
-            deser._read_nbytes(32),                     # regTxHash
-            deser._read_nbytes(32),                     # hashPrevSubTx
-            deser._read_le_int64(),                     # creditFee
-            deser._read_nbytes(96)                      # payloadSig
+            deser._read_le_uint16(),  # version
+            deser._read_nbytes(32),  # regTxHash
+            deser._read_nbytes(32),  # hashPrevSubTx
+            deser._read_le_int64(),  # creditFee
+            deser._read_nbytes(96),  # payloadSig
         )
 
 
 # https://dash-docs.github.io/en/developer-reference#outpoint
 class TxOutPoint(namedtuple("TxOutPoint", "hash index")):
-    '''Class representing tx output outpoint'''
+    """Class representing tx output outpoint"""
+
     def serialize(self):
         assert len(self.hash) == 32
-        return (
-            self.hash +                                 # hash
-            pack_le_uint32(self.index)                  # index
-        )
+        return self.hash + pack_le_uint32(self.index)  # hash  # index
 
     @classmethod
     def read_outpoint(cls, deser):
-        return TxOutPoint(
-            deser._read_nbytes(32),                     # hash
-            deser._read_le_uint32()                     # index
-        )
+        return TxOutPoint(deser._read_nbytes(32), deser._read_le_uint32())  # hash  # index
 
 
 class DeserializerAxe(Deserializer):
-    '''Deserializer for AXE DIP2 special tx types'''
+    """Deserializer for AXE DIP2 special tx types"""
+
     # Supported Spec Tx types and corresponding classes mapping
     PRO_REG_TX = 1
     PRO_UP_SERV_TX = 2
@@ -385,7 +398,7 @@ class DeserializerAxe(Deserializer):
         header = self._read_le_uint32()
         tx_type = header >> 16  # DIP2 tx type
         if tx_type:
-            version = header & 0x0000ffff
+            version = header & 0x0000FFFF
         else:
             version = header
 
@@ -401,13 +414,13 @@ class DeserializerAxe(Deserializer):
             end = self.cursor + extra_payload_size
             spec_tx_class = DeserializerAxe.SPEC_TX_HANDLERS.get(tx_type)
             if spec_tx_class:
-                read_method = getattr(spec_tx_class, 'read_tx_extra', None)
+                read_method = getattr(spec_tx_class, "read_tx_extra", None)
                 extra_payload = read_method(self)
                 assert isinstance(extra_payload, spec_tx_class)
             else:
                 extra_payload = self._read_nbytes(extra_payload_size)
             assert self.cursor == end
         else:
-            extra_payload = b''
+            extra_payload = b""
         tx = AxeTx(version, inputs, outputs, locktime, tx_type, extra_payload)
         return tx

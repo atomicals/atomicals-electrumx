@@ -9,12 +9,12 @@ from asyncio import Event
 
 from aiorpcx import _version as aiorpcx_version
 
-import electrumx
 from electrumx.lib.server_base import ServerBase
-from electrumx.lib.util import version_string, OldTaskGroup
+from electrumx.lib.util import OldTaskGroup, version_string
 from electrumx.server.db import DB
 from electrumx.server.mempool import MemPool, MemPoolAPI
-from electrumx.server.session import SessionManager
+from electrumx.server.session.session_manager import SessionManager
+from electrumx.version import electrumx_version
 
 
 class Notifications:
@@ -73,25 +73,24 @@ class Notifications:
 
 
 class Controller(ServerBase):
-    '''Manages server initialisation and stutdown.
+    """Manages server initialisation and stutdown.
 
     Servers are started once the mempool is synced after the block
     processor first catches up with the daemon.
-    '''
+    """
+
     async def serve(self, shutdown_event):
-        '''Start the RPC server and wait for the mempool to synchronize.  Then
-        start serving external clients.
-        '''
-        if not (0, 22, 0) <= aiorpcx_version < (0, 23):
-            raise RuntimeError('aiorpcX version 0.22.x is required')
+        """Start the RPC server and wait for the mempool to synchronize, then start serving external clients."""
+        if not (0, 23, 0) <= aiorpcx_version < (0, 24):
+            raise RuntimeError("aiorpcX version 0.23.x is required")
 
         env = self.env
         min_str, max_str = env.coin.SESSIONCLS.protocol_min_max_strings()
-        self.logger.info(f'software version: {electrumx.version}')
-        self.logger.info(f'aiorpcX version: {version_string(aiorpcx_version)}')
-        self.logger.info(f'supported protocol versions: {min_str}-{max_str}')
-        self.logger.info(f'event loop policy: {env.loop_policy}')
-        self.logger.info(f'reorg limit is {env.reorg_limit:,d} blocks')
+        self.logger.info(f"software version: {electrumx_version}")
+        self.logger.info(f"aiorpcX version: {version_string(aiorpcx_version)}")
+        self.logger.info(f"supported protocol versions: {min_str}-{max_str}")
+        self.logger.info(f"event loop policy: {env.loop_policy}")
+        self.logger.info(f"reorg limit is {env.reorg_limit:,d} blocks")
 
         notifications = Notifications()
         Daemon = env.coin.DAEMON
@@ -104,6 +103,7 @@ class Controller(ServerBase):
             # Set notifications up to implement the MemPoolAPI
             def get_db_height():
                 return db.db_height
+
             notifications.height = daemon.height
             notifications.db_height = get_db_height
             notifications.cached_height = daemon.cached_height
@@ -112,12 +112,12 @@ class Controller(ServerBase):
             notifications.lookup_utxos = db.lookup_utxos
             MemPoolAPI.register(Notifications)
             mempool = MemPool(
-                env.coin, notifications,
-                refresh_secs=env.daemon_poll_interval_mempool_msec/1000,
+                env.coin,
+                notifications,
+                refresh_secs=env.daemon_poll_interval_mempool_msec / 1000,
             )
 
-            session_mgr = SessionManager(env, db, bp, daemon, mempool,
-                                         shutdown_event)
+            session_mgr = SessionManager(env, db, bp, daemon, mempool, shutdown_event)
 
             # Test daemon authentication, and also ensure it has a cached
             # height.  Do this before entering the task group.

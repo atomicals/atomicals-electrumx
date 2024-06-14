@@ -5,7 +5,7 @@
 # See the file "LICENCE" for information about the copyright
 # and warranty status of this software.
 
-'''Backend database abstraction.'''
+"""Backend database abstraction."""
 
 import os
 from functools import partial
@@ -14,17 +14,17 @@ from typing import Type
 import electrumx.lib.util as util
 
 
-def db_class(name) -> Type['Storage']:
-    '''Returns a DB engine class.'''
-    for db_class in util.subclasses(Storage):
-        if db_class.__name__.lower() == name.lower():
-            db_class.import_module()
-            return db_class
+def db_class(name) -> Type["Storage"]:
+    """Returns a DB engine class."""
+    for db_cls in util.subclasses(Storage):
+        if db_cls.__name__.lower() == name.lower():
+            db_cls.import_module()
+            return db_cls
     raise RuntimeError(f'unrecognised DB engine "{name}"')
 
 
 class Storage:
-    '''Abstract base class of the DB backend abstraction.'''
+    """Abstract base class of the DB backend abstraction."""
 
     def __init__(self, name, for_sync):
         self.is_new = not os.path.exists(name)
@@ -33,15 +33,15 @@ class Storage:
 
     @classmethod
     def import_module(cls):
-        '''Import the DB engine module.'''
+        """Import the DB engine module."""
         raise NotImplementedError
 
     def open(self, name, create):
-        '''Open an existing database or create a new one.'''
+        """Open an existing database or create a new one."""
         raise NotImplementedError
 
     def close(self):
-        '''Close an existing database.'''
+        """Close an existing database."""
         raise NotImplementedError
 
     def get(self, key):
@@ -51,60 +51,62 @@ class Storage:
         raise NotImplementedError
 
     def write_batch(self):
-        '''Return a context manager that provides `put` and `delete`.
+        """Return a context manager that provides `put` and `delete`.
 
         Changes should only be committed when the context manager
         closes without an exception.
-        '''
+        """
         raise NotImplementedError
 
-    def iterator(self, prefix=b'', reverse=False):
-        '''Return an iterator that yields (key, value) pairs from the
+    def iterator(self, prefix=b"", reverse=False):
+        """Return an iterator that yields (key, value) pairs from the
         database sorted by key.
 
         If `prefix` is set, only keys starting with `prefix` will be
         included.  If `reverse` is True the items are returned in
         reverse order.
-        '''
+        """
         raise NotImplementedError
 
 
 class LevelDB(Storage):
-    '''LevelDB database engine.'''
+    """LevelDB database engine."""
 
     @classmethod
     def import_module(cls):
         import plyvel
+
         cls.module = plyvel
 
     def open(self, name, create):
         mof = 512 if self.for_sync else 128
         # Use snappy compression (the default)
-        self.db = self.module.DB(name, create_if_missing=create,
-                                 max_open_files=mof)
+        self.db = self.module.DB(name, create_if_missing=create, max_open_files=mof)
         self.close = self.db.close
         self.get = self.db.get
         self.put = self.db.put
         self.iterator = self.db.iterator
-        self.write_batch = partial(self.db.write_batch, transaction=True,
-                                   sync=True)
+        self.write_batch = partial(self.db.write_batch, transaction=True, sync=True)
 
 
 class RocksDB(Storage):
-    '''RocksDB database engine.'''
+    """RocksDB database engine."""
 
     @classmethod
     def import_module(cls):
         import rocksdb
+
         cls.module = rocksdb
 
     def open(self, name, create):
         mof = 512 if self.for_sync else 128
         # Use snappy compression (the default)
-        options = self.module.Options(create_if_missing=create,
-                                      use_fsync=True,
-                                      target_file_size_base=33554432,
-                                      max_open_files=mof)
+        options = self.module.Options(
+            create_if_missing=create,
+            use_fsync=True,
+            target_file_size_base=33554432,
+            max_open_files=mof,
+        )
         self.db = self.module.DB(name, options)
         self.get = self.db.get
         self.put = self.db.put
@@ -113,17 +115,18 @@ class RocksDB(Storage):
         # PyRocksDB doesn't provide a close method; hopefully this is enough
         self.db = self.get = self.put = None
         import gc
+
         gc.collect()
 
     def write_batch(self):
         return RocksDBWriteBatch(self.db)
 
-    def iterator(self, prefix=b'', reverse=False):
+    def iterator(self, prefix=b"", reverse=False):
         return RocksDBIterator(self.db, prefix, reverse)
 
 
 class RocksDBWriteBatch:
-    '''A write batch for RocksDB.'''
+    """A write batch for RocksDB."""
 
     def __init__(self, db):
         self.batch = RocksDB.module.WriteBatch()
@@ -138,7 +141,7 @@ class RocksDBWriteBatch:
 
 
 class RocksDBIterator:
-    '''An iterator for RocksDB.'''
+    """An iterator for RocksDB."""
 
     def __init__(self, db, prefix, reverse):
         self.prefix = prefix

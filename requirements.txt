@@ -1,15 +1,15 @@
-aiorpcX[ws]>=0.22.0,<0.23
-attrs
+aiorpcX[ws]>=0.23.0,<0.24
+attrs>=23.2.0,<23.3.0
 pylru @ git+https://github.com/atomicals-community/pylru@c9b47f0
-aiohttp>=3.3,<4
-cbor2
-websockets
-regex
-krock32
-merkletools @ git+https://github.com/tierion/pymerkletools.git@f10d71e2cd529a833728e836dc301f9af502d0b0
-requests==2.31.0
-python-dotenv
+aiohttp>=3.9.0,<3.10
+cbor2>=5.6.0,<5.7
+websockets>=12.0.0,<13.0
+regex==2024.5.15
+krock32>=0.1.1,<0.2
+merkletools @ git+https://github.com/tierion/pymerkletools@f10d71e
+requests>=2.32.0,<2.33
+python-dotenv>=1.0.0,<1.1
+pre-commit==3.7.1
 
 # For LevelDB
-plyvel
-
+plyvel>=1.5.0,<1.6
