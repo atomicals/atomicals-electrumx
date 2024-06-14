@@ -537,30 +537,30 @@ def test_spends_are_payments_satisfied_checks():
 
     # Empty rules
     rules = {}
-    payment_valid = blueprint_builder.are_payments_satisfied(rules)
+    payment_valid = blueprint_builder.are_payments_satisfied(rules, atomicals_spent_at_inputs)
     assert not payment_valid
     # Valid payment to 2 outputs
     rules = {
         "51208a586070907d75b89f1b7bcbe8dd5c623e0143e9b62d5d6759da06a59b749679": {"v": 25000},
         "5120ed2ec645d1749c9b2dba88b1346899c60c82f7a57e6359964393a2bba31450f2": {"v": 25000},
     }
-    payment_valid = blueprint_builder.are_payments_satisfied(rules)
+    payment_valid = blueprint_builder.are_payments_satisfied(rules, atomicals_spent_at_inputs)
     assert payment_valid
     # Valid payment to one output
     rules = {"51208a586070907d75b89f1b7bcbe8dd5c623e0143e9b62d5d6759da06a59b749679": {"v": 25000}}
-    payment_valid = blueprint_builder.are_payments_satisfied(rules)
+    payment_valid = blueprint_builder.are_payments_satisfied(rules, atomicals_spent_at_inputs)
     assert payment_valid
     # Invalid payment insufficient amount
     rules = {"51208a586070907d75b89f1b7bcbe8dd5c623e0143e9b62d5d6759da06a59b749679": {"v": 25001}}
-    payment_valid = blueprint_builder.are_payments_satisfied(rules)
+    payment_valid = blueprint_builder.are_payments_satisfied(rules, atomicals_spent_at_inputs)
     assert not payment_valid
     # Valid payment higher amount
     rules = {"51208a586070907d75b89f1b7bcbe8dd5c623e0143e9b62d5d6759da06a59b749679": {"v": 24999}}
-    payment_valid = blueprint_builder.are_payments_satisfied(rules)
+    payment_valid = blueprint_builder.are_payments_satisfied(rules, atomicals_spent_at_inputs)
     assert payment_valid
     # Invalid payment to wrong address
     rules = {"51208a586070907d75b89f1b7bcbe8dd5c623e0143e9b62d5d6759da06a59b749678": {"v": 25000}}
-    payment_valid = blueprint_builder.are_payments_satisfied(rules)
+    payment_valid = blueprint_builder.are_payments_satisfied(rules, atomicals_spent_at_inputs)
     assert not payment_valid
 
 
@@ -612,7 +612,7 @@ def test_spends_fts_are_payments_satisfied_checks2():
             "v": 25000,
         }
     }
-    payment_valid = blueprint_builder.are_payments_satisfied(rules)
+    payment_valid = blueprint_builder.are_payments_satisfied(rules, atomicals_spent_at_inputs)
     assert not payment_valid
 
     # Valid with a valid atomical id ft token
@@ -624,7 +624,7 @@ def test_spends_fts_are_payments_satisfied_checks2():
         }
     }
     #
-    payment_valid = blueprint_builder.are_payments_satisfied(rules)
+    payment_valid = blueprint_builder.are_payments_satisfied(rules, atomicals_spent_at_inputs)
     assert payment_valid
 
     # Invalid due to insufficient units
@@ -635,7 +635,7 @@ def test_spends_fts_are_payments_satisfied_checks2():
             "v": 25001,
         }
     }
-    payment_valid = blueprint_builder.are_payments_satisfied(rules)
+    payment_valid = blueprint_builder.are_payments_satisfied(rules, atomicals_spent_at_inputs)
     assert not payment_valid
     # Valid with a valid atomical id ft token higher than needed
     subject_atomical_id_compact = location_id_bytes_to_compact(subject_atomical_id)
@@ -646,7 +646,7 @@ def test_spends_fts_are_payments_satisfied_checks2():
         }
     }
     #
-    payment_valid = blueprint_builder.are_payments_satisfied(rules)
+    payment_valid = blueprint_builder.are_payments_satisfied(rules, atomicals_spent_at_inputs)
     assert payment_valid
 
     # Valid with a valid atomical id ft token higher than needed
@@ -657,7 +657,7 @@ def test_spends_fts_are_payments_satisfied_checks2():
             "v": 0,
         }
     }
-    payment_valid = blueprint_builder.are_payments_satisfied(rules)
+    payment_valid = blueprint_builder.are_payments_satisfied(rules, atomicals_spent_at_inputs)
     assert payment_valid
 
 
