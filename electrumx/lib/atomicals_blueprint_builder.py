@@ -47,7 +47,6 @@ def build_reverse_output_to_atomical_id_exponent_map(atomical_id_to_output_index
     return reverse_mapped
 
 
-
 def calculate_outputs_to_color_for_ft_atomical_ids(
     tx, ft_atomicals, sort_by_fifo, is_custom_coloring_activated
 ) -> Optional[FtColoringSummary]:
@@ -979,10 +978,12 @@ class AtomicalsTransferBlueprintBuilder:
             atomical_value = atomical_entry["data_value"]["atomical_value"]
             if atomical_id not in atomicals_inputs_values:
                 atomicals_inputs_values[atomical_id] = []
-            atomicals_inputs_values[atomical_id].append({
-                "sat_value": sat_value,
-                "atomical_value": atomical_value,
-            })
+            atomicals_inputs_values[atomical_id].append(
+                {
+                    "sat_value": sat_value,
+                    "atomical_value": atomical_value,
+                }
+            )
 
         # For each of the outputs, assess whether it matches any of the required payment output expectations
         for idx, txout in enumerate(self.tx.outputs):
