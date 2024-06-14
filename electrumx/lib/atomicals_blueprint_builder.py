@@ -972,18 +972,20 @@ class AtomicalsTransferBlueprintBuilder:
             )
 
         atomicals_inputs_values = {}
-        for atomical_entry in atomicals_spent_at_inputs.values():
-            atomical_id = atomical_entry["atomical_id"]
-            sat_value = atomical_entry["data_value"]["sat_value"]
-            atomical_value = atomical_entry["data_value"]["atomical_value"]
-            if atomical_id not in atomicals_inputs_values:
-                atomicals_inputs_values[atomical_id] = []
-            atomicals_inputs_values[atomical_id].append(
-                {
-                    "sat_value": sat_value,
-                    "atomical_value": atomical_value,
+        for atomicals_input in atomicals_spent_at_inputs.values():
+            for atomical_entry in atomicals_input:
+                atomical_id = atomical_entry["atomical_id"]
+                sat_value = atomical_entry["data_value"]["sat_value"]
+                atomical_value = atomical_entry["data_value"]["atomical_value"]
+                if atomical_id not in atomicals_inputs_values:
+                    atomicals_inputs_values[atomical_id] = {
+                        "sat_value": 0,
+                        "atomical_value": 0,
+                    }
+                atomicals_inputs_values[atomical_id] = {
+                    "sat_value": atomicals_inputs_values[atomical_id]["sat_value"] + sat_value,
+                    "atomical_value": atomicals_inputs_values[atomical_id]["atomical_value"] + atomical_value,
                 }
-            )
 
         # For each of the outputs, assess whether it matches any of the required payment output expectations
         for idx, txout in enumerate(self.tx.outputs):
@@ -994,7 +996,7 @@ class AtomicalsTransferBlueprintBuilder:
                 continue
 
             # There is no value defined or the expected payment is below the dust limit, or skip it
-            expected_output_payment_value: Optional[int] = expected_output_payment_value_dict.get("v", None)
+            expected_output_payment_value = expected_output_payment_value_dict.get("v", None)
             if (
                 not is_integer_num(expected_output_payment_value)
                 or expected_output_payment_value < SUBNAME_MIN_PAYMENT_DUST_LIMIT
@@ -1019,8 +1021,10 @@ class AtomicalsTransferBlueprintBuilder:
                     # Ensure the normalized atomical_value is greater than
                     # or equal to the expected payment amount in that token type.
                     # exponent_for_for_atomical_id = output_summary.get(expected_output_payment_id_type_long_form)
-                    atomical_value = atomicals_inputs_values.get(expected_output_payment_id_type_long_form, 0)
-                    if atomical_value >= expected_output_payment_value:
+                    atomical_value = atomicals_inputs_values.get(expected_output_payment_id_type_long_form, {}).get(
+                        "atomical_value", 0
+                    )
+                    if atomical_value >= (expected_output_payment_value or 0):
                         # Mark that the output was matched at least once
                         key = output_script_hex + expected_output_payment_id_type_long_form.hex()
                         expected_output_keys_satisfied[key] = True
