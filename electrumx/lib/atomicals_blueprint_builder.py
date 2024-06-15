@@ -785,12 +785,6 @@ class AtomicalsTransferBlueprintBuilder:
         # For each input atomical spent at the current input...
         for atomicals_entry in atomicals_entry_list:
             atomical_id = atomicals_entry["atomical_id"]
-            # value, = unpack_le_uint64(
-            #     atomicals_entry['data'][HASHX_LEN + SCRIPTHASH_LEN : HASHX_LEN + SCRIPTHASH_LEN + 8]
-            # )
-            # exponent, = unpack_le_uint16_from(
-            #     atomicals_entry['data'][HASHX_LEN + SCRIPTHASH_LEN + 8: HASHX_LEN + SCRIPTHASH_LEN + 8 + 8]
-            # )
             sat_value = atomicals_entry["data_value"]["sat_value"]
             atomical_value = atomicals_entry["data_value"]["atomical_value"]
             # Perform a cache lookup for the mint information since we do not want to query multiple times
@@ -924,7 +918,7 @@ class AtomicalsTransferBlueprintBuilder:
 
         return found_atomical_id, None, None
 
-    def are_payments_satisfied(self, expected_payment_outputs, atomicals_spent_at_inputs):
+    def are_payments_satisfied(self, expected_payment_outputs):
         if not isinstance(expected_payment_outputs, dict) or len(expected_payment_outputs.keys()) < 1:
             return False
 
@@ -958,35 +952,6 @@ class AtomicalsTransferBlueprintBuilder:
                 # Map the output script hex only
                 expected_output_keys_satisfied[output_script_key] = False
 
-        # Prepare the mapping of which ARC20 is paid at which output
-        ft_coloring_summary = calculate_outputs_to_color_for_ft_atomical_ids(
-            self.tx,
-            self.ft_atomicals,
-            self.sort_fifo,
-            self.is_custom_coloring_activated,
-        )
-        output_idx_to_atomical_id_map = {}
-        if ft_coloring_summary:
-            output_idx_to_atomical_id_map = build_reverse_output_to_atomical_id_exponent_map(
-                ft_coloring_summary.atomical_id_to_expected_outs_map
-            )
-
-        atomicals_inputs_values = {}
-        for atomicals_input in atomicals_spent_at_inputs.values():
-            for atomical_entry in atomicals_input:
-                atomical_id = atomical_entry["atomical_id"]
-                sat_value = atomical_entry["data_value"]["sat_value"]
-                atomical_value = atomical_entry["data_value"]["atomical_value"]
-                if atomical_id not in atomicals_inputs_values:
-                    atomicals_inputs_values[atomical_id] = {
-                        "sat_value": 0,
-                        "atomical_value": 0,
-                    }
-                atomicals_inputs_values[atomical_id] = {
-                    "sat_value": atomicals_inputs_values[atomical_id]["sat_value"] + sat_value,
-                    "atomical_value": atomicals_inputs_values[atomical_id]["atomical_value"] + atomical_value,
-                }
-
         # For each of the outputs, assess whether it matches any of the required payment output expectations
         for idx, txout in enumerate(self.tx.outputs):
             output_script_hex = txout.pk_script.hex()
@@ -1016,15 +981,16 @@ class AtomicalsTransferBlueprintBuilder:
                     expected_output_payment_id_type
                 )
                 # Check in the reverse map if the current output idx is colored with the expected color
-                output_summary = output_idx_to_atomical_id_map.get(idx)
-                if output_summary and output_summary.get(expected_output_payment_id_type_long_form, None) is not None:
+                output_summary = (
+                    self.ft_output_blueprint.outputs.get(idx, {})
+                    .get("atomicals", {})
+                    .get(expected_output_payment_id_type_long_form, None)
+                )
+                if output_summary:
                     # Ensure the normalized atomical_value is greater than
                     # or equal to the expected payment amount in that token type.
-                    # exponent_for_for_atomical_id = output_summary.get(expected_output_payment_id_type_long_form)
-                    atomical_value = atomicals_inputs_values.get(expected_output_payment_id_type_long_form, {}).get(
-                        "atomical_value", 0
-                    )
-                    if atomical_value >= (expected_output_payment_value or 0):
+                    atomical_value = output_summary.atomical_value
+                    if atomical_value >= expected_output_payment_value:
                         # Mark that the output was matched at least once
                         key = output_script_hex + expected_output_payment_id_type_long_form.hex()
                         expected_output_keys_satisfied[key] = True
