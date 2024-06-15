@@ -47,10 +47,6 @@ def build_reverse_output_to_atomical_id_exponent_map(atomical_id_to_output_index
     return reverse_mapped
 
 
-def get_nominal_atomical_value(value):
-    return value
-
-
 def calculate_outputs_to_color_for_ft_atomical_ids(
     tx, ft_atomicals, sort_by_fifo, is_custom_coloring_activated
 ) -> Optional[FtColoringSummary]:
@@ -928,7 +924,7 @@ class AtomicalsTransferBlueprintBuilder:
 
         return found_atomical_id, None, None
 
-    def are_payments_satisfied(self, expected_payment_outputs):
+    def are_payments_satisfied(self, expected_payment_outputs, atomicals_spent_at_inputs):
         if not isinstance(expected_payment_outputs, dict) or len(expected_payment_outputs.keys()) < 1:
             return False
 
@@ -975,6 +971,22 @@ class AtomicalsTransferBlueprintBuilder:
                 ft_coloring_summary.atomical_id_to_expected_outs_map
             )
 
+        atomicals_inputs_values = {}
+        for atomicals_input in atomicals_spent_at_inputs.values():
+            for atomical_entry in atomicals_input:
+                atomical_id = atomical_entry["atomical_id"]
+                sat_value = atomical_entry["data_value"]["sat_value"]
+                atomical_value = atomical_entry["data_value"]["atomical_value"]
+                if atomical_id not in atomicals_inputs_values:
+                    atomicals_inputs_values[atomical_id] = {
+                        "sat_value": 0,
+                        "atomical_value": 0,
+                    }
+                atomicals_inputs_values[atomical_id] = {
+                    "sat_value": atomicals_inputs_values[atomical_id]["sat_value"] + sat_value,
+                    "atomical_value": atomicals_inputs_values[atomical_id]["atomical_value"] + atomical_value,
+                }
+
         # For each of the outputs, assess whether it matches any of the required payment output expectations
         for idx, txout in enumerate(self.tx.outputs):
             output_script_hex = txout.pk_script.hex()
@@ -1009,8 +1021,10 @@ class AtomicalsTransferBlueprintBuilder:
                     # Ensure the normalized atomical_value is greater than
                     # or equal to the expected payment amount in that token type.
                     # exponent_for_for_atomical_id = output_summary.get(expected_output_payment_id_type_long_form)
-                    atomical_value = get_nominal_atomical_value(txout.value)
-                    if atomical_value >= expected_output_payment_value:
+                    atomical_value = atomicals_inputs_values.get(expected_output_payment_id_type_long_form, {}).get(
+                        "atomical_value", 0
+                    )
+                    if atomical_value >= (expected_output_payment_value or 0):
                         # Mark that the output was matched at least once
                         key = output_script_hex + expected_output_payment_id_type_long_form.hex()
                         expected_output_keys_satisfied[key] = True
