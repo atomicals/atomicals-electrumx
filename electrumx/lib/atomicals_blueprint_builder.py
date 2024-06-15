@@ -49,7 +49,7 @@ def build_reverse_output_to_atomical_id_exponent_map(atomical_id_to_output_index
 
 def calculate_outputs_to_color_for_ft_atomical_ids(
     tx, ft_atomicals, sort_by_fifo, is_custom_coloring_activated
-) -> FtColoringSummary | None:
+) -> Optional[FtColoringSummary]:
     num_fts = len(ft_atomicals.keys())
     if num_fts == 0:
         return None
