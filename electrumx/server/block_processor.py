@@ -3897,10 +3897,7 @@ class BlockProcessor:
                 f"create_or_delete_subname_payment_output_if_valid: valid pattern failed. DeveloperError request_subname={request_subname}, regex={regex}"
             )
 
-        if not blueprint_builder.are_payments_satisfied(
-            matched_price_point["matched_rule"].get("o"),
-            atomicals_spent_at_inputs,
-        ):
+        if not blueprint_builder.are_payments_satisfied(matched_price_point["matched_rule"].get("o")):
             self.logger.warning(
                 f"create_or_delete_subname_payment_output_if_valid: payments not satisfied. request_subname={request_subname}, regex={regex} atomical_id_for_payment={location_id_bytes_to_compact(atomical_id_for_payment)}"
             )
