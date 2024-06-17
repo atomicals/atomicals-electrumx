@@ -144,16 +144,19 @@ class HttpSession(object):
             "blockchain.atomicals.transaction_by_scripthash": self.ss.transaction_by_scripthash,
             "blockchain.atomicals.transaction_global": self.session_mgr.transaction_global,
         }
+
         if protocols >= (1, 4, 2):
             handlers["blockchain.scripthash.unsubscribe"] = self.ss.scripthash_unsubscribe
+
+        router.add_get("/proxy", self.proxy)
+        router.add_post("/proxy", self.proxy)
+
         for m, h in handlers.items():
             method = f"/proxy/{m}"
             router.add_get(method, lambda r, handler=h: self.formatted_request(r, handler))
             router.add_post(method, lambda r, handler=h: self.formatted_request(r, handler))
 
         # Fallback proxy recognition
-        router.add_get("/proxy", self.proxy)
-        router.add_post("/proxy", self.proxy)
         router.add_get("/proxy/{method}", self.handle_get_method)
         router.add_post("/proxy/{method}", self.handle_post_method)
 
@@ -227,11 +230,11 @@ class HttpSession(object):
                 "license": "MIT",
             },
         }
-        return web.json_response(data=result)
+        return result
 
     async def health(self):
         result = {"success": True, "health": True}
-        return web.json_response(data=result)
+        return result
 
     async def donation_address(self):
         """Return the donation address as a string, empty if there is none."""
