@@ -14,3 +14,4 @@ docs/_build
 .mypy_cache/
 .idea/
 .env
+.venv
