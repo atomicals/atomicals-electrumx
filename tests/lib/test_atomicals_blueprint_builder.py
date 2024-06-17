@@ -1598,6 +1598,7 @@ def test_custom_colored_ft_normal():
     nft_output_blueprint = blueprint_builder.get_nft_output_blueprint()
     assert len(nft_output_blueprint.outputs) == 0
     ft_output_blueprint = blueprint_builder.get_ft_output_blueprint()
+    assert ft_output_blueprint.first_atomical_id == subject_atomical_id
     assert ft_output_blueprint.cleanly_assigned == False
     assert len(ft_output_blueprint.outputs) == 2
     assert ft_output_blueprint.fts_burned == {}
