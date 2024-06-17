@@ -212,7 +212,7 @@ class HttpSession(object):
 
         return result
 
-    async def proxy(self):
+    async def proxy(self, request):
         result = {
             "success": True,
             "info": {
