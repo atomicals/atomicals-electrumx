@@ -807,13 +807,13 @@ class SessionManager:
             True,
             self.bp.is_custom_coloring_activated(self.bp.height),
         )
+        encoded_atomicals_spent_at_inputs = encode_atomical_ids_hex(atomicals_spent_at_inputs)
         ft_output_blueprint = blueprint_builder.get_ft_output_blueprint()
         nft_output_blueprint = blueprint_builder.get_nft_output_blueprint()
+        encoded_ft_output_blueprint = auto_encode_bytes_items(encode_atomical_ids_hex(dict(ft_output_blueprint)))
+        encoded_nft_output_blueprint = auto_encode_bytes_items(encode_atomical_ids_hex(dict(nft_output_blueprint)))
         # Log that there were tokens burned due to not being cleanly assigned
         if blueprint_builder.get_are_fts_burned() and raise_if_burned:
-            encoded_atomicals_spent_at_inputs = encode_atomical_ids_hex(atomicals_spent_at_inputs)
-            encoded_ft_output_blueprint = auto_encode_bytes_items(encode_atomical_ids_hex(ft_output_blueprint))
-            encoded_nft_output_blueprint = auto_encode_bytes_items(encode_atomical_ids_hex(nft_output_blueprint))
             ft_outputs = encoded_ft_output_blueprint["outputs"]
             fts_burned = encoded_ft_output_blueprint["fts_burned"]
             nft_outputs = encoded_nft_output_blueprint["outputs"]
@@ -831,9 +831,9 @@ class SessionManager:
         return AtomicalsValidation(
             tx_hash,
             operations_found_at_inputs,
-            encode_atomical_ids_hex(atomicals_spent_at_inputs),
-            auto_encode_bytes_items(encode_atomical_ids_hex(ft_output_blueprint)),
-            auto_encode_bytes_items(encode_atomical_ids_hex(nft_output_blueprint)),
+            encoded_atomicals_spent_at_inputs,
+            encoded_ft_output_blueprint,
+            encoded_nft_output_blueprint,
         )
 
     # Helper method to decode the transaction and returns formatted structure.
@@ -875,13 +875,15 @@ class SessionManager:
         nft_output_blueprint = blueprint_builder.get_nft_output_blueprint()
         # Log that there were tokens burned due to not being cleanly assigned
         encoded_spent_at_inputs = encode_atomical_ids_hex(atomicals_spent_at_inputs)
-        encoded_ft_output_blueprint: Dict[str, Dict] = dict(encode_atomical_ids_hex(ft_output_blueprint))
-        encoded_nft_output_blueprint: Dict[str, Dict] = dict(encode_atomical_ids_hex(nft_output_blueprint))
+        encoded_ft_output_blueprint: Dict[str, Dict] = encode_atomical_ids_hex(dict(ft_output_blueprint))
+        encoded_nft_output_blueprint: Dict[str, Dict] = encode_atomical_ids_hex(dict(nft_output_blueprint))
         op = found_operations.get("op") or "transfer"
-        burned = {
-            **auto_encode_bytes_items(encoded_ft_output_blueprint["fts_burned"]),
-            **auto_encode_bytes_items(encoded_nft_output_blueprint["nfts_burned"]),
-        }
+        burned = auto_encode_bytes_items(
+            {
+                **encoded_ft_output_blueprint["fts_burned"],
+                **encoded_nft_output_blueprint["nfts_burned"],
+            }
+        )
         ret = {
             "op": [op],
             "burned": dict(sorted(burned.items())),
@@ -894,25 +896,23 @@ class SessionManager:
         outputs = {}
         for k1, v1 in encoded_spent_at_inputs.items():
             for item1 in v1:
-                atomical_id = item1["atomical_id"]
-                if atomical_id not in atomicals:
-                    atomicals.append(atomical_id)
+                id1 = item1["atomical_id"]
+                if id1 not in atomicals:
+                    atomicals.append(id1)
                 if not inputs.get(k1):
                     inputs[k1] = {}
-                inputs[k1][atomical_id] = item1["data_value"]["atomical_value"]
+                inputs[k1][id1] = item1["data_value"]["atomical_value"]
         ft_outputs: dict = encoded_ft_output_blueprint["outputs"]
         for k2, v2 in ft_outputs.items():
-            for location_bytes, item2 in v2["atomicals"].items():
-                atomical_id = location_id_bytes_to_compact(location_bytes)
+            for id2, item2 in v2["atomicals"].items():
                 if not outputs.get(k2):
                     outputs[k2] = {}
-                outputs[k2][atomical_id] = item2.atomical_value
+                outputs[k2][id2] = item2.atomical_value
         for k3, v3 in encoded_nft_output_blueprint["outputs"].items():
-            for location_bytes, item3 in v3["atomicals"].items():
-                atomical_id = location_id_bytes_to_compact(location_bytes)
+            for id3, item3 in v3["atomicals"].items():
                 if not outputs.get(k3):
                     outputs[k3] = {}
-                outputs[k3][atomical_id] = item3.atomical_value
+                outputs[k3][id3] = item3.atomical_value
         mint_info: Optional[Dict] = None
         if blueprint_builder.is_mint:
             if op in ["dmt", "ft"]:
