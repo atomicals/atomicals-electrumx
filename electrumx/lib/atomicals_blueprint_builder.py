@@ -567,6 +567,7 @@ class AtomicalsTransferBlueprintBuilder:
         output_colored_map = {}
         fts_burned = {}
         cleanly_assigned = True
+        first_atomical_id = None
         for atomical_id, atomical_info in sorted(ft_atomicals.items()):
             remaining_value = atomical_info.atomical_value
             for out_idx, txout in enumerate(tx.outputs):
@@ -598,7 +599,12 @@ class AtomicalsTransferBlueprintBuilder:
             if remaining_value > 0:
                 cleanly_assigned = False
                 fts_burned[atomical_id] = remaining_value
-        return AtomicalFtOutputBlueprintAssignmentSummary(output_colored_map, fts_burned, cleanly_assigned, None)
+
+        if output_colored_map and len(output_colored_map.keys()):
+            first_atomical_id = list(list(output_colored_map.values())[0]["atomicals"].keys())[0]
+        return AtomicalFtOutputBlueprintAssignmentSummary(
+            output_colored_map, fts_burned, cleanly_assigned, first_atomical_id
+        )
 
     @classmethod
     def color_ft_atomicals_split(cls, ft_atomicals, operations_found_at_inputs, tx, is_custom_coloring_activated):
