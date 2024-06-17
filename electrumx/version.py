@@ -1,4 +1,4 @@
-__version__ = "1.5.0.0"
+__version__ = "1.5.0.2"
 electrumx_version = f"ElectrumX {__version__}"
 electrumx_version_short = __version__
 
