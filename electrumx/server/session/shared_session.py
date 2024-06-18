@@ -666,7 +666,8 @@ class SharedSession(object):
             errors = container_dmint_status.get("errors")
             if check_without_sealed and errors and len(errors) == 1 and errors[0] == "container not sealed":
                 pass
-            raise RPCError(BAD_REQUEST, f"Container dmint status is invalid: {errors}")
+            else:
+                raise RPCError(BAD_REQUEST, f"Container dmint status is invalid: {errors}")
 
         dmint = container_dmint_status.get("dmint")
         status, candidate_atomical_id, all_entries = self.bp.get_effective_dmitem(found_parent, item_name, height)
