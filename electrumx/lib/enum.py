@@ -5,10 +5,10 @@
 # See the file "LICENCE" for information about the copyright
 # and warranty status of this software.
 
-"""An enum-like type with reverse lookup.
+'''An enum-like type with reverse lookup.
 
 Source: Python Cookbook, http://code.activestate.com/recipes/67107/
-"""
+'''
 
 
 class EnumError(Exception):
@@ -16,6 +16,7 @@ class EnumError(Exception):
 
 
 class Enumeration:
+
     def __init__(self, name, enumList):
         self.__doc__ = name
 
@@ -46,7 +47,7 @@ class Enumeration:
     def __getattr__(self, attr):
         result = self.lookup.get(attr)
         if result is None:
-            raise AttributeError("enumeration has no member {}".format(attr))
+            raise AttributeError('enumeration has no member {}'.format(attr))
         return result
 
     def whatis(self, value):

@@ -1,7 +1,7 @@
-import hashlib
 import os
 import struct
-from typing import Callable, Optional, Union
+from typing import Optional, Callable, Union
+import hashlib
 
 from electrumx.lib import segwit_addr
 from electrumx.lib.script import OpCodes
@@ -27,17 +27,17 @@ def script_GetOp(_bytes: bytes):
                 i += 1
             elif opcode == OpCodes.OP_PUSHDATA2:
                 try:
-                    (nSize,) = struct.unpack_from("<H", _bytes, i)
+                    (nSize,) = struct.unpack_from('<H', _bytes, i)
                 except struct.error:
                     raise MalformedBitcoinScript()
                 i += 2
             elif opcode == OpCodes.OP_PUSHDATA4:
                 try:
-                    (nSize,) = struct.unpack_from("<I", _bytes, i)
+                    (nSize,) = struct.unpack_from('<I', _bytes, i)
                 except struct.error:
                     raise MalformedBitcoinScript()
                 i += 4
-            vch = _bytes[i : i + nSize]
+            vch = _bytes[i:i + nSize]
             i += nSize
 
         yield opcode, vch, i
@@ -57,7 +57,8 @@ class OPPushDataGeneric:
     def is_instance(cls, item):
         # accept objects that are instances of this class
         # or other classes that are subclasses
-        return isinstance(item, cls) or (isinstance(item, type) and issubclass(item, cls))
+        return isinstance(item, cls) \
+            or (isinstance(item, type) and issubclass(item, cls))
 
 
 class OPGeneric:
@@ -72,7 +73,8 @@ class OPGeneric:
     def is_instance(cls, item):
         # accept objects that are instances of this class
         # or other classes that are subclasses
-        return isinstance(item, cls) or (isinstance(item, type) and issubclass(item, cls))
+        return isinstance(item, cls) \
+            or (isinstance(item, type) and issubclass(item, cls))
 
 
 def match_script_against_template(script, template) -> bool:
@@ -102,36 +104,22 @@ def match_script_against_template(script, template) -> bool:
 
 OP_ANYSEGWIT_VERSION = OPGeneric(lambda x: x in list(range(OpCodes.OP_1, OpCodes.OP_16 + 1)))
 
-SCRIPTPUBKEY_TEMPLATE_P2PKH = [
-    OpCodes.OP_DUP,
-    OpCodes.OP_HASH160,
-    OPPushDataGeneric(lambda x: x == 20),
-    OpCodes.OP_EQUALVERIFY,
-    OpCodes.OP_CHECKSIG,
-]
-SCRIPTPUBKEY_TEMPLATE_P2SH = [
-    OpCodes.OP_HASH160,
-    OPPushDataGeneric(lambda x: x == 20),
-    OpCodes.OP_EQUAL,
-]
-SCRIPTPUBKEY_TEMPLATE_WITNESS_V0 = [
-    OpCodes.OP_0,
-    OPPushDataGeneric(lambda x: x in (20, 32)),
-]
+SCRIPTPUBKEY_TEMPLATE_P2PKH = [OpCodes.OP_DUP, OpCodes.OP_HASH160,
+                               OPPushDataGeneric(lambda x: x == 20),
+                               OpCodes.OP_EQUALVERIFY, OpCodes.OP_CHECKSIG]
+SCRIPTPUBKEY_TEMPLATE_P2SH = [OpCodes.OP_HASH160, OPPushDataGeneric(lambda x: x == 20), OpCodes.OP_EQUAL]
+SCRIPTPUBKEY_TEMPLATE_WITNESS_V0 = [OpCodes.OP_0, OPPushDataGeneric(lambda x: x in (20, 32))]
 SCRIPTPUBKEY_TEMPLATE_P2WPKH = [OpCodes.OP_0, OPPushDataGeneric(lambda x: x == 20)]
 SCRIPTPUBKEY_TEMPLATE_P2WSH = [OpCodes.OP_0, OPPushDataGeneric(lambda x: x == 32)]
-SCRIPTPUBKEY_TEMPLATE_ANYSEGWIT = [
-    OP_ANYSEGWIT_VERSION,
-    OPPushDataGeneric(lambda x: x in list(range(2, 40 + 1))),
-]
+SCRIPTPUBKEY_TEMPLATE_ANYSEGWIT = [OP_ANYSEGWIT_VERSION, OPPushDataGeneric(lambda x: x in list(range(2, 40 + 1)))]
 
 
 def sha256(x: Union[bytes, str]) -> bytes:
-    x = to_bytes(x, "utf8")
+    x = to_bytes(x, 'utf8')
     return bytes(hashlib.sha256(x).digest())
 
 
-def to_bytes(something, encoding="utf8") -> bytes:
+def to_bytes(something, encoding='utf8') -> bytes:
     """
     cast string to bytes() like object, but for python2 support it's bytearray copy
     """
@@ -146,7 +134,7 @@ def to_bytes(something, encoding="utf8") -> bytes:
 
 
 def sha256d(x: Union[bytes, str]) -> bytes:
-    x = to_bytes(x, "utf8")
+    x = to_bytes(x, 'utf8')
     out = bytes(sha256(sha256(x)))
     return out
 
@@ -159,38 +147,38 @@ def assert_bytes(*args):
         for x in args:
             assert isinstance(x, (bytes, bytearray))
     except Exception:
-        print("assert bytes failed", list(map(type, args)))
+        print('assert bytes failed', list(map(type, args)))
         raise
 
 
-__b58chars = b"123456789ABCDEFGHJKLMNPQRSTUVWXYZabcdefghijkmnopqrstuvwxyz"
+__b58chars = b'123456789ABCDEFGHJKLMNPQRSTUVWXYZabcdefghijkmnopqrstuvwxyz'
 assert len(__b58chars) == 58
 
-__b43chars = b"0123456789ABCDEFGHIJKLMNOPQRSTUVWXYZ$*+-./:"
+__b43chars = b'0123456789ABCDEFGHIJKLMNOPQRSTUVWXYZ$*+-./:'
 assert len(__b43chars) == 43
 
 
 def base_encode(v: bytes, *, base: int) -> str:
-    """encode v, which is a string of bytes, to base58."""
+    """ encode v, which is a string of bytes, to base58."""
     assert_bytes(v)
     if base not in (58, 43):
-        raise ValueError("not supported base: {}".format(base))
+        raise ValueError('not supported base: {}'.format(base))
     chars = __b58chars
     if base == 43:
         chars = __b43chars
 
     origlen = len(v)
-    v = v.lstrip(b"\x00")
+    v = v.lstrip(b'\x00')
     newlen = len(v)
 
-    num = int.from_bytes(v, byteorder="big")
+    num = int.from_bytes(v, byteorder='big')
     string = b""
     while num:
         num, idx = divmod(num, base)
-        string = chars[idx : idx + 1] + string
+        string = chars[idx:idx + 1] + string
 
     result = chars[0:1] * (origlen - newlen) + string
-    return result.decode("ascii")
+    return result.decode('ascii')
 
 
 def hash160_to_b58_address(h160: bytes, addrtype: int) -> str:
@@ -201,7 +189,7 @@ def hash160_to_b58_address(h160: bytes, addrtype: int) -> str:
 
 def ripemd(x: bytes) -> bytes:
     try:
-        md = hashlib.new("ripemd160")
+        md = hashlib.new('ripemd160')
         md.update(x)
         return md.digest()
     except BaseException:
@@ -210,9 +198,9 @@ def ripemd(x: bytes) -> bytes:
         # see https://github.com/spesmilo/electrum/issues/7093
         # We bundle a pure python implementation as fallback that gets used now:
         from . import ripemd
-
         md = ripemd.new(x)
         return md.digest()
+
 
 
 def hash_160(x: bytes) -> bytes:
@@ -237,18 +225,20 @@ def hash_to_segwit_addr(h: bytes, witver: int) -> str:
     return addr
 
 
+
+
 def get_net_from_env():
-    if "NET" in os.environ:
-        return os.environ["NET"]
+    if 'NET' in os.environ:
+        return os.environ['NET']
     return "mainnet"
 
 
 def get_addr_type_p2pkh():
     net = get_net_from_env()
     value = 0  # mainnet
-    if net == "testnet":
+    if net == 'testnet':
         value = 111
-    elif net == "regtest":
+    elif net == 'regtest':
         value = 111
     return value
 
@@ -256,9 +246,9 @@ def get_addr_type_p2pkh():
 def get_addr_type_p2sh():
     net = get_net_from_env()
     value = 5  # mainnet
-    if net == "testnet":
+    if net == 'testnet':
         value = 196
-    elif net == "regtest":
+    elif net == 'regtest':
         value = 196
     return value
 
@@ -266,9 +256,9 @@ def get_addr_type_p2sh():
 def get_segwit_hrp():
     net = get_net_from_env()
     value = "bc"  # mainnet
-    if net == "testnet":
+    if net == 'testnet':
         value = "tb"
-    elif net == "regtest":
+    elif net == 'regtest':
         value = "bcrt"
     return value
 
