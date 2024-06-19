@@ -1145,7 +1145,6 @@ def parse_operation_from_script(script, n):
             atom_op_decoded = 'ft'  # ft - Mint fungible token with direct fixed supply
         elif atom_op == "02736c":  
             atom_op_decoded = 'sl'  # sl - Seal an NFT and lock it from further changes forever
-        
         if atom_op_decoded:
             return atom_op_decoded, parse_atomicals_data_definition_operation(script, n + two_letter_op_len)
     
@@ -1157,7 +1156,8 @@ def parse_operation_from_script(script, n):
             atom_op_decoded = 'x'  # extract - move atomical to 0'th output
         elif atom_op == "0179":
             atom_op_decoded = 'y'  # split - 
-
+        elif atom_op == "017a":
+            atom_op_decoded = "z"  # z - custom color
         if atom_op_decoded:
             return atom_op_decoded, parse_atomicals_data_definition_operation(script, n + one_letter_op_len)
     
