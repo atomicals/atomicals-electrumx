@@ -668,50 +668,48 @@ def get_mint_info_op_factory(coin, tx, tx_hash, op_found_struct, atomicals_spent
             mint_info['$immutable'] = True 
     ############################################
     #
-    # Atomicals Virtual Machine (AVMFactory) Mint Operations
+    # Atomicals Virtual Machine (AVM) Mint Operations
     #
     ############################################
-    elif op_found_struct['op'] == 'avm' and op_found_struct['input_index'] == 0:
-        avm_op = payload.get('op')
-        if avm_op == 'def':
-            mint_info['type'] = 'PROTOCOL'
-            # With AVMFactory the control fields are in the top level payload not the mint_info
-            # The reason is basically to simplify and optimize definitions
-            protocol = payload.get('p')
-            if isinstance(protocol, str) and protocol == '':
-                logger.warning(f'AVMFactory protocol name is invalid detected empty str {hash_to_hex_str(tx_hash)}. Skipping....')
-                return None, None
-            logger.debug(f'NFT request_protocol protocol name p {hash_to_hex_str(tx_hash)}, {protocol} {mint_info}')
-            if not isinstance(protocol, str) or not is_valid_protocol_string_name(protocol):
-                logger.warning(f'NFT request_protocol name p is invalid {hash_to_hex_str(tx_hash)}, {protocol} {mint_info}. Skipping....')
-                return None, None 
-            mint_info['$request_protocol'] = protocol
-            # TODO: Perform sanity checks on the payload here...
-        
-        if avm_op == 'deploy':
-            mint_info['type'] = 'CONTRACT'
-            # With AVMFactory the control fields are in the top level payload not the mint_info
-            # The reason is basically to simplify and optimize definitions
-            contract_name = payload.get('name')
-            if isinstance(contract_name, str) and contract_name == '':
-                logger.warning(f'AVMFactory contract_name is invalid detected empty str {hash_to_hex_str(tx_hash)}. Skipping....')
-                return None, None
-            logger.debug(f'CONTRACT name {hash_to_hex_str(tx_hash)}, {contract_name} {mint_info}')
-            # Contract name can be empty
-            if isinstance(contract_name, str) and not is_valid_contract_string_name(contract_name):
-                logger.warning(f'CONTRACT name is invalid {hash_to_hex_str(tx_hash)}, {contract_name} {mint_info}. Skipping....')
-                return None, None 
-            # If contract name is set then assign request_contract
-            if contract_name:
-                mint_info['$request_contract'] = contract_name
-            protocol_name = payload.get('p')
-            if not isinstance(protocol_name, str) or not is_valid_protocol_string_name(protocol_name):
-                logger.warning(f'CONTRACT p is invalid {hash_to_hex_str(tx_hash)}, {protocol_name} {mint_info}. Skipping....')
-                return None, None 
-            mint_info['$instance_of_protocol'] = protocol_name
+    elif op_found_struct['op'] == 'def' and op_found_struct['input_index'] == 0:
+        mint_info['type'] = 'PROTOCOL'
+        # With AVMFactory the control fields are in the top level payload not the mint_info
+        # The reason is basically to simplify and optimize definitions
+        protocol = payload.get('p')
+        if isinstance(protocol, str) and protocol == '':
+            logger.warning(f'AVMFactory protocol name is invalid detected empty str {hash_to_hex_str(tx_hash)}. Skipping....')
+            return None, None
+        logger.debug(f'NFT request_protocol protocol name p {hash_to_hex_str(tx_hash)}, {protocol} {mint_info}')
+        if not isinstance(protocol, str) or not is_valid_protocol_string_name(protocol):
+            logger.warning(f'NFT request_protocol name p is invalid {hash_to_hex_str(tx_hash)}, {protocol} {mint_info}. Skipping....')
+            return None, None 
+        mint_info['$request_protocol'] = protocol
+        # TODO: Perform sanity checks on the payload here...
+    
+    elif op_found_struct['op'] == 'new' and op_found_struct['input_index'] == 0:
+        mint_info['type'] = 'CONTRACT'
+        # With AVMFactory the control fields are in the top level payload not the mint_info
+        # The reason is basically to simplify and optimize definitions
+        contract_name = payload.get('name')
+        if isinstance(contract_name, str) and contract_name == '':
+            logger.warning(f'AVMFactory contract_name is invalid detected empty str {hash_to_hex_str(tx_hash)}. Skipping....')
+            return None, None
+        logger.debug(f'CONTRACT name {hash_to_hex_str(tx_hash)}, {contract_name} {mint_info}')
+        # Contract name can be empty
+        if isinstance(contract_name, str) and not is_valid_contract_string_name(contract_name):
+            logger.warning(f'CONTRACT name is invalid {hash_to_hex_str(tx_hash)}, {contract_name} {mint_info}. Skipping....')
+            return None, None 
+        # If contract name is set then assign request_contract
+        if contract_name:
+            mint_info['$request_contract'] = contract_name
+        protocol_name = payload.get('p')
+        if not isinstance(protocol_name, str) or not is_valid_protocol_string_name(protocol_name):
+            logger.warning(f'CONTRACT p is invalid {hash_to_hex_str(tx_hash)}, {protocol_name} {mint_info}. Skipping....')
+            return None, None 
+        mint_info['$instance_of_protocol'] = protocol_name
 
-            logger.debug(f'CONTRACT name {hash_to_hex_str(tx_hash)}, {protocol_name} {contract_name} {mint_info}')
-            # TODO: Perform sanity checks on the payload here...
+        logger.debug(f'CONTRACT name {hash_to_hex_str(tx_hash)}, {protocol_name} {contract_name} {mint_info}')
+        # TODO: Perform sanity checks on the payload here...
 
     ############################################
     #
@@ -1133,8 +1131,10 @@ def parse_operation_from_script(script, n):
             atom_op_decoded = 'dmt'  # dmt - Mint tokens of distributed mint type (dft)
         elif atom_op == "03646174": 
             atom_op_decoded = 'dat'  # dat - Store data on a transaction (dat)
-        elif atom_op == "0362726c":  # Tmp: brl
-            atom_op_decoded = 'avm'  # avm - Store data on a transaction (dat)
+        elif atom_op == "03646566":   
+            atom_op_decoded = 'def'  # def - Define avm protocol
+        elif atom_op == "036e6577":   
+            atom_op_decoded = 'new'  # new - Instantiate new avm reactor contract from a protocol
         if atom_op_decoded:
             return atom_op_decoded, parse_atomicals_data_definition_operation(script, n + three_letter_op_len)
     
@@ -1158,6 +1158,8 @@ def parse_operation_from_script(script, n):
             atom_op_decoded = 'y'  # split - 
         elif atom_op == "017a":
             atom_op_decoded = "z"  # z - custom color
+        elif atom_op == "0163":
+            atom_op_decoded = "c"  # c - Call avm reactor contract method
         if atom_op_decoded:
             return atom_op_decoded, parse_atomicals_data_definition_operation(script, n + one_letter_op_len)
     
