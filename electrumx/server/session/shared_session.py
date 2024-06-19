@@ -6,7 +6,6 @@ from typing import TYPE_CHECKING, Callable, Optional, Union
 from aiorpcx import RPCError
 
 from electrumx.lib import util
-from electrumx.lib.atomicals_blueprint_builder import AtomicalsValidationError
 from electrumx.lib.psbt import parse_psbt_hex_and_operations
 from electrumx.lib.script2addr import get_address_from_output_script
 from electrumx.lib.util_atomicals import *

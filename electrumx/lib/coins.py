@@ -48,9 +48,14 @@ import electrumx.lib.tx_dash as lib_tx_dash
 import electrumx.lib.tx_axe as lib_tx_axe
 import electrumx.server.block_processor as block_proc
 import electrumx.server.daemon as daemon
-from electrumx.server.session import (ElectrumX, DashElectrumX,
-                                      SmartCashElectrumX, AuxPoWElectrumX,
-                                      NameIndexElectrumX, NameIndexAuxPoWElectrumX)
+from electrumx.server.session.electrumx_session import (
+    AuxPoWElectrumX,
+    DashElectrumX,
+    ElectrumX,
+    NameIndexAuxPoWElectrumX,
+    NameIndexElectrumX,
+    SmartCashElectrumX,
+)
 
 
 @dataclass
@@ -671,7 +676,7 @@ class Bitcoin(BitcoinMixin, AtomicalsCoinMixin, Coin):
         'nf365b5sbzk5j4jreimskffwnfpka7qtamyni5doohoom3g63o5tldad.onion t'
     ]
     ATOMICALS_ACTIVATION_HEIGHT = 808080
-    ATOMICALS_ACTIVATION_HEIGHT_DMINT = 819181 
+    ATOMICALS_ACTIVATION_HEIGHT_DMINT = 819181
     ATOMICALS_ACTIVATION_HEIGHT_COMMITZ = 822800
     ATOMICALS_ACTIVATION_HEIGHT_DENSITY = 828128
     ATOMICALS_ACTIVATION_HEIGHT_DFT_BITWORK_ROLLOVER = 828628
