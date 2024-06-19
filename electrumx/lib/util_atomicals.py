@@ -1638,6 +1638,9 @@ def is_splat_operation(operations_found_at_inputs):
 def is_split_operation(operations_found_at_inputs):
     return operations_found_at_inputs and operations_found_at_inputs.get('op') == 'y' and operations_found_at_inputs.get('input_index') == 0
 
+def is_custom_colored_operation(operations_found_at_inputs):
+    return operations_found_at_inputs and operations_found_at_inputs.get('op') == 'z' and operations_found_at_inputs.get('input_index') == 0
+
 def is_seal_operation(operations_found_at_inputs):
     return operations_found_at_inputs and operations_found_at_inputs.get('op') == 'sl' and operations_found_at_inputs.get('input_index') == 0
 

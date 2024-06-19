@@ -27,6 +27,7 @@
 '''Miscellaneous utility classes and functions.'''
 
 
+from abc import ABC
 from array import array
 import asyncio
 import inspect
@@ -35,6 +36,7 @@ import logging
 import sys
 from collections.abc import Container, Mapping
 from struct import Struct
+from typing import Iterable
 
 import aiorpcx
 
@@ -50,6 +52,14 @@ except ImportError:
 
 json_deserialize = json.loads
 json_serialize = json.dumps
+
+class IterableReprMixin(Iterable, ABC):
+    """A mixin that makes the class as an iterable and can be formatted while calling the printing method."""
+
+    def __repr__(self):
+        cls_name = self.__class__.__name__
+        attrs = [f"{key}: {value}" for key, value in self]
+        return f'{cls_name}({", ".join(attrs)})'
 
 # Logging utilities
 

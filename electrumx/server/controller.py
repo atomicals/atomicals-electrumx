@@ -9,12 +9,12 @@ from asyncio import Event
 
 from aiorpcx import _version as aiorpcx_version
 
-import electrumx
 from electrumx.lib.server_base import ServerBase
-from electrumx.lib.util import version_string, OldTaskGroup
+from electrumx.lib.util import OldTaskGroup, version_string
 from electrumx.server.db import DB
 from electrumx.server.mempool import MemPool, MemPoolAPI
-from electrumx.server.session import SessionManager
+from electrumx.server.session.session_manager import SessionManager
+from electrumx.version import electrumx_version
 
 
 class Notifications:
