@@ -422,7 +422,7 @@ class NameMixin:
                     # Script structure: https://git.io/fjuRu
                     added, template = cls._add_data_placeholders_to_template(ops[i:], template)
                     offset += added - 1  # subtract the "DATA_PUSH_MULTIPLE" opcode
-                elif type(op) == str:
+                elif isinstance(op, str):
                     template.append(-1)
                     named_index[op] = i + offset
                 else:
@@ -2670,7 +2670,7 @@ class Zcoin(Coin):
         elif isinstance(header, bytes):
             (nVersion,) = unpack_le_uint32_from(header[0:4])
         else:
-            raise "Cannot handle the passed type"
+            raise Exception("Cannot handle the passed type")
         return nVersion & 0x1000
 
     @classmethod

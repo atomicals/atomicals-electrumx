@@ -1,7 +1,21 @@
-from typing import Tuple
+from typing import Optional, Tuple
 
+from electrumx.lib.hash import hash_to_hex_str
 from electrumx.lib.script import is_unspendable_genesis, is_unspendable_legacy
-from electrumx.lib.util_atomicals import *
+from electrumx.lib.util import IterableReprMixin
+from electrumx.lib.util_atomicals import (
+    SUBNAME_MIN_PAYMENT_DUST_LIMIT,
+    compact_to_location_id_bytes,
+    is_compact_atomical_id,
+    is_custom_colored_operation,
+    is_integer_num,
+    is_mint_operation,
+    is_op_return_dmitem_payment_marker_atomical_id,
+    is_op_return_subrealm_payment_marker_atomical_id,
+    is_splat_operation,
+    is_split_operation,
+    location_id_bytes_to_compact,
+)
 
 
 class FtColoringSummary(IterableReprMixin):
@@ -273,14 +287,14 @@ def order_ft_inputs(ft_atomicals, sort_by_fifo):
                 input_idx_map[txin_index].append(atomical_id)
         # Now for each input, we assign the atomicals, making sure to ignore the ones we've seen already
         seen_atomical_id_map = {}
-        for input_idx, atomicals_array in sorted(input_idx_map.items()):
+        for _input_idx, atomicals_array in sorted(input_idx_map.items()):
             for atomical_id in sorted(atomicals_array):
                 if seen_atomical_id_map.get(atomical_id):
                     continue
                 seen_atomical_id_map[atomical_id] = True
                 atomical_list.append(ft_atomicals[atomical_id])
     else:
-        for atomical_id, ft_info in sorted(ft_atomicals.items()):
+        for _atomical_id, ft_info in sorted(ft_atomicals.items()):
             atomical_list.append(ft_info)
     return atomical_list
 
@@ -361,14 +375,14 @@ class AtomicalsTransferBlueprintBuilder:
                     )
             # Now for each input, we assign the atomicals, making sure to ignore the ones we've seen already
             seen_atomical_id_map = {}
-            for input_idx, atomicals_array in sorted(input_idx_map.items()):
+            for _input_idx, atomicals_array in sorted(input_idx_map.items()):
                 for atomical_id_info in sorted(atomicals_array):
                     if seen_atomical_id_map.get(atomical_id_info["atomical_id"]):
                         continue
                     seen_atomical_id_map[atomical_id_info["atomical_id"]] = True
                     atomical_list.append(ft_atomicals[atomical_id_info["atomical_id"]])
         else:
-            for atomical_id, ft_info in sorted(ft_atomicals.items()):
+            for _atomical_id, ft_info in sorted(ft_atomicals.items()):
                 atomical_list.append(ft_info)
         return atomical_list
 
@@ -404,7 +418,7 @@ class AtomicalsTransferBlueprintBuilder:
             next_output_idx = 0
             map_output_idxs_for_atomicals = {}
             # Build a map of input ids to NFTs
-            for input_idx, atomicals_ids_map in nft_map.items():
+            for _input_idx, atomicals_ids_map in nft_map.items():
                 found_atomical_at_input = False
                 for atomical_id, atomical_summary_info in atomicals_ids_map.items():
                     found_atomical_at_input = True
@@ -474,7 +488,7 @@ class AtomicalsTransferBlueprintBuilder:
         output_colored_map = {}
         for atomical_id, atomical_info in sorted(nft_atomicals.items()):
             remaining_value = atomical_info.atomical_value
-            for out_idx, txout in enumerate(tx.outputs):
+            for out_idx, _txout in enumerate(tx.outputs):
                 compact_atomical_id = location_id_bytes_to_compact(atomical_id)
                 compact_atomical_id_data = {
                     int(k): v
@@ -756,7 +770,10 @@ class AtomicalsTransferBlueprintBuilder:
         operations_found_at_inputs,
         sort_fifo,
         is_custom_coloring_activated,
-    ) -> Tuple[AtomicalNftOutputBlueprintAssignmentSummary, AtomicalFtOutputBlueprintAssignmentSummary,]:
+    ) -> Tuple[
+        AtomicalNftOutputBlueprintAssignmentSummary,
+        AtomicalFtOutputBlueprintAssignmentSummary,
+    ]:
         nft_blueprint = AtomicalsTransferBlueprintBuilder.calculate_output_blueprint_nfts(
             get_atomicals_id_mint_info,
             tx,
@@ -837,11 +854,11 @@ class AtomicalsTransferBlueprintBuilder:
             elif mint_info.type == "FT":
                 ft_atomicals[atomical_id] = mint_info
             else:
-                raise AtomicalsTransferBlueprintBuilderError(f"color_atomicals_outputs: Invalid type. IndexError")
+                raise AtomicalsTransferBlueprintBuilderError("color_atomicals_outputs: Invalid type. IndexError")
         atomicals_ids_spent = []
-        for atomical_id, unused in nft_atomicals.items():
+        for atomical_id, _ in nft_atomicals.items():
             atomicals_ids_spent.append(atomical_id)
-        for atomical_id, unused in ft_atomicals.items():
+        for atomical_id, _ in ft_atomicals.items():
             atomicals_ids_spent.append(atomical_id)
         return nft_atomicals, ft_atomicals, atomicals_ids_spent
 
@@ -1001,7 +1018,7 @@ class AtomicalsTransferBlueprintBuilder:
                         key = output_script_hex + expected_output_payment_id_type_long_form.hex()
                         expected_output_keys_satisfied[key] = True
         # Check if there are any unsatisfied requirements
-        for output_script_not_used, satisfied in expected_output_keys_satisfied.items():
+        for _output_script_not_used, satisfied in expected_output_keys_satisfied.items():
             if not satisfied:
                 self.logger.warning(
                     f"are_payments_satisfied "

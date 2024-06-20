@@ -2,12 +2,13 @@ import codecs
 import datetime
 from typing import Tuple
 
-from aiorpcx import ReplyAndDisconnect, TaskTimeout, timeout_after
+from aiorpcx import ReplyAndDisconnect, RPCError, TaskTimeout, timeout_after
 
 from electrumx.lib import util
 from electrumx.server.daemon import DaemonError
+from electrumx.server.session import BAD_REQUEST
 from electrumx.server.session.session_base import SessionBase
-from electrumx.server.session.util import *
+from electrumx.server.session.util import SESSION_PROTOCOL_MAX, SESSION_PROTOCOL_MIN
 from electrumx.version import (
     electrumx_version,
     electrumx_version_short,
@@ -266,7 +267,7 @@ class ElectrumX(SessionBase):
         """
         self.bump_cost(0.5)
         if self.sv_seen:
-            raise RPCError(BAD_REQUEST, f"server.version already sent")
+            raise RPCError(BAD_REQUEST, "server.version already sent")
         self.sv_seen = True
 
         if client_name:

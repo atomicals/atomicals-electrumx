@@ -129,8 +129,8 @@ class SessionBase(RPCSession):
         # If DROP_CLIENT_UNKNOWN is enabled, check if the client identified
         # by calling server.version previously. If not, disconnect the session
         if self.env.drop_client_unknown and method != "server.version" and self.client == "unknown":
-            self.logger.info(f"disconnecting because client is unknown")
-            raise ReplyAndDisconnect(BAD_REQUEST, f"use server.version to identify client")
+            self.logger.info("disconnecting because client is unknown")
+            raise ReplyAndDisconnect(BAD_REQUEST, "use server.version to identify client")
 
         self.session_mgr.method_counts[method] += 1
         coro = handler_invocation(handler, request)()

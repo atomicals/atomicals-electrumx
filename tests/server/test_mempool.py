@@ -18,7 +18,7 @@ from electrumx.server.mempool import MemPool, MemPoolAPI
 coin = BitcoinCash
 tx_hash_fn = coin.DESERIALIZER.TX_HASH_FN
 # Change seed daily
-seed(datetime.date.today().toordinal)
+seed(datetime.date.today().toordinal())
 
 
 def random_tx(hash160s, utxos):
@@ -29,7 +29,7 @@ def random_tx(hash160s, utxos):
     n_inputs = min(randrange(1, 4), len(utxos))
     input_value = 0
     # Create inputs spending random UTXOs.  total the inpu
-    for n in range(n_inputs):
+    for _ in range(n_inputs):
         prevout = choice(list(utxos))
         hashX, value = utxos.pop(prevout)
         inputs.append(TxInput(prevout[0], prevout[1], b"", 4294967295))
@@ -44,7 +44,7 @@ def random_tx(hash160s, utxos):
     input_value -= fee
     outputs = []
     n_outputs = randrange(1, 4)
-    for n in range(n_outputs):
+    for _ in range(n_outputs):
         value = randrange(input_value + 1)
         input_value -= value
         pk_script = coin.hash160_to_P2PKH_script(choice(hash160s))
@@ -83,7 +83,7 @@ class API(MemPoolAPI):
         self.db_utxos = {prevout: (choice(self.hashXs), random_value()) for prevout in prevouts}
 
         unspent_utxos = self.db_utxos.copy()
-        for n in range(mempool_size):
+        for _ in range(mempool_size):
             tx, tx_hash, raw_tx = random_tx(hash160s, unspent_utxos)
             self.raw_txs[tx_hash] = raw_tx
             self.txs[tx_hash] = tx
@@ -109,8 +109,8 @@ class API(MemPoolAPI):
         # Return mempool balance deltas indexed by hashX
         deltas = defaultdict(int)
         utxos = self.mempool_utxos()
-        for tx_hash, tx in self.txs.items():
-            for n, input in enumerate(tx.inputs):
+        for _tx_hash, tx in self.txs.items():
+            for _, input in enumerate(tx.inputs):
                 if input.is_generation():
                     continue
                 prevout = (input.prev_hash, input.prev_idx)
@@ -127,8 +127,8 @@ class API(MemPoolAPI):
         # Return spends indexed by hashX
         spends = defaultdict(list)
         utxos = self.mempool_utxos()
-        for tx_hash, tx in self.txs.items():
-            for n, input in enumerate(tx.inputs):
+        for _tx_hash, tx in self.txs.items():
+            for _, input in enumerate(tx.inputs):
                 if input.is_generation():
                     continue
                 prevout = (input.prev_hash, input.prev_idx)
@@ -147,7 +147,7 @@ class API(MemPoolAPI):
             fee = 0
             hashXs = set()
             has_ui = False
-            for n, input in enumerate(tx.inputs):
+            for _, input in enumerate(tx.inputs):
                 if input.is_generation():
                     continue
                 has_ui = has_ui or (input.prev_hash in self.txs)
@@ -173,7 +173,7 @@ class API(MemPoolAPI):
         utxos = self.mempool_utxos()
         for tx_hash in tx_hashes:
             tx = self.txs[tx_hash]
-            for n, input in enumerate(tx.inputs):
+            for _, input in enumerate(tx.inputs):
                 if input.is_generation():
                     continue
                 prevout = (input.prev_hash, input.prev_idx)
@@ -317,7 +317,7 @@ async def test_compact_fee_histogram():
     mempool._update_histogram(bin_size)
     histogram = await mempool.compact_fee_histogram()
     assert len(histogram) > 0
-    rates, sizes = zip(*histogram)
+    rates, sizes = zip(*histogram, strict=False)
     assert all(rates[n] < rates[n - 1] for n in range(1, len(rates)))
 
 
@@ -559,7 +559,7 @@ async def test_dropped_txs(caplog):
     mempool = MemPool(coin, api)
     event = Event()
     # Remove a single TX_HASH that is used in another mempool tx
-    for prev_hash, prev_idx in api.mempool_spends():
+    for prev_hash, _prev_idx in api.mempool_spends():
         if prev_hash in api.txs:
             del api.txs[prev_hash]
 

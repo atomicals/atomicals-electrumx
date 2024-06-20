@@ -29,6 +29,7 @@
 
 import math
 import re
+import sys
 from typing import Optional
 
 import krock32
@@ -43,7 +44,13 @@ from electrumx.lib.hash import (
     sha256,
 )
 from electrumx.lib.script import SCRIPTHASH_LEN, OpCodes, ScriptError
-from electrumx.lib.util import *
+from electrumx.lib.util import (
+    pack_le_uint32,
+    unpack_le_uint16_from,
+    unpack_le_uint32_from,
+    unpack_le_uint64,
+    unpack_le_uint64_from,
+)
 
 # The maximum height difference between the commit and reveal transactions of any Atomical mint
 # This is used to limit the amount of cache we would need in future optimizations.
@@ -115,7 +122,7 @@ def pad_bytes64(val):
 # Atomical NFT/FT mint information is stored in the b'mi' index and is pickle encoded dictionary
 def unpack_mint_info(mint_info_value):
     if not mint_info_value:
-        raise IndexError(f"unpack_mint_info mint_info_value is null. Index error.")
+        raise IndexError("unpack_mint_info mint_info_value is null. Index error.")
     return loads(mint_info_value)
 
 
@@ -124,7 +131,7 @@ def unpack_mint_info(mint_info_value):
 def is_sanitized_dict_whitelist_only(d: dict, allow_bytes=False):
     if not isinstance(d, dict):
         return False
-    for k, v in d.items():
+    for _, v in d.items():
         if isinstance(v, dict):
             return is_sanitized_dict_whitelist_only(v, allow_bytes)
         if not allow_bytes and isinstance(v, bytes):
@@ -217,7 +224,7 @@ def is_compact_atomical_id(value):
 def compact_to_location_id_bytes(value):
     """Convert the 36 byte atomical_id to the compact form with the "i" at the end"""
     if not value:
-        raise TypeError(f"value in compact_to_location_id_bytes is not set")
+        raise TypeError("value in compact_to_location_id_bytes is not set")
 
     index_of_i = value.index("i")
     if index_of_i != 64:
@@ -427,7 +434,7 @@ def has_requested_proof_of_work(operations_found_at_inputs):
 def get_if_parent_spent_in_same_tx(parent_atomical_id_compact, expected_minimum_total_value, atomicals_spent_at_inputs):
     parent_atomical_id = compact_to_location_id_bytes(parent_atomical_id_compact)
     id_to_total_value_map = {}
-    for idx, atomical_entry_list in atomicals_spent_at_inputs.items():
+    for _idx, atomical_entry_list in atomicals_spent_at_inputs.items():
         for atomical_entry in atomical_entry_list:
             atomical_id = atomical_entry["atomical_id"]
             # Only sum up the relevant atomical
@@ -579,15 +586,15 @@ def get_mint_info_op_factory(coin, tx, tx_hash, op_found_struct, atomicals_spent
     if parents_enforced:
         logger.debug(f"parents_enforced true {parents_enforced} {tx_hash}")
         if not isinstance(parents_enforced, dict):
-            logger.warning(f"Ignoring operation due to invalid parent dict")
+            logger.warning("Ignoring operation due to invalid parent dict")
             return None, None
 
         if len(parents_enforced.keys()) < 1:
-            logger.warning(f"Ignoring operation due to invalid parent dict empty")
+            logger.warning("Ignoring operation due to invalid parent dict empty")
             return None, None
 
         if not atomicals_spent_at_inputs:
-            logger.warning(f"parent_enforced has NOT atomicals_spent_at_inputs")
+            logger.warning("parent_enforced has NOT atomicals_spent_at_inputs")
             return None, None
 
         for parent_atomical_id, value in parents_enforced.items():
@@ -603,7 +610,7 @@ def get_mint_info_op_factory(coin, tx, tx_hash, op_found_struct, atomicals_spent
             # Use the information to reject the operation/mint if the requested parent is not spent along
             found_parent = get_if_parent_spent_in_same_tx(parent_atomical_id, value, atomicals_spent_at_inputs)
             if not found_parent:
-                logger.warning(f"Ignoring operation due to invalid parent input not provided")
+                logger.warning("Ignoring operation due to invalid parent input not provided")
                 return None, None
         mint_info["$parents"] = parents_enforced
 
@@ -775,7 +782,7 @@ def get_mint_info_op_factory(coin, tx, tx_hash, op_found_struct, atomicals_spent
             if valid_commit_str:
                 mint_info["$mint_bitworkc"] = mint_pow_commit
             else:
-                logger.warning(f"DFT mint has invalid mint_bitworkc. Skipping...")
+                logger.warning("DFT mint has invalid mint_bitworkc. Skipping...")
                 return None, None
 
         # If set it requires the mint reveal tx to have POW matching the mint_reveal_powprefix to claim a mint
@@ -786,7 +793,7 @@ def get_mint_info_op_factory(coin, tx, tx_hash, op_found_struct, atomicals_spent
                 mint_info["$mint_bitworkr"] = mint_pow_reveal
             else:
                 # Fail to create on invalid bitwork string
-                logger.warning(f"DFT mint has invalid mint_bitworkr. Skipping...")
+                logger.warning("DFT mint has invalid mint_bitworkr. Skipping...")
                 return None, None
 
         # DFTs are not allowed to be immutable
@@ -895,17 +902,17 @@ def get_mint_info_op_factory(coin, tx, tx_hash, op_found_struct, atomicals_spent
         if valid_commit_str:
             if is_name_type_require_bitwork and len(bitwork_commit_parts["prefix"]) < 4:
                 # Fail to create due to insufficient prefix length for name claim
-                logger.warning(f"Name type mint does not have prefix of at least length 4 of bitworkc. Skipping...")
+                logger.warning("Name type mint does not have prefix of at least length 4 of bitworkc. Skipping...")
                 return None, None
             mint_info["$bitworkc"] = request_pow_commit
         else:
             # Fail to create on invalid bitwork string
-            logger.warning(f"Mint has invalid bitworkc. Skipping...")
+            logger.warning("Mint has invalid bitworkc. Skipping...")
             return None, None
 
     if is_name_type_require_bitwork and not request_pow_commit:
         # Fail to create because not bitworkc was provided for name type mint
-        logger.warning(f"Name type mint does not have bitworkc. Skipping...")
+        logger.warning("Name type mint does not have bitworkc. Skipping...")
         return None, None
 
     request_pow_reveal = mint_info["args"].get("bitworkr")
@@ -914,7 +921,7 @@ def get_mint_info_op_factory(coin, tx, tx_hash, op_found_struct, atomicals_spent
         if valid_reveal_str:
             mint_info["$bitworkr"] = request_pow_reveal
         else:
-            logger.warning(f"Mint has invalid bitworkr. Skipping...")
+            logger.warning("Mint has invalid bitworkr. Skipping...")
             # Fail to create on invalid bitwork string
             return None, None
 
@@ -1499,27 +1506,27 @@ def print_subrealm_calculate_log(item):
 def validate_subrealm_rules_outputs_format(outputs):
     # Validate all of the outputs
     if not isinstance(outputs, dict) or len(outputs.keys()) <= 0:
-        print_subrealm_calculate_log(f"validate_subrealm_rules_outputs_format: outputs is not a dict or is empty")
+        print_subrealm_calculate_log("validate_subrealm_rules_outputs_format: outputs is not a dict or is empty")
         return False
     for expected_output_script, expected_output_value in outputs.items():
         # Check that expected_output_value value is a dict
         if not isinstance(expected_output_value, dict):
-            print_subrealm_calculate_log(f"validate_subrealm_rules_outputs_format: invalid expected output dict")
+            print_subrealm_calculate_log("validate_subrealm_rules_outputs_format: invalid expected output dict")
             return False  # Reject if one of the entries expects less than the minimum payment amount
         expected_output_id = expected_output_value.get("id")
         expected_output_qty = expected_output_value.get("v")
         if not is_integer_num(expected_output_qty) or expected_output_qty < SUBNAME_MIN_PAYMENT_DUST_LIMIT:
-            print_subrealm_calculate_log(f"validate_subrealm_rules_outputs_format: invalid expected output value")
+            print_subrealm_calculate_log("validate_subrealm_rules_outputs_format: invalid expected output value")
             return False  # Reject if one of the entries expects less than the minimum payment amount
         # If there is a type restriction on the payment type then ensure it is a valid atomical id
         if expected_output_id:
             if not isinstance(expected_output_id, str) or not is_compact_atomical_id(expected_output_id):
-                print_subrealm_calculate_log(f"validate_subrealm_rules_outputs_format: invalid expected id value")
+                print_subrealm_calculate_log("validate_subrealm_rules_outputs_format: invalid expected id value")
                 return False
         # script must be paid to mint a subrealm
         if not is_hex_string(expected_output_script):
             print_subrealm_calculate_log(
-                f"validate_subrealm_rules_outputs_format: expected output script is not a valid hex string"
+                "validate_subrealm_rules_outputs_format: expected output script is not a valid hex string"
             )
             return False  # Reject if one of the payment output script is not a valid hex
     return True
@@ -1596,15 +1603,15 @@ def validate_rules_data(namespace_data):
 def validate_rules(namespace_data):
     rules = namespace_data.get("rules", None)
     if not rules or not isinstance(rules, list) or len(rules) <= 0:
-        print_subrealm_calculate_log(f"rules not found")
+        print_subrealm_calculate_log("rules not found")
         return None
 
     # There is a path rules that exists
     if not isinstance(rules, list):
-        print_subrealm_calculate_log(f"value is not a list")
+        print_subrealm_calculate_log("value is not a list")
         return None  # Reject if the rules is not a list
     if len(rules) <= 0 or len(rules) > MAX_SUBNAME_RULE_ENTRIES:
-        print_subrealm_calculate_log(f"rules must have between 1 and 100 entries")
+        print_subrealm_calculate_log("rules must have between 1 and 100 entries")
         return None  # Reject since the rules list is empty
     # Now populate the regex price list
     # Make sure to REJECT the entire rule set if any of the rules entries is invalid in some way
@@ -1614,15 +1621,15 @@ def validate_rules(namespace_data):
     for rule_set_entry in rules:  # will not be empty since it is checked above
         # Ensure that the price entry is a list (pattern, price, output)
         if not isinstance(rule_set_entry, dict):
-            print_subrealm_calculate_log(f"rule_set_entry is not a dict")
+            print_subrealm_calculate_log("rule_set_entry is not a dict")
             return None
         # regex is the first pattern that will be checked to match for minting a subrealm
         regex_pattern = rule_set_entry.get("p")
         if not isinstance(regex_pattern, str):
-            print_subrealm_calculate_log(f"regex pattern is not a string")
+            print_subrealm_calculate_log("regex pattern is not a string")
             return None
         if len(regex_pattern) > MAX_SUBNAME_RULE_SIZE_LEN or len(regex_pattern) < 1:
-            print_subrealm_calculate_log(f"rule empty or too large")
+            print_subrealm_calculate_log("rule empty or too large")
             return None  # Reject if the rule has more than MAX_SUBNAME_RULE_SIZE_LEN chars
         # Output is the output script that must be paid to mint the subrealm
         outputs = rule_set_entry.get("o")
@@ -1665,7 +1672,7 @@ def validate_rules(namespace_data):
         if outputs:
             # check for a list of outputs
             if not isinstance(outputs, dict) or len(outputs.keys()) < 1:
-                print_subrealm_calculate_log(f"outputs is not a dict or is empty")
+                print_subrealm_calculate_log("outputs is not a dict or is empty")
                 return None  # Reject if one of the payment outputs is not a valid list
 
             if not validate_subrealm_rules_outputs_format(outputs):
@@ -1676,7 +1683,7 @@ def validate_rules(namespace_data):
             # Also accepted if there was just bitwork (the bitworkc and bitworkr are added above)
             validated_rules_list.append(price_point)
         else:
-            print_subrealm_calculate_log(f"list element does not p or o fields")
+            print_subrealm_calculate_log("list element does not p or o fields")
             return None
     # If we got this far, it means there is a valid rule as of the requested height, return the information
     return validated_rules_list
@@ -1979,38 +1986,38 @@ def validate_dmitem_mint_args_with_container_dmint(mint_args, mint_data_payload,
     args = mint_args
     proof = args.get("proof")
     if not proof or not isinstance(proof, list) or len(proof) == 0:
-        print(f"validate_dmitem_mint_args_with_container_dmint: proof is not valid list")
+        print("validate_dmitem_mint_args_with_container_dmint: proof is not valid list")
         return False
     else:
         for proof_item in proof:
             if not isinstance(proof_item, dict) or len(proof_item) == 0:
-                print(f"validate_dmitem_mint_args_with_container_dmint: proof item is not a valid dict")
+                print("validate_dmitem_mint_args_with_container_dmint: proof item is not a valid dict")
                 return False
             if proof_item.get("p") != True and proof_item.get("p") != False:
-                print(f"validate_dmitem_mint_args_with_container_dmint: proof item position not True or False")
+                print("validate_dmitem_mint_args_with_container_dmint: proof item position not True or False")
                 return False
             d = proof_item.get("d")
             if not d or not isinstance(d, str) or len(d) != 64:
-                print(f"validate_dmitem_mint_args_with_container_dmint: proof data hash is not 64 hex characters")
+                print("validate_dmitem_mint_args_with_container_dmint: proof data hash is not 64 hex characters")
                 return False
     expect_immutable_value = dmint.get("immutable", False)
     if expect_immutable_value:
         args_i = args.get("i")
         if not args_i or not isinstance(args_i, bool):
-            print(f"validate_dmitem_mint_args_with_container_dmint: immutable is expected")
+            print("validate_dmitem_mint_args_with_container_dmint: immutable is expected")
             return False
     request_dmitem = args.get("request_dmitem")
     merkle = dmint.get("merkle")
     main = args.get("main")
     if not main or not isinstance(main, str):
-        print(f"validate_dmitem_mint_args_with_container_dmint: main is not valid str")
+        print("validate_dmitem_mint_args_with_container_dmint: main is not valid str")
         return False
     main_data = mint_data_payload.get(main)
     if not main_data:
-        print(f"get_dmitem_parent_container_info: main element is not defined")
+        print("get_dmitem_parent_container_info: main element is not defined")
         return False
     if not isinstance(main_data, bytes):
-        print(f"get_dmitem_parent_container_info: main element is not bytes")
+        print("get_dmitem_parent_container_info: main element is not bytes")
         return False
     main_hash = double_sha256(main_data)
     bitworkc = args.get("bitworkc")
