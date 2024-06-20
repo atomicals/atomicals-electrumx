@@ -102,7 +102,7 @@ def test_get_name_request_candidate_status_valid_pending_candidate():
     } == result
 
 
-def test_get_name_request_candidate_status_valid_pending_candidate():
+def test_get_name_request_candidate_status_valid_pending_candidate1():
     subject_atomical_id = (
         b"A\x03\x8f'\xe7\x85`l\xa0\xcc\x1e\xfd\x8e:\xa9\x12\xa1\\r\xd0o5\x9a\xeb\x05$=\xab+p\xa8V\x01\x00\x00\x00"
     )
@@ -142,7 +142,7 @@ def test_get_name_request_candidate_status_valid_none():
     assert {"status": None, "pending_candidate_atomical_id": None} == result
 
 
-def test_get_name_request_candidate_status_valid_pending_candidate():
+def test_get_name_request_candidate_status_valid_pending_candidate2():
     subject_atomical_id = (
         b"A\x03\x8f'\xe7\x85`l\xa0\xcc\x1e\xfd\x8e:\xa9\x12\xa1\\r\xd0o5\x9a\xeb\x05$=\xab+p\xa8V\x01\x00\x00\x00"
     )

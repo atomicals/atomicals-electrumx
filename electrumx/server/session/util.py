@@ -48,7 +48,7 @@ def assert_atomical_id(value):
     If it is valid, return it as 32-byte binary hash."""
     try:
         if value is None or value == "":
-            raise RPCError(BAD_REQUEST, f"atomical_id required")
+            raise RPCError(BAD_REQUEST, "atomical_id required")
         index_of_i = value.find("i")
         if index_of_i != 64:
             raise RPCError(BAD_REQUEST, f"{value} should be an atomical_id")

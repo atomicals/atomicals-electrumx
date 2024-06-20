@@ -11,7 +11,7 @@ from aiohttp import web
 import electrumx.lib.util as util
 from electrumx.server.http_middleware import error_resp, success_resp
 from electrumx.server.session.shared_session import SharedSession
-from electrumx.server.session.util import *
+from electrumx.server.session.util import SESSION_PROTOCOL_MAX, SESSION_PROTOCOL_MIN
 from electrumx.version import electrumx_version, get_server_info
 
 

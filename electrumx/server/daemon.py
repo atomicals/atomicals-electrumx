@@ -436,7 +436,7 @@ class DecredDaemon(Daemon):
             valid_tx_tree[prev] = self.is_valid_tx_tree(votebits)
 
         processed_raw_blocks = []
-        for hash, raw_block in zip(hex_hashes, raw_blocks):
+        for hash, raw_block in zip(hex_hashes, raw_blocks, strict=False):
             if hash in valid_tx_tree:
                 is_valid = valid_tx_tree[hash]
             else:

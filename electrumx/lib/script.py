@@ -173,7 +173,7 @@ def is_unspendable_genesis(script):
 def _match_ops(ops, pattern):
     if len(ops) != len(pattern):
         return False
-    for op, pop in zip(ops, pattern):
+    for op, pop in zip(ops, pattern, strict=False):
         if pop != op:
             # -1 means 'data push', whose op is an (op, data) tuple
             if pop == -1 and isinstance(op, tuple):
@@ -275,7 +275,7 @@ class Script:
     @classmethod
     def dump(cls, script):
         opcodes, datas = cls.get_ops(script)
-        for opcode, data in zip(opcodes, datas):
+        for opcode, data in zip(opcodes, datas, strict=False):
             name = cls.opcode_name(opcode)
             if data is None:
                 print(name)
