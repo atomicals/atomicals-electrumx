@@ -294,6 +294,7 @@ class AtomicalsCoinMixin:
     ATOMICALS_ACTIVATION_HEIGHT_COMMITZ: int
     ATOMICALS_ACTIVATION_HEIGHT_DENSITY: int
     ATOMICALS_ACTIVATION_HEIGHT_DFT_BITWORK_ROLLOVER: int
+    ATOMICALS_ACTIVATION_HEIGHT_CUSTOM_COLORING: int
 
 
 class AuxPowMixin:
@@ -680,7 +681,7 @@ class Bitcoin(BitcoinMixin, AtomicalsCoinMixin, Coin):
     ATOMICALS_ACTIVATION_HEIGHT_COMMITZ = 822800
     ATOMICALS_ACTIVATION_HEIGHT_DENSITY = 828128
     ATOMICALS_ACTIVATION_HEIGHT_DFT_BITWORK_ROLLOVER = 828628
-    ATOMICALS_ACTIVATION_SPLIT = 845000
+    ATOMICALS_ACTIVATION_HEIGHT_CUSTOM_COLORING = 848484
 
     @classmethod
     def warn_old_client_on_tx_broadcast(cls, client_ver):
@@ -949,7 +950,7 @@ class BitcoinTestnet(BitcoinTestnetMixin, AtomicalsCoinMixin, Coin):
     ATOMICALS_ACTIVATION_HEIGHT_COMMITZ = 2543936
     ATOMICALS_ACTIVATION_HEIGHT_DENSITY = 2572729
     ATOMICALS_ACTIVATION_HEIGHT_DFT_BITWORK_ROLLOVER = 2576412
-    ATOMICALS_ACTIVATION_SPLIT = 2584936
+    ATOMICALS_ACTIVATION_HEIGHT_CUSTOM_COLORING = 2584936
 
     @classmethod
     def warn_old_client_on_tx_broadcast(cls, client_ver):
@@ -960,6 +961,36 @@ class BitcoinTestnet(BitcoinTestnetMixin, AtomicalsCoinMixin, Coin):
                     'Download the new version from the usual place:<br/>'
                     'https://electrum.org/'
                     '<br/><br/>')
+        return False
+    
+
+class BitcoinTestnet4(BitcoinTestnetMixin, AtomicalsCoinMixin, Coin):
+    NAME = "Bitcoin"
+    NET = "testnet4"
+    DESERIALIZER = lib_tx.DeserializerSegWit
+    CRASH_CLIENT_VER = (3, 2, 3)
+    PEERS = []
+    GENESIS_HASH = "00000000da84f2bafbbc53dee25a72ae" "507ff4914b867c565be350b0da8bf043"
+    RPC_PORT = 48332
+
+    ATOMICALS_ACTIVATION_HEIGHT = 27000
+    ATOMICALS_ACTIVATION_HEIGHT_DMINT = 27000
+    ATOMICALS_ACTIVATION_HEIGHT_COMMITZ = 27000
+    ATOMICALS_ACTIVATION_HEIGHT_DENSITY = 27000
+    ATOMICALS_ACTIVATION_HEIGHT_DFT_BITWORK_ROLLOVER = 27000
+    ATOMICALS_ACTIVATION_HEIGHT_CUSTOM_COLORING = 27000
+
+    @classmethod
+    def warn_old_client_on_tx_broadcast(cls, client_ver):
+        if client_ver < (3, 3, 3):
+            return (
+                "<br/><br/>"
+                "Your transaction was successfully broadcast.<br/><br/>"
+                "However, you are using a VULNERABLE version of Electrum.<br/>"
+                "Download the new version from the usual place:<br/>"
+                "https://electrum.org/"
+                "<br/><br/>"
+            )
         return False
 
 

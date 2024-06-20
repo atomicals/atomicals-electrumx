@@ -2961,7 +2961,7 @@ class BlockProcessor:
         # 
         # PROTOCOL Type Fields
         #
-        the_name_request, is_atomical_name_verified_found = self.populate_name_subtype_specific_fields(atomical, 'protocol', self.get_effective_protocol)
+        the_name_request, is_atomical_name_verified_found = self.populate_name_subtype_specific_fields(atomical, 'protocol', self.get_effective_protocol, height)
         if is_atomical_name_verified_found:
             atomical['subtype'] = 'protocol'
             atomical['$protocol'] = the_name_request
@@ -2974,7 +2974,7 @@ class BlockProcessor:
         # 
         # CONTRACT Type Fields
         #
-        the_name_request, is_atomical_name_verified_found = self.populate_name_subtype_specific_fields(atomical, 'contract', self.get_effective_contract)
+        the_name_request, is_atomical_name_verified_found = self.populate_name_subtype_specific_fields(atomical, 'contract', self.get_effective_contract, height)
         if is_atomical_name_verified_found:
             atomical['subtype'] = 'contract'
             atomical['$contract'] = the_name_request
@@ -3186,8 +3186,8 @@ class BlockProcessor:
             return True 
         return False
     
-    def is_split_activated(self, height):
-        if height >= self.coin.ATOMICALS_ACTIVATION_SPLIT:
+    def is_custom_coloring_activated(self, height):
+        if height >= self.coin.ATOMICALS_ACTIVATION_HEIGHT_CUSTOM_COLORING:
             return True
         if height <= 0:
             return True
