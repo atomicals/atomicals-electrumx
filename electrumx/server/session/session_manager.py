@@ -31,6 +31,7 @@ from electrumx.lib.util_atomicals import (
     compact_to_location_id_bytes,
     encode_atomical_ids_hex,
     location_id_bytes_to_compact,
+    parse_atomicals_operations_from_tap_leafs,
     parse_protocols_operations_from_witness_array,
 )
 from electrumx.server.daemon import Daemon, DaemonError
@@ -39,6 +40,7 @@ from electrumx.server.http_middleware import (
     cors_middleware,
     error_middleware,
     request_middleware,
+    rate_limiter
 )
 from electrumx.server.mempool import MemPool
 from electrumx.server.peers import PeerManager
@@ -123,7 +125,7 @@ class SessionManager:
         self._tx_decode_cache = pylru.lrucache(1000)
         self.notified_height = None
         self.hsub_results = None
-        self._task_group = OldTaskGroup()
+        self._task_group = util.OldTaskGroup()
         self._sslc = None
         # Event triggered when electrumx is listening for incoming requests.
         self.server_listening = Event()
@@ -630,7 +632,7 @@ class SessionManager:
         finally:
             # Close servers then sessions
             await self._stop_servers(self.servers.keys())
-            async with OldTaskGroup() as group:
+            async with util.OldTaskGroup() as group:
                 for session in list(self.sessions):
                     await group.spawn(session.close(force_after=1))
 

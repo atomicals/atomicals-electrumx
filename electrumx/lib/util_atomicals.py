@@ -1246,6 +1246,38 @@ def is_op_return_dmitem_payment_marker_atomical_id(script):
 
     # Return the potential atomical id that the payment marker is associated with
     return script[start_index+5+2+1:start_index+5+2+1+36]
+
+def parse_atomicals_operations_from_tap_leafs(scripts, allow_args_bytes: bool):
+    # All inputs are parsed but further upstream most operations will only function if placed in the 0'th input
+    op_name, payload, index = parse_protocols_operations_from_witness_for_input(scripts)
+    if not op_name:
+        return None
+    decoded_object = {}
+    if payload:
+        # Ensure that the payload is cbor encoded dictionary or empty
+        try:
+            decoded_object = loads(payload)
+            if not isinstance(decoded_object, dict):
+                return None
+        except Exception as e:
+            return None
+        # Also enforce that if there are meta, args, or ctx fields that they must be dicts
+        # This is done to ensure that these fields are always easily parseable and do not contain unexpected data
+        # which could cause parsing problems later.
+        # Ensure that they are not allowed to contain bytes like objects
+        if (
+            not is_sanitized_dict_whitelist_only(decoded_object.get("meta", {}))
+            or not is_sanitized_dict_whitelist_only(decoded_object.get("args", {}), allow_args_bytes)
+            or not is_sanitized_dict_whitelist_only(decoded_object.get("ctx", {}))
+            or not is_sanitized_dict_whitelist_only(decoded_object.get("init", {}), True)
+        ):
+            return None
+        return {
+            "op": op_name,
+            "payload": decoded_object,
+            "input_index": index,
+        }
+    return None
    
 # Parses and detects valid Atomicals protocol operations in a witness script
 # Stops when it finds the first operation in the first input
