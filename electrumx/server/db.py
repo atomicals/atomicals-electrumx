@@ -89,7 +89,7 @@ class FlushData:
     # atomicals_adds is used to track atomicals locations and unspent utxos with the b'i' and b'a' indexes
     # It uses a field 'deleted' to indicate whether to write the b'a' (active unspent utxo) or not - because it may have been spent before the cache flushed
     # Maps location_id to atomical_ids and the value/deleted entry
-    atomicals_adds = attr.ib()  # type: Dict[bytes, Dict[bytes, { value: bytes, deleted: bool }] ]
+    atomicals_adds = attr.ib()  # type: ignore # type: Dict[bytes, Dict[bytes, { value: bytes, deleted: bool }] ]
     # general_adds is a general purpose storage for key-value, used for the majority of atomicals data
     general_adds = attr.ib()  # type: List[Tuple[Sequence[bytes], Sequence[bytes]]]
     # realm_adds map realm names to tx_num ints, which then map onto an atomical_id
@@ -111,7 +111,7 @@ class FlushData:
     dmpay_adds = attr.ib()  # type: Dict[bytes, Dict[int, bytes]]
     # distmint_adds tracks the b'gi' which is the initial distributed mint location tracked to determine if any more mints are allowed
     # It maps atomical_id (of the dft deploy token mint) to location_ids and then the details of the scripthash+sat_value of the mint
-    distmint_adds = attr.ib()  # type: Dict[bytes, Dict[bytes, bytes]
+    distmint_adds = attr.ib()  # type: Dict[bytes, Dict[bytes, bytes]]
     # state_adds is for evt, mod state updates
     # It maps atomical_id to the data of the state update
     state_adds = attr.ib()  # type: Dict[bytes, Dict[bytes, bytes]]
@@ -1492,15 +1492,13 @@ class DB:
                     atomical_output_script_key = b"po" + location
                     atomical_output_script_value = self.utxo_db.get(atomical_output_script_key)
                     location_script = atomical_output_script_value
-                    (location_value,) = unpack_le_uint64(
-                        atomical_active_location_value[HASHX_LEN + SCRIPTHASH_LEN : HASHX_LEN + SCRIPTHASH_LEN + 8]
-                    )
+                    atomical_value = self.get_uxto_atomicals_value(location, atomical_id)
 
                     script = location_script.hex()
                     if holder_dict.get(script, None):
-                        holder_dict[script] += location_value
+                        holder_dict[script] += atomical_value
                     else:
-                        holder_dict[script] = location_value
+                        holder_dict[script] = atomical_value
 
             for script, holding in holder_dict.items():
                 holders.append(
