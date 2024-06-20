@@ -1492,15 +1492,13 @@ class DB:
                     atomical_output_script_key = b"po" + location
                     atomical_output_script_value = self.utxo_db.get(atomical_output_script_key)
                     location_script = atomical_output_script_value
-                    (location_value,) = unpack_le_uint64(
-                        atomical_active_location_value[HASHX_LEN + SCRIPTHASH_LEN : HASHX_LEN + SCRIPTHASH_LEN + 8]
-                    )
+                    atomical_value = self.get_uxto_atomicals_value(location, atomical_id)
 
                     script = location_script.hex()
                     if holder_dict.get(script, None):
-                        holder_dict[script] += location_value
+                        holder_dict[script] += atomical_value
                     else:
-                        holder_dict[script] = location_value
+                        holder_dict[script] = atomical_value
 
             for script, holding in holder_dict.items():
                 holders.append(
