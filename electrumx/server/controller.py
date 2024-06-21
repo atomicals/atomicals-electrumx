@@ -80,9 +80,11 @@ class Controller(ServerBase):
     """
 
     async def serve(self, shutdown_event):
-        """Start the RPC server and wait for the mempool to synchronize, then start serving external clients."""
-        if not (0, 23, 0) <= aiorpcx_version < (0, 24):
-            raise RuntimeError("aiorpcX version 0.23.x is required")
+        '''Start the RPC server and wait for the mempool to synchronize.  Then
+        start serving external clients.
+        '''
+        if not ((0, 22, 0) <= aiorpcx_version < (0, 23)) and not ((0, 23, 0) <= aiorpcx_version < (0, 24)):
+            raise RuntimeError('aiorpcX version 0.22.x or 0.23.x is required')
 
         env = self.env
         min_str, max_str = env.coin.SESSIONCLS.protocol_min_max_strings()
