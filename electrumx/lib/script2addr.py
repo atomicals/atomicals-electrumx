@@ -220,11 +220,11 @@ def hash_160(x: bytes) -> bytes:
 
 
 def hash160_to_p2pkh(h160: bytes) -> str:
-    return hash160_to_b58_address(h160, ADDRTYPE_P2PKH)
+    return hash160_to_b58_address(h160, get_addr_type_p2pkh())
 
 
 def hash160_to_p2sh(h160: bytes) -> str:
-    return hash160_to_b58_address(h160, ADDRTYPE_P2SH)
+    return hash160_to_b58_address(h160, get_addr_type_p2sh())
 
 
 def public_key_to_p2pkh(public_key: bytes) -> str:
@@ -232,7 +232,7 @@ def public_key_to_p2pkh(public_key: bytes) -> str:
 
 
 def hash_to_segwit_addr(h: bytes, witver: int) -> str:
-    addr = segwit_addr.encode(SEGWIT_HRP, witver, h)
+    addr = segwit_addr.encode(get_segwit_hrp(), witver, h)
     assert addr is not None
     return addr
 
@@ -271,11 +271,6 @@ def get_segwit_hrp():
     elif net == "regtest":
         value = "bcrt"
     return value
-
-
-ADDRTYPE_P2PKH = get_addr_type_p2pkh()
-ADDRTYPE_P2SH = get_addr_type_p2sh()
-SEGWIT_HRP = get_segwit_hrp()
 
 
 def get_address_from_output_script(_bytes: bytes) -> Optional[str]:
