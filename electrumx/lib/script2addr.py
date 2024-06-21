@@ -246,7 +246,7 @@ def get_net_from_env():
 def get_addr_type_p2pkh():
     net = get_net_from_env()
     value = 0  # mainnet
-    if net == "testnet":
+    if net == "testnet" or net == "testnet4":
         value = 111
     elif net == "regtest":
         value = 111
@@ -256,7 +256,7 @@ def get_addr_type_p2pkh():
 def get_addr_type_p2sh():
     net = get_net_from_env()
     value = 5  # mainnet
-    if net == "testnet":
+    if net == "testnet" or net == "testnet4":
         value = 196
     elif net == "regtest":
         value = 196
@@ -266,7 +266,7 @@ def get_addr_type_p2sh():
 def get_segwit_hrp():
     net = get_net_from_env()
     value = "bc"  # mainnet
-    if net == "testnet":
+    if net == "testnet" or net == "testnet4":
         value = "tb"
     elif net == "regtest":
         value = "bcrt"
