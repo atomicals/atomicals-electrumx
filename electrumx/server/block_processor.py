@@ -2720,13 +2720,12 @@ class BlockProcessor:
         active_supply = 0
         atomical_active_location_key_prefix = b"a" + atomical_id
         for (
-            _atomical_active_location_key,
+            atomical_active_location_key,
             atomical_active_location_value,
         ) in self.db.utxo_db.iterator(prefix=atomical_active_location_key_prefix):
-            (location_value,) = unpack_le_uint64(
-                atomical_active_location_value[HASHX_LEN + SCRIPTHASH_LEN : HASHX_LEN + SCRIPTHASH_LEN + 8]
-            )
-            active_supply += location_value
+            location = atomical_active_location_key[1 + ATOMICAL_ID_LEN : 1 + ATOMICAL_ID_LEN + ATOMICAL_ID_LEN]
+            atomical_value = self.db.get_uxto_atomicals_value(location, atomical_id)
+            active_supply += atomical_value
             scripthash = atomical_active_location_value[HASHX_LEN : HASHX_LEN + SCRIPTHASH_LEN]
             unique_holders[scripthash] = True
         atomical_result["unique_holders"] = len(unique_holders)
