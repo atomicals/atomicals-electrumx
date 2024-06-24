@@ -1302,7 +1302,6 @@ def parse_protocols_operations_from_witness_array(tx, tx_hash, allow_args_bytes)
         op_name, payload, _ = parse_protocols_operations_from_witness_for_input(txinwitness)
         if not op_name:
             continue
-        decoded_object = {}
         if payload:
             # Ensure that the payload is cbor encoded dictionary or empty
             try:
