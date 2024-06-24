@@ -2,11 +2,10 @@ import pytest
 
 from electrumx.lib.atomicals_blueprint_builder import AtomicalsTransferBlueprintBuilder
 from electrumx.lib.coins import Bitcoin
-from electrumx.lib.hash import HASHX_LEN, hash_to_hex_str, hex_str_to_hash
-from electrumx.lib.tx import Tx, TxInput, TxOutput
+from electrumx.lib.psbt import parse_psbt_hex_and_operations
 from electrumx.lib.util_atomicals import (
-    compact_to_location_id_bytes,
     location_id_bytes_to_compact,
+    parse_atomicals_operations_from_tap_leafs,
     parse_protocols_operations_from_witness_array,
 )
 
@@ -1774,3 +1773,16 @@ def test_partially_colored_spends_are_payments_satisfied_checks():
     }
     payment_valid = blueprint_builder.are_payments_satisfied(rules)
     assert not payment_valid
+
+
+def test_parse_operations_from_empty_tap_leafs():
+    psbt = (
+        "70736274ff01005e010000000100000000000000000000000000000000000000000000000000000000000000000000000000ffffff"
+        "ff0122020000000000002251202b2e6c7946ede6a9e76ea8dc599b375a1899cf7ba784754fa9ab91486ad56fb3000000000001012b"
+        "62d0000000000000225120ecbc068d696bf671b51d45a892a6777a9e4a624bbb14aa4f3040c1a0d95786b72215c0486ff77b86a935"
+        "ed21a35a48ee5fa00cec653dcfcc6f3f93cd9b9232287870963220486ff77b86a935ed21a35a48ee5fa00cec653dcfcc6f3f93cd9b"
+        "923228787096ac00630477697a7a013604b4f5493a68c00000"
+    )
+    tx, tap_leafs = parse_psbt_hex_and_operations(psbt)
+    op = parse_atomicals_operations_from_tap_leafs(tap_leafs, True)
+    assert isinstance(op, dict)
