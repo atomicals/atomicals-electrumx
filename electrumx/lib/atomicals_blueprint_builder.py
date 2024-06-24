@@ -15,6 +15,7 @@ from electrumx.lib.util_atomicals import (
     is_splat_operation,
     is_split_operation,
     location_id_bytes_to_compact,
+    safe_int_conversion,
 )
 
 
@@ -491,7 +492,7 @@ class AtomicalsTransferBlueprintBuilder:
             for out_idx, _txout in enumerate(tx.outputs):
                 compact_atomical_id = location_id_bytes_to_compact(atomical_id)
                 compact_atomical_id_data = {
-                    int(k): v
+                    safe_int_conversion(k, -1): safe_int_conversion(v, 0)
                     for k, v in operations_found_at_inputs.get("payload", {}).get(compact_atomical_id, {}).items()
                 }
                 expected_value = compact_atomical_id_data.get(out_idx, 0)
@@ -588,7 +589,7 @@ class AtomicalsTransferBlueprintBuilder:
                 expected_output_index = out_idx
                 compact_atomical_id = location_id_bytes_to_compact(atomical_id)
                 compact_atomical_id_data = {
-                    int(k): v
+                    safe_int_conversion(k, -1): safe_int_conversion(v, 0)
                     for k, v in operations_found_at_inputs.get("payload", {}).get(compact_atomical_id, {}).items()
                 }
                 expected_value = compact_atomical_id_data.get(expected_output_index, 0)

@@ -2134,3 +2134,10 @@ def validate_merkle_proof_dmint(
             return True, concat_str4, target_hash
 
     return False, None, None
+
+
+def safe_int_conversion(x, default=0):
+    try:
+        return int(x)
+    except (ValueError, TypeError):
+        return default
