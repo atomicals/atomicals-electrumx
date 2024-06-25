@@ -1364,7 +1364,12 @@ def parse_atomicals_operations_from_tap_leafs(scripts, allow_args_bytes: bool) -
             decoded_object = loads(payload)
             if not isinstance(decoded_object, dict):
                 return {}
-        except:
+        except Exception as e:
+            print(
+                f"parse_atomicals_operations_from_tap_leafs found {op_name} "
+                f"but CBOR payload parsing failed for {scripts}. "
+                f"Skipping tx input...{e}"
+            )
             return {}
         # Also enforce that if there are meta, args, or ctx fields that they must be dicts
         # This is done to ensure that these fields are always easily parseable and do not contain unexpected data
