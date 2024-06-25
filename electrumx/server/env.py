@@ -109,6 +109,8 @@ class Env(EnvBase):
         self.session_timeout = self.integer("SESSION_TIMEOUT", 600)
         self.session_group_by_subnet_ipv4 = self.integer("SESSION_GROUP_BY_SUBNET_IPV4", 24)
         self.session_group_by_subnet_ipv6 = self.integer("SESSION_GROUP_BY_SUBNET_IPV6", 48)
+        self.session_max_size_http = self.integer("SESSION_MAX_SIZE_HTTP", 1024**2)
+        self.session_max_size_ws = self.integer("SESSION_MAX_SIZE_WS", 1024**2)
         self._check_and_fix_cost_limits()
         self.enable_rate_limit = self.boolean("ENABLE_RATE_LIMIT", True)
 
