@@ -154,7 +154,8 @@ class SessionManager:
                             cors_middleware(self),
                             error_middleware(self),
                             request_middleware(self),
-                        ]
+                        ],
+                        client_max_size=self.env.session_max_size_http
                     )
                     handler = HttpSession(self, self.db, self.mempool, self.peer_mgr, kind)
                     await handler.add_endpoints(app.router, SESSION_PROTOCOL_MAX)
@@ -184,7 +185,12 @@ class SessionManager:
                 session_factory = partial(session_class, self, self.db, self.mempool, self.peer_mgr, kind)
                 host = None if service.host == "all_interfaces" else str(service.host)
                 try:
-                    self.servers[service] = await serve(session_factory, host, service.port, ssl=sslc)
+                    if service.protocol in ("ws", "wss"):
+                        self.servers[service] = await serve(
+                            session_factory, host, service.port, ssl=sslc, max_size=self.env.session_max_size_ws
+                        )
+                    else:
+                        self.servers[service] = await serve(session_factory, host, service.port, ssl=sslc)
                 except OSError as e:  # don't suppress CancelledError
                     self.logger.error(f"{kind} server failed to listen on {service.address}: {e}")
                 else:
