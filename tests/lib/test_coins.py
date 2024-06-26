@@ -20,7 +20,7 @@ DP_MULT = NameMixin.DATA_PUSH_MULTIPLE
 def create_script(pattern, address_script):
     script = bytearray()
     for item in pattern:
-        if type(item) == int:
+        if isinstance(item, int):
             script.append(item)
         else:
             script.extend(Script.push_data(item))

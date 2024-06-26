@@ -384,7 +384,7 @@ class MemPool:
                         "confirmed": False,
                     }
 
-            for hash, raw_tx in zip(hashes, raw_txs):
+            for hash, raw_tx in zip(hashes, raw_txs, strict=False):
                 # The daemon may have evicted the tx from its
                 # mempool or it may have gotten in a block
                 if not raw_tx:
@@ -421,7 +421,7 @@ class MemPool:
         # generation-like.
         prevouts = tuple(prevout for tx in tx_map.values() for prevout in tx.prevouts if prevout[0] not in all_hashes)
         utxos = await self.api.lookup_utxos(prevouts)
-        utxo_map = {prevout: utxo for prevout, utxo in zip(prevouts, utxos)}
+        utxo_map = {prevout: utxo for prevout, utxo in zip(prevouts, utxos, strict=False)}
 
         self._accept_atomicals_updates(atomicals_updates_map)
         return self._accept_transactions(tx_map, utxo_map, touched)

@@ -2,11 +2,10 @@ import pytest
 
 from electrumx.lib.atomicals_blueprint_builder import AtomicalsTransferBlueprintBuilder
 from electrumx.lib.coins import Bitcoin
-from electrumx.lib.hash import HASHX_LEN, hash_to_hex_str, hex_str_to_hash
-from electrumx.lib.tx import Tx, TxInput, TxOutput
+from electrumx.lib.psbt import parse_psbt_hex_and_operations
 from electrumx.lib.util_atomicals import (
-    compact_to_location_id_bytes,
     location_id_bytes_to_compact,
+    parse_atomicals_operations_from_tap_leafs,
     parse_protocols_operations_from_witness_array,
 )
 
@@ -1563,7 +1562,7 @@ def test_custom_colored_ft_normal():
     assert blueprint_builder.get_are_fts_burned() == False
 
 
-def test_custom_colored_ft_normal():
+def test_custom_colored_ft_normal1():
     raw_tx_str = "0100000000010258f654e38dee561d45847f45d856ad8cb2d7eafd574521d10ad28b30f44a9e020000000000ffffffffbf6b35d1973a17fc67188ff19731341dafad28a2aac9371c5286c955a6e16c450000000000ffffffff022202000000000000225120d9b4878e9915c8c37149942b02102ed86e462e47f6749424852dc4af89551f212202000000000000225120d9b4878e9915c8c37149942b02102ed86e462e47f6749424852dc4af89551f210340a4334065f27cb80fbf39bd28e634ca9b4e4d7c9b90ed6d575edd9856a664b4352d62e4af96ad11e8aabde952994d8fcb5dd2233ca54100f42045fe63bee9819c7d20c145f972a018b8c401ffd9181a1299a319aee1d55bf2d3393bcd659f06830a78ac00630461746f6d017a4c4fa17842363738376633396235643266633032306562306638653638636439323566323937303635633563383263383664313735636365316139626561613431313233396930a2613018c8613119015a6821c0c145f972a018b8c401ffd9181a1299a319aee1d55bf2d3393bcd659f06830a7801407e04393dddd9e6f899b581a64d26be40b9c148bf1696d99a962dd5257af023ad651efdd4d850819f5eb44e5c281ffb458d59382032248eecf39eb86d4d5dfcb300000000"
     raw_tx = bytes.fromhex(raw_tx_str)
     subject_atomical_id = (
@@ -1774,3 +1773,16 @@ def test_partially_colored_spends_are_payments_satisfied_checks():
     }
     payment_valid = blueprint_builder.are_payments_satisfied(rules)
     assert not payment_valid
+
+
+def test_parse_operations_from_empty_tap_leafs():
+    psbt = (
+        "70736274ff01005e010000000100000000000000000000000000000000000000000000000000000000000000000000000000ffffff"
+        "ff0122020000000000002251202b2e6c7946ede6a9e76ea8dc599b375a1899cf7ba784754fa9ab91486ad56fb3000000000001012b"
+        "62d0000000000000225120ecbc068d696bf671b51d45a892a6777a9e4a624bbb14aa4f3040c1a0d95786b72215c0486ff77b86a935"
+        "ed21a35a48ee5fa00cec653dcfcc6f3f93cd9b9232287870963220486ff77b86a935ed21a35a48ee5fa00cec653dcfcc6f3f93cd9b"
+        "923228787096ac00630477697a7a013604b4f5493a68c00000"
+    )
+    tx, tap_leafs = parse_psbt_hex_and_operations(psbt)
+    op = parse_atomicals_operations_from_tap_leafs(tap_leafs, True)
+    assert isinstance(op, dict)

@@ -1,13 +1,18 @@
+import asyncio
+import copy
+import math
+import os
 import ssl
 import time
 from asyncio import Event, sleep
 from collections import defaultdict
 from functools import partial
-from ipaddress import *
-from typing import TYPE_CHECKING, Dict, List, Type
+from ipaddress import IPv4Address, IPv4Network, IPv6Address, IPv6Network
+from typing import TYPE_CHECKING, Dict, List, Optional, Type
 
 import attr
 import pylru
+from aiohttp import web
 from aiorpcx import RPCError, run_in_thread, serve_rs, serve_ws
 
 from electrumx.lib import util
@@ -16,18 +21,32 @@ from electrumx.lib.atomicals_blueprint_builder import (
     AtomicalsValidation,
     AtomicalsValidationError,
 )
-from electrumx.lib.hash import Base58Error
+from electrumx.lib.hash import Base58Error, hash_to_hex_str, hex_str_to_hash
 from electrumx.lib.merkle import MerkleCache
-from electrumx.lib.script2addr import *
+from electrumx.lib.script2addr import get_address_from_output_script
 from electrumx.lib.text import sessions_lines
-from electrumx.lib.util_atomicals import *
+from electrumx.lib.util_atomicals import (
+    auto_encode_bytes_elements,
+    auto_encode_bytes_items,
+    compact_to_location_id_bytes,
+    encode_atomical_ids_hex,
+    location_id_bytes_to_compact,
+    parse_atomicals_operations_from_tap_leafs,
+    parse_protocols_operations_from_witness_array,
+)
 from electrumx.server.daemon import Daemon, DaemonError
 from electrumx.server.history import TXNUM_LEN
-from electrumx.server.http_middleware import *
+from electrumx.server.http_middleware import (
+    cors_middleware,
+    error_middleware,
+    rate_limiter,
+    request_middleware,
+)
 from electrumx.server.mempool import MemPool
 from electrumx.server.peers import PeerManager
 from electrumx.server.session import BAD_REQUEST, DAEMON_ERROR
 from electrumx.server.session.http_session import HttpSession
+from electrumx.server.session.session_base import LocalRPC
 from electrumx.server.session.util import SESSION_PROTOCOL_MAX, non_negative_integer
 from electrumx.version import electrumx_version
 
@@ -106,7 +125,7 @@ class SessionManager:
         self._tx_decode_cache = pylru.lrucache(1000)
         self.notified_height = None
         self.hsub_results = None
-        self._task_group = OldTaskGroup()
+        self._task_group = util.OldTaskGroup()
         self._sslc = None
         # Event triggered when electrumx is listening for incoming requests.
         self.server_listening = Event()
@@ -135,7 +154,8 @@ class SessionManager:
                             cors_middleware(self),
                             error_middleware(self),
                             request_middleware(self),
-                        ]
+                        ],
+                        client_max_size=self.env.session_max_size_http
                     )
                     handler = HttpSession(self, self.db, self.mempool, self.peer_mgr, kind)
                     await handler.add_endpoints(app.router, SESSION_PROTOCOL_MAX)
@@ -165,7 +185,12 @@ class SessionManager:
                 session_factory = partial(session_class, self, self.db, self.mempool, self.peer_mgr, kind)
                 host = None if service.host == "all_interfaces" else str(service.host)
                 try:
-                    self.servers[service] = await serve(session_factory, host, service.port, ssl=sslc)
+                    if service.protocol in ("ws", "wss"):
+                        self.servers[service] = await serve(
+                            session_factory, host, service.port, ssl=sslc, max_size=self.env.session_max_size_ws
+                        )
+                    else:
+                        self.servers[service] = await serve(session_factory, host, service.port, ssl=sslc)
                 except OSError as e:  # don't suppress CancelledError
                     self.logger.error(f"{kind} server failed to listen on {service.address}: {e}")
                 else:
@@ -242,7 +267,7 @@ class SessionManager:
         """Clear certain caches on chain reorgs."""
         while True:
             await self.bp.backed_up_event.wait()
-            self.logger.info(f"reorg signalled; clearing tx_hashes and merkle caches")
+            self.logger.info("reorg signalled; clearing tx_hashes and merkle caches")
             self._reorg_count += 1
             self._tx_hashes_cache.clear()
             self._merkle_cache.clear()
@@ -613,7 +638,7 @@ class SessionManager:
         finally:
             # Close servers then sessions
             await self._stop_servers(self.servers.keys())
-            async with OldTaskGroup() as group:
+            async with util.OldTaskGroup() as group:
                 for session in list(self.sessions):
                     await group.spawn(session.close(force_after=1))
 
@@ -752,7 +777,7 @@ class SessionManager:
             result = await self.db.limited_history(hashX, limit=limit)
             cost += 0.1 + len(result) * 0.001
             if len(result) >= limit:
-                result = RPCError(BAD_REQUEST, f"history too large", cost=cost)
+                result = RPCError(BAD_REQUEST, "history too large", cost=cost)
             self._history_cache[hashX] = result
 
         if isinstance(result, Exception):
@@ -1211,7 +1236,7 @@ class SessionManager:
 
         for session in self.sessions:
             if self._task_group.joined:  # this can happen during shutdown
-                self.logger.warning(f"task group already terminated. not notifying sessions.")
+                self.logger.warning("task group already terminated. not notifying sessions.")
                 return
             await self._task_group.spawn(session.notify, touched, height_changed)
 

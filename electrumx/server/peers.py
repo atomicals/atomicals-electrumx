@@ -470,7 +470,7 @@ class PeerManager:
         self.logger.info(f"announce ourself: {self.env.peer_announce}")
         self.logger.info(f"my clearnet self: {self._my_clearnet_peer()}")
         self.logger.info(f"force use of proxy: {self.env.force_proxy}")
-        self.logger.info(f"beginning peer discovery...")
+        self.logger.info("beginning peer discovery...")
         async with self.group as group:
             await group.spawn(self._refresh_blacklist())
             await group.spawn(self._detect_proxy())

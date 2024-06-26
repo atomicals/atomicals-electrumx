@@ -34,7 +34,7 @@ async def print_stats(hist_db: History, utxo_db):
 
     hist = 0
     hist_len = 0
-    for key, value in hist_db.db.iterator(prefix=b"H"):
+    for _, value in hist_db.db.iterator(prefix=b"H"):
         hist += 1
         hist_len += len(value) // 4
     print(f"History rows {hist:,d} entries {hist_len:,d}")

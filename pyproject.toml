@@ -1,0 +1,132 @@
+[build-system]
+requires = ["hatchling"]
+build-backend = "hatchling.build"
+
+[project]
+name = "atomicals-electrumx"
+dynamic = ["version"]
+dependencies = [
+  "aiorpcX[ws]>=0.23.0",
+  "attrs",
+  "plyvel",
+  "pylru @ git+https://github.com/atomicals-community/pylru@c9b47f0",
+  "aiohttp>=3.3,<4",
+  "cbor2",
+  "websockets",
+  "regex",
+  "krock32",
+  "merkletools",
+  "requests==2.31.0",
+  "python-dotenv",
+]
+requires-python = ">=3.10"
+authors = [
+  {name = "Electrum developers", email = "atomicals@atomicals.com"},
+]
+description = "Atomicals ElectrumX Server"
+readme = "README.rst"
+license = "MIT Licence"
+keywords = ["atomicals", "ElectrumX"]
+classifiers = [
+  "Development Status :: 5 - Production/Stable",
+  "Framework :: AsyncIO",
+  "License :: OSI Approved :: MIT License",
+  "Operating System :: Unix",
+  "Programming Language :: Python :: 3.10",
+  "Topic :: Database",
+  "Topic :: Internet"
+]
+
+[project.optional-dependencies]
+cli = []
+
+[project.urls]
+Homepage = "https://atomicals.xyz/"
+Documentation = "https://docs.atomicals.xyz/"
+Repository = "https://github.com/atomicals/atomicals-electrumx.git"
+"Bug Tracker" = "https://github.com/atomicals/atomicals-electrumx/issues"
+Changelog = "https://github.com/atomicals/atomicals-electrumx/releases"
+
+
+[tool.ruff]
+# Exclude a variety of commonly ignored directories.
+exclude = [
+    ".bzr",
+    ".direnv",
+    ".eggs",
+    ".git",
+    ".git-rewrite",
+    ".hg",
+    ".ipynb_checkpoints",
+    ".mypy_cache",
+    ".nox",
+    ".pants.d",
+    ".pyenv",
+    ".pytest_cache",
+    ".pytype",
+    ".ruff_cache",
+    ".svn",
+    ".tox",
+    ".venv",
+    ".vscode",
+    "__pypackages__",
+    "_build",
+    "buck-out",
+    "build",
+    "dist",
+    "node_modules",
+    "site-packages",
+    "venv",
+]
+
+# Same as Black.
+line-length = 120
+indent-width = 4
+
+target-version = "py310"
+
+[tool.ruff.lint]
+# Enable Pyflakes (`F`) and a subset of the pycodestyle (`E`)  codes by default.
+# Unlike Flake8, Ruff doesn't enable pycodestyle warnings (`W`) or
+# McCabe complexity (`C901`) by default.
+select = [
+    "E4",  # pycodestyle errors
+    "E7",
+    "E9",
+    "F",  # pyflakes
+    "I",  # isort
+    "B",  # flake8-bugbear
+]
+ignore = [
+  "E712",
+  "F401",
+  "F405",
+  "F841",
+  "B008",
+  "B904"
+]
+
+# Allow fix for all enabled rules (when `--fix`) is provided.
+fixable = ["ALL"]
+unfixable = []
+
+# Allow unused variables when underscore-prefixed.
+dummy-variable-rgx = "^(_+|(_+[a-zA-Z0-9_]*[a-zA-Z0-9]+?))$"
+
+[tool.ruff.lint.per-file-ignores]
+"tests/server/test_daemon.py" = ["B015"]
+"tests/lib/test_script2addr.py" = ["E711"]
+"tests/lib/test_atomicals_utils.py" = ["B017"]
+
+[tool.ruff.format]
+# Like Black, use double quotes for strings.
+quote-style = "double"
+
+# Like Black, indent with spaces, rather than tabs.
+indent-style = "space"
+
+# Like Black, respect magic trailing commas.
+skip-magic-trailing-comma = false
+
+# Like Black, automatically detect the appropriate line ending.
+line-ending = "auto"

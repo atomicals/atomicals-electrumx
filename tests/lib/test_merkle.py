@@ -111,7 +111,7 @@ def test_branch_and_root_from_level():
         for depth_higher in range(0, merkle.tree_depth(len(part))):
             level = merkle.level(part, depth_higher)
             # For each hash in sub-tree
-            for index, hash in enumerate(part):
+            for index, _hash in enumerate(part):
                 leaf_index = (index >> depth_higher) << depth_higher
                 leaf_hashes = part[leaf_index : leaf_index + (1 << depth_higher)]
                 branch = merkle.branch_and_root(part, index)
@@ -273,4 +273,4 @@ async def time_it():
         brs2.append(await cache.branch_and_root(cp_length, index))
     t2 = time.monotonic()
     print(t2 - t1)
-    assert False
+    raise AssertionError()

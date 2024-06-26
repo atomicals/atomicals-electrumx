@@ -15,7 +15,10 @@ def create_histories(history, hashX_count=100):
     """Creates a bunch of random transaction histories, and write them
     to disk in a series of small flushes."""
     hashXs = [urandom(HASHX_LEN) for n in range(hashX_count)]
-    mk_array = lambda: array.array("Q")
+
+    def mk_array():
+        return array.array("Q")
+
     histories = {hashX: mk_array() for hashX in hashXs}
     unflushed = history.unflushed
     tx_num = 0
@@ -67,7 +70,7 @@ def check_hashX_compaction(history):
             hashX + pack_be_uint16(n),
             full_hist[n * row_size : (n + 1) * row_size],
         )
-    for flush_count, count in pairs:
+    for flush_count, _count in pairs:
         assert hashX + pack_be_uint32(flush_count) in keys_to_delete
 
     # Check re-compaction is null

@@ -53,7 +53,9 @@ class JSONResponse(ResponseBase):
         if isinstance(self.msg_id, int):
             message = JSONRPCv1.response_message(self.result, self.msg_id)
         else:
-            parts = [JSONRPCv1.response_message(item, msg_id) for item, msg_id in zip(self.result, self.msg_id)]
+            parts = [
+                JSONRPCv1.response_message(item, msg_id) for item, msg_id in zip(self.result, self.msg_id, strict=False)
+            ]
             message = JSONRPCv1.batch_message_from_parts(parts)
         return loads(message.decode())
 
@@ -89,9 +91,9 @@ class ClientSessionGood:
             batch = request
             assert isinstance(batch, list)
             request_ids = []
-            for payload, args in zip(batch, args):
+            for payload, _args in zip(batch, args, strict=False):
                 assert payload["method"] == method
-                assert payload["params"] == args
+                assert payload["params"] == _args
                 request_ids.append(payload["id"])
             return JSONResponse(result, request_ids)
 
@@ -210,7 +212,7 @@ async def test_failover_fail(caplog):
         result = daemon.failover()
     assert result is False
     assert daemon.current_url() == urls[0]
-    assert not in_caplog(caplog, f"failing over")
+    assert not in_caplog(caplog, "failing over")
 
 
 @pytest.mark.asyncio
@@ -372,7 +374,7 @@ async def test_workqueue_depth(daemon, caplog):
     height = 125
     with caplog.at_level(logging.INFO):
         daemon.session = ClientSessionWorkQueueFull(("getblockcount", [], height))
-        await daemon.height() == height
+        await daemon.height() == height  # noqa: B015
 
     assert in_caplog(caplog, "Work queue depth exceeded")
     assert in_caplog(caplog, "running normally")

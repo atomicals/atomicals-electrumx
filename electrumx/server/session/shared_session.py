@@ -7,9 +7,24 @@ from aiorpcx import RPCError
 
 from electrumx.lib import util
 from electrumx.lib.atomicals_blueprint_builder import AtomicalsValidationError
+from electrumx.lib.hash import double_sha256, hash_to_hex_str, hex_str_to_hash, sha256
 from electrumx.lib.psbt import parse_psbt_hex_and_operations
 from electrumx.lib.script2addr import get_address_from_output_script
-from electrumx.lib.util_atomicals import *
+from electrumx.lib.util_atomicals import (
+    DFT_MINT_MAX_MAX_COUNT_DENSITY,
+    DMINT_PATH,
+    MINT_SUBNAME_RULES_BECOME_EFFECTIVE_IN_BLOCKS,
+    SUBREALM_MINT_PATH,
+    auto_encode_bytes_elements,
+    calculate_latest_state_from_mod_history,
+    compact_to_location_id_bytes,
+    format_name_type_candidates_to_rpc,
+    format_name_type_candidates_to_rpc_for_subname,
+    is_compact_atomical_id,
+    location_id_bytes_to_compact,
+    validate_merkle_proof_dmint,
+    validate_rules_data,
+)
 from electrumx.server.daemon import DaemonError
 from electrumx.server.session import ATOMICALS_INVALID_TX, BAD_REQUEST
 from electrumx.server.session.util import (
@@ -583,7 +598,7 @@ class SharedSession(object):
 
     async def atomicals_get_by_container(self, container):
         if not isinstance(container, str):
-            raise RPCError(BAD_REQUEST, f"empty container")
+            raise RPCError(BAD_REQUEST, "empty container")
         height = self.bp.height
         status, candidate_atomical_id, all_entries = self.bp.get_effective_container(container, height)
         formatted_entries = format_name_type_candidates_to_rpc(
@@ -605,7 +620,7 @@ class SharedSession(object):
 
     async def atomicals_get_by_container_item(self, container, item_name):
         if not isinstance(container, str):
-            raise RPCError(BAD_REQUEST, f"empty container")
+            raise RPCError(BAD_REQUEST, "empty container")
         height = self.bp.height
         status, candidate_atomical_id, all_entries = self.bp.get_effective_container(container, height)
         if status != "verified":
@@ -613,7 +628,7 @@ class SharedSession(object):
                 all_entries, self.bp.build_atomical_id_to_candidate_map(all_entries)
             )
             self.logger.info(f"formatted_entries {formatted_entries}")
-            raise RPCError(BAD_REQUEST, f"Container does not exist")
+            raise RPCError(BAD_REQUEST, "Container does not exist")
         found_atomical_id = candidate_atomical_id
         status, candidate_atomical_id, all_entries = self.bp.get_effective_dmitem(found_atomical_id, item_name, height)
         found_item_atomical_id = None
@@ -645,7 +660,7 @@ class SharedSession(object):
         check_without_sealed,
     ):
         if not isinstance(container, str):
-            raise RPCError(BAD_REQUEST, f"empty container")
+            raise RPCError(BAD_REQUEST, "empty container")
         height = self.bp.height
         status, candidate_atomical_id, all_entries = self.bp.get_effective_container(container, height)
         if status != "verified":
@@ -653,7 +668,7 @@ class SharedSession(object):
                 all_entries, self.bp.build_atomical_id_to_candidate_map(all_entries)
             )
             self.logger.info(f"formatted_entries {formatted_entries}")
-            raise RPCError(BAD_REQUEST, f"Container does not exist")
+            raise RPCError(BAD_REQUEST, "Container does not exist")
         found_parent = candidate_atomical_id
         compact_atomical_id = location_id_bytes_to_compact(found_parent)
         container_info = await self._atomical_id_get(compact_atomical_id)
@@ -661,12 +676,13 @@ class SharedSession(object):
         container_dmint_status = container_info.get("$container_dmint_status")
         errors = container_dmint_status.get("errors")
         if not container_dmint_status:
-            raise RPCError(BAD_REQUEST, f"Container dmint status not exist")
+            raise RPCError(BAD_REQUEST, "Container dmint status not exist")
         if container_dmint_status.get("status") != "valid":
             errors = container_dmint_status.get("errors")
             if check_without_sealed and errors and len(errors) == 1 and errors[0] == "container not sealed":
                 pass
-            raise RPCError(BAD_REQUEST, f"Container dmint status is invalid: {errors}")
+            else:
+                raise RPCError(BAD_REQUEST, f"Container dmint status is invalid: {errors}")
 
         dmint = container_dmint_status.get("dmint")
         status, candidate_atomical_id, all_entries = self.bp.get_effective_dmitem(found_parent, item_name, height)
@@ -681,7 +697,7 @@ class SharedSession(object):
 
         # validate the proof data nonetheless
         if not proof or not isinstance(proof, list) or len(proof) == 0:
-            raise RPCError(BAD_REQUEST, f"Proof must be provided")
+            raise RPCError(BAD_REQUEST, "Proof must be provided")
 
         applicable_rule, state_at_height = self.bp.get_applicable_rule_by_height(
             found_parent,
@@ -710,14 +726,14 @@ class SharedSession(object):
 
     async def atomicals_get_container_items(self, container, limit, offset):
         if not isinstance(container, str):
-            raise RPCError(BAD_REQUEST, f"empty container")
+            raise RPCError(BAD_REQUEST, "empty container")
         status, candidate_atomical_id, all_entries = self.bp.get_effective_container(container, self.bp.height)
         if status != "verified":
             formatted_entries = format_name_type_candidates_to_rpc(
                 all_entries, self.bp.build_atomical_id_to_candidate_map(all_entries)
             )
             self.logger.info(f"formatted_entries {formatted_entries}")
-            raise RPCError(BAD_REQUEST, f"Container does not exist")
+            raise RPCError(BAD_REQUEST, "Container does not exist")
         found_atomical_id = candidate_atomical_id
         compact_atomical_id = location_id_bytes_to_compact(found_atomical_id)
         container_info = await self._atomical_id_get(compact_atomical_id)
@@ -1576,7 +1592,7 @@ class SharedSession(object):
 def _auto_populate_container_regular_items_fields(items):
     if not items or not isinstance(items, dict):
         return {}
-    for item, value in items.items():
+    for _item, value in items.items():
         provided_id = value.get("id")
         value["status"] = "verified"
         if provided_id and isinstance(provided_id, bytes) and len(provided_id) == 36:
@@ -1587,7 +1603,7 @@ def _auto_populate_container_regular_items_fields(items):
 def _auto_populate_container_dmint_items_fields(items):
     if not items or not isinstance(items, dict):
         return {}
-    for item, value in items.items():
+    for _item, value in items.items():
         provided_id = value.get("id")
         if provided_id and isinstance(provided_id, bytes) and len(provided_id) == 36:
             value["$id"] = location_id_bytes_to_compact(provided_id)
