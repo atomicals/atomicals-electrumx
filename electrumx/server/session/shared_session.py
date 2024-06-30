@@ -602,6 +602,56 @@ class SharedSession(object):
         }
         return {"result": return_result}
 
+    async def atomicals_get_by_protocol(self, name):
+        if not isinstance(name, str):
+            raise RPCError(BAD_REQUEST, f'empty protocol')
+        height = self.bp.height
+        status, candidate_atomical_id, all_entries = self.bp.get_effective_protocol(name, height)
+        formatted_entries = format_name_type_candidates_to_rpc(all_entries, self.bp.build_atomical_id_to_candidate_map(all_entries))
+        
+        if candidate_atomical_id:
+            candidate_atomical_id = location_id_bytes_to_compact(candidate_atomical_id)
+        
+        found_atomical_id = None
+        if status == 'verified':
+            found_atomical_id = candidate_atomical_id
+        
+        return_result = {
+            'status': status, 
+            'candidate_atomical_id': candidate_atomical_id, 
+            'atomical_id': found_atomical_id, 
+            'candidates': formatted_entries, 
+            'type': 'protocol'
+        }
+        return {
+            'result': return_result
+        }
+    
+    async def atomicals_get_by_contract(self, name):
+        if not isinstance(name, str):
+            raise RPCError(BAD_REQUEST, f'empty contract')
+        height = self.session_mgr.bp.height
+        status, candidate_atomical_id, all_entries = self.session_mgr.bp.get_effective_contract(name, height)
+        formatted_entries = format_name_type_candidates_to_rpc(all_entries, self.session_mgr.bp.build_atomical_id_to_candidate_map(all_entries))
+        
+        if candidate_atomical_id:
+            candidate_atomical_id = location_id_bytes_to_compact(candidate_atomical_id)
+        
+        found_atomical_id = None
+        if status == 'verified':
+            found_atomical_id = candidate_atomical_id
+        
+        return_result = {
+            'status': status, 
+            'candidate_atomical_id': candidate_atomical_id, 
+            'atomical_id': found_atomical_id, 
+            'candidates': formatted_entries, 
+            'type': 'contract'
+        }
+        return {
+            'result': return_result
+        }
+    
     async def atomicals_get_by_container_item(self, container, item_name):
         if not isinstance(container, str):
             raise RPCError(BAD_REQUEST, f"empty container")

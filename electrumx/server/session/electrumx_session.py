@@ -182,6 +182,8 @@ class ElectrumX(SessionBase):
             "blockchain.atomicals.get_by_container": self.ss.atomicals_get_by_container,
             "blockchain.atomicals.get_by_container_item": self.ss.atomicals_get_by_container_item,
             "blockchain.atomicals.get_by_container_item_validate": self.ss.atomicals_get_by_container_item_validation,
+            "blockchain.atomicals.get_by_protocol": self.ss.atomicals_get_by_protocol,
+            "blockchain.atomicals.get_by_contract": self.ss.atomicals_get_by_contract,
             "blockchain.atomicals.get_container_items": self.ss.atomicals_get_container_items,
             "blockchain.atomicals.find_tickers": self.ss.atomicals_search_tickers,
             "blockchain.atomicals.find_realms": self.ss.atomicals_search_realms,
