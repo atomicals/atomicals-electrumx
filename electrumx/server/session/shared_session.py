@@ -351,7 +351,7 @@ class SharedSession(object):
         return {"global": await self._get_summary_info(), "result": entries}
 
     # Get a summary view of a realm and if it's allowing mints and what parts already existed of a subrealm
-    async def atomicals_get_realm_info(self, full_name, verbose=False):
+    async def atomicals_get_realm_info(self, full_name):
         if not full_name or not isinstance(full_name, str):
             raise RPCError(BAD_REQUEST, f"invalid input full_name: {full_name}")
         full_name = full_name.lower()
@@ -504,11 +504,10 @@ class SharedSession(object):
                 candidates, self.bp.build_atomical_id_to_candidate_map(candidates)
             ),
         }
-        if verbose:
-            populate_rules_response_struct(
-                compact_to_location_id_bytes(nearest_parent_realm_atomical_id),
-                return_struct,
-            )
+        populate_rules_response_struct(
+            compact_to_location_id_bytes(nearest_parent_realm_atomical_id),
+            return_struct,
+        )
         return {"result": return_struct}
 
     async def atomicals_get_by_realm(self, name):
