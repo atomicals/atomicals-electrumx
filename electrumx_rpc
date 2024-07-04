@@ -132,6 +132,8 @@ def main():
     if port is None:
         port = int(environ.get("RPC_PORT", 8000))
     method = args.pop("command")
+    if not method:
+        raise Exception("Must specify a method")
     timeout = args.pop("timeout")
 
     # aiorpcX makes this so easy...
