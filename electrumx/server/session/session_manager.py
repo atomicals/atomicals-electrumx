@@ -1,5 +1,4 @@
 import asyncio
-import copy
 import math
 import os
 import ssl
@@ -8,7 +7,7 @@ from asyncio import Event, sleep
 from collections import defaultdict
 from functools import partial
 from ipaddress import IPv4Address, IPv4Network, IPv6Address, IPv6Network
-from typing import TYPE_CHECKING, Dict, List, Optional, Type
+from typing import TYPE_CHECKING, Dict, List, Optional
 
 import attr
 import pylru
@@ -174,7 +173,7 @@ class SessionManager:
                 else:
                     sslc = None
                 if service.protocol == "rpc":
-                    session_class = Type["LocalRPC"]
+                    session_class = LocalRPC
                 else:
                     session_class = self.env.coin.SESSIONCLS
                 if service.protocol in ("ws", "wss"):
