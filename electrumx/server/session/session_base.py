@@ -141,17 +141,3 @@ class SessionBase(RPCSession):
             return await coro
         else:
             return coro
-
-
-class LocalRPC(SessionBase):
-    """A local TCP RPC server session."""
-
-    processing_timeout = 10**9  # disable timeouts
-
-    def __init__(self, *args, **kwargs):
-        super().__init__(*args, **kwargs)
-        self.client = "RPC"
-        self.connection.max_response_size = 0
-
-    def protocol_version_string(self):
-        return "RPC"

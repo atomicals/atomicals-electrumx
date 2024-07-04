@@ -45,7 +45,7 @@ from electrumx.server.mempool import MemPool
 from electrumx.server.peers import PeerManager
 from electrumx.server.session import BAD_REQUEST, DAEMON_ERROR
 from electrumx.server.session.http_session import HttpSession
-from electrumx.server.session.session_base import LocalRPC
+from electrumx.server.session.rpc_session import LocalRPC
 from electrumx.server.session.util import SESSION_PROTOCOL_MAX, non_negative_integer
 from electrumx.version import electrumx_version
 
