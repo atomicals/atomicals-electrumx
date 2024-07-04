@@ -73,6 +73,9 @@ class SessionBase(RPCSession):
             maybe_bump_cost=self.bump_cost,
         )
 
+    def protocol_version_string(self):
+        raise NotImplementedError
+
     async def notify(self, touched, height_changed):
         pass
 
