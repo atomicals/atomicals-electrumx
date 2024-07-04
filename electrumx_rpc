@@ -34,7 +34,6 @@ simple_commands = {
 
 session_commands = {
     "disconnect": "Disconnect sessions",
-    "log": "Control logging of sessions",
 }
 
 other_commands = {
