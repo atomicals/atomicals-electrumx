@@ -189,7 +189,8 @@ def ConsensusVerifyScriptAvmExecute(script_context: ScriptContext,
     cTx = CTransaction.deserialize(request_tx_context.rawtx_bytes)
     tx_data = cTx.serialize()
     assert(tx_data == request_tx_context.rawtx_bytes)
-
+    print(f'tx_data: {request_tx_context.rawtx_bytes.hex()}')
+    print(f'tx_data: {tx_data.hex()}')
     len_lock_script_code = len(script_context.lock_script)
     len_unlock_script_code = len(script_context.unlock_script)
  

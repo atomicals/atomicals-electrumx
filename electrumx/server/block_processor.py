@@ -2322,12 +2322,10 @@ class BlockProcessor:
                     'cache': True
                 })
         # Store name len as 4 bytes
-        self.logger.info(f'HERE IT IS db_prefix={db_prefix} subject_enc={subject_enc}')
         db_entries = self.db.get_name_entries_template(db_prefix, subject_enc + pack_le_uint32(len(subject_enc)))
         all_entries.extend(db_entries)
         # sort by the earliest tx number because it was the first one committed
         all_entries.sort(key=lambda x: x['tx_num'])
-        self.logger.info(f'all_entries={all_entries}')
         if len(all_entries) > 0:
             candidate_entry = all_entries[0]
             self.logger.info(f'candidate_entry={candidate_entry}')
@@ -2337,15 +2335,12 @@ class BlockProcessor:
             self.logger.info(f'atomical_id={location_id_bytes_to_compact(atomical_id)} mint info returned... mint_info={mint_info}')
             # Sanity check to make sure it matches
             self.logger.info(f'candidate_entry {candidate_entry} subject={subject} subject_enc={subject_enc} atomical_id={location_id_bytes_to_compact(atomical_id)} mint_info={mint_info}')
-            
             mint_atomical_id = location_id_bytes_to_compact(mint_info['atomical_id'])
             mint_commit_tx_num = mint_info['commit_tx_num']
             candidate_tx_num = candidate_entry['tx_num']
-
             mint_info_type = mint_info['type']
             self.logger.info(f'mint_commit_tx_num={mint_commit_tx_num} candidate_tx_num={candidate_tx_num}')
             self.logger.info(f'mint_info_type={mint_info_type} candidate_atomical_id={location_id_bytes_to_compact(atomical_id)} mint_atomical_id={mint_atomical_id}')
-
             assert(mint_info['commit_tx_num'] == candidate_entry['tx_num'])
             # Only consider the name as valid if the required MINT_REALM_CONTAINER_TICKER_COMMIT_REVEAL_DELAY_BLOCKS has elapsed from the earliest
             # commit. We use this technique to ensure that any front running problems would have been resolved by then
