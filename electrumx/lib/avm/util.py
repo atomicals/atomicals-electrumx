@@ -75,7 +75,7 @@ def encode_op_pushdata(d):
   else:
       raise ValueError("Data too long to encode in a PUSHDATA op")
 
-def encode_data_value(somevalue): 
+def encode_data_value(somevalue, as_hex=False): 
   if isinstance(somevalue, int):
     if 0 <= somevalue <= 16:
       somevalue = bytes([CScriptOp.encode_op_n(somevalue)])
@@ -86,9 +86,11 @@ def encode_data_value(somevalue):
   else:
       somevalue = CScriptOp.encode_op_pushdata(somevalue)
  
-  return somevalue 
+  if as_hex:
+    return somevalue.hex()
+  return somevalue
 
-def encode_int_value(somevalue): 
+def encode_int_value(somevalue, as_hex=False): 
   if isinstance(somevalue, int):
     if 0 <= somevalue <= 16:
       somevalue = bytes([CScriptOp.encode_op_n(somevalue)])
@@ -99,7 +101,9 @@ def encode_int_value(somevalue):
   else:
       raise ValueError('not int')
  
-  return somevalue 
+  if as_hex:
+    return somevalue.hex()
+  return somevalue
 
 def encode_args_push_datas_minimal(deploy_sorted_args):
   args_bytes = b''
