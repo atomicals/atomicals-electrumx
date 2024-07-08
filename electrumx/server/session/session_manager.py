@@ -1,5 +1,4 @@
 import asyncio
-import copy
 import math
 import os
 import ssl
@@ -8,7 +7,7 @@ from asyncio import Event, sleep
 from collections import defaultdict
 from functools import partial
 from ipaddress import IPv4Address, IPv4Network, IPv6Address, IPv6Network
-from typing import TYPE_CHECKING, Dict, List, Optional, Type
+from typing import TYPE_CHECKING, Dict, List, Optional
 
 import attr
 import pylru
@@ -46,7 +45,7 @@ from electrumx.server.mempool import MemPool
 from electrumx.server.peers import PeerManager
 from electrumx.server.session import BAD_REQUEST, DAEMON_ERROR
 from electrumx.server.session.http_session import HttpSession
-from electrumx.server.session.session_base import LocalRPC
+from electrumx.server.session.rpc_session import LocalRPC
 from electrumx.server.session.util import SESSION_PROTOCOL_MAX, non_negative_integer
 from electrumx.version import electrumx_version
 
@@ -174,7 +173,7 @@ class SessionManager:
                 else:
                     sslc = None
                 if service.protocol == "rpc":
-                    session_class = Type["LocalRPC"]
+                    session_class = LocalRPC
                 else:
                     session_class = self.env.coin.SESSIONCLS
                 if service.protocol in ("ws", "wss"):
