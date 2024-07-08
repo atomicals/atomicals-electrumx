@@ -79,6 +79,8 @@ def _add_function_definitions(handle: ctypes.CDLL) -> None:
         ctypes.c_uint,      # unsigned int unlockScriptPubKeyLen
         ctypes.c_char_p,    # const unsigned char *txTo
         ctypes.c_uint,      # unsigned int txToLen
+        ctypes.c_char_p,    # const unsigned char *inputWitness
+        ctypes.c_uint,      # unsigned int inputWitnessLen
         ctypes.c_char_p,    # const unsigned char *ftStateCbor
         ctypes.c_uint,      # unsigned int ftStateCborLen
         ctypes.c_char_p,    # const unsigned char *ftStateIncomingCbor
@@ -191,6 +193,10 @@ def ConsensusVerifyScriptAvmExecute(script_context: ScriptContext,
     assert(tx_data == request_tx_context.rawtx_bytes)
     print(f'tx_data: {request_tx_context.rawtx_bytes.hex()}')
     print(f'tx_data: {tx_data.hex()}')
+
+    # attach any input witness data for the 1st input if present
+    input_witness_data = request_tx_context.input_witness_bytes
+
     len_lock_script_code = len(script_context.lock_script)
     len_unlock_script_code = len(script_context.unlock_script)
  
@@ -272,6 +278,7 @@ def ConsensusVerifyScriptAvmExecute(script_context: ScriptContext,
     execute_result = handle.atomicalsconsensus_verify_script_avm(script_context.lock_script, len_lock_script_code, 
                                                                 script_context.unlock_script, len_unlock_script_code, 
                                                                 tx_data, len(tx_data), 
+                                                                input_witness_data, len(input_witness_data),
                                                                 ft_state_cbor, len(ft_state_cbor),
                                                                 ft_state_incoming_cbor, len(ft_state_incoming_cbor),
                                                                 nft_state_cbor, len(nft_state_cbor),

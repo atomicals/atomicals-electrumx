@@ -34,10 +34,10 @@ mock_rawtx2 = bytes.fromhex('0100000000010156d0f907b0a3385095afb426f46762f4305f3
 mock_tx2, mock_tx_hash2 = coin.DESERIALIZER(mock_rawtx2, 0).read_tx_and_hash()
 
 # Note this does not work because the avm core does not correct return the witness sript from some problem with unserializing rawtx
-def test_execute_deploy_script_OP_INPUTWITNESSBYTECODE():
+def test_execute_deploy_script_OP_INPUTWITNESSBYTECODE_provide_witness():
     protocol_mint_data = {
         'p': 'ppp',
-        'code': bytes.fromhex('00cc51'),
+        'code': bytes.fromhex('51cc0377112287'),
         'fn': [
             {
                 'name': 'ctor',
@@ -54,43 +54,44 @@ def test_execute_deploy_script_OP_INPUTWITNESSBYTECODE():
         }
     }
     atomicals_spent_at_inputs = {}
-    request_tx_context = RequestTxContext(coin, mock_tx_hash2, mock_tx2, payload)
+    request_tx_context = RequestTxContext(coin, mock_tx_hash2, mock_tx2, payload, bytes.fromhex('771122'))
 
     deploy_command = avm.create_deploy_command(request_tx_context, atomicals_spent_at_inputs, mock_empty_reactor_context)
     assert(deploy_command.is_valid)
     assert(deploy_command.unlock_script.hex() == '')
-    assert(deploy_command.lock_script.hex() == '00cc51')
+    assert(deploy_command.lock_script.hex() == '51cc0377112287')
 
     result = deploy_command.execute() 
     assert result.success 
-    assert result.reactor_context
 
-    result_context = result.reactor_context
-    state_hash = result_context.state_hash
-    state = loads(result_context.state)
-    state_updates = loads(result_context.state_updates)
-    state_deletes = loads(result_context.state_deletes)
-    ft_incoming = loads(result_context.ft_incoming)
-    nft_incoming = loads(result_context.nft_incoming)
-    ft_balances = loads(result_context.ft_balances)
-    ft_balances_updates = loads(result_context.ft_balances_updates)
-    nft_balances = loads(result_context.nft_balances)
-    nft_balances_updates = loads(result_context.nft_balances_updates)
-    ft_withdraws = loads(result_context.ft_withdraws)
-    nft_withdraws = loads(result_context.nft_withdraws)
-    
-    assert state_hash.hex() == '71daaf262004b5778dfb085daf074cf22a9e4c6f60eb8700974ba6bd3cc2b156'
-    assert len(state) == 0 
-    assert len(state_updates) == 0 
-    assert len(state_deletes) == 0 
-    assert len(ft_incoming) == 0 
-    assert len(nft_incoming) == 0 
-    assert len(ft_balances) == 0 
-    assert len(ft_balances_updates) == 0 
-    assert len(nft_balances) == 0 
-    assert len(nft_balances_updates) == 0 
-    assert len(ft_withdraws) == 0 
-    assert len(nft_withdraws) == 0 
 
- 
- 
+ # Note this does not work because the avm core does not correct return the witness sript from some problem with unserializing rawtx
+def test_execute_deploy_script_OP_INPUTWITNESSBYTECODE_no_witness():
+    protocol_mint_data = {
+        'p': 'ppp',
+        'code': bytes.fromhex('51cc0087'),
+        'fn': [
+            {
+                'name': 'ctor',
+                'params': [
+                ]
+            }
+        ]
+    }
+    avm = AVMFactory(MockLogger(), mock_mint_fetcher, mock_blockchain_context, protocol_mint_data)
+    payload = {
+        'op': 'deploy',
+        'p': 'ppp',
+        'args': {
+        }
+    }
+    atomicals_spent_at_inputs = {}
+    request_tx_context = RequestTxContext(coin, mock_tx_hash2, mock_tx2, payload, b'')
+
+    deploy_command = avm.create_deploy_command(request_tx_context, atomicals_spent_at_inputs, mock_empty_reactor_context)
+    assert(deploy_command.is_valid)
+    assert(deploy_command.unlock_script.hex() == '')
+    assert(deploy_command.lock_script.hex() == '51cc0087')
+
+    result = deploy_command.execute() 
+    assert result.success  

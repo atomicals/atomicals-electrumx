@@ -10,7 +10,6 @@ from electrumx.lib.avm.util import (
   sort_protocol_args_by_fn,
   encode_args_push_datas_minimal,
   RequestBlockchainContext,
-  RequestInterpretParams,
   RequestTxContext,
   ReactorContext,
   RequestBlockchainContext,
@@ -18,9 +17,7 @@ from electrumx.lib.avm.util import (
 )
 
 from electrumx.lib.atomicals_blueprint_builder import AtomicalsTransferBlueprintBuilder
-
-
-from cbor2 import dumps, loads
+from cbor2 import loads
 
 class CallCommandResult:
   def __init__(self, success, reactor_context):
@@ -158,7 +155,6 @@ class DeployCommand:
 
     # Sanity check that the reactor context has the defaults, the only values allowed to be set are the nft_incoming and ft_incoming
     assert self.reactor_state.state_hash == bytes.fromhex('0000000000000000000000000000000000000000000000000000000000000000')
-    #self.reactor_state.state_hash = bytes.fromhex('0000000000000000000000000000000100000000000000000000000000000000')
     # Ensure the datas are empty because they will be set later
     assert loads(self.reactor_state.state) == {}
     assert loads(self.reactor_state.nft_balances) == {}
@@ -184,7 +180,6 @@ class DeployCommand:
     print(f'updated_reactor_state {loads(updated_reactor_state.ft_balances)}')
     print(f'updated_reactor_state {loads(updated_reactor_state.nft_balances)}')
  
-    
     raise ValueError(f'Critical DeployCommand Error')
 
 class AVMFactory:

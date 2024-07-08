@@ -285,13 +285,14 @@ def validate_protocol_definition(def_data):
     } 
 
 class RequestTxContext:
-  def __init__(self, coin, tx_hash, tx, payload):
+  def __init__(self, coin, tx_hash, tx, payload, input_witness_bytes = b''):
     self.tx = tx
     rawtx_bytes = serialize_tx_safe(coin, tx_hash, tx)
     self.rawtx_bytes = rawtx_bytes
     self.tx_hash = tx_hash
     self.tx_hash_str = hash_to_hex_str(tx_hash)
     self.payload = payload
+    self.input_witness_bytes = input_witness_bytes
 
 class ScriptContext:
   def __init__(self, unlock, lock):

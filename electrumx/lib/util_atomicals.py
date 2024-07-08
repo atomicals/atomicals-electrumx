@@ -1283,7 +1283,6 @@ def parse_atomicals_operations_from_tap_leafs(scripts, allow_args_bytes: bool):
 # Stops when it finds the first operation in the first input
 def parse_protocols_operations_from_witness_for_input(txinwitness):
     '''Detect and parse all operations across the witness input arrays from a tx'''
-    atomical_operation_type_map = {}
     for script in txinwitness:
         n = 0
         script_entry_len = len(script)
