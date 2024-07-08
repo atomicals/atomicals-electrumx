@@ -64,8 +64,7 @@ def test_execute_deploy_script_OP_INPUTWITNESSBYTECODE_provide_witness():
     result = deploy_command.execute() 
     assert result.success 
 
-
- # Note this does not work because the avm core does not correct return the witness sript from some problem with unserializing rawtx
+# Note this does not work because the avm core does not correct return the witness sript from some problem with unserializing rawtx
 def test_execute_deploy_script_OP_INPUTWITNESSBYTECODE_no_witness():
     protocol_mint_data = {
         'p': 'ppp',
@@ -92,6 +91,37 @@ def test_execute_deploy_script_OP_INPUTWITNESSBYTECODE_no_witness():
     assert(deploy_command.is_valid)
     assert(deploy_command.unlock_script.hex() == '')
     assert(deploy_command.lock_script.hex() == '51cc0087')
+
+    result = deploy_command.execute() 
+    assert result.success  
+
+# Note this does not work because the avm core does not correct return the witness sript from some problem with unserializing rawtx
+def test_execute_deploy_script_OP_INPUTWITNESSBYTECODE_3_item_witness():
+    protocol_mint_data = {
+        'p': 'ppp',
+        'code': bytes.fromhex('51cc4cd84090e7d4e121a12d1ec63820af4d59663a54c31ca4da6dd861257b728a69c8f61cfad799fce6fc6388eba63e02eca4a3c7df82fa055cd6c2e5c771749c71744a0474209f76f4e90e426cae195e7092cf8ec81d3005a90574e6d0532c679983ad79d7eaac00630461746f6d036e657745a46170667365636f6e64626f70666465706c6f796461726773a36474696d651a66845c51656e6f6e63650068626974776f726b636161646e616d6569636f6e7472616374316821c09f76f4e90e426cae195e7092cf8ec81d3005a90574e6d0532c679983ad79d7ea87'),
+        'fn': [
+            {
+                'name': 'ctor',
+                'params': [
+                ]
+            }
+        ]
+    }
+    avm = AVMFactory(MockLogger(), mock_mint_fetcher, mock_blockchain_context, protocol_mint_data)
+    payload = {
+        'op': 'deploy',
+        'p': 'ppp',
+        'args': {
+        }
+    }
+    atomicals_spent_at_inputs = {}
+    request_tx_context = RequestTxContext(coin, mock_tx_hash2, mock_tx2, payload, bytes.fromhex('4090e7d4e121a12d1ec63820af4d59663a54c31ca4da6dd861257b728a69c8f61cfad799fce6fc6388eba63e02eca4a3c7df82fa055cd6c2e5c771749c71744a0474209f76f4e90e426cae195e7092cf8ec81d3005a90574e6d0532c679983ad79d7eaac00630461746f6d036e657745a46170667365636f6e64626f70666465706c6f796461726773a36474696d651a66845c51656e6f6e63650068626974776f726b636161646e616d6569636f6e7472616374316821c09f76f4e90e426cae195e7092cf8ec81d3005a90574e6d0532c679983ad79d7ea'))
+
+    deploy_command = avm.create_deploy_command(request_tx_context, atomicals_spent_at_inputs, mock_empty_reactor_context)
+    assert(deploy_command.is_valid)
+    assert(deploy_command.unlock_script.hex() == '')
+    assert(deploy_command.lock_script.hex() == '51cc4cd84090e7d4e121a12d1ec63820af4d59663a54c31ca4da6dd861257b728a69c8f61cfad799fce6fc6388eba63e02eca4a3c7df82fa055cd6c2e5c771749c71744a0474209f76f4e90e426cae195e7092cf8ec81d3005a90574e6d0532c679983ad79d7eaac00630461746f6d036e657745a46170667365636f6e64626f70666465706c6f796461726773a36474696d651a66845c51656e6f6e63650068626974776f726b636161646e616d6569636f6e7472616374316821c09f76f4e90e426cae195e7092cf8ec81d3005a90574e6d0532c679983ad79d7ea87')
 
     result = deploy_command.execute() 
     assert result.success  
