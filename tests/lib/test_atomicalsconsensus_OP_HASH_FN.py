@@ -87,7 +87,7 @@ def test_atomicalsconsensus_OP_HASH_FN_SHA3_256_success1():
   to_hash_value_data = encode_op_pushdata(sha3_256_hash_value)
  
   assert('8f9e20c10b08813adeb3027e464f3bbe6f0f2220536a4ec2cd9b03444e18a8ad' == sha3_256_hash_value.hex())
-  lock_script = sha3_256_preimage_bytes_encoded.hex() + '00fe' + to_hash_value_data.hex() + '87'
+  lock_script = sha3_256_preimage_bytes_encoded.hex() + '00fd' + to_hash_value_data.hex() + '87'
   protocol_mint_data = {
     'p': 'ppp',
     'code': bytes.fromhex(lock_script),
@@ -123,7 +123,7 @@ def test_atomicalsconsensus_OP_HASH_FN_SHA3_256_delete1():
     sha3_256_hash_value = calc_sha3_256(sha3_256_preimage_bytes)
     to_hash_value_data = encode_op_pushdata(sha3_256_hash_value)
     different_bytes = encode_op_pushdata(b'123')
-    lock_script = different_bytes.hex() + '00fe' + to_hash_value_data.hex() + '87'
+    lock_script = different_bytes.hex() + '00fd' + to_hash_value_data.hex() + '87'
     protocol_mint_data = {
       'p': 'ppp',
       'code': bytes.fromhex(lock_script),
@@ -162,7 +162,7 @@ def test_atomicalsconsensus_OP_HASH_FN_SHA512_success1():
   preimage_bytes_encoded = encode_op_pushdata(preimage_bytes)
   to_hash_value_data = encode_op_pushdata(hash_value)
   assert('cda7e420d1669a40d5511d4ba48d5d9b2df052ad3f81af429fdf77b4786f9507f3ff95b2206c287accb43f6bb3a98a821dbffee4947a09b77cb90b4d2874df42' == hash_value.hex())
-  lock_script = preimage_bytes_encoded.hex() + '51fe' + to_hash_value_data.hex() + '87'
+  lock_script = preimage_bytes_encoded.hex() + '51fd' + to_hash_value_data.hex() + '87'
   protocol_mint_data = {
     'p': 'ppp',
     'code': bytes.fromhex(lock_script),
@@ -199,7 +199,7 @@ def test_atomicalsconsensus_OP_HASH_FN_SHA512_256_success1():
   to_hash_value_data = encode_op_pushdata(hash_value)
  
   assert('f7c1a111dc74c4cafe5d6a0aa265c1f1592d3759fee2faaefe3080f5e6bb57f4' == hash_value.hex())
-  lock_script = preimage_bytes_encoded.hex() + '52fe' + to_hash_value_data.hex() + '87'
+  lock_script = preimage_bytes_encoded.hex() + '52fd' + to_hash_value_data.hex() + '87'
   protocol_mint_data = {
     'p': 'ppp',
     'code': bytes.fromhex(lock_script),
@@ -236,7 +236,7 @@ def test_atomicalsconsensus_OP_HASH_FN_eaglesong_success1():
   preimage_bytes_encoded = encode_op_pushdata(preimage_bytes)
   to_hash_value_data = encode_op_pushdata(hash_value)
   assert('087e1c61707d800e15a904abe09ec03bb18829a33a919073180c3587bdfb3385' == hash_value.hex())
-  lock_script = preimage_bytes_encoded.hex() + '53fe' + to_hash_value_data.hex() + '87'
+  lock_script = preimage_bytes_encoded.hex() + '53fd' + to_hash_value_data.hex() + '87'
   protocol_mint_data = {
     'p': 'ppp',
     'code': bytes.fromhex(lock_script),
