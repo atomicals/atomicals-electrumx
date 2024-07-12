@@ -22,17 +22,13 @@ def sort_protocol_args_by_fn(named_args, protocol_fn):
   params = protocol_fn.get('params')
   if not params:
     return True, []
-  
   sorted_args = []
-
   for param in params:
     param_name = param['name']
     param_type = param['type']
     if not(param_name in named_args):
       return False, []
-    
     value = named_args[param_name]
-    print('.')
     if param_type == 'int':
       if not isinstance(value, int):
         return False, []
@@ -40,7 +36,6 @@ def sort_protocol_args_by_fn(named_args, protocol_fn):
         'type': 'int',
         'value': value
       })
-
     elif param_type == 'str':
       if not isinstance(value, str):
         return False, []
@@ -50,7 +45,6 @@ def sort_protocol_args_by_fn(named_args, protocol_fn):
       })
     elif param_type == 'bytes':
       if not isinstance(value, bytes):
-        print('not bytes')
         return False, []
       sorted_args.append({
         'type': 'bytes',
@@ -59,7 +53,6 @@ def sort_protocol_args_by_fn(named_args, protocol_fn):
     else: 
       # Only supports int, str and bytes for now
       return False, []
-  print('end')
   return True, sorted_args
 
 def encode_op_pushdata(d):
@@ -285,7 +278,7 @@ def validate_protocol_definition(def_data):
     } 
 
 class RequestTxContext:
-  def __init__(self, coin, tx_hash, tx, payload, input_witness_bytes = b''):
+  def __init__(self, coin, tx_hash, tx, payload, input_witness_bytes = bytes()):
     self.tx = tx
     rawtx_bytes = serialize_tx_safe(coin, tx_hash, tx)
     self.rawtx_bytes = rawtx_bytes

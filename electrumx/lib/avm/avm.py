@@ -1,5 +1,6 @@
 from bitcointx.core.atomicalsconsensus import (
-  ConsensusVerifyScriptAvmExecute
+  ConsensusVerifyScriptAvmExecute,
+  AtomicalConsensusExecutionError
 )
 
 from bitcointx.core.script import (
@@ -14,8 +15,7 @@ from electrumx.lib.avm.util import (
   ReactorContext,
   RequestBlockchainContext,
   ScriptContext
-)
-
+) 
 from electrumx.lib.atomicals_blueprint_builder import AtomicalsTransferBlueprintBuilder
 from cbor2 import loads
 
@@ -63,8 +63,10 @@ class CallCommand:
     found_all_params, sorted_args = sort_protocol_args_by_fn(named_args, protocol_fns[method])
     if not found_all_params:
       return False, None, None
-    
+
     sorted_args_encoded_script = encode_args_push_datas_minimal(sorted_args)
+    sorted_args_encoded_script += bytes.fromhex('00') # attach an OP_FALSE at the top to indicate it will execute the deploy branch of the script
+    # Todo: need to push the 'm' method number into the stack last
     return True, sorted_args_encoded_script, protocol_code
 
   def validate_params(self):
@@ -92,11 +94,14 @@ class CallCommand:
     loads(self.reactor_state.nft_incoming)
     loads(self.reactor_state.ft_incoming)
 
-    updated_reactor_state = ConsensusVerifyScriptAvmExecute(script_context, self.blockchain_context, self.request_tx_context, self.reactor_state)
-    # Quite overkill to deserialize entire CBOR, but we want to be sure a valid CBOR was returned
-    if updated_reactor_state and loads(updated_reactor_state.state) and loads(updated_reactor_state.ft_balances) and loads(updated_reactor_state.nft_balances):
-      self.request_tx_context.atomicals_spent_at_inputs = {}
-      return CallCommandResult(True, updated_reactor_state)
+    try:
+      updated_reactor_state = ConsensusVerifyScriptAvmExecute(script_context, self.blockchain_context, self.request_tx_context, self.reactor_state)
+      # Quite overkill to deserialize entire CBOR, but we want to be sure a valid CBOR was returned
+      if updated_reactor_state and loads(updated_reactor_state.state) and loads(updated_reactor_state.ft_balances) and loads(updated_reactor_state.nft_balances):
+        self.request_tx_context.atomicals_spent_at_inputs = {}
+        return CallCommandResult(True, updated_reactor_state)
+    except AtomicalConsensusExecutionError as ex:
+      return CallCommandResult(False, None)
     
     raise ValueError(f'Critical call error')
   
@@ -139,6 +144,7 @@ class DeployCommand:
     print(f'prepare_deploy_script:5')
     deploy_sorted_args_encoded_script = encode_args_push_datas_minimal(deploy_sorted_args)
     print(f'prepare_deploy_script:6')
+    deploy_sorted_args_encoded_script += bytes.fromhex('00') # attach an OP_FALSE at the top to indicate it will execute the deploy branch of the script
     return True, deploy_sorted_args_encoded_script, protocol_code
   
   def validate_params(self):
@@ -165,23 +171,19 @@ class DeployCommand:
     loads(self.reactor_state.nft_incoming)
     loads(self.reactor_state.ft_incoming)
 
-    updated_reactor_state = ConsensusVerifyScriptAvmExecute(script_context, self.blockchain_context, self.request_tx_context, self.reactor_state)
-    
-    # Quite overkill to deserialize entire CBOR, but we want to be sure a valid CBOR was returned
-    loads(updated_reactor_state.state)
-    loads(updated_reactor_state.ft_balances)
-    loads(updated_reactor_state.nft_balances)
-
-    if updated_reactor_state:
-      self.request_tx_context.atomicals_spent_at_inputs = {}
-      return DeployCommandResult(True, updated_reactor_state)
-    
-    print(f'updated_reactor_state {loads(updated_reactor_state.state)}')
-    print(f'updated_reactor_state {loads(updated_reactor_state.ft_balances)}')
-    print(f'updated_reactor_state {loads(updated_reactor_state.nft_balances)}')
- 
-    raise ValueError(f'Critical DeployCommand Error')
-
+    try:
+      updated_reactor_state = ConsensusVerifyScriptAvmExecute(script_context, self.blockchain_context, self.request_tx_context, self.reactor_state)
+      # Quite overkill to deserialize entire CBOR, but we want to be sure a valid CBOR was returned
+      loads(updated_reactor_state.state)
+      loads(updated_reactor_state.ft_balances)
+      loads(updated_reactor_state.nft_balances)
+      if updated_reactor_state:
+        self.request_tx_context.atomicals_spent_at_inputs = {}
+        return DeployCommandResult(True, updated_reactor_state)
+    except AtomicalConsensusExecutionError as ex:
+      return DeployCommandResult(False, None)
+    raise ValueError(f'Critical call error')
+  
 class AVMFactory:
   def __init__(self, logger, get_atomicals_id_mint_info, blockchain_context: RequestBlockchainContext, protocol_mint_data):
     self.logger = logger

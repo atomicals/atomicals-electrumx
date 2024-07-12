@@ -191,15 +191,17 @@ def ConsensusVerifyScriptAvmExecute(script_context: ScriptContext,
     cTx = CTransaction.deserialize(request_tx_context.rawtx_bytes)
     tx_data = cTx.serialize()
     assert(tx_data == request_tx_context.rawtx_bytes)
-    print(f'tx_data: {request_tx_context.rawtx_bytes.hex()}')
     print(f'tx_data: {tx_data.hex()}')
 
     # attach any input witness data for the 1st input if present
-    input_witness_data = request_tx_context.input_witness_bytes
+    auth_public_key = request_tx_context.auth_public_key
+    print(f'auth_public_key: {script_context.auth_public_key.hex()}')
 
     len_lock_script_code = len(script_context.lock_script)
     len_unlock_script_code = len(script_context.unlock_script)
- 
+    print(f'lock_script: {script_context.lock_script.hex()}')
+    print(f'unlock_script: {script_context.unlock_script.hex()}')
+
     error_code = ctypes.c_uint()
     error_code.value = 0
     script_error_code = ctypes.c_uint()
@@ -278,7 +280,7 @@ def ConsensusVerifyScriptAvmExecute(script_context: ScriptContext,
     execute_result = handle.atomicalsconsensus_verify_script_avm(script_context.lock_script, len_lock_script_code, 
                                                                 script_context.unlock_script, len_unlock_script_code, 
                                                                 tx_data, len(tx_data), 
-                                                                input_witness_data, len(input_witness_data),
+                                                                auth_public_key, len(auth_public_key),
                                                                 ft_state_cbor, len(ft_state_cbor),
                                                                 ft_state_incoming_cbor, len(ft_state_incoming_cbor),
                                                                 nft_state_cbor, len(nft_state_cbor),

@@ -1223,7 +1223,7 @@ class BlockProcessor:
             #
             headers = {}
             # Todo add the last N=1000 headers potentially
-            headers[str(height)] = header
+            headers[str(height)] = header.hex()
             blockchain_context = RequestBlockchainContext(headers, height)
             # Note atomicals_spent_at_inputs can be modified if the contract absorbs the tokens
             avm_factory = AVMFactory(self.logger, self.get_atomicals_id_mint_info, blockchain_context, protocol_mint_data)
@@ -1245,7 +1245,7 @@ class BlockProcessor:
                 return None 
             # Validated the execute call can proceed, now execute it
             deploy_command_result = deploy_command.execute()
-            if not deploy_command_result:
+            if not deploy_command_result.success:
                 self.logger.info(f'create_or_delete_atomical: deploy of reactor for txid={hash_to_hex_str(tx_hash)} protocol_id={location_id_bytes_to_compact(protocol_atomical_id)} failed in Transaction {hash_to_hex_str(tx_hash)}. Skipping...') 
                 return False 
             
@@ -1253,7 +1253,9 @@ class BlockProcessor:
                 self.logger.info(f'create_or_delete_atomical: validate_and_create_nft_mint_utxo (reactor) returned FALSE in Transaction {hash_to_hex_str(tx_hash)}. Skipping...') 
                 return None
             
-            self.put_or_delete_reactor_states(atomical_id, deploy_command_result.state_result, height, Delete)
+            new_reactor_atomical_id = mint_info['id']
+            self.logger.info(f'atomical_id={new_reactor_atomical_id} deploy reactor_context: {deploy_command_result.reactor_context}')
+            self.put_or_delete_reactor_states(new_reactor_atomical_id, deploy_command_result.reactor_context, height, Delete)
             self.put_name_element_template(b'cr', b'', request_contract, mint_info['commit_tx_num'], mint_info['id'], self.reactor_data_cache)
         return True 
     
@@ -2033,11 +2035,11 @@ class BlockProcessor:
             return None 
         # Validated the execute call can proceed, now execute it
         call_command_result = call_command.execute()
-        if not call_command_result:
+        if not call_command_result.success:
             self.logger.info(f'create_or_delete_call: call of reactor for txid={hash_to_hex_str(tx_hash)} protocol_id={location_id_bytes_to_compact(protocol_id)} failed in Transaction {hash_to_hex_str(tx_hash)}. Skipping...') 
             return False 
 
-        self.put_or_delete_reactor_states(reactor_id, call_command_result.state_result, height, Delete)
+        self.put_or_delete_reactor_states(reactor_id, call_command_result.reactor_context, height, Delete)
         # Absorbs all the atomicals tokens because the only way have gotten this far is if a payable method was called
         atomicals_spent_at_inputs.clear()
         return True
