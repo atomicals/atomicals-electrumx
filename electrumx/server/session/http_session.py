@@ -143,6 +143,7 @@ class HttpSession(object):
             "blockchain.atomicals.transaction_by_atomical_id": self.ss.transaction_by_atomical_id,
             "blockchain.atomicals.transaction_by_scripthash": self.ss.transaction_by_scripthash,
             "blockchain.atomicals.transaction_global": self.session_mgr.transaction_global,
+            "blockchain.atomicals.transactions": self.session_mgr.get_transaction_detail_batch,
         }
 
         if protocols >= (1, 4, 2):
