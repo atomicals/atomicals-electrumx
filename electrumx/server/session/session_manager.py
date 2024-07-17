@@ -1172,6 +1172,11 @@ class SessionManager:
         # Recursively encode the result.
         return auto_encode_bytes_elements(res)
 
+    async def get_transaction_detail_batch(self, tx_ids: str):
+        tasks = [self.get_transaction_detail(txid) for txid in tx_ids.split(',')]
+        details = await asyncio.gather(*tasks)
+        return details
+
     async def transaction_global(
         self,
         limit: int = 10,
