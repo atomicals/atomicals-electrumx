@@ -46,28 +46,27 @@ class CallCommand:
     if not protocol_code:
       return False, None, None 
     
-    reactor_id = call_payload.get('id')
-    if not reactor_id:
+    reactor_name = call_payload.get('n')
+    if not reactor_name:
       return False, None, None 
  
-    method = call_payload.get('m')
-    if not isinstance(method, int) or method <= 0:
-      return False, None, None 
+    # method = call_payload.get('m')
+    # if not isinstance(method, int) or method <= 0:
+    #   return False, None, None 
   
-    success, status = validate_protocol_definition(protocol_mint_data)
-    if not success:
-      return False, None, None 
+    # success, status = validate_protocol_definition(protocol_mint_data)
+    # if not success:
+    #   return False, None, None 
    
-    named_args = call_payload.get('args')
-    protocol_fns = protocol_mint_data.get('fn')
-    found_all_params, sorted_args = sort_protocol_args_by_fn(named_args, protocol_fns[method])
-    if not found_all_params:
-      return False, None, None
-
-    sorted_args_encoded_script = encode_args_push_datas_minimal(sorted_args)
-    sorted_args_encoded_script += bytes.fromhex('00') # attach an OP_FALSE at the top to indicate it will execute the deploy branch of the script
-    # Todo: need to push the 'm' method number into the stack last
-    return True, sorted_args_encoded_script, protocol_code
+    # named_axdgs = call_payload.get('args')
+    # protocol_fns = protocol_mint_data.get('fn')
+    # found_all_params, sorted_args = sort_protocol_args_by_fn(named_args, protocol_fns[method])
+    # if not found_all_params:
+    #  return False, None, None
+    # sorted_args_encoded_script = encode_args_push_datas_minimal(sorted_args)
+    # sorted_args_encoded_script += bytes.fromhex('00') # attach an OP_FALSE at the top to indicate it will execute the deploy branch of the script
+   
+    return True, call_payload.get('u', b''), protocol_code
 
   def validate_params(self):
     # todo: do some sanity check to ensure the protocol code matches for the reactor with reactor_atomical_mint_info
@@ -80,8 +79,7 @@ class CallCommand:
     
     # Null dummy cbor context is not actually used by consensus library, but we pass in dummy data
     script_context = ScriptContext(CScript(self.unlock_script), CScript(self.lock_script))
-
-     # Sanity check that the reactor context has the defaults, the only values allowed to be set are the nft_incoming and ft_incoming
+    # Sanity check that the reactor context has the defaults, the only values allowed to be set are the nft_incoming and ft_incoming
     assert self.reactor_state.state_hash != None and len(self.reactor_state.state_hash) == 32
     # Just check state and balances decode correctly
     loads(self.reactor_state.state)
@@ -93,14 +91,22 @@ class CallCommand:
     # just check correctly decode cbor for nft_incoming and ft_incoming
     loads(self.reactor_state.nft_incoming)
     loads(self.reactor_state.ft_incoming)
-
     try:
       updated_reactor_state = ConsensusVerifyScriptAvmExecute(script_context, self.blockchain_context, self.request_tx_context, self.reactor_state)
       # Quite overkill to deserialize entire CBOR, but we want to be sure a valid CBOR was returned
-      if updated_reactor_state and loads(updated_reactor_state.state) and loads(updated_reactor_state.ft_balances) and loads(updated_reactor_state.nft_balances):
+      print(f'updated_reactor_state={updated_reactor_state}')
+      print(f'updated_reactor_state.state={loads(updated_reactor_state.state)}')
+      print(f'updated_reactor_state.ft_balances={updated_reactor_state.ft_balances}')
+      print(f'updated_reactor_state.nft_balances={updated_reactor_state.nft_balances}')
+      loads(updated_reactor_state.state)
+      loads(updated_reactor_state.ft_balances)
+      loads(updated_reactor_state.nft_balances)
+      if updated_reactor_state:
+        # Todo: Only clear off the atomicals here that were actually accepted by the script
         self.request_tx_context.atomicals_spent_at_inputs = {}
         return CallCommandResult(True, updated_reactor_state)
     except AtomicalConsensusExecutionError as ex:
+      print(f'AtomicalConsensusExecutionError ex={ex}')
       return CallCommandResult(False, None)
     
     raise ValueError(f'Critical call error')
@@ -124,28 +130,26 @@ class DeployCommand:
     self.reactor_state = reactor_state
 
   def prepare_deploy_script(self, protocol_mint_data, deploy_payload):
-    print(f'prepare_deploy_script:1')
     if not protocol_mint_data:
       return False, None, None 
-    print(f'prepare_deploy_script:2')
     protocol_code = protocol_mint_data.get('code')
     if not protocol_code:
       return False, None, None 
-    print(f'prepare_deploy_script:3')
-    success, status = validate_protocol_definition(protocol_mint_data)
-    if not success:
-      return False, None, None 
-    print(f'prepare_deploy_script:4')
-    deploy_named_args = deploy_payload.get('args')
-    protocol_fns = protocol_mint_data.get('fn')
-    found_all_params, deploy_sorted_args = sort_protocol_args_by_fn(deploy_named_args, protocol_fns[0])
-    if not found_all_params:
-      return False, None, None
-    print(f'prepare_deploy_script:5')
-    deploy_sorted_args_encoded_script = encode_args_push_datas_minimal(deploy_sorted_args)
-    print(f'prepare_deploy_script:6')
-    deploy_sorted_args_encoded_script += bytes.fromhex('00') # attach an OP_FALSE at the top to indicate it will execute the deploy branch of the script
-    return True, deploy_sorted_args_encoded_script, protocol_code
+    # print(f'prepare_deploy_script:3')
+    # success, status = validate_protocol_definition(protocol_mint_data)
+    # if not success:
+    #   return False, None, None 
+    # print(f'prepare_deploy_script:4')
+    # deploy_named_args = deploy_payload.get('args')
+    # protocol_fns = protocol_mint_data.get('fn')
+    # found_all_params, deploy_sorted_args = sort_protocol_args_by_fn(deploy_named_args, protocol_fns[0])
+    # if not found_all_params:
+    #  return False, None, None
+    # print(f'prepare_deploy_script:5')
+    # deploy_sorted_args_encoded_script = encode_args_push_datas_minimal(deploy_sorted_args)
+    # print(f'prepare_deploy_script:6')
+    # deploy_sorted_args_encoded_script = bytes.fromhex('00') # attach an OP_FALSE at the top to indicate it will execute the deploy branch of the script
+    return True, deploy_payload.get('u', b''), protocol_code
   
   def validate_params(self):
     validated_success, unlock_script, lock_script = self.prepare_deploy_script(self.protocol_mint_data, self.request_tx_context.payload)

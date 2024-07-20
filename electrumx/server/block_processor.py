@@ -1487,10 +1487,12 @@ class BlockProcessor:
         found_reactor_record = self.reactor_states_cache.get(reactor_id)
         found_cache_height = None 
         latest_state_cached = None 
-        for state_key, state_item in sorted(found_reactor_record.items(), reverse=True):
-            found_cache_height = state_key 
-            latest_state_cached = state_item
-            break
+        print(f'f: {found_reactor_record}')
+        if found_reactor_record:
+            for state_key, state_item in sorted(found_reactor_record.items(), reverse=True):
+                found_cache_height = state_key 
+                latest_state_cached = state_item
+                break
         # As sanity check we also query database and make sure the cache is strictly >= for height than in db  
         # In the future we can remove this check to speed up processing inside of a block with many tx operating on same contract 
         latest_height_db, latest_state_db = self.db.get_latest_reactor_states(reactor_id)
@@ -1960,17 +1962,17 @@ class BlockProcessor:
     
     def get_reactor_mint_info_and_data_by_id(self, payload, height):
         if not payload:
-            return None 
+            return None, None
         reactor_id = payload.get('id')
-        reactor_name = None # For now limit to calling contracts only by id... after enable with: payload.get('n')
+        reactor_name = payload.get('n')
         # Cannot set both reactor id and name, just one or the other
         if reactor_id and reactor_name:
-            return None
+            return None, None
         if reactor_id:
             reactor_mint_info = self.get_base_mint_info_by_atomical_id(reactor_id) # , self.get_atomicals_id_mint_data(reactor_id)
             if reactor_mint_info.get('type') != 'CONTRACT':
                 raise IndexError(f'get_reactor_mint_info_and_data_by_id invalid contract type {location_id_bytes_to_compact(reactor_id)}')
-            return reactor_mint_info
+            return reactor_mint_info, self.get_atomicals_id_mint_data(reactor_mint_info['atomical_id'])
         if reactor_name: 
             status, found_reactor_atomical_id, _ = self.get_effective_contract(reactor_name, height)
             if status == 'verified' and found_reactor_atomical_id: 
@@ -1979,20 +1981,20 @@ class BlockProcessor:
                     raise IndexError(f'get_reactor_mint_info_and_data_by_id invalid contract type look up by reactor_name {reactor_name} {location_id_bytes_to_compact(reactor_id)}')
                 assert found_reactor_atomical_id == reactor_mint_info['atomical_id']
                 return reactor_mint_info, self.get_atomicals_id_mint_data(found_reactor_atomical_id)
-        return None 
+        return None, None
     
     # Create or delete the call data and transformations
     def create_or_delete_call(self, operations_found_at_inputs, atomicals_spent_at_inputs, tx, tx_hash, tx_num, header, height, Delete):
-        if not operations_found_at_inputs or operations_found_at_inputs['op'] != 'call' or operations_found_at_inputs['input_index'] != 0:
+        if not operations_found_at_inputs or operations_found_at_inputs['op'] != 'c' or operations_found_at_inputs['input_index'] != 0:
             return None
-        
-        reactor_atomical_mint_info, reactor_atomical_mint_info = self.get_reactor_mint_info_and_data_by_id(operations_found_at_inputs['payload'], height)      
+        print(f'operations_found_at_inputs={operations_found_at_inputs}')
+        reactor_atomical_mint_info, mint_data = self.get_reactor_mint_info_and_data_by_id(operations_found_at_inputs['payload'], height)      
         if not reactor_atomical_mint_info:
             return None 
         
         reactor_id = reactor_atomical_mint_info['atomical_id']
         protocol_id = reactor_atomical_mint_info['mint_info']['$instance_of_protocol_id']
-        protocol_mint_data = self.get_atomicals_id_mint_data(protocol_id)
+        protocol_mint_data = self.get_atomicals_id_mint_data(compact_to_location_id_bytes(protocol_id))
         if not protocol_mint_data:
             raise IndexError(f'create_or_delete_call:protocol_mint_data not found {location_id_bytes_to_compact(protocol_id)}')
         
@@ -2001,7 +2003,7 @@ class BlockProcessor:
         #
         # Reactor state and internal token table balances
         #
-        latest_reactor_state_height, latest_reactor_state, = self.get_latest_reactor_states(reactor_id, height)
+        latest_reactor_state_height, latest_reactor_state, = self.get_latest_reactor_states(reactor_id)
         if not latest_reactor_state_height:
             raise IndexError(f'Missing reactor state: {location_id_bytes_to_compact(reactor_id)}')
         
@@ -2010,7 +2012,7 @@ class BlockProcessor:
         #
         headers = {}
         # Todo add the last N=1000 headers potentially
-        headers[str(height)] = header
+        headers[str(height)] = header.hex()
         blockchain_context = RequestBlockchainContext(headers, height)
 
         # Note atomicals_spent_at_inputs can be modified if the contract absorbs the tokens
@@ -2022,6 +2024,11 @@ class BlockProcessor:
         #
         request_tx_context = RequestTxContext(self.coin, tx_hash, tx, operations_found_at_inputs.get('payload'))
         nft_incoming, ft_incoming = avm_factory.create_token_incoming_structs(atomicals_spent_at_inputs)
+
+        print(f'latest_reactor_state={latest_reactor_state}')
+        latest_reactor_state = pickle.loads(latest_reactor_state)
+        print(f'latest_reactor_state decoded={latest_reactor_state}')
+        
         # Replace with the new incoming tokens
         latest_reactor_state.nft_incoming = dumps(nft_incoming)
         latest_reactor_state.ft_incoming = dumps(ft_incoming)
@@ -2031,12 +2038,12 @@ class BlockProcessor:
         # We have everything we need to validate an execute call
         call_command = avm_factory.create_call_command(request_tx_context, atomicals_spent_at_inputs, latest_reactor_state, reactor_atomical_mint_info)
         if not call_command.is_valid:
-            self.logger.info(f'create_or_delete_call: call of reactor for txid={hash_to_hex_str(tx_hash)} protocol_id={location_id_bytes_to_compact(protocol_id)} is_valid=False in Transaction {hash_to_hex_str(tx_hash)}. Skipping...') 
+            self.logger.info(f'create_or_delete_call: call of reactor for txid={hash_to_hex_str(tx_hash)} protocol_id={protocol_id} is_valid=False in Transaction {hash_to_hex_str(tx_hash)}. Skipping...') 
             return None 
         # Validated the execute call can proceed, now execute it
         call_command_result = call_command.execute()
         if not call_command_result.success:
-            self.logger.info(f'create_or_delete_call: call of reactor for txid={hash_to_hex_str(tx_hash)} protocol_id={location_id_bytes_to_compact(protocol_id)} failed in Transaction {hash_to_hex_str(tx_hash)}. Skipping...') 
+            self.logger.info(f'create_or_delete_call: call of reactor for txid={hash_to_hex_str(tx_hash)} protocol_id={protocol_id} failed in Transaction {hash_to_hex_str(tx_hash)}. Skipping...') 
             return False 
 
         self.put_or_delete_reactor_states(reactor_id, call_command_result.reactor_context, height, Delete)

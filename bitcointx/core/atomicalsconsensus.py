@@ -195,7 +195,7 @@ def ConsensusVerifyScriptAvmExecute(script_context: ScriptContext,
 
     # attach any input witness data for the 1st input if present
     auth_public_key = request_tx_context.auth_public_key
-    print(f'auth_public_key: {script_context.auth_public_key.hex()}')
+    print(f'auth_public_key: {request_tx_context.auth_public_key.hex()}')
 
     len_lock_script_code = len(script_context.lock_script)
     len_unlock_script_code = len(script_context.unlock_script)

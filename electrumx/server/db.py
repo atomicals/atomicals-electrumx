@@ -1671,7 +1671,7 @@ class DB:
     def get_latest_reactor_states(self, reactor_id):
         db_key_prefix = b'rcs' + reactor_id
         for db_key, db_value in self.utxo_db.iterator(prefix=db_key_prefix, reverse=True):
-            height, = unpack_be_uint32(height)
+            height, = unpack_be_uint32(db_key[-4:])
             return height, pickle.loads(db_value)
         return None, None
     
