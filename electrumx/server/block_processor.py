@@ -1487,7 +1487,6 @@ class BlockProcessor:
         found_reactor_record = self.reactor_states_cache.get(reactor_id)
         found_cache_height = None 
         latest_state_cached = None 
-        print(f'f: {found_reactor_record}')
         if found_reactor_record:
             for state_key, state_item in sorted(found_reactor_record.items(), reverse=True):
                 found_cache_height = state_key 

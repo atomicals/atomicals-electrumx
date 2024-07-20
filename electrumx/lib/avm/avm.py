@@ -94,16 +94,16 @@ class CallCommand:
     try:
       updated_reactor_state = ConsensusVerifyScriptAvmExecute(script_context, self.blockchain_context, self.request_tx_context, self.reactor_state)
       # Quite overkill to deserialize entire CBOR, but we want to be sure a valid CBOR was returned
-      print(f'updated_reactor_state={updated_reactor_state}')
-      print(f'updated_reactor_state.state={loads(updated_reactor_state.state)}')
-      print(f'updated_reactor_state.ft_balances={updated_reactor_state.ft_balances}')
-      print(f'updated_reactor_state.nft_balances={updated_reactor_state.nft_balances}')
       loads(updated_reactor_state.state)
       loads(updated_reactor_state.ft_balances)
       loads(updated_reactor_state.nft_balances)
+      print(f'updated_reactor_state.state={loads(updated_reactor_state.state)}')
+      print(f'updated_reactor_state.ft_balances={loads(updated_reactor_state.ft_balances)}')
+      print(f'updated_reactor_state.nft_balances={loads(updated_reactor_state.nft_balances)}')
       if updated_reactor_state:
         # Todo: Only clear off the atomicals here that were actually accepted by the script
         self.request_tx_context.atomicals_spent_at_inputs = {}
+        # Todo: Color the FT/NFT outputs
         return CallCommandResult(True, updated_reactor_state)
     except AtomicalConsensusExecutionError as ex:
       print(f'AtomicalConsensusExecutionError ex={ex}')
