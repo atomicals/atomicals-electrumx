@@ -55,8 +55,8 @@ def test_execute_deploy_script1():
     }
     avm = AVMFactory(MockLogger(), mock_mint_fetcher, mock_blockchain_context, protocol_mint_data)
     payload = {
-        'op': 'deploy',
         'p': 'ppp',
+        'u': bytes.fromhex('51'),
         'args': {
             'age': 1
         }

@@ -42,87 +42,75 @@ mock_empty_reactor_context = ReactorContext(None, dumps({}), dumps({}), dumps({}
 def test_atomicalsconsensus_OP_DECODEBLOCKINFO_fail_header_size():
   mock_current_header_wrong_len = bytes.fromhex(mock_current_header) + b'01'
   mock_current_header_wrong_len_encoded = encode_op_pushdata(mock_current_header_wrong_len)
-  with pytest.raises(AtomicalConsensusExecutionError) as exc_info: 
-    protocol_mint_data = {
-      'p': 'ppp',
-      'code': bytes.fromhex(mock_current_header_wrong_len_encoded.hex() + '59fc5187'),
-      'fn': [
-          {
-              'name': 'ctor',
-              'params': [
-              ]
-          }
-      ]
+  
+  protocol_mint_data = {
+    'p': 'ppp',
+    'code': bytes.fromhex(mock_current_header_wrong_len_encoded.hex() + '59fc5187'),
+    'fn': [
+        {
+            'name': 'ctor',
+            'params': [
+            ]
+        }
+    ]
+  }
+  deploy_payload = {
+    'p': 'ppp',
+    'u': b'',
+    'args': {
     }
-    deploy_payload = {
-      'op': 'deploy',
-      'p': 'ppp',
-      'args': {
-      }
-    }
+  }
 
-    avm = AVMFactory(MockLogger(), mock_mint_fetcher, mock_blockchain_context, protocol_mint_data)
-    atomicals_spent_at_inputs = {}
-    request_tx_context = RequestTxContext(coin, mock_tx_hash, mock_tx, deploy_payload)
-    deploy_command = avm.create_deploy_command(request_tx_context, atomicals_spent_at_inputs, mock_empty_reactor_context)
-    assert(deploy_command.is_valid)
-    assert(deploy_command.unlock_script.hex() == '')
-    print(f'{deploy_command.lock_script.hex()}')
-    assert(deploy_command.lock_script.hex() == '4c52000000209174c9f2757e2647733c9ab69c133b90257f85ce7e9c0100000000000000000096e490f16d161416bef825bd4716b0914f344be5835cf6a8f0de89288a6c440391af0566d3620317aca8414a303159fc5187')
-
-    result = deploy_command.execute() 
-    assert result.success 
-    assert result.reactor_context
-
-    result_context = result.reactor_context
-    state_hash = result_context.state_hash
-    assert state_hash.hex() == '71daaf262004b5778dfb085daf074cf22a9e4c6f60eb8700974ba6bd3cc2b156'
-
-  assert exc_info.value.error_code == 0
-  assert exc_info.value.script_error == 77
-  assert exc_info.value.script_error_op_num == 2
-
+  avm = AVMFactory(MockLogger(), mock_mint_fetcher, mock_blockchain_context, protocol_mint_data)
+  atomicals_spent_at_inputs = {}
+  request_tx_context = RequestTxContext(coin, mock_tx_hash, mock_tx, deploy_payload)
+  deploy_command = avm.create_deploy_command(request_tx_context, atomicals_spent_at_inputs, mock_empty_reactor_context)
+  assert(deploy_command.is_valid)
+  assert(deploy_command.unlock_script.hex() == '')
+  assert(deploy_command.lock_script.hex() == '4c52000000209174c9f2757e2647733c9ab69c133b90257f85ce7e9c0100000000000000000096e490f16d161416bef825bd4716b0914f344be5835cf6a8f0de89288a6c440391af0566d3620317aca8414a303159fc5187')
+  result = deploy_command.execute() 
+  assert not result.success 
+  assert not result.reactor_context
+  assert result.error.error_code == 0
+  assert result.error.script_error == 77
+  assert result.error.script_error_op_num == 2
+ 
 def test_atomicalsconsensus_OP_DECODEBLOCKINFO_invalid_item():
   mock_current_header_wrong_len = bytes.fromhex(mock_current_header)
   mock_current_header_wrong_len_encoded = encode_op_pushdata(mock_current_header_wrong_len)
-  with pytest.raises(AtomicalConsensusExecutionError) as exc_info: 
-    protocol_mint_data = {
-      'p': 'ppp',
-      'code': bytes.fromhex(mock_current_header_wrong_len_encoded.hex() + '57fc5187'),
-      'fn': [
-          {
-              'name': 'ctor',
-              'params': [
-              ]
-          }
-      ]
+  
+  protocol_mint_data = {
+    'p': 'ppp',
+    'code': bytes.fromhex(mock_current_header_wrong_len_encoded.hex() + '57fc5187'),
+    'fn': [
+        {
+            'name': 'ctor',
+            'params': [
+            ]
+        }
+    ]
+  }
+  deploy_payload = {
+    'p': 'ppp',
+    'u': b'',
+    'args': {
     }
-    deploy_payload = {
-      'op': 'deploy',
-      'p': 'ppp',
-      'args': {
-      }
-    }
+  }
 
-    avm = AVMFactory(MockLogger(), mock_mint_fetcher, mock_blockchain_context, protocol_mint_data)
-    atomicals_spent_at_inputs = {}
-    request_tx_context = RequestTxContext(coin, mock_tx_hash, mock_tx, deploy_payload)
-    deploy_command = avm.create_deploy_command(request_tx_context, atomicals_spent_at_inputs, mock_empty_reactor_context)
-    assert(deploy_command.is_valid)
-    assert(deploy_command.unlock_script.hex() == '')
-    assert(deploy_command.lock_script.hex() == '4c50000000209174c9f2757e2647733c9ab69c133b90257f85ce7e9c0100000000000000000096e490f16d161416bef825bd4716b0914f344be5835cf6a8f0de89288a6c440391af0566d3620317aca8414a57fc5187')
+  avm = AVMFactory(MockLogger(), mock_mint_fetcher, mock_blockchain_context, protocol_mint_data)
+  atomicals_spent_at_inputs = {}
+  request_tx_context = RequestTxContext(coin, mock_tx_hash, mock_tx, deploy_payload)
+  deploy_command = avm.create_deploy_command(request_tx_context, atomicals_spent_at_inputs, mock_empty_reactor_context)
+  assert(deploy_command.is_valid)
+  assert(deploy_command.unlock_script.hex() == '')
+  assert(deploy_command.lock_script.hex() == '4c50000000209174c9f2757e2647733c9ab69c133b90257f85ce7e9c0100000000000000000096e490f16d161416bef825bd4716b0914f344be5835cf6a8f0de89288a6c440391af0566d3620317aca8414a57fc5187')
 
-    result = deploy_command.execute() 
-    assert result.success 
-    assert result.reactor_context
-
-    result_context = result.reactor_context
-    state_hash = result_context.state_hash
-    assert state_hash.hex() == '71daaf262004b5778dfb085daf074cf22a9e4c6f60eb8700974ba6bd3cc2b156'
-
-  assert exc_info.value.error_code == 0
-  assert exc_info.value.script_error == 76
-  assert exc_info.value.script_error_op_num == 2
+  result = deploy_command.execute() 
+  assert not result.success 
+  assert not result.reactor_context
+  assert result.error.error_code == 0
+  assert result.error.script_error == 76
+  assert result.error.script_error_op_num == 2
   
 def test_atomicalsconsensus_OP_DECODEBLOCKINFO_deploy_success_items():
   block_header = '000000209174c9f2757e2647733c9ab69c133b90257f85ce7e9c0100000000000000000096e490f16d161416bef825bd4716b0914f344be5835cf6a8f0de89288a6c440391af0566d3620317aca8414a'
@@ -186,11 +174,9 @@ def test_atomicalsconsensus_OP_DECODEBLOCKINFO_deploy_success_items():
         ]
     }
     deploy_payload = {
-      'op': 'deploy',
       'p': 'ppp',
+      'u': bytes.fromhex(block_header_encoded.hex() + item['field_enc']),
       'args': {
-          'header': bytes.fromhex(block_header),
-          'field': item['field']
       }
     }
     avm = AVMFactory(MockLogger(), mock_mint_fetcher, mock_blockchain_context, protocol_mint_data)

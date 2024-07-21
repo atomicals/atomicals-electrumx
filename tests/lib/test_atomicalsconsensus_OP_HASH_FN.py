@@ -117,43 +117,45 @@ def test_atomicalsconsensus_OP_HASH_FN_SHA3_256_success1():
   assert result.success 
 
 def test_atomicalsconsensus_OP_HASH_FN_SHA3_256_delete1():
-  with pytest.raises(AtomicalConsensusExecutionError) as exc:
-    sha3_256_preimage = '9999'
-    sha3_256_preimage_bytes = bytes.fromhex(sha3_256_preimage)
-    sha3_256_hash_value = calc_sha3_256(sha3_256_preimage_bytes)
-    to_hash_value_data = encode_op_pushdata(sha3_256_hash_value)
-    different_bytes = encode_op_pushdata(b'123')
-    lock_script = different_bytes.hex() + '00fd' + to_hash_value_data.hex() + '87'
-    protocol_mint_data = {
-      'p': 'ppp',
-      'code': bytes.fromhex(lock_script),
-      'fn': [
-          {
-              'name': 'ctor',
-              'params': [
-              ]
-          }
-      ]
+  sha3_256_preimage = '9999'
+  sha3_256_preimage_bytes = bytes.fromhex(sha3_256_preimage)
+  sha3_256_hash_value = calc_sha3_256(sha3_256_preimage_bytes)
+  to_hash_value_data = encode_op_pushdata(sha3_256_hash_value)
+  different_bytes = encode_op_pushdata(b'123')
+  lock_script = different_bytes.hex() + '00fd' + to_hash_value_data.hex() + '87'
+  protocol_mint_data = {
+    'p': 'ppp',
+    'code': bytes.fromhex(lock_script),
+    'fn': [
+        {
+            'name': 'ctor',
+            'params': [
+            ]
+        }
+    ]
+  }
+  deploy_payload = {
+    'op': 'deploy',
+    'p': 'ppp',
+    'args': {
     }
-    deploy_payload = {
-      'op': 'deploy',
-      'p': 'ppp',
-      'args': {
-      }
-    }
+  }
 
-    avm = AVMFactory(MockLogger(), mock_mint_fetcher, mock_blockchain_context, protocol_mint_data)
-    atomicals_spent_at_inputs = {}
-    request_tx_context = RequestTxContext(coin, mock_tx_hash, mock_tx, deploy_payload)
-    deploy_command = avm.create_deploy_command(request_tx_context, atomicals_spent_at_inputs, mock_empty_reactor_context)
-    assert(deploy_command.is_valid)
-    assert(deploy_command.unlock_script.hex() == '')
-    assert(deploy_command.lock_script.hex() == lock_script)
-    deploy_command.execute() 
-    
-  assert exc.value.error_code == 0
-  assert exc.value.script_error == 2
-  assert exc.value.script_error_op_num == 4
+  avm = AVMFactory(MockLogger(), mock_mint_fetcher, mock_blockchain_context, protocol_mint_data)
+  atomicals_spent_at_inputs = {}
+  request_tx_context = RequestTxContext(coin, mock_tx_hash, mock_tx, deploy_payload)
+  deploy_command = avm.create_deploy_command(request_tx_context, atomicals_spent_at_inputs, mock_empty_reactor_context)
+  assert(deploy_command.is_valid)
+  assert(deploy_command.unlock_script.hex() == '')
+  assert(deploy_command.lock_script.hex() == lock_script)
+  result = deploy_command.execute() 
+  assert not result.success
+  assert not result.reactor_context
+  assert result.error.error_code == 0
+  assert result.error.script_error ==2
+  assert result.error.script_error_op_num == 4
+ 
+ 
 
 def test_atomicalsconsensus_OP_HASH_FN_SHA512_success1():
   preimage = '12345678901234567890'

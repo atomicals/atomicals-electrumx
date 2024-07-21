@@ -297,7 +297,7 @@ def test_atomicalsconsensus_OP_FT_WITHDRAW_incoming_added_balance_multiple_outpu
   request_tx_context = RequestTxContext(coin, mock_tx_hash, mock_tx, payload)
   reactor_context = ReactorContext(state_hash, dumps({}), dumps({}), dumps({}), dumps({}), dumps(balances_incoming), dumps({}), dumps({}), dumps(balances), dumps({}), dumps({}), dumps({}))
   blockchain_context = RequestBlockchainContext(mock_headers, 840012)
-  script_context = ScriptContext(CScript(), CScript(bytes.fromhex(sample_token_id1_encoded.hex() + '53d3' + sample_token_id1_encoded.hex() + '00' + '53' + 'f2' + sample_token_id1_encoded.hex() + '51' + '52' + 'f2' + '51')))
+  script_context = ScriptContext(CScript(), CScript(bytes.fromhex(sample_token_id1_encoded.hex() + 'd3' + sample_token_id1_encoded.hex() + '00' + '53' + 'f2' + sample_token_id1_encoded.hex() + '51' + '52' + 'f2' + '51')))
   updated_reactor_state = ConsensusVerifyScriptAvmExecute(script_context, blockchain_context, request_tx_context, reactor_context)
   expected_balances = {}
   expected_balances[sample_token_id2] = 3
@@ -343,7 +343,7 @@ def test_atomicalsconsensus_OP_FT_WITHDRAW_incoming_added_multiple_balance_multi
   request_tx_context = RequestTxContext(coin, mock_tx_hash, mock_tx, payload)
   reactor_context = ReactorContext(state_hash, dumps({}), dumps({}), dumps({}), dumps({}), dumps(balances_incoming), dumps({}), dumps({}), dumps(balances), dumps({}), dumps({}), dumps({}))
   blockchain_context = RequestBlockchainContext(mock_headers, 840012)
-  script_context = ScriptContext(CScript(), CScript(bytes.fromhex(sample_token_id1_encoded.hex() + '53d3' + sample_token_id1_encoded.hex() + '00' + '53' + 'f2' + sample_token_id1_encoded.hex() + '51' + '52' + 'f2' + sample_token_id2_encoded.hex() + '54d3' + sample_token_id2_encoded.hex() + '51' + '56' + 'f2'  + '51')))
+  script_context = ScriptContext(CScript(), CScript(bytes.fromhex(sample_token_id1_encoded.hex() + 'd3' + sample_token_id1_encoded.hex() + '00' + '53' + 'f2' + sample_token_id1_encoded.hex() + '51' + '52' + 'f2' + sample_token_id2_encoded.hex() + 'd3' + sample_token_id2_encoded.hex() + '51' + '56' + 'f2'  + '51')))
   updated_reactor_state = ConsensusVerifyScriptAvmExecute(script_context, blockchain_context, request_tx_context, reactor_context)
   expected_balances = {}
   expected_balances[sample_token_id2] = 1

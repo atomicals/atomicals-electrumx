@@ -68,7 +68,7 @@ def test_atomicalsconsensus_OP_NFT_PUT_no_incoming_available_fail():
     updated_reactor_state = ConsensusVerifyScriptAvmExecute(script_context, blockchain_context, request_tx_context, reactor_context)
     assert updated_reactor_state
   assert exc.value.error_code == 0
-  assert exc.value.script_error == 83
+  assert exc.value.script_error == 82
   assert exc.value.script_error_op_num == 1
  
 def test_atomicalsconsensus_OP_NFT_PUT_incoming_multiple_adds_fail():
@@ -94,7 +94,7 @@ def test_atomicalsconsensus_OP_NFT_PUT_incoming_multiple_adds_fail():
     ConsensusVerifyScriptAvmExecute(script_context, blockchain_context, request_tx_context, reactor_context)
     
   assert exc.value.error_code == 0
-  assert exc.value.script_error == 83
+  assert exc.value.script_error == 82
   assert exc.value.script_error_op_num == 3
 
 def test_atomicalsconsensus_OP_NFT_PUT_incoming_new_success():

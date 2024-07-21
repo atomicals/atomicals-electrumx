@@ -20,9 +20,10 @@ from electrumx.lib.atomicals_blueprint_builder import AtomicalsTransferBlueprint
 from cbor2 import loads
 
 class CallCommandResult:
-  def __init__(self, success, reactor_context):
+  def __init__(self, success, reactor_context, error=None):
     self.success = success
     self.reactor_context = reactor_context
+    self.error = error
 
 class CallCommand:
   def __init__(self, logger, blockchain_context: RequestBlockchainContext, request_tx_context: RequestTxContext, protocol_mint_data, atomicals_spent_at_inputs, reactor_state: ReactorContext, reactor_atomical_mint_info):
@@ -107,14 +108,15 @@ class CallCommand:
         return CallCommandResult(True, updated_reactor_state)
     except AtomicalConsensusExecutionError as ex:
       print(f'AtomicalConsensusExecutionError ex={ex}')
-      return CallCommandResult(False, None)
+      return CallCommandResult(False, ex)
     
     raise ValueError(f'Critical call error')
   
 class DeployCommandResult:
-  def __init__(self, success, reactor_context):
+  def __init__(self, success, reactor_context, error=None):
     self.success = success
     self.reactor_context = reactor_context
+    self.error = error
 
 class DeployCommand:
   def __init__(self, logger, blockchain_context: RequestBlockchainContext, request_tx_context: RequestTxContext, protocol_mint_data, atomicals_spent_at_inputs, reactor_state: ReactorContext):
@@ -185,7 +187,8 @@ class DeployCommand:
         self.request_tx_context.atomicals_spent_at_inputs = {}
         return DeployCommandResult(True, updated_reactor_state)
     except AtomicalConsensusExecutionError as ex:
-      return DeployCommandResult(False, None)
+      print(f'AtomicalConsensusExecutionError ex={ex}')
+      return DeployCommandResult(False, None, ex)
     raise ValueError(f'Critical call error')
   
 class AVMFactory:

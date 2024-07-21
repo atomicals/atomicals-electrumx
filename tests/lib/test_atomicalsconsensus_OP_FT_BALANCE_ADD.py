@@ -64,12 +64,12 @@ def test_atomicalsconsensus_OP_FT_BALANCE_ADD_zero_amount_fail():
     request_tx_context = RequestTxContext(coin, mock_tx_hash, mock_tx, payload)
     reactor_context = ReactorContext(state_hash, dumps({}), dumps({}), dumps({}), dumps({}), dumps({}), dumps({}), dumps({}), dumps(balances), dumps({}), dumps({}), dumps({}))
     blockchain_context = RequestBlockchainContext(mock_headers, 840012)
-    script_context = ScriptContext(CScript(), CScript(bytes.fromhex(sample_token_id2_encoded.hex() + '00d3')))
+    script_context = ScriptContext(CScript(), CScript(bytes.fromhex(sample_token_id2_encoded.hex() + 'd3')))
     updated_reactor_state = ConsensusVerifyScriptAvmExecute(script_context, blockchain_context, request_tx_context, reactor_context)
     assert updated_reactor_state
   assert exc.value.error_code == 0
   assert exc.value.script_error == 81
-  assert exc.value.script_error_op_num == 2
+  assert exc.value.script_error_op_num == 1
  
 def test_atomicalsconsensus_OP_FT_BALANCE_ADD_no_incoming_available_fail():
   with pytest.raises(AtomicalConsensusExecutionError) as exc: 
@@ -88,12 +88,12 @@ def test_atomicalsconsensus_OP_FT_BALANCE_ADD_no_incoming_available_fail():
     request_tx_context = RequestTxContext(coin, mock_tx_hash, mock_tx, payload)
     reactor_context = ReactorContext(state_hash, dumps({}), dumps({}), dumps({}), dumps({}), dumps({}), dumps({}), dumps({}), dumps(balances), dumps({}), dumps({}), dumps({}))
     blockchain_context = RequestBlockchainContext(mock_headers, 840012)
-    script_context = ScriptContext(CScript(), CScript(bytes.fromhex(sample_token_id2_encoded.hex() + '51d3')))
+    script_context = ScriptContext(CScript(), CScript(bytes.fromhex(sample_token_id2_encoded.hex() + 'd3')))
     updated_reactor_state = ConsensusVerifyScriptAvmExecute(script_context, blockchain_context, request_tx_context, reactor_context)
     assert updated_reactor_state
   assert exc.value.error_code == 0
-  assert exc.value.script_error == 82
-  assert exc.value.script_error_op_num == 2
+  assert exc.value.script_error == 81
+  assert exc.value.script_error_op_num == 1
 
 def test_atomicalsconsensus_OP_FT_BALANCE_ADD_incoming_insufficient_fail():
   with pytest.raises(AtomicalConsensusExecutionError) as exc: 
@@ -114,12 +114,12 @@ def test_atomicalsconsensus_OP_FT_BALANCE_ADD_incoming_insufficient_fail():
     request_tx_context = RequestTxContext(coin, mock_tx_hash, mock_tx, payload)
     reactor_context = ReactorContext(state_hash, dumps({}), dumps({}), dumps({}), dumps({}), dumps(balances_incoming), dumps({}), dumps({}), dumps(balances), dumps({}), dumps({}), dumps({}))
     blockchain_context = RequestBlockchainContext(mock_headers, 840012)
-    script_context = ScriptContext(CScript(), CScript(bytes.fromhex(sample_token_id2_encoded.hex() + '52d3')))
+    script_context = ScriptContext(CScript(), CScript(bytes.fromhex(sample_token_id2_encoded.hex() + 'd3')))
     updated_reactor_state = ConsensusVerifyScriptAvmExecute(script_context, blockchain_context, request_tx_context, reactor_context)
     assert updated_reactor_state
   assert exc.value.error_code == 0
-  assert exc.value.script_error == 82
-  assert exc.value.script_error_op_num == 2
+  assert exc.value.script_error == 81
+  assert exc.value.script_error_op_num == 1
 
 def test_atomicalsconsensus_OP_FT_BALANCE_ADD_incoming_new_success():
   payload = {}  
@@ -139,7 +139,7 @@ def test_atomicalsconsensus_OP_FT_BALANCE_ADD_incoming_new_success():
   request_tx_context = RequestTxContext(coin, mock_tx_hash, mock_tx, payload)
   reactor_context = ReactorContext(state_hash, dumps({}), dumps({}), dumps({}), dumps({}), dumps(balances_incoming), dumps({}), dumps({}), dumps(balances), dumps({}), dumps({}), dumps({}))
   blockchain_context = RequestBlockchainContext(mock_headers, 840012)
-  script_context = ScriptContext(CScript(), CScript(bytes.fromhex(sample_token_id1_encoded.hex() + '51d351')))
+  script_context = ScriptContext(CScript(), CScript(bytes.fromhex(sample_token_id1_encoded.hex() + 'd351')))
   updated_reactor_state = ConsensusVerifyScriptAvmExecute(script_context, blockchain_context, request_tx_context, reactor_context)
   assert updated_reactor_state
   expected_ft_balances = {}
@@ -184,7 +184,7 @@ def test_atomicalsconsensus_OP_FT_BALANCE_ADD_incoming_max_int_test():
   request_tx_context = RequestTxContext(coin, mock_tx_hash, mock_tx, payload)
   reactor_context = ReactorContext(state_hash, dumps({}), dumps({}), dumps({}), dumps({}), dumps(balances_incoming), dumps({}), dumps({}), dumps(balances), dumps({}), dumps({}), dumps({}))
   blockchain_context = RequestBlockchainContext(mock_headers, 840012)
-  script_context = ScriptContext(CScript(), CScript(bytes.fromhex(sample_token_id1_encoded.hex() + '51d351')))
+  script_context = ScriptContext(CScript(), CScript(bytes.fromhex(sample_token_id1_encoded.hex() + 'd351')))
   updated_reactor_state = ConsensusVerifyScriptAvmExecute(script_context, blockchain_context, request_tx_context, reactor_context)
   assert updated_reactor_state
   expected_ft_balances = {}
@@ -225,9 +225,9 @@ def test_atomicalsconsensus_OP_FT_BALANCE_ADD_incoming_multiple_adds_fail():
     request_tx_context = RequestTxContext(coin, mock_tx_hash, mock_tx, payload)
     reactor_context = ReactorContext(state_hash, dumps({}), dumps({}), dumps({}), dumps({}), dumps(balances_incoming), dumps({}), dumps({}), dumps(balances), dumps({}), dumps({}), dumps({}))
     blockchain_context = RequestBlockchainContext(mock_headers, 840012)
-    script_context = ScriptContext(CScript(), CScript(bytes.fromhex(sample_token_id1_encoded.hex() + '51d3' + sample_token_id1_encoded.hex() + '51d3')))
+    script_context = ScriptContext(CScript(), CScript(bytes.fromhex(sample_token_id1_encoded.hex() + 'd3' + sample_token_id1_encoded.hex() + 'd3')))
     ConsensusVerifyScriptAvmExecute(script_context, blockchain_context, request_tx_context, reactor_context)
     
   assert exc.value.error_code == 0
-  assert exc.value.script_error == 82
-  assert exc.value.script_error_op_num == 5
+  assert exc.value.script_error == 81
+  assert exc.value.script_error_op_num == 3
