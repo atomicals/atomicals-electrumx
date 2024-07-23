@@ -464,7 +464,7 @@ class NameMixin:
         data_placeholders = 0
 
         for opcode in opcodes:
-            if type(opcode) == tuple:
+            if isinstance(opcode, tuple):
                 data_placeholders += 1
             else:
                 break
