@@ -100,31 +100,26 @@ def _add_function_definitions(handle: ctypes.CDLL) -> None:
         ctypes.POINTER(ctypes.c_char * 32),                         # State hash bytes (hash of state updates, ft/nft balance updates and ft/nft withdraws)
         ctypes.POINTER(ctypes.c_char * MAX_STATE_FINAL_BYTES),      # State final cbor bytes
         ctypes.POINTER(ctypes.c_uint),                              # State final cbor byte length
-        ctypes.POINTER(ctypes.c_uint),                              # State final data byte length (actually used by the data)
         ctypes.POINTER(ctypes.c_char * MAX_STATE_UPDATE_BYTES),     # State updates bytes
         ctypes.POINTER(ctypes.c_uint),                              # State updates cbor byte length
-        ctypes.POINTER(ctypes.c_uint),                              # State updates length (actually used by the data)
         ctypes.POINTER(ctypes.c_char * MAX_STATE_UPDATE_BYTES),     # State deletes bytes
         ctypes.POINTER(ctypes.c_uint),                              # State deletes cbor byte length
-        ctypes.POINTER(ctypes.c_uint),                              # State deletes length (actually used by the data)
         ctypes.POINTER(ctypes.c_char * MAX_BALANCES_BYTES),         # FT balance result cbor bytes
         ctypes.POINTER(ctypes.c_uint),                              # FT balance result cbor byte length
-        ctypes.POINTER(ctypes.c_uint),                              # FT balance result byte length (actually used by the data)
         ctypes.POINTER(ctypes.c_char * MAX_BALANCES_UPDATE_BYTES),  # FT balance changes cbor bytes
         ctypes.POINTER(ctypes.c_uint),                              # FT balance changes cbor byte length
-        ctypes.POINTER(ctypes.c_uint),                              # FT balance changes byte length (actually used by the data)
         ctypes.POINTER(ctypes.c_char * MAX_BALANCES_BYTES),         # NFT balance result cbor bytes
         ctypes.POINTER(ctypes.c_uint),                              # NFT balance result cbor byte length
-        ctypes.POINTER(ctypes.c_uint),                              # NFT balance result byte length (actually used by the data)
         ctypes.POINTER(ctypes.c_char * MAX_BALANCES_UPDATE_BYTES),  # NFT balance changes cbor bytes
         ctypes.POINTER(ctypes.c_uint),                              # NFT balance changes cbor byte length
-        ctypes.POINTER(ctypes.c_uint),                              # NFT balance changes byte length (actually used by the data)
         ctypes.POINTER(ctypes.c_char * MAX_BALANCES_UPDATE_BYTES),  # State ft withdraw cbor bytes
         ctypes.POINTER(ctypes.c_uint),                              # State ft withdraw cbor byte length
-        ctypes.POINTER(ctypes.c_uint),                              # State ft withdraw data byte length (actually used by the data)
         ctypes.POINTER(ctypes.c_char * MAX_BALANCES_UPDATE_BYTES),  # State nft withdraw cbor bytes
         ctypes.POINTER(ctypes.c_uint),                              # State nft withdraw cbor byte length
-        ctypes.POINTER(ctypes.c_uint)                               # State nft withdraw data byte length (actually used by the data)
+        ctypes.POINTER(ctypes.c_char * MAX_BALANCES_UPDATE_BYTES),  # State ft adds cbor bytes
+        ctypes.POINTER(ctypes.c_uint),                              # State ft adds cbor bytes length
+        ctypes.POINTER(ctypes.c_char * MAX_BALANCES_UPDATE_BYTES),  # State nft puts cbor bytes
+        ctypes.POINTER(ctypes.c_uint)                               # State nft puts cbor bytes length
     ]
 
     handle.atomicalsconsensus_version.restype = ctypes.c_int
@@ -214,8 +209,6 @@ def ConsensusVerifyScriptAvmExecute(script_context: ScriptContext,
     state_final = (ctypes.c_char * MAX_STATE_FINAL_BYTES)()
     state_final_len = ctypes.c_uint()
     state_final_len.value = 0
-    state_final_data_len = ctypes.c_uint()
-    state_final_data_len.value = 0
 
     state_updates = (ctypes.c_char * MAX_STATE_UPDATE_BYTES)()
     state_updates_len = ctypes.c_uint()
@@ -226,14 +219,10 @@ def ConsensusVerifyScriptAvmExecute(script_context: ScriptContext,
     state_deletes = (ctypes.c_char * MAX_STATE_UPDATE_BYTES)()
     state_deletes_len = ctypes.c_uint()
     state_deletes_len.value = 0
-    state_deletes_data_len = ctypes.c_uint()
-    state_deletes_data_len.value = 0
 
     ft_balances_result = (ctypes.c_char * MAX_BALANCES_BYTES)()
     ft_balances_result_len = ctypes.c_uint()
     ft_balances_result_len.value = 0
-    ft_balances_result_data_len = ctypes.c_uint()
-    ft_balances_result_data_len.value = 0
 
     ft_balances_updates = (ctypes.c_char * MAX_BALANCES_UPDATE_BYTES)()
     ft_balances_updates_len = ctypes.c_uint()
@@ -244,27 +233,27 @@ def ConsensusVerifyScriptAvmExecute(script_context: ScriptContext,
     nft_balances_result = (ctypes.c_char * MAX_BALANCES_BYTES)()
     nft_balances_result_len = ctypes.c_uint()
     nft_balances_result_len.value = 0
-    nft_balances_result_data_len = ctypes.c_uint()
-    nft_balances_result_data_len.value = 0
 
     nft_balances_updates = (ctypes.c_char * MAX_BALANCES_UPDATE_BYTES)()
     nft_balances_updates_len = ctypes.c_uint()
     nft_balances_updates_len.value = 0
-    nft_balances_updates_data_len = ctypes.c_uint()
-    nft_balances_updates_data_len.value = 0
 
     ft_withdraws = (ctypes.c_char * MAX_BALANCES_UPDATE_BYTES)()
     ft_withdraws_len = ctypes.c_uint()
     ft_withdraws_len.value = 0
-    ft_withdraws_data_len = ctypes.c_uint()
-    ft_withdraws_data_len.value = 0
 
     nft_withdraws = (ctypes.c_char * MAX_BALANCES_UPDATE_BYTES)()
     nft_withdraws_len = ctypes.c_uint()
     nft_withdraws_len.value = 0
-    nft_withdraws_data_len = ctypes.c_uint()
-    nft_withdraws_data_len.value = 0
 
+    ft_adds = (ctypes.c_char * MAX_BALANCES_UPDATE_BYTES)()
+    ft_adds_len = ctypes.c_uint()
+    ft_adds_len.value = 0
+
+    nft_puts = (ctypes.c_char * MAX_BALANCES_UPDATE_BYTES)()
+    nft_puts_len = ctypes.c_uint()
+    nft_puts_len.value = 0
+ 
     ft_state_cbor = reactor_context.ft_balances
     nft_state_cbor = reactor_context.nft_balances
     ft_state_incoming_cbor = reactor_context.ft_incoming 
@@ -294,31 +283,26 @@ def ConsensusVerifyScriptAvmExecute(script_context: ScriptContext,
                                                                 ctypes.byref(state_hash),
                                                                 ctypes.byref(state_final),
                                                                 ctypes.byref(state_final_len),
-                                                                ctypes.byref(state_final_data_len),
                                                                 ctypes.byref(state_updates),
                                                                 ctypes.byref(state_updates_len),
-                                                                ctypes.byref(state_updates_data_len),
                                                                 ctypes.byref(state_deletes),
                                                                 ctypes.byref(state_deletes_len),
-                                                                ctypes.byref(state_deletes_data_len),
                                                                 ctypes.byref(ft_balances_result),
                                                                 ctypes.byref(ft_balances_result_len),
-                                                                ctypes.byref(ft_balances_result_data_len),
                                                                 ctypes.byref(ft_balances_updates),
                                                                 ctypes.byref(ft_balances_updates_len),
-                                                                ctypes.byref(ft_balances_updates_data_len),
                                                                 ctypes.byref(nft_balances_result),
                                                                 ctypes.byref(nft_balances_result_len),
-                                                                ctypes.byref(nft_balances_result_data_len),
                                                                 ctypes.byref(nft_balances_updates),
                                                                 ctypes.byref(nft_balances_updates_len),
-                                                                ctypes.byref(nft_balances_updates_data_len),
                                                                 ctypes.byref(ft_withdraws),
                                                                 ctypes.byref(ft_withdraws_len),
-                                                                ctypes.byref(ft_withdraws_data_len),
                                                                 ctypes.byref(nft_withdraws),
                                                                 ctypes.byref(nft_withdraws_len),
-                                                                ctypes.byref(nft_withdraws_data_len))
+                                                                ctypes.byref(ft_adds),
+                                                                ctypes.byref(ft_adds_len),
+                                                                ctypes.byref(nft_puts),
+                                                                ctypes.byref(nft_puts_len))
     
     err = error_code.value
     print(f'error_code: {error_code.value}')
