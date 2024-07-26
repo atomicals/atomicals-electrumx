@@ -29,7 +29,7 @@ mock_headers = {
     '840012': mock_current_header
 }
 mock_blockchain_context = RequestBlockchainContext(mock_headers, 840012)
-mock_empty_reactor_context = ReactorContext(None,  dumps({}), dumps({}), dumps({}), dumps({}), dumps({}), dumps({}), dumps({}), dumps({}), dumps({}), dumps({}), dumps({}))
+mock_empty_reactor_context = ReactorContext(None,  dumps({}), dumps({}), dumps({}), dumps({}), dumps({}), dumps({}), dumps({}), dumps({}), dumps({}), dumps({}), dumps({}), dumps({}), dumps({}))
 mock_rawtx2 = bytes.fromhex('0100000000010156d0f907b0a3385095afb426f46762f4305f39c30b626753b0365c51307f6bac0000000000ffffffff01e803000000000000225120c2529c35bacd75646eb3135ca1270325ba2bab5d473b7c8a1eab54b21deea86e034090e7d4e121a12d1ec63820af4d59663a54c31ca4da6dd861257b728a69c8f61cfad799fce6fc6388eba63e02eca4a3c7df82fa055cd6c2e5c771749c71744a0474209f76f4e90e426cae195e7092cf8ec81d3005a90574e6d0532c679983ad79d7eaac00630461746f6d036e657745a46170667365636f6e64626f70666465706c6f796461726773a36474696d651a66845c51656e6f6e63650068626974776f726b636161646e616d6569636f6e7472616374316821c09f76f4e90e426cae195e7092cf8ec81d3005a90574e6d0532c679983ad79d7ea00000000')
 mock_tx2, mock_tx_hash2 = coin.DESERIALIZER(mock_rawtx2, 0).read_tx_and_hash()
  

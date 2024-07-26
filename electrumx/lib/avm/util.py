@@ -293,7 +293,7 @@ class ScriptContext:
     self.lock_script = lock
 
 class ReactorContext:
-  def __init__(self, state_hash, state, state_updates, state_deletes, nft_incoming, ft_incoming, nft_balances, nft_balances_updates, ft_balances, ft_balances_updates,  nft_withdraws, ft_withdraws):
+  def __init__(self, state_hash, state, state_updates, state_deletes, nft_incoming, ft_incoming, nft_balances, nft_balances_updates, ft_balances, ft_balances_updates,  nft_withdraws, ft_withdraws, ft_adds, nft_puts):
     if state_hash == None:
       self.state_hash = bytes.fromhex('0000000000000000000000000000000000000000000000000000000000000000')
     else:
@@ -310,6 +310,8 @@ class ReactorContext:
     self.nft_balances_updates = nft_balances_updates
     self.ft_withdraws = ft_withdraws
     self.nft_withdraws = nft_withdraws
+    self.ft_adds = ft_adds
+    self.nft_puts = nft_puts
  
 class RequestBlockchainContext:
   def __init__(self, headers, current_height):

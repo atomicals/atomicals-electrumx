@@ -1236,7 +1236,7 @@ class BlockProcessor:
             # Note atomicals_spent_at_inputs can be modified if the contract absorbs the tokens
             nft_incoming, ft_incoming = avm_factory.create_token_incoming_structs(atomicals_spent_at_inputs)
             # Create the initial new reactor context which has no state_hash, no state and only optionally nft_incoming and ft_incomin
-            new_reactor_context = ReactorContext(None, dumps({}), dumps({}), dumps({}), dumps(nft_incoming), dumps(ft_incoming), dumps({}), dumps({}), dumps({}), dumps({}),  dumps({}), dumps({}))
+            new_reactor_context = ReactorContext(None, dumps({}), dumps({}), dumps({}), dumps(nft_incoming), dumps(ft_incoming), dumps({}), dumps({}), dumps({}), dumps({}),  dumps({}), dumps({}), dumps({}), dumps({}))
 
             # We have everything we need to validate an execute call
             deploy_command = avm_factory.create_deploy_command(request_tx_context, atomicals_spent_at_inputs, new_reactor_context)

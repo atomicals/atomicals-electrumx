@@ -163,8 +163,7 @@ class DeployCommand:
     
     # Null dummy cbor context is not actually used by consensus library, but we pass in dummy data
     script_context = ScriptContext(CScript(self.unlock_script), CScript(self.lock_script))
-    # reactor_context_null = ReactorContext(None, dumps({}), dumps({}), dumps({}))
-
+ 
     # Sanity check that the reactor context has the defaults, the only values allowed to be set are the nft_incoming and ft_incoming
     assert self.reactor_state.state_hash == bytes.fromhex('0000000000000000000000000000000000000000000000000000000000000000')
     # Ensure the datas are empty because they will be set later

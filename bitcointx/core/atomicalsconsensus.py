@@ -327,7 +327,9 @@ def ConsensusVerifyScriptAvmExecute(script_context: ScriptContext,
                                                  bytes(ft_balances_result)[:ft_balances_result_len.value], 
                                                  bytes(ft_balances_updates)[:ft_balances_updates_len.value], 
                                                  bytes(nft_withdraws)[:nft_withdraws_len.value], 
-                                                 bytes(ft_withdraws)[:ft_withdraws_len.value])
+                                                 bytes(ft_withdraws)[:ft_withdraws_len.value],
+                                                 bytes(ft_adds)[:ft_adds_len.value],
+                                                 bytes(nft_puts)[:nft_puts_len.value])
         return updated_reactor_context
 
     assert execute_result == 0
