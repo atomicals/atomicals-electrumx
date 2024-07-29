@@ -19,6 +19,23 @@ from electrumx.lib.avm.util import (
 from electrumx.lib.atomicals_blueprint_builder import AtomicalsTransferBlueprintBuilder
 from cbor2 import loads
 
+# Updates the atomicals_spent_at_inputs structure for any consumed atomicals via either deploy or call
+def remove_consumed_atomicals(ft_adds, nft_puts, atomicals_spent_at_inputs):
+  print(f'ft_adds={ft_adds}')
+  print(f'nft_puts={nft_puts}')
+  print(f'atomicals_spent_at_inputs={atomicals_spent_at_inputs}')
+  # Clean up and remove the atomical entry if it was consumed
+  for idx, atomical_entry_list in atomicals_spent_at_inputs.items():
+    i = 0
+    for atomical_entry in atomical_entry_list:
+      atomical_id = atomical_entry['atomical_id']
+      # It was consumed therefore remove it from the input
+      if ft_adds.get(atomical_id) or nft_puts.get(atomical_id):
+        del atomical_entry[i]
+        break
+      i += 1 
+  return 
+
 class CallCommandResult:
   def __init__(self, success, reactor_context, error=None):
     self.success = success
@@ -102,9 +119,7 @@ class CallCommand:
       print(f'updated_reactor_state.ft_balances={loads(updated_reactor_state.ft_balances)}')
       print(f'updated_reactor_state.nft_balances={loads(updated_reactor_state.nft_balances)}')
       if updated_reactor_state:
-        # Todo: Only clear off the atomicals here that were actually accepted by the script
-        self.request_tx_context.atomicals_spent_at_inputs = {}
-        # Todo: Color the FT/NFT outputs
+        remove_consumed_atomicals(updated_reactor_state.ft_adds, updated_reactor_state.nft_puts, self.atomicals_spent_at_inputs)
         return CallCommandResult(True, updated_reactor_state)
     except AtomicalConsensusExecutionError as ex:
       print(f'AtomicalConsensusExecutionError ex={ex}')
@@ -183,13 +198,13 @@ class DeployCommand:
       loads(updated_reactor_state.ft_balances)
       loads(updated_reactor_state.nft_balances)
       if updated_reactor_state:
-        self.request_tx_context.atomicals_spent_at_inputs = {}
+        remove_consumed_atomicals(updated_reactor_state.ft_adds, updated_reactor_state.nft_puts, self.atomicals_spent_at_inputs)
         return DeployCommandResult(True, updated_reactor_state)
     except AtomicalConsensusExecutionError as ex:
       print(f'AtomicalConsensusExecutionError ex={ex}')
       return DeployCommandResult(False, None, ex)
     raise ValueError(f'Critical call error')
-  
+
 class AVMFactory:
   def __init__(self, logger, get_atomicals_id_mint_info, blockchain_context: RequestBlockchainContext, protocol_mint_data):
     self.logger = logger

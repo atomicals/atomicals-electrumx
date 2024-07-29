@@ -1200,7 +1200,6 @@ class BlockProcessor:
             self.put_name_element_template(b'pr', b'', request_protocol, mint_info['commit_tx_num'], mint_info['id'], self.protocol_data_cache)
         return True 
     
-    # mint_info, tx_hash, tx, header, protocol_mint_data, height, Delete):
     def create_or_delete_contract_entry_if_requested(self, protocol_atomical_id, mint_info, tx_hash, tx, header, protocol_mint_data, operations_found_at_inputs, atomicals_spent_at_inputs, height, Delete=False):
         request_contract = mint_info.get('$request_contract')
         if not request_contract:
@@ -1217,9 +1216,11 @@ class BlockProcessor:
                 return False
         if Delete: 
             self.delete_name_element_template(b'cr', b'', request_contract, mint_info['commit_tx_num'], mint_info['id'], self.reactor_data_cache)
+            # We can use dummy reactor context for delete case
+            self.put_or_delete_reactor_states(mint_info['id'], None, height, True)
         else: 
             # 
-            # General blockchain context such as headers and height
+            # Add general blockchain context such as headers and height
             #
             headers = {}
             # Todo add the last N=1000 headers potentially
@@ -1504,21 +1505,16 @@ class BlockProcessor:
             return latest_height_db, latest_state_db
         return None, None 
     
-    def put_or_delete_reactor_states(self, reactor_id, reactor_context: ReactorContext, height, Delete):
+    def put_or_delete_reactor_states(self, reactor_id, reactor_context, height, Delete):
         self.logger.info(f'put_or_delete_reactor_states reactor_id={location_id_bytes_to_compact(reactor_id)}')
         found_reactor_record = self.reactor_states_cache.get(reactor_id)
-
-        if not reactor_context.state or not reactor_context.ft_balances or not reactor_context.nft_balances:
-            raise IndexError('Developer error')
-        
         if not Delete:
             if not found_reactor_record:
                 self.reactor_states_cache[reactor_id] = {}
-
             self.reactor_states_cache[reactor_id][height] = pickle.dumps(reactor_context)
         else: 
             if found_reactor_record:
-                self.reactor_states_cache[reactor_id].pop(height, None)  
+                del self.reactor_states_cache[reactor_id][height]
             db_key = b'rcs' + reactor_id + pack_be_uint32(height)
             self.db_deletes.append(db_key)
 
@@ -1697,10 +1693,6 @@ class BlockProcessor:
                 return None
             
             if not Delete:   
-                
-                # Absorbs all the atomicals tokens because the only way have gotten this far is if a payable method was called
-                atomicals_spent_at_inputs.clear()
-
                 self.logger.info(f'mint-reactor: {hash_to_hex_str(tx_hash)}')
                 self.put_op_data(tx_num, tx_hash, "mint-reactor")
 
@@ -3341,19 +3333,11 @@ class BlockProcessor:
                     reveal_location_index = atomicals_operations_found_at_inputs['reveal_location_index']
                     self.logger.debug(f'advance_txs: atomicals_operations_found_at_inputs operation_found={operation_found}, operation_input_index={operation_input_index}, size_payload={size_payload}, tx_hash={hash_to_hex_str(tx_hash)}, commit_txid={hash_to_hex_str(commit_txid)}, commit_index={commit_index}, reveal_location_txid={hash_to_hex_str(reveal_location_txid)}, reveal_location_index={reveal_location_index}')
                 
-                # Todo ensure this call modifies the atomicals_spent_at_inputs if contract absorbs NFT/FT
+                # This call modifies the atomicals_spent_at_inputs if contract absorbs NFT/FT
                 request_id = self.create_or_delete_call(atomicals_operations_found_at_inputs, atomicals_spent_at_inputs, tx, tx_hash, tx_num, header, height, False)
                 if request_id:
                     already_found_valid_operation = True                    
                     has_at_least_one_valid_atomicals_operation = True
-
-                # Color the outputs of any transferred NFT/FT atomicals according to the rules
-                blueprint_builder = self.color_atomicals_outputs(atomicals_operations_found_at_inputs, atomicals_spent_at_inputs, tx, tx_hash, tx_num, height)
-                for atomical_id in blueprint_builder.get_atomical_ids_spent():
-                    has_at_least_one_valid_atomicals_operation = True
-                    self.logger.debug(f'advance_txs: color_atomicals_outputs atomical_ids_transferred. atomical_id={atomical_id.hex()}, tx_hash={hash_to_hex_str(tx_hash)}')
-                    # Double hash the atomical_id to add it to the history to leverage the existing history db for all operations involving the atomical
-                    append_hashX(double_sha256(atomical_id))
 
                 # Track whether we encountered a valid operation so we can skip other steps in the processing pipeline for efficiency
                 already_found_valid_operation = False
@@ -3373,6 +3357,7 @@ class BlockProcessor:
 
                 # Create NFT/FT atomicals if it is defined in the tx
                 if not already_found_valid_operation:
+                    # An AVM deploy call modifies the atomicals_spent_at_inputs if contract absorbs NFT/FT
                     created_atomical_id = self.create_or_delete_atomical(atomicals_operations_found_at_inputs, atomicals_spent_at_inputs, header, height, tx_num, atomical_num, tx, tx_hash, False)
                     if created_atomical_id:
                         already_found_valid_operation = True
@@ -3381,6 +3366,17 @@ class BlockProcessor:
                         # Double hash the created_atomical_id to add it to the history to leverage the existing history db for all operations involving the atomical
                         append_hashX(double_sha256(created_atomical_id))
                         self.logger.debug(f'advance_txs: create_or_delete_atomical created_atomical_id atomical_id={created_atomical_id.hex()}, tx_hash={hash_to_hex_str(tx_hash)}')
+
+                # Color the outputs of any transferred NFT/FT atomicals according to the rules
+                # Note: this was moved AFTER create_or_delete_atomical because we must account for clearing entries in atomicals_spent_at_inputs if
+                # the deploy call absorbed atomicals on reactor contract mint.
+                # The atomicals not absorbed by the call or deploy, just get transferred the normal way according to the predefined rules
+                blueprint_builder = self.color_atomicals_outputs(atomicals_operations_found_at_inputs, atomicals_spent_at_inputs, tx, tx_hash, tx_num, height)
+                for atomical_id in blueprint_builder.get_atomical_ids_spent():
+                    has_at_least_one_valid_atomicals_operation = True
+                    self.logger.debug(f'advance_txs: color_atomicals_outputs atomical_ids_transferred. atomical_id={atomical_id.hex()}, tx_hash={hash_to_hex_str(tx_hash)}')
+                    # Double hash the atomical_id to add it to the history to leverage the existing history db for all operations involving the atomical
+                    append_hashX(double_sha256(atomical_id))
 
                 # Check if there were any regular 'dat' files definitions
                 if not already_found_valid_operation:
