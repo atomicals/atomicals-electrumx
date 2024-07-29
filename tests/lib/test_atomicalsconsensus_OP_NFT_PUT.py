@@ -133,3 +133,9 @@ def test_atomicalsconsensus_OP_NFT_PUT_incoming_new_success():
   assert updated_reactor_state.nft_balances_updates == dumps(expected_balances_updates)
   assert len(loads(updated_reactor_state.ft_withdraws)) == 0 
   assert len(loads(updated_reactor_state.nft_withdraws)) == 0
+  assert len(loads(updated_reactor_state.ft_adds)) == 0
+  expected_nft_puts = {}
+  expected_nft_puts[sample_token_id1] = True
+  assert updated_reactor_state.nft_puts == dumps(expected_nft_puts)
+  assert len(loads(updated_reactor_state.nft_puts)) == 1
+    

@@ -153,7 +153,12 @@ def test_atomicalsconsensus_OP_FT_BALANCE_ADD_incoming_new_success():
   assert len(loads(updated_reactor_state.ft_incoming)) == 1
   assert len(loads(updated_reactor_state.nft_incoming)) == 0 
   assert len(loads(updated_reactor_state.ft_balances)) == 1
-
+  assert len(loads(updated_reactor_state.ft_adds)) == 1
+  assert len(loads(updated_reactor_state.nft_puts)) == 0
+  expected_ft_adds = {}
+  expected_ft_adds[sample_token_id1] = True
+  assert updated_reactor_state.ft_adds == dumps(expected_ft_adds)
+  
   expected_ft_balances_updates = {}
   expected_ft_balances_updates[sample_token_id1] = 2
   assert updated_reactor_state.ft_balances_updates == dumps(expected_ft_balances_updates)
@@ -205,6 +210,12 @@ def test_atomicalsconsensus_OP_FT_BALANCE_ADD_incoming_max_int_test():
   assert len(loads(updated_reactor_state.nft_balances_updates)) == 0 
   assert len(loads(updated_reactor_state.ft_withdraws)) == 0 
   assert len(loads(updated_reactor_state.nft_withdraws)) == 0 
+  assert len(loads(updated_reactor_state.ft_adds)) == 1
+  assert len(loads(updated_reactor_state.nft_puts)) == 0
+  expected_ft_adds = {}
+  expected_ft_adds[sample_token_id1] = True
+  assert updated_reactor_state.ft_adds == dumps(expected_ft_adds)
+ 
 
 def test_atomicalsconsensus_OP_FT_BALANCE_ADD_incoming_multiple_adds_fail():
   with pytest.raises(AtomicalConsensusExecutionError) as exc: 
