@@ -148,6 +148,8 @@ def test_execute_deploy_script2():
     nft_balances_updates = loads(result_context.nft_balances_updates)
     ft_withdraws = loads(result_context.ft_withdraws)
     nft_withdraws = loads(result_context.nft_withdraws)
+    ft_adds = loads(result_context.ft_adds)
+    nft_puts = loads(result_context.nft_puts)
     
     assert state_hash.hex() == '71daaf262004b5778dfb085daf074cf22a9e4c6f60eb8700974ba6bd3cc2b156'
     assert len(state) == 0 
@@ -161,6 +163,8 @@ def test_execute_deploy_script2():
     assert len(nft_balances_updates) == 0 
     assert len(ft_withdraws) == 0 
     assert len(nft_withdraws) == 0 
+    assert len(nft_puts) == 0 
+    assert len(ft_adds) == 0 
 
  
  

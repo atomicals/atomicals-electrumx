@@ -89,10 +89,6 @@ def test_atomicalsconsensus_OP_KV_PUT_1():
     assert len(ft_withdraws) == 0 
     assert len(nft_withdraws) == 0 
 
-  #assert exc.value.error_code == 0
-  #assert exc.value.script_error == 61
-  #assert exc.value.script_error_op_num == 2
- 
 def test_atomicalsconsensus_OP_KV_PUT_2():
   payload = {}  
   request_tx_context = RequestTxContext(coin, mock_tx_hash, mock_tx, payload)
