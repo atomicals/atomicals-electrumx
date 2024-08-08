@@ -509,7 +509,7 @@ class AtomicalsTransferBlueprintBuilder:
                     output_colored_map[expected_output_index] = {"atomicals": {}}
                 output_colored_map[expected_output_index]["atomicals"][atomical_id] = atomical_info
                 remaining_value -= expected_value
-            if remaining_value > 0:
+            if remaining_value == atomical_info.atomical_value:
                 nfts_burned[atomical_id] = remaining_value
         return AtomicalNftOutputBlueprintAssignmentSummary(output_colored_map, nfts_burned)
 
