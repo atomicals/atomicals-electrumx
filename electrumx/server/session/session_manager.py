@@ -16,6 +16,7 @@ from aiorpcx import RPCError, run_in_thread, serve_rs, serve_ws
 
 from electrumx.lib import util
 from electrumx.lib.atomicals_blueprint_builder import (
+    AtomicalColoredOutput,
     AtomicalsTransferBlueprintBuilder,
     AtomicalsValidation,
     AtomicalsValidationError,
@@ -1125,7 +1126,10 @@ class SessionManager:
                         result[_i.txin_index].append(_data)
             return result
 
-        def make_transfer_outputs(result, outputs: Dict) -> Dict[int, List[Dict]]:
+        def make_transfer_outputs(
+            result: Dict[int, List[Dict]],
+            outputs: Dict[int, Dict[str, Dict[bytes, AtomicalColoredOutput]]],
+        ) -> Dict[int, List[Dict]]:
             for k, v in outputs.items():
                 for _atomical_id, _output in v["atomicals"].items():
                     _compact_atomical_id = location_id_bytes_to_compact(_atomical_id)

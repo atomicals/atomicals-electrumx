@@ -1611,18 +1611,13 @@ def test_custom_colored_nft_normal():
         b"9\x12A\xaa\xbe\xa9\xe1\xccu\xd1\x86,\xc8\xc5ep)_\x92\xcdh\x8e\x0f\xeb \xc0/]\x9b\xf3\x87g\x00\x00\x00\x00"
     )
     tx, tx_hash = coin.DESERIALIZER(raw_tx, 0).read_tx_and_hash()
-    operation_found_at_inputs = parse_protocols_operations_from_witness_array(tx, tx_hash, True)
-    # try to custom nft to output 1
-    operation_found_at_inputs["payload"]["6787f39b5d2fc020eb0f8e68cd925f297065c5c82c86d175cce1a9beaa411239i0"] = {
-        1: 546
-    }
     atomicals_spent_at_inputs = {
         0: [
             {
                 "atomical_id": subject_atomical_id,
                 "location_id": b"not_used",
                 "data": b"not_used",
-                "data_value": {"sat_value": 546, "atomical_value": 546},
+                "data_value": {"sat_value": 1000, "atomical_value": 1000},
             }
         ]
     }
@@ -1634,6 +1629,11 @@ def test_custom_colored_nft_normal():
             "type": "NFT",
         }
 
+    operation_found_at_inputs = parse_protocols_operations_from_witness_array(tx, tx_hash, True)
+    # try to custom nft to output 1
+    operation_found_at_inputs["payload"]["6787f39b5d2fc020eb0f8e68cd925f297065c5c82c86d175cce1a9beaa411239i0"] = {
+        1: 1000
+    }
     blueprint_builder = AtomicalsTransferBlueprintBuilder(
         MockLogger(),
         atomicals_spent_at_inputs,
@@ -1646,33 +1646,16 @@ def test_custom_colored_nft_normal():
     )
     nft_output_blueprint = blueprint_builder.get_nft_output_blueprint()
     assert len(nft_output_blueprint.outputs) == 1
+    assert len(nft_output_blueprint.nfts_burned) == 0
     ft_output_blueprint = blueprint_builder.get_ft_output_blueprint()
-    assert ft_output_blueprint.cleanly_assigned == True
+    assert ft_output_blueprint.cleanly_assigned is True
     assert len(ft_output_blueprint.outputs) == 0
     assert ft_output_blueprint.fts_burned == {}
-    assert blueprint_builder.get_are_fts_burned() == False
+    assert blueprint_builder.get_are_fts_burned() is False
 
     operation_found_at_inputs["payload"]["6787f39b5d2fc020eb0f8e68cd925f297065c5c82c86d175cce1a9beaa411239i0"] = {
         "1": 546
     }
-    atomicals_spent_at_inputs = {
-        0: [
-            {
-                "atomical_id": subject_atomical_id,
-                "location_id": b"not_used",
-                "data": b"not_used",
-                "data_value": {"sat_value": 546, "atomical_value": 546},
-            }
-        ]
-    }
-
-    def mock_mint_fetcher(self, atomical_id):
-        return {
-            "atomical_id": atomical_id,
-            # set for nft
-            "type": "NFT",
-        }
-
     blueprint_builder = AtomicalsTransferBlueprintBuilder(
         MockLogger(),
         atomicals_spent_at_inputs,
@@ -1685,11 +1668,32 @@ def test_custom_colored_nft_normal():
     )
     nft_output_blueprint = blueprint_builder.get_nft_output_blueprint()
     assert len(nft_output_blueprint.outputs) == 1
+    assert len(nft_output_blueprint.nfts_burned) == 0
     ft_output_blueprint = blueprint_builder.get_ft_output_blueprint()
-    assert ft_output_blueprint.cleanly_assigned == True
+    assert ft_output_blueprint.cleanly_assigned is True
     assert len(ft_output_blueprint.outputs) == 0
     assert ft_output_blueprint.fts_burned == {}
-    assert blueprint_builder.get_are_fts_burned() == False
+    assert blueprint_builder.get_are_fts_burned() is False
+
+    operation_found_at_inputs["payload"] = {}
+    blueprint_builder = AtomicalsTransferBlueprintBuilder(
+        MockLogger(),
+        atomicals_spent_at_inputs,
+        operation_found_at_inputs,
+        tx_hash,
+        tx,
+        mock_mint_fetcher,
+        True,
+        True,
+    )
+    nft_output_blueprint = blueprint_builder.get_nft_output_blueprint()
+    assert len(nft_output_blueprint.outputs) == 0
+    assert len(nft_output_blueprint.nfts_burned) == 1
+    ft_output_blueprint = blueprint_builder.get_ft_output_blueprint()
+    assert ft_output_blueprint.cleanly_assigned is True
+    assert len(ft_output_blueprint.outputs) == 0
+    assert ft_output_blueprint.fts_burned == {}
+    assert blueprint_builder.get_are_fts_burned() is False
 
 
 def test_partially_colored_spends_are_payments_satisfied_checks():
