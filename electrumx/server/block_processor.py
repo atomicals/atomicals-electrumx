@@ -12,7 +12,7 @@ from typing import TYPE_CHECKING, Callable, List, Optional, Sequence, Tuple, Typ
 
 from aiorpcx import CancelledError, run_in_thread
 
-from electrumx.lib.atomicals_blueprint_builder import AtomicalsTransferBlueprintBuilder
+from electrumx.lib.atomicals_blueprint_builder import AtomicalColoredOutputNft, AtomicalsTransferBlueprintBuilder
 from electrumx.lib.hash import HASHX_LEN, double_sha256, hash_to_hex_str
 from electrumx.lib.script import (
     SCRIPTHASH_LEN,
@@ -2153,7 +2153,7 @@ class BlockProcessor:
             put_general_data(b"po" + location, txout.pk_script)
             for atomical_id, atomical_info in value_info["atomicals"].items():
                 # Only allow state or event updates if it is not immutable
-                if not atomical_info.mint_info.get("$immutable"):
+                if not atomical_info.input_summary_info.mint_info.get("$immutable"):
                     if operations_found_at_inputs:
                         if operations_found_at_inputs["op"] == "mod":
                             self.put_op_data(tx_num, tx_hash, "mod")

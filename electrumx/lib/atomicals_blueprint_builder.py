@@ -441,9 +441,11 @@ class AtomicalsTransferBlueprintBuilder:
                     map_output_idxs_for_atomicals[expected_output_index] = map_output_idxs_for_atomicals.get(
                         expected_output_index
                     ) or {"atomicals": {}}
-                    map_output_idxs_for_atomicals[expected_output_index]["atomicals"][
-                        atomical_id
-                    ] = atomical_summary_info
+                    map_output_idxs_for_atomicals[expected_output_index]["atomicals"][atomical_id] = (
+                        AtomicalColoredOutputNft(
+                            atomical_summary_info.sat_value, atomical_summary_info.atomical_value, atomical_summary_info
+                        )
+                    )
                 if found_atomical_at_input:
                     next_output_idx += 1
             return AtomicalNftOutputBlueprintAssignmentSummary(map_output_idxs_for_atomicals)
@@ -459,7 +461,11 @@ class AtomicalsTransferBlueprintBuilder:
                 map_output_idxs_for_atomicals[expected_output_index] = map_output_idxs_for_atomicals.get(
                     expected_output_index
                 ) or {"atomicals": {}}
-                map_output_idxs_for_atomicals[expected_output_index]["atomicals"][atomical_id] = atomical_summary_info
+                map_output_idxs_for_atomicals[expected_output_index]["atomicals"][atomical_id] = (
+                    AtomicalColoredOutputNft(
+                        atomical_summary_info.sat_value, atomical_summary_info.atomical_value, atomical_summary_info
+                    )
+                )
             return AtomicalNftOutputBlueprintAssignmentSummary(map_output_idxs_for_atomicals)
 
     @classmethod
@@ -484,7 +490,9 @@ class AtomicalsTransferBlueprintBuilder:
             output_colored_map[expected_output_index] = output_colored_map.get(expected_output_index) or {
                 "atomicals": {}
             }
-            output_colored_map[expected_output_index]["atomicals"][atomical_id] = atomical_summary_info
+            output_colored_map[expected_output_index]["atomicals"][atomical_id] = AtomicalColoredOutputNft(
+                atomical_summary_info.sat_value, atomical_summary_info.atomical_value, atomical_summary_info
+            )
             expected_output_index_incrementing += 1
         return AtomicalNftOutputBlueprintAssignmentSummary(output_colored_map)
 
