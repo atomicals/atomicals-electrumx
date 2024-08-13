@@ -30,7 +30,7 @@ import hashlib
 import hmac
 
 from electrumx.lib.util import bytes_to_int, hex_to_bytes, int_to_bytes
-
+from Crypto.Hash import SHA512
 _sha256 = hashlib.sha256
 _new_hash = hashlib.new
 _hmac_digest = hmac.digest
@@ -46,7 +46,24 @@ def double_sha256(x):
     """SHA-256 of SHA-256, as used extensively in bitcoin."""
     return sha256(sha256(x))
 
+def sha512_256(x):
+    '''SHA-512/256'''
+    firsthash = SHA512.new(truncate="256")
+    firsthash.update(x)
+    return firsthash.digest()
 
+def sha512(x):
+    '''SHA-512'''
+    firsthash = SHA512.new()
+    firsthash.update(x)
+    return firsthash.digest()
+
+def sha512_224(x):
+    '''SHA-512/224'''
+    firsthash = SHA512.new(truncate="224")
+    firsthash.update(x)
+    return firsthash.digest()
+	
 def hash_to_hex_str(x):
     """Convert a big-endian binary hash to displayed hex string.
 

@@ -219,6 +219,15 @@ def is_compact_atomical_id(value):
         return True
     return False
 
+# Safely serialize a tx and validate the expected tx_hash matches
+def serialize_tx_safe(coin, tx_hash, tx):
+    raw_tx = tx.serialize()
+    _tx, _tx_hash = coin.DESERIALIZER(raw_tx, 0).read_tx_and_hash()
+    assert(_tx == tx)
+    assert tx_hash == _tx_hash
+    del _tx
+    del _tx_hash
+    return raw_tx
 
 # Convert the compact string form to the expanded 36 byte sequence
 def compact_to_location_id_bytes(value):
@@ -714,6 +723,50 @@ def get_mint_info_op_factory(coin, tx, tx_hash, op_found_struct, atomicals_spent
                 )
                 return None, None
             mint_info["$immutable"] = True
+    ############################################
+    #
+    # Atomicals Virtual Machine (AVM) Mint Operations
+    #
+    ############################################
+    elif op_found_struct['op'] == 'def' and op_found_struct['input_index'] == 0:
+        mint_info['type'] = 'PROTOCOL'
+        # With AVMFactory the control fields are in the top level payload not the mint_info
+        # The reason is basically to simplify and optimize definitions
+        protocol = payload.get('p')
+        if isinstance(protocol, str) and protocol == '':
+            logger.warning(f'AVMFactory protocol name is invalid detected empty str {hash_to_hex_str(tx_hash)}. Skipping....')
+            return None, None
+        logger.debug(f'NFT request_protocol protocol name p {hash_to_hex_str(tx_hash)}, {protocol} {mint_info}')
+        if not isinstance(protocol, str) or not is_valid_protocol_string_name(protocol):
+            logger.warning(f'NFT request_protocol name p is invalid {hash_to_hex_str(tx_hash)}, {protocol} {mint_info}. Skipping....')
+            return None, None 
+        mint_info['$request_protocol'] = protocol
+        # TODO: Perform sanity checks on the payload here...
+    
+    elif op_found_struct['op'] == 'new' and op_found_struct['input_index'] == 0:
+        mint_info['type'] = 'CONTRACT'
+        # With AVMFactory the control fields are in the top level payload not the mint_info
+        # The reason is basically to simplify and optimize definitions
+        contract_name = payload.get('name')
+        if isinstance(contract_name, str) and contract_name == '':
+            logger.warning(f'AVMFactory contract_name is invalid detected empty str {hash_to_hex_str(tx_hash)}. Skipping....')
+            return None, None
+        logger.debug(f'CONTRACT name {hash_to_hex_str(tx_hash)}, {contract_name} {mint_info}')
+        # Contract name can be empty
+        if isinstance(contract_name, str) and not is_valid_contract_string_name(contract_name):
+            logger.warning(f'CONTRACT name is invalid {hash_to_hex_str(tx_hash)}, {contract_name} {mint_info}. Skipping....')
+            return None, None 
+        # If contract name is set then assign request_contract
+        if contract_name:
+            mint_info['$request_contract'] = contract_name
+        protocol_name = payload.get('p')
+        if not isinstance(protocol_name, str) or not is_valid_protocol_string_name(protocol_name):
+            logger.warning(f'CONTRACT p is invalid {hash_to_hex_str(tx_hash)}, {protocol_name} {mint_info}. Skipping....')
+            return None, None 
+        mint_info['$instance_of_protocol'] = protocol_name
+
+        logger.debug(f'CONTRACT name {hash_to_hex_str(tx_hash)}, {protocol_name} {contract_name} {mint_info}')
+        # TODO: Perform sanity checks on the payload here...
 
     ############################################
     #
@@ -1059,6 +1112,27 @@ def is_valid_container_string_name(container_name):
         return True
     return False
 
+# A valid protocol string must begin with a-z0-9 and have up to 9 characters after it 
+# Including a-z0-9
+def is_valid_protocol_string_name(protocol_name):
+    if not is_valid_namebase_string_name(protocol_name):
+        return False
+    # Protocol names must start with alpha and maximum length 16
+    m = re.compile(r'^[a-z][a-z0-9_]{0,15}$')
+    if m.match(protocol_name):
+        return True
+    return False 
+
+# A valid contract string must begin with a-z0-9 and have up to 9 characters after it 
+# Including a-z0-9
+def is_valid_contract_string_name(contract_name):
+    if not is_valid_namebase_string_name(contract_name):
+        return False
+    # Contract names must start with alpha and maximum length 16
+    m = re.compile(r'^[a-z][a-z0-9]{0,15}$')
+    if m.match(contract_name):
+        return True
+    return False 
 
 # Is valid container item name
 # Including a-z0-9 and hyphen's "-"
@@ -1140,6 +1214,10 @@ def parse_operation_from_script(script, n):
             atom_op_decoded = "dmt"  # dmt - Mint tokens of distributed mint type (dft)
         elif atom_op == "03646174":
             atom_op_decoded = "dat"  # dat - Store data on a transaction (dat)
+        elif atom_op == "03646566":   
+            atom_op_decoded = "def"  # def - Define avm protocol
+        elif atom_op == "036e6577":   
+            atom_op_decoded = "new"  # new - Instantiate new avm reactor contract from a protocol
         if atom_op_decoded:
             return atom_op_decoded, parse_atomicals_data_definition_operation(script, n + three_letter_op_len)
 

@@ -35,6 +35,7 @@ from electrumx.lib.util import (
     unpack_le_uint64_from,
 )
 from electrumx.lib.util_atomicals import (
+    serialize_tx_safe,
     DMINT_PATH,
     MINT_REALM_CONTAINER_TICKER_COMMIT_REVEAL_DELAY_BLOCKS,
     MINT_SUBNAME_COMMIT_PAYMENT_DELAY_BLOCKS,
@@ -65,6 +66,8 @@ from electrumx.lib.util_atomicals import (
     is_valid_realm_string_name,
     is_valid_regex,
     is_valid_subrealm_string_name,
+    is_valid_protocol_string_name,
+    is_valid_contract_string_name,
     is_valid_ticker_string,
     is_within_acceptable_blocks_for_general_reveal,
     is_within_acceptable_blocks_for_name_reveal,
@@ -76,6 +79,17 @@ from electrumx.lib.util_atomicals import (
     validate_dmitem_mint_args_with_container_dmint,
     validate_rules_data,
 )
+from electrumx.lib.avm.avm import (
+    AVMFactory
+)
+from electrumx.lib.avm.util import (
+    validate_protocol_definition, 
+    RequestBlockchainContext, 
+    RequestTxContext,
+    ResponseInterpretParams,
+    ReactorContext
+)
+
 from electrumx.server.daemon import Daemon, DaemonError
 from electrumx.server.db import COMP_TXID_LEN, DB, FlushData
 from electrumx.server.history import TXNUM_LEN
@@ -282,6 +296,9 @@ class BlockProcessor:
         self.distmint_data_cache = {}  # Caches the distributed mints created
         self.state_data_cache = {}  # Caches the state updates
         self.op_data_cache = {}  # Caches the tx op
+        self.protocol_data_cache = {}       # Caches the protocols created
+        self.reactor_data_cache = {}        # Caches the reactors created
+        self.reactor_states_cache = {}      # Caches the reactor states
         self.db_deletes = []
 
         # If the lock is successfully acquired, in-memory chain state
@@ -502,6 +519,9 @@ class BlockProcessor:
             self.distmint_data_cache,
             self.state_data_cache,
             self.op_data_cache,
+			self.protocol_data_cache, 
+			self.reactor_data_cache, 
+			self.reactor_states_cache
         )
 
     async def flush(self, flush_utxos):
@@ -575,6 +595,36 @@ class BlockProcessor:
     def get_atomicals_block_txs(self, height):
         return self.db.get_atomicals_block_txs(height)
 
+    # Helper method to validate if the transaction correctly cleanly assigns all FT (ARC20) tokens
+    # This method simulates coloring FT's according to split and regular rules
+    # Note: This does not apply to mempool but only prevout utxos that are confirmed
+    def validate_ft_rules_raw_tx(self, raw_tx):
+        # Deserialize the transaction
+        tx, tx_hash = self.coin.DESERIALIZER(bytes.fromhex(raw_tx), 0).read_tx_and_hash()
+        # Determine if there are any other operations at the transfer 
+        operations_found_at_inputs = parse_protocols_operations_from_witness_array(tx, tx_hash, True)
+        # Build the map of the atomicals potentiall spent at the tx
+        atomicals_spent_at_inputs = self.build_atomicals_spent_at_inputs_for_validation_only(tx)
+        # Build a structure of organizing into NFT and FTs
+        # Note: We do not validate anything with NFTs, just FTs
+        # Build the "blueprint" for how to assign all atomicals
+        blueprint_builder = AtomicalsTransferBlueprintBuilder(self.logger, atomicals_spent_at_inputs, operations_found_at_inputs, tx_hash, tx, self.get_atomicals_id_mint_info, True, self.is_custom_coloring_activated(self.height))
+        ft_output_blueprint = blueprint_builder.get_ft_output_blueprint() 
+        # Log that there were tokens burned due to not being cleanly assigned
+        if blueprint_builder.get_are_fts_burned():
+            encoded_atomicals_spent_at_inputs = encode_atomical_ids_hex(atomicals_spent_at_inputs)
+            encoded_ft_output_blueprint = auto_encode_bytes_items(encode_atomical_ids_hex(ft_output_blueprint))
+            outputs = encoded_ft_output_blueprint['outputs']
+            fts_burned = encoded_ft_output_blueprint['fts_burned']
+            raise AtomicalsValidationError(
+                f'Invalid FT token inputs/outputs:\n'
+                f'tx_hash={hash_to_hex_str(tx_hash)}\n'
+                f'operations_found_at_inputs={operations_found_at_inputs}\n'
+                f'atomicals_spent_at_inputs={encoded_atomicals_spent_at_inputs}\n'
+                f'ft_output_blueprint.outputs={outputs}\n'
+                f'ft_output_blueprint.fts_burned={fts_burned}'
+            )
+    
     # Query general data including the cache
     def get_general_data_with_cache(self, key):
         cache = self.general_data_cache.get(key)
@@ -584,6 +634,16 @@ class BlockProcessor:
                 self.general_data_cache[key] = cache
         return cache
 
+    def get_atomicals_id_mint_data(self, atomical_id):
+        atomical_mint_data_key = b'md' + atomical_id
+        cache = self.general_data_cache.get(atomical_mint_data_key)
+        if cache:
+            return loads(cache)
+        db_mint_value = self.db.utxo_db.get(atomical_mint_data_key)
+        if not db_mint_value:
+            return None
+        return loads(db_mint_value)
+            
     # Get the mint information and LRU cache it for fast retrieval
     # Used for quickly getting the mint information for an atomical
     def get_atomicals_id_mint_info(self, atomical_id, with_cache):
@@ -1344,40 +1404,107 @@ class BlockProcessor:
                 self.realm_data_cache,
             )
         return True
-
+    
     def create_or_delete_container_entry_if_requested(self, mint_info, height, Delete=False):
         request_container = mint_info.get("$request_container")
         if not request_container:
             # No name was requested, consider the operation successful noop
-            return True
+            return True 
 
         if not is_valid_container_string_name(request_container):
-            return False
-
+            return False 
+        
         # Also check that there is no candidates already committed earlier than the current one
         status, atomical_id, candidates = self.get_effective_container(request_container, height)
         for candidate in candidates:
             if candidate["tx_num"] < mint_info["commit_tx_num"]:
                 return False
-        if Delete:
-            self.delete_name_element_template(
-                b"co",
-                b"",
-                request_container,
-                mint_info["commit_tx_num"],
-                mint_info["id"],
-                self.container_data_cache,
-            )
-        else:
-            self.put_name_element_template(
-                b"co",
-                b"",
-                request_container,
-                mint_info["commit_tx_num"],
-                mint_info["id"],
-                self.container_data_cache,
-            )
-        return True
+        if Delete: 
+            self.delete_name_element_template(b'co', b'', request_container, mint_info['commit_tx_num'], mint_info['id'], self.container_data_cache)
+        else: 
+            self.put_name_element_template(b'co', b'', request_container, mint_info['commit_tx_num'], mint_info['id'], self.container_data_cache)
+        return True 
+
+    def create_or_delete_protocol_entry_if_requested(self, mint_info, height, Delete=False):
+        request_protocol = mint_info.get('$request_protocol')
+        if not request_protocol:
+            # No name was requested, consider the operation successful noop
+            return True 
+
+        if not is_valid_protocol_string_name(request_protocol):
+            return False 
+        
+        self.logger.info(f'create_or_delete_protocol_entry_if_requested request_protocol={request_protocol}')
+        # Also check that there is no candidates already committed earlier than the current one
+        status, atomical_id, candidates = self.get_effective_protocol(request_protocol, height)
+        for candidate in candidates:
+            if candidate['tx_num'] < mint_info['commit_tx_num']:
+                return False
+        if Delete: 
+            self.delete_name_element_template(b'pr', b'', request_protocol, mint_info['commit_tx_num'], mint_info['id'], self.protocol_data_cache)
+        else: 
+            self.put_name_element_template(b'pr', b'', request_protocol, mint_info['commit_tx_num'], mint_info['id'], self.protocol_data_cache)
+        return True 
+    
+    def create_or_delete_contract_entry_if_requested(self, protocol_atomical_id, mint_info, tx_hash, tx, header, protocol_mint_data, operations_found_at_inputs, atomicals_spent_at_inputs, height, Delete=False):
+        request_contract = mint_info.get('$request_contract')
+        if not request_contract:
+            # No name was requested, consider the operation successful noop
+            return True 
+
+        if not is_valid_contract_string_name(request_contract):
+            return False 
+        
+        # Also check that there is no candidates already committed earlier than the current one
+        status, atomical_id, candidates = self.get_effective_contract(request_contract, height)
+        for candidate in candidates:
+            if candidate['tx_num'] < mint_info['commit_tx_num']:
+                return False
+        if Delete: 
+            self.delete_name_element_template(b'cr', b'', request_contract, mint_info['commit_tx_num'], mint_info['id'], self.reactor_data_cache)
+            # We can use dummy reactor context for delete case
+            self.put_or_delete_reactor_states(mint_info['id'], None, height, True)
+        else: 
+            # 
+            # Add general blockchain context such as headers and height
+            #
+            headers = {}
+            # Todo add the last N=1000 headers potentially
+            headers[str(height)] = header.hex()
+            blockchain_context = RequestBlockchainContext(headers, height)
+            # Note atomicals_spent_at_inputs can be modified if the contract absorbs the tokens
+            avm_factory = AVMFactory(self.logger, self.get_atomicals_id_mint_info, blockchain_context, protocol_mint_data)
+            #
+            #
+            # Details about the transaction request itself
+            #
+            #
+            request_tx_context = RequestTxContext(self.coin, tx_hash, tx, operations_found_at_inputs.get('payload'))
+            # Note atomicals_spent_at_inputs can be modified if the contract absorbs the tokens
+            nft_incoming, ft_incoming = avm_factory.create_token_incoming_structs(atomicals_spent_at_inputs)
+            # Create the initial new reactor context which has no state_hash, no state and only optionally nft_incoming and ft_incomin
+            new_reactor_context = ReactorContext(None, dumps({}), dumps({}), dumps({}), dumps(nft_incoming), dumps(ft_incoming), dumps({}), dumps({}), dumps({}), dumps({}),  dumps({}), dumps({}), dumps({}), dumps({}))
+
+            # We have everything we need to validate an execute call
+            deploy_command = avm_factory.create_deploy_command(request_tx_context, atomicals_spent_at_inputs, new_reactor_context)
+            if not deploy_command.is_valid:
+                self.logger.info(f'create_or_delete_atomical: deploy of reactor for txid={hash_to_hex_str(tx_hash)} protocol_id={location_id_bytes_to_compact(protocol_atomical_id)} is_valid=False in Transaction {hash_to_hex_str(tx_hash)}. Skipping...') 
+                return None 
+            # Validated the execute call can proceed, now execute it
+            deploy_command_result = deploy_command.execute()
+            if not deploy_command_result.success:
+                self.logger.info(f'create_or_delete_atomical: deploy of reactor for txid={hash_to_hex_str(tx_hash)} protocol_id={location_id_bytes_to_compact(protocol_atomical_id)} failed in Transaction {hash_to_hex_str(tx_hash)}. Skipping...') 
+                return False 
+            
+            if not self.validate_and_create_nft_mint_utxo(mint_info, tx_hash):
+                self.logger.info(f'create_or_delete_atomical: validate_and_create_nft_mint_utxo (reactor) returned FALSE in Transaction {hash_to_hex_str(tx_hash)}. Skipping...') 
+                return None
+            
+            new_reactor_atomical_id = mint_info['id']
+            self.logger.info(f'atomical_id={new_reactor_atomical_id} deploy reactor_context: {deploy_command_result.reactor_context}')
+            self.put_or_delete_reactor_states(new_reactor_atomical_id, deploy_command_result.reactor_context, height, Delete)
+            self.put_name_element_template(b'cr', b'', request_contract, mint_info['commit_tx_num'], mint_info['id'], self.reactor_data_cache)
+        return True 
 
     def create_or_delete_ticker_entry_if_requested(self, mint_info, height, Delete=False):
         request_ticker = mint_info.get("$request_ticker")
@@ -1753,6 +1880,40 @@ class BlockProcessor:
         self.logger.warning(f"get_dmitem_parent_container_info no_matched_price_point request_dmitem={request_dmitem}")
         return None, None
 
+    def get_latest_reactor_states(self, reactor_id):
+        found_reactor_record = self.reactor_states_cache.get(reactor_id)
+        found_cache_height = None 
+        latest_state_cached = None 
+        if found_reactor_record:
+            for state_key, state_item in sorted(found_reactor_record.items(), reverse=True):
+                found_cache_height = state_key 
+                latest_state_cached = state_item
+                break
+        # As sanity check we also query database and make sure the cache is strictly >= for height than in db  
+        # In the future we can remove this check to speed up processing inside of a block with many tx operating on same contract 
+        latest_height_db, latest_state_db = self.db.get_latest_reactor_states(reactor_id)
+        if latest_height_db and found_cache_height:
+            assert latest_height_db <= found_cache_height
+            return found_cache_height, latest_state_cached
+        if found_cache_height:
+            return found_cache_height, latest_state_cached
+        if latest_height_db:
+            return latest_height_db, latest_state_db
+        return None, None 
+    
+    def put_or_delete_reactor_states(self, reactor_id, reactor_context, height, Delete):
+        self.logger.info(f'put_or_delete_reactor_states reactor_id={location_id_bytes_to_compact(reactor_id)}')
+        found_reactor_record = self.reactor_states_cache.get(reactor_id)
+        if not Delete:
+            if not found_reactor_record:
+                self.reactor_states_cache[reactor_id] = {}
+            self.reactor_states_cache[reactor_id][height] = pickle.dumps(reactor_context)
+        else: 
+            if found_reactor_record:
+                del self.reactor_states_cache[reactor_id][height]
+            db_key = b'rcs' + reactor_id + pack_be_uint32(height)
+            self.db_deletes.append(db_key)
+
     # Check whether to create an atomical NFT/FT
     # Validates the format of the detected input operation and then checks the correct extra data is valid
     # such as realm, container, ticker, etc. Only succeeds if the appropriate names can be assigned
@@ -1931,6 +2092,39 @@ class BlockProcessor:
                     else:
                         self.put_op_data(tx_num, tx_hash, "mint-nft")
 
+        elif valid_create_op_type == 'PROTOCOL':
+            if not self.create_or_delete_protocol_entry_if_requested(mint_info, height, Delete):
+                return None
+            if not Delete:
+                self.logger.info(f'mint-protocol: {hash_to_hex_str(tx_hash)}')
+                self.put_op_data(tx_num, tx_hash, "mint-protocol")
+
+        elif valid_create_op_type == 'CONTRACT':
+            # Ensure that protocol type exists before creating contract instance of it
+            instance_of_protocol = mint_info.get('$instance_of_protocol')
+            if instance_of_protocol:
+                status, protocol_atomical_id, not_used_candidates = self.get_effective_protocol(instance_of_protocol, height)
+                if status != 'verified' or not protocol_atomical_id:
+                    self.logger.warning(f'create_or_delete_atomical: invalid_instance_of_protocol_not_found: instance_of_protocol={instance_of_protocol}, txid={hash_to_hex_str(tx_hash)}. Skipping...') 
+                    return None
+                mint_info['$instance_of_protocol_id'] = location_id_bytes_to_compact(protocol_atomical_id)
+            else: 
+                self.logger.warning(f'create_or_delete_atomical: invalid_instance_of_protocol, txid={hash_to_hex_str(tx_hash)}. Skipping...') 
+                return None   
+            
+            if operations_found_at_inputs.get('input_index') != 0:
+                return None 
+            
+            protocol_mint_data = self.get_atomicals_id_mint_data(protocol_atomical_id)
+            if not protocol_mint_data:
+                raise IndexError(f'create_or_delete_atomical:protocol_mint_data not found {location_id_bytes_to_compact(protocol_atomical_id)} {mint_info}')
+            
+            if not self.create_or_delete_contract_entry_if_requested(protocol_atomical_id, mint_info, tx_hash, tx, header, protocol_mint_data, operations_found_at_inputs, atomicals_spent_at_inputs, height, Delete):
+                return None
+            
+            if not Delete:   
+                self.logger.info(f'mint-reactor: {hash_to_hex_str(tx_hash)}')
+                self.put_op_data(tx_num, tx_hash, "mint-reactor")
         elif valid_create_op_type == "FT":
             # Add $max_supply informative property
             if mint_info["subtype"] == "decentralized":
@@ -2279,7 +2473,98 @@ class BlockProcessor:
             )
 
         return blueprint_builder
+    
+    def get_reactor_mint_info_and_data_by_id(self, payload, height):
+        if not payload:
+            return None, None
+        reactor_id = payload.get('id')
+        reactor_name = payload.get('n')
+        # Cannot set both reactor id and name, just one or the other
+        if reactor_id and reactor_name:
+            return None, None
+        if reactor_id:
+            reactor_mint_info = self.get_base_mint_info_by_atomical_id(reactor_id) # , self.get_atomicals_id_mint_data(reactor_id)
+            if reactor_mint_info.get('type') != 'CONTRACT':
+                raise IndexError(f'get_reactor_mint_info_and_data_by_id invalid contract type {location_id_bytes_to_compact(reactor_id)}')
+            return reactor_mint_info, self.get_atomicals_id_mint_data(reactor_mint_info['atomical_id'])
+        if reactor_name: 
+            status, found_reactor_atomical_id, _ = self.get_effective_contract(reactor_name, height)
+            if status == 'verified' and found_reactor_atomical_id: 
+                reactor_mint_info = self.get_base_mint_info_by_atomical_id(found_reactor_atomical_id)
+                if reactor_mint_info.get('type') != 'CONTRACT':
+                    raise IndexError(f'get_reactor_mint_info_and_data_by_id invalid contract type look up by reactor_name {reactor_name} {location_id_bytes_to_compact(reactor_id)}')
+                assert found_reactor_atomical_id == reactor_mint_info['atomical_id']
+                return reactor_mint_info, self.get_atomicals_id_mint_data(found_reactor_atomical_id)
+        return None, None
+    
+    # Create or delete the call data and transformations
+    def create_or_delete_call(self, operations_found_at_inputs, atomicals_spent_at_inputs, tx, tx_hash, tx_num, header, height, Delete):
+        if not operations_found_at_inputs or operations_found_at_inputs['op'] != 'c' or operations_found_at_inputs['input_index'] != 0:
+            return None
+        print(f'operations_found_at_inputs={operations_found_at_inputs}')
+        reactor_atomical_mint_info, mint_data = self.get_reactor_mint_info_and_data_by_id(operations_found_at_inputs['payload'], height)      
+        if not reactor_atomical_mint_info:
+            return None 
+        
+        reactor_id = reactor_atomical_mint_info['atomical_id']
+        protocol_id = reactor_atomical_mint_info['mint_info']['$instance_of_protocol_id']
+        protocol_mint_data = self.get_atomicals_id_mint_data(compact_to_location_id_bytes(protocol_id))
+        if not protocol_mint_data:
+            raise IndexError(f'create_or_delete_call:protocol_mint_data not found {location_id_bytes_to_compact(protocol_id)}')
+        
+        # We have the reactor and protocol data
+        # Begin to construct the info for the call
+        #
+        # Reactor state and internal token table balances
+        #
+        latest_reactor_state_height, latest_reactor_state, = self.get_latest_reactor_states(reactor_id)
+        if not latest_reactor_state_height:
+            raise IndexError(f'Missing reactor state: {location_id_bytes_to_compact(reactor_id)}')
+        
+        # 
+        # General blockchain context such as headers and height
+        #
+        headers = {}
+        # Todo add the last N=1000 headers potentially
+        headers[str(height)] = header.hex()
+        blockchain_context = RequestBlockchainContext(headers, height)
 
+        # Note atomicals_spent_at_inputs can be modified if the contract absorbs the tokens
+        avm_factory = AVMFactory(self.logger, self.get_atomicals_id_mint_info, blockchain_context, protocol_mint_data)
+        #
+        #
+        # Details about the transaction request itself
+        #
+        #
+        request_tx_context = RequestTxContext(self.coin, tx_hash, tx, operations_found_at_inputs.get('payload'))
+        nft_incoming, ft_incoming = avm_factory.create_token_incoming_structs(atomicals_spent_at_inputs)
+
+        print(f'latest_reactor_state={latest_reactor_state}')
+        latest_reactor_state = pickle.loads(latest_reactor_state)
+        print(f'latest_reactor_state decoded={latest_reactor_state}')
+        
+        # Replace with the new incoming tokens
+        latest_reactor_state.nft_incoming = dumps(nft_incoming)
+        latest_reactor_state.ft_incoming = dumps(ft_incoming)
+        # Replace the withdraws with empty cbor
+        latest_reactor_state.nft_withdraws = dumps({})
+        latest_reactor_state.ft_withdraws = dumps({})
+        # We have everything we need to validate an execute call
+        call_command = avm_factory.create_call_command(request_tx_context, atomicals_spent_at_inputs, latest_reactor_state, reactor_atomical_mint_info)
+        if not call_command.is_valid:
+            self.logger.info(f'create_or_delete_call: call of reactor for txid={hash_to_hex_str(tx_hash)} protocol_id={protocol_id} is_valid=False in Transaction {hash_to_hex_str(tx_hash)}. Skipping...') 
+            return None 
+        # Validated the execute call can proceed, now execute it
+        call_command_result = call_command.execute()
+        if not call_command_result.success:
+            self.logger.info(f'create_or_delete_call: call of reactor for txid={hash_to_hex_str(tx_hash)} protocol_id={protocol_id} failed in Transaction {hash_to_hex_str(tx_hash)}. Skipping...') 
+            return False 
+
+        self.put_or_delete_reactor_states(reactor_id, call_command_result.reactor_context, height, Delete)
+        # Absorbs all the atomicals tokens because the only way have gotten this far is if a payable method was called
+        atomicals_spent_at_inputs.clear()
+        return True
+    
     # Create or delete data that was found at the location
     def create_or_delete_data_location(self, tx_hash, operations_found_at_inputs, Delete=False):
         if not operations_found_at_inputs or operations_found_at_inputs["op"] != "dat":
@@ -2390,7 +2675,15 @@ class BlockProcessor:
     # Get the effective container considering cache and database
     def get_effective_container(self, container_name, height):
         return self.get_effective_name_template(b"co", container_name, height, self.container_data_cache)
-
+    
+    # Get the effective protocol considering cache and database
+    def get_effective_protocol(self, protocol_name, height):
+        return self.get_effective_name_template(b'pr', protocol_name, height, self.protocol_data_cache)
+    
+    # Get the effective contract considering cache and database
+    def get_effective_contract(self, contract_name, height):
+        return self.get_effective_name_template(b'cr', contract_name, height, self.reactor_data_cache)
+    
     # Get the effective ticker considering cache and database
     def get_effective_ticker(self, ticker_name, height):
         return self.get_effective_name_template(b"tick", ticker_name, height, self.ticker_data_cache)
@@ -2612,6 +2905,15 @@ class BlockProcessor:
         db_mint_value = self.db.utxo_db.get(atomical_mint_data_key)
         if db_mint_value:
             decoded_object = loads(db_mint_value)
+            
+            # Populate specific fields based on type
+            if atomical['type'] == 'PROTOCOL':
+                protocol_success, status = validate_protocol_definition(decoded_object)
+                atomical['protocol_validation'] = {
+                    'success': protocol_success,
+                    'messages': status.get('messages')
+                }
+
             unpacked_data_summary = auto_encode_bytes_elements(decoded_object)
             atomical["mint_data"] = {}
             if unpacked_data_summary is not None:
@@ -2835,6 +3137,20 @@ class BlockProcessor:
                 atomical["mint_info"]["$immutable"] = immutable
             else:
                 atomical["mint_info"]["$immutable"] = False
+        
+        elif atomical['type'] == 'PROTOCOL':
+            # Attach any auxiliary information that was already successfully parsed before
+            request_protocol = init_mint_info.get('$request_protocol')
+            if request_protocol:
+                atomical['mint_info']['$request_protocol'] = request_protocol
+
+        elif atomical['type'] == 'CONTRACT':
+            # Attach any auxiliary information that was already successfully parsed before
+            request_contract = init_mint_info.get('$request_contract')
+            if request_contract:
+                atomical['mint_info']['$request_contract'] = request_contract
+            atomical['mint_info']['$instance_of_protocol'] = init_mint_info.get('$instance_of_protocol')
+            atomical['mint_info']['$instance_of_protocol_id'] = init_mint_info.get('$instance_of_protocol_id')
 
         elif atomical["type"] == "FT":
             subtype = init_mint_info.get("subtype")
@@ -3178,6 +3494,15 @@ class BlockProcessor:
             return request_dmitem, True
         return request_dmitem, False
 
+    # Populate the specific contract request type information
+    def populate_contract_subtype_specific_fields(self, atomical):
+        if atomical['type'] == 'CONTRACT':
+            atomical['$instance_of_protocol'] = atomical['mint_info'].get('$instance_of_protocol')
+            atomical['$instance_of_protocol_id'] = atomical['mint_info'].get('$instance_of_protocol_id')
+        request_contract = atomical['mint_info'].get('$request_contract')
+        if not request_contract: 
+            return None, None
+        
     # Populate the subtype information such as realms, subrealms, containers and tickers
     # An atomical can have a naming element if it passed all the validity checks of the assignment
     # and for that reason there is the concept of "effective" name which is based on a commit/reveal delay pattern
@@ -3213,7 +3538,36 @@ class BlockProcessor:
             # False indicates it is a request for the name, but it was not the current one
             atomical["subtype"] = "request_container"
             return atomical
+        # 
+        # PROTOCOL Type Fields
         #
+        the_name_request, is_atomical_name_verified_found = self.populate_name_subtype_specific_fields(atomical, 'protocol', self.get_effective_protocol, height)
+        if is_atomical_name_verified_found:
+            atomical['subtype'] = 'protocol'
+            atomical['$protocol'] = the_name_request
+            return atomical
+        elif the_name_request:
+            # False indicates it is a request for the name, but it was not the current one
+            atomical['subtype'] = 'request_protocol'
+            return atomical 
+        
+        # 
+        # CONTRACT Type Fields
+        #
+        the_name_request, is_atomical_name_verified_found = self.populate_name_subtype_specific_fields(atomical, 'contract', self.get_effective_contract, height)
+        if is_atomical_name_verified_found:
+            atomical['subtype'] = 'contract'
+            atomical['$contract'] = the_name_request
+            # The method populates all the fields and nothing more needs to be done at this level for contracts
+            self.populate_contract_subtype_specific_fields(atomical)
+            
+            return atomical
+        elif the_name_request:
+            # False indicates it is a request for the name, but it was not the current one
+            atomical['subtype'] = 'request_contract'
+            return atomical 
+        
+        # 
         # TICKER NAME FIELDS
         #
         (
@@ -3657,7 +4011,7 @@ class BlockProcessor:
                     tx, tx_hash, self.is_density_activated(height)
                 )
                 if atomicals_operations_found_at_inputs:
-                    # TODO
+					# TODO
                     # Log information to help troubleshoot
                     size_payload = sys.getsizeof(atomicals_operations_found_at_inputs["payload_bytes"])
                     operation_found = atomicals_operations_found_at_inputs["op"]
@@ -3670,22 +4024,11 @@ class BlockProcessor:
                         f"advance_txs: atomicals_operations_found_at_inputs operation_found={operation_found}, operation_input_index={operation_input_index}, size_payload={size_payload}, tx_hash={hash_to_hex_str(tx_hash)}, commit_txid={hash_to_hex_str(commit_txid)}, commit_index={commit_index}, reveal_location_txid={hash_to_hex_str(reveal_location_txid)}, reveal_location_index={reveal_location_index}"
                     )
 
-                # Color the outputs of any transferred NFT/FT atomicals according to the rules
-                blueprint_builder = self.color_atomicals_outputs(
-                    atomicals_operations_found_at_inputs,
-                    atomicals_spent_at_inputs,
-                    tx,
-                    tx_hash,
-                    tx_num,
-                    height,
-                )
-                for atomical_id in blueprint_builder.get_atomical_ids_spent():
+                # This call modifies the atomicals_spent_at_inputs if contract absorbs NFT/FT
+                request_id = self.create_or_delete_call(atomicals_operations_found_at_inputs, atomicals_spent_at_inputs, tx, tx_hash, tx_num, header, height, False)
+                if request_id:
+                    already_found_valid_operation = True                    
                     has_at_least_one_valid_atomicals_operation = True
-                    self.logger.debug(
-                        f"advance_txs: color_atomicals_outputs atomical_ids_transferred. atomical_id={atomical_id.hex()}, tx_hash={hash_to_hex_str(tx_hash)}"
-                    )
-                    # Double hash the atomical_id to add it to the history to leverage the existing history db for all operations involving the atomical
-                    append_hashX(double_sha256(atomical_id))
 
                 # Track whether we encountered a valid operation so we can skip other steps in the processing pipeline for efficiency
                 already_found_valid_operation = False
@@ -3711,7 +4054,7 @@ class BlockProcessor:
                     )
 
                     if dft_count % 100 == 0:
-                        self.logger.info(f"height={height}, dft_count={dft_count}")
+                        self.logger.info(f'height={height}, dft_count={dft_count}')
 
                 # Create NFT/FT atomicals if it is defined in the tx
                 if not already_found_valid_operation:
@@ -3725,16 +4068,25 @@ class BlockProcessor:
                         tx,
                         tx_hash,
                         False,
-                    )
+                    )                    
                     if created_atomical_id:
                         already_found_valid_operation = True
                         has_at_least_one_valid_atomicals_operation = True
                         atomical_num += 1
                         # Double hash the created_atomical_id to add it to the history to leverage the existing history db for all operations involving the atomical
                         append_hashX(double_sha256(created_atomical_id))
-                        self.logger.debug(
-                            f"advance_txs: create_or_delete_atomical created_atomical_id atomical_id={created_atomical_id.hex()}, tx_hash={hash_to_hex_str(tx_hash)}"
-                        )
+                        self.logger.debug(f'advance_txs: create_or_delete_atomical created_atomical_id atomical_id={created_atomical_id.hex()}, tx_hash={hash_to_hex_str(tx_hash)}')
+
+                # Color the outputs of any transferred NFT/FT atomicals according to the rules
+                # Note: this was moved AFTER create_or_delete_atomical because we must account for clearing entries in atomicals_spent_at_inputs if
+                # the deploy call absorbed atomicals on reactor contract mint.
+                # The atomicals not absorbed by the call or deploy, just get transferred the normal way according to the predefined rules
+                blueprint_builder = self.color_atomicals_outputs(atomicals_operations_found_at_inputs, atomicals_spent_at_inputs, tx, tx_hash, tx_num, height)
+                for atomical_id in blueprint_builder.get_atomical_ids_spent():
+                    has_at_least_one_valid_atomicals_operation = True
+                    self.logger.debug(f'advance_txs: color_atomicals_outputs atomical_ids_transferred. atomical_id={atomical_id.hex()}, tx_hash={hash_to_hex_str(tx_hash)}')
+                    # Double hash the atomical_id to add it to the history to leverage the existing history db for all operations involving the atomical
+                    append_hashX(double_sha256(atomical_id))
 
                 # Check if there were any regular 'dat' files definitions
                 if not already_found_valid_operation:
@@ -3825,18 +4177,9 @@ class BlockProcessor:
                     concatenation_of_tx_hashes_with_valid_atomical_operation.append(tx_hash)
 
                 if has_at_least_one_valid_atomicals_operation:
-                    put_general_data(
-                        b"th" + pack_le_uint32(height) + pack_le_uint64(tx_num) + tx_hash,
-                        tx_hash,
-                    )
-                    # only save the tx has at least one vaild atomical
-                    raw_tx = tx.serialize()
-                    _tx, _tx_hash = self.coin.DESERIALIZER(raw_tx, 0).read_tx_and_hash()
-                    assert _tx == tx
-                    assert _tx_hash == tx_hash
-                    put_general_data(b"rtx" + tx_hash, raw_tx)
-                    del _tx
-                    del _tx_hash
+                    put_general_data(b'th' + pack_le_uint32(height) + pack_le_uint64(tx_num) + tx_hash, tx_hash)
+                    raw_tx = serialize_tx_safe(self.coin, tx_hash, tx)
+                    put_general_data(b'rtx' + tx_hash, raw_tx)
 
             append_hashXs(hashXs)
             update_touched(hashXs)

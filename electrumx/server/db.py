@@ -51,6 +51,8 @@ from electrumx.lib.util_atomicals import (
 from electrumx.server.history import TXNUM_LEN, History
 from electrumx.server.storage import Storage, db_class
 
+import pickle
+
 if TYPE_CHECKING:
     from electrumx.server.env import Env
 
@@ -117,7 +119,12 @@ class FlushData:
     state_adds = attr.ib()  # type: Dict[bytes, Dict[bytes, bytes]]
     # op_adds is for record tx operation of one tx
     op_adds = attr.ib()  # type: Dict[bytes, Dict[bytes]]
-
+    # protocol_adds is for recording protocols
+    protocol_adds = attr.ib()   # type: Dict[bytes, Dict[bytes]
+    # reactor_adds is for recording reactor contracts
+    reactor_adds = attr.ib()   # type: Dict[bytes, Dict[bytes]
+    # reactor_states_adds is for recording reactor stats
+    reactor_states_adds = attr.ib()   # type: Dict[bytes, Dict[bytes]  
 
 COMP_TXID_LEN = 4
 
@@ -428,6 +435,9 @@ class DB:
         assert not flush_data.dmpay_adds
         assert not flush_data.container_adds
         assert not flush_data.distmint_adds
+        assert not flush_data.protocol_adds
+        assert not flush_data.reactor_adds
+        assert not flush_data.reactor_states_adds
         assert not flush_data.state_adds
         assert not flush_data.deletes
         assert not flush_data.undo_infos
@@ -610,6 +620,30 @@ class DB:
             for tx_num, pay_outpoint in v.items():
                 batch_put(key + pack_le_uint64(tx_num), pay_outpoint)
         flush_data.dmpay_adds.clear()
+
+        # protocol data adds
+        # Protocols are grouped by protocol name and distinguished by commit_tx_num
+        # The earliest commit_tx_num is the first-seen registration of the protocol name
+        batch_put = batch.put
+        for key, v in flush_data.protocol_adds.items():
+            for tx_num, atomical_id in v.items():
+                batch_put(key + pack_le_uint64(tx_num), atomical_id)
+        flush_data.protocol_adds.clear()
+
+        # contract data adds
+        # Contracts are grouped by contract name and distinguished by commit_tx_num
+        # The earliest commit_tx_num is the first-seen registration of the contract name
+        batch_put = batch.put
+        for key, v in flush_data.reactor_adds.items():
+            for tx_num, atomical_id in v.items():
+                batch_put(key + pack_le_uint64(tx_num), atomical_id)
+        flush_data.reactor_adds.clear()
+
+        # Add the reactor states
+        for reactor_id, reactor_height_state_map in flush_data.reactor_states_adds.items():
+            for reactor_height, reactor_state in sorted(reactor_height_state_map.items(), reverse=True):
+                batch_put(b'rcs' + reactor_id + pack_be_uint32(reactor_height), pickle.dumps(reactor_state))
+        flush_data.reactor_states_adds.clear()
 
         # New UTXOs
         batch_put = batch.put
@@ -1700,6 +1734,13 @@ class DB:
             lundofile.write(item + "\n")
         lundofile.close()
 
+    def get_latest_reactor_states(self, reactor_id):
+        db_key_prefix = b'rcs' + reactor_id
+        for db_key, db_value in self.utxo_db.iterator(prefix=db_key_prefix, reverse=True):
+            height, = unpack_be_uint32(db_key[-4:])
+            return height, pickle.loads(db_value)
+        return None, None
+    
     def get_name_entries_template(self, db_prefix, subject_encoded):
         db_key_prefix = db_prefix + subject_encoded
         entries = []
