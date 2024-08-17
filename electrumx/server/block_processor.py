@@ -2011,6 +2011,10 @@ class BlockProcessor:
             is_name_type = True
         if mint_info.get("$request_dmitem"):
             is_name_type = True
+        if mint_info.get("$request_protocol"):
+            is_name_type = True
+        if mint_info.get("$request_contract"):
+            is_name_type = True
 
         # Too late to reveal, fail to mint then
         if is_name_type and not is_within_acceptable_blocks_for_name_reveal(
@@ -2092,14 +2096,14 @@ class BlockProcessor:
                     else:
                         self.put_op_data(tx_num, tx_hash, "mint-nft")
 
-        elif valid_create_op_type == 'PROTOCOL':
+        elif self.is_avm_activated(height) and valid_create_op_type == 'PROTOCOL':
             if not self.create_or_delete_protocol_entry_if_requested(mint_info, height, Delete):
                 return None
             if not Delete:
                 self.logger.info(f'mint-protocol: {hash_to_hex_str(tx_hash)}')
                 self.put_op_data(tx_num, tx_hash, "mint-protocol")
 
-        elif valid_create_op_type == 'CONTRACT':
+        elif self.is_avm_activated(height) and valid_create_op_type == 'CONTRACT':
             # Ensure that protocol type exists before creating contract instance of it
             instance_of_protocol = mint_info.get('$instance_of_protocol')
             if instance_of_protocol:
@@ -2123,8 +2127,8 @@ class BlockProcessor:
                 return None
             
             if not Delete:   
-                self.logger.info(f'mint-reactor: {hash_to_hex_str(tx_hash)}')
-                self.put_op_data(tx_num, tx_hash, "mint-reactor")
+                self.logger.info(f'mint-contract: {hash_to_hex_str(tx_hash)}')
+                self.put_op_data(tx_num, tx_hash, "mint-contract")
         elif valid_create_op_type == "FT":
             # Add $max_supply informative property
             if mint_info["subtype"] == "decentralized":
@@ -3843,6 +3847,11 @@ class BlockProcessor:
             self.put_op_data(tx_num, tx_hash, "mint-dft-failed")
             return None
 
+    def is_avm_activated(self, height):
+        if height >= self.coin.ATOMICALS_ACTIVATION_HEIGHT_AVM:
+            return True
+        return False
+    
     def is_atomicals_activated(self, height):
         if height >= self.coin.ATOMICALS_ACTIVATION_HEIGHT:
             return True
@@ -4024,11 +4033,12 @@ class BlockProcessor:
                         f"advance_txs: atomicals_operations_found_at_inputs operation_found={operation_found}, operation_input_index={operation_input_index}, size_payload={size_payload}, tx_hash={hash_to_hex_str(tx_hash)}, commit_txid={hash_to_hex_str(commit_txid)}, commit_index={commit_index}, reveal_location_txid={hash_to_hex_str(reveal_location_txid)}, reveal_location_index={reveal_location_index}"
                     )
 
-                # This call modifies the atomicals_spent_at_inputs if contract absorbs NFT/FT
-                request_id = self.create_or_delete_call(atomicals_operations_found_at_inputs, atomicals_spent_at_inputs, tx, tx_hash, tx_num, header, height, False)
-                if request_id:
-                    already_found_valid_operation = True                    
-                    has_at_least_one_valid_atomicals_operation = True
+                if self.is_avm_activated(height):
+                    # This call modifies the atomicals_spent_at_inputs if contract absorbs NFT/FT
+                    request_id = self.create_or_delete_call(atomicals_operations_found_at_inputs, atomicals_spent_at_inputs, tx, tx_hash, tx_num, header, height, False)
+                    if request_id:
+                        already_found_valid_operation = True                    
+                        has_at_least_one_valid_atomicals_operation = True
 
                 # Track whether we encountered a valid operation so we can skip other steps in the processing pipeline for efficiency
                 already_found_valid_operation = False
