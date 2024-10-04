@@ -47,7 +47,7 @@ from electrumx.server.peers import PeerManager
 from electrumx.server.session import BAD_REQUEST, DAEMON_ERROR
 from electrumx.server.session.http_session import HttpSession
 from electrumx.server.session.rpc_session import LocalRPC
-from electrumx.server.session.util import SESSION_PROTOCOL_MAX, non_negative_integer
+from electrumx.server.session.util import SESSION_PROTOCOL_MAX, assert_tx_hash, non_negative_integer
 from electrumx.version import electrumx_version
 
 if TYPE_CHECKING:
@@ -991,7 +991,7 @@ class SessionManager:
     # Analysis the transaction detail by txid.
     # See BlockProcessor.op_list for the complete op list.
     async def get_transaction_detail(self, tx_id: str, height=None, tx_num=-1):
-        tx_hash = hex_str_to_hash(tx_id)
+        tx_hash = assert_tx_hash(tx_id)
         res = self._tx_detail_cache.get(tx_hash)
         if res:
             # txid maybe the same, this key should add height add key prefix
@@ -1177,7 +1177,7 @@ class SessionManager:
         return auto_encode_bytes_elements(res)
 
     async def get_transaction_detail_batch(self, tx_ids: str):
-        tasks = [self.get_transaction_detail(txid) for txid in tx_ids.split(',')]
+        tasks = [self.get_transaction_detail(assert_tx_hash(tx_id)) for tx_id in tx_ids.split(',')]
         details = await asyncio.gather(*tasks)
         return details
 
