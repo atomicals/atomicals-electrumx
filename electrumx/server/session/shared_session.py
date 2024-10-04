@@ -1007,7 +1007,7 @@ class SharedSession(object):
         tx_hash: the transaction hash as a hexadecimal string
         verbose: passed on to the daemon
         """
-        assert_tx_hash(tx_hash)
+        tx_hash = assert_tx_hash(tx_hash)
         if verbose not in (True, False):
             raise RPCError(BAD_REQUEST, '"verbose" must be a boolean')
 
