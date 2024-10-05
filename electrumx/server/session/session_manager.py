@@ -7,7 +7,7 @@ from asyncio import Event, sleep
 from collections import defaultdict
 from functools import partial
 from ipaddress import IPv4Address, IPv4Network, IPv6Address, IPv6Network
-from typing import TYPE_CHECKING, Dict, List, Optional
+from typing import TYPE_CHECKING, Any, Dict, List, Optional
 
 import attr
 import pylru
@@ -1043,62 +1043,6 @@ class SessionManager:
                 "is_cleanly_assigned": is_cleanly_assigned,
             },
         }
-        operation_type = operation_found_at_inputs.get("op", "") if operation_found_at_inputs else ""
-        if operation_found_at_inputs:
-            payload = operation_found_at_inputs.get("payload")
-            payload_not_none = payload or {}
-            res["info"]["payload"] = payload_not_none
-            if blueprint_builder.is_mint and operation_type in ["dmt", "ft"]:
-                expected_output_index = 0
-                tx_out = tx.outputs[expected_output_index]
-                location = tx_hash + util.pack_le_uint32(expected_output_index)
-                # if save into the db, it means mint success
-                has_atomicals = self.db.get_atomicals_by_location_long_form(location)
-                if len(has_atomicals):
-                    ticker_name = payload_not_none.get("args", {}).get("mint_ticker", "")
-                    status, candidate_atomical_id, _ = self.bp.get_effective_ticker(ticker_name, self.bp.height)
-                    if status:
-                        atomical_id = location_id_bytes_to_compact(candidate_atomical_id)
-                        res["info"] = {
-                            "atomical_id": atomical_id,
-                            "location_id": location_id_bytes_to_compact(location),
-                            "payload": payload,
-                            "outputs": {
-                                expected_output_index: [
-                                    {
-                                        "address": get_address_from_output_script(tx_out.pk_script),
-                                        "atomical_id": atomical_id,
-                                        "type": "FT",
-                                        "index": expected_output_index,
-                                        "value": tx_out.value,
-                                    }
-                                ]
-                            },
-                        }
-            elif operation_type == "nft":
-                if atomicals_receive_at_outputs:
-                    expected_output_index = 0
-                    location = tx_hash + util.pack_le_uint32(expected_output_index)
-                    tx_out = tx.outputs[expected_output_index]
-                    atomical_id = location_id_bytes_to_compact(
-                        atomicals_receive_at_outputs[expected_output_index][-1]["atomical_id"]
-                    )
-                    res["info"] = {
-                        "atomical_id": atomical_id,
-                        "location_id": location_id_bytes_to_compact(location),
-                        "payload": payload,
-                        "outputs": {
-                            expected_output_index: [
-                                {
-                                    "address": get_address_from_output_script(tx_out.pk_script),
-                                    "atomical_id": atomical_id,
-                                    "type": "NFT",
-                                    "index": expected_output_index,
-                                    "value": tx_out.value,
-                                }
-                            ]
-                        },
-                    }
 
         async def make_transfer_inputs(result, inputs_atomicals, tx_inputs, make_type) -> Dict[int, List[Dict]]:
             for atomical_id, input_data in inputs_atomicals.items():
@@ -1145,6 +1089,60 @@ class SessionManager:
                     else:
                         result[k].append(_data)
             return result
+
+        operation_type = operation_found_at_inputs.get("op", "") if operation_found_at_inputs else ""
+        if operation_found_at_inputs:
+            payload = operation_found_at_inputs.get("payload")
+            payload_not_none = payload or {}
+            res["info"]["payload"] = payload_not_none
+            if blueprint_builder.is_mint and operation_type in ["dmt", "ft"]:
+                expected_output_index = 0
+                tx_out = tx.outputs[expected_output_index]
+                location = tx_hash + util.pack_le_uint32(expected_output_index)
+                # if save into the db, it means mint success
+                has_atomicals = self.db.get_atomicals_by_location_long_form(location)
+                if len(has_atomicals):
+                    ticker_name = payload_not_none.get("args", {}).get("mint_ticker", "")
+                    status, candidate_atomical_id, _ = self.bp.get_effective_ticker(ticker_name, self.bp.height)
+                    if status:
+                        atomical_id = location_id_bytes_to_compact(candidate_atomical_id)
+                        res["info"] = {
+                            "payload": payload,
+                            "outputs": {
+                                expected_output_index: [
+                                    {
+                                        "address": get_address_from_output_script(tx_out.pk_script),
+                                        "atomical_id": atomical_id,
+                                        "location_id": location_id_bytes_to_compact(location),
+                                        "type": "FT",
+                                        "index": expected_output_index,
+                                        "value": tx_out.value,
+                                    }
+                                ]
+                            },
+                        }
+            elif operation_type == "nft":
+                if atomicals_receive_at_outputs:
+                    outputs: Dict[int, List[Dict[str, Any]]] = {}
+                    for expected_output_index, atomicals_receives in atomicals_receive_at_outputs.items():
+                        receives: List[Dict[str, Any]] = []
+                        for atomicals in atomicals_receives:
+                            atomical_id = location_id_bytes_to_compact(atomicals["atomical_id"])
+                            location = tx_hash + util.pack_le_uint32(expected_output_index)
+                            tx_out = tx.outputs[expected_output_index]
+                            receives.append({
+                                "address": get_address_from_output_script(tx_out.pk_script),
+                                "atomical_id": atomical_id,
+                                "location_id": location_id_bytes_to_compact(location),
+                                "type": "NFT",
+                                "index": expected_output_index,
+                                "value": tx_out.value,
+                            })
+                        outputs[expected_output_index] = receives
+                    res["info"] = {
+                        "payload": payload,
+                        "outputs": outputs,
+                    }
 
         # no operation_found_at_inputs, it will be transfer.
         if blueprint_builder.ft_atomicals and atomicals_spent_at_inputs:
