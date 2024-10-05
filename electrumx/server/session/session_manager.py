@@ -1091,6 +1091,19 @@ class SessionManager:
             return result
 
         operation_type = operation_found_at_inputs.get("op", "") if operation_found_at_inputs else ""
+
+        # no operation_found_at_inputs, it will be transfer.
+        if blueprint_builder.ft_atomicals and atomicals_spent_at_inputs:
+            if not operation_type and not op_raw:
+                op_raw = "transfer"
+            await make_transfer_inputs(res["transfers"]["inputs"], blueprint_builder.ft_atomicals, tx.inputs, "FT")
+            make_transfer_outputs(res["transfers"]["outputs"], blueprint_builder.ft_output_blueprint.outputs)
+        if blueprint_builder.nft_atomicals and atomicals_spent_at_inputs:
+            if not operation_type and not op_raw:
+                op_raw = "transfer"
+            await make_transfer_inputs(res["transfers"]["inputs"], blueprint_builder.nft_atomicals, tx.inputs, "NFT")
+            make_transfer_outputs(res["transfers"]["outputs"], blueprint_builder.nft_output_blueprint.outputs)
+
         if operation_found_at_inputs:
             payload = operation_found_at_inputs.get("payload")
             payload_not_none = payload or {}
@@ -1128,6 +1141,11 @@ class SessionManager:
                         receives: List[Dict[str, Any]] = []
                         for atomicals in atomicals_receives:
                             atomical_id = location_id_bytes_to_compact(atomicals["atomical_id"])
+                            if any(
+                                any(output.get("atomical_id") == atomical_id for output in outputs_list)
+                                for outputs_list in res["transfers"]["outputs"].values()
+                            ):
+                                continue
                             location = tx_hash + util.pack_le_uint32(expected_output_index)
                             tx_out = tx.outputs[expected_output_index]
                             receives.append({
@@ -1143,18 +1161,6 @@ class SessionManager:
                         "payload": payload,
                         "outputs": outputs,
                     }
-
-        # no operation_found_at_inputs, it will be transfer.
-        if blueprint_builder.ft_atomicals and atomicals_spent_at_inputs:
-            if not operation_type and not op_raw:
-                op_raw = "transfer"
-            await make_transfer_inputs(res["transfers"]["inputs"], blueprint_builder.ft_atomicals, tx.inputs, "FT")
-            make_transfer_outputs(res["transfers"]["outputs"], blueprint_builder.ft_output_blueprint.outputs)
-        if blueprint_builder.nft_atomicals and atomicals_spent_at_inputs:
-            if not operation_type and not op_raw:
-                op_raw = "transfer"
-            await make_transfer_inputs(res["transfers"]["inputs"], blueprint_builder.nft_atomicals, tx.inputs, "NFT")
-            make_transfer_outputs(res["transfers"]["outputs"], blueprint_builder.nft_output_blueprint.outputs)
 
         (
             payment_id,
