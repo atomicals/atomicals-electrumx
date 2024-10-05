@@ -3529,7 +3529,7 @@ class BlockProcessor:
 
     # Builds a map of the atomicals spent at a tx
     # It uses the spend_atomicals_utxo method but with live_run == False
-    def build_atomicals_receive_at_ouutput_for_validation_only(self, tx, txid):
+    def build_atomicals_receive_at_output_for_validation_only(self, tx, txid):
         spend_atomicals_utxo = self.spend_atomicals_utxo
         atomicals_receive_at_outputs = {}
         txout_index = 0

@@ -953,7 +953,7 @@ class SessionManager:
                     },
                 }
             elif op == "nft":
-                _receive_at_outputs = self.bp.build_atomicals_receive_at_ouutput_for_validation_only(tx, tx_hash)
+                _receive_at_outputs = self.bp.build_atomicals_receive_at_output_for_validation_only(tx, tx_hash)
                 tx_out = tx.outputs[0]
                 atomical_id = location_id_bytes_to_compact(_receive_at_outputs[0][-1]["atomical_id"])
                 mint_info = {
@@ -1011,7 +1011,7 @@ class SessionManager:
 
         operation_found_at_inputs = parse_protocols_operations_from_witness_array(tx, tx_hash, True)
         atomicals_spent_at_inputs = self.bp.build_atomicals_spent_at_inputs_for_validation_only(tx)
-        atomicals_receive_at_outputs = self.bp.build_atomicals_receive_at_ouutput_for_validation_only(tx, tx_hash)
+        atomicals_receive_at_outputs = self.bp.build_atomicals_receive_at_output_for_validation_only(tx, tx_hash)
         blueprint_builder = AtomicalsTransferBlueprintBuilder(
             self.logger,
             atomicals_spent_at_inputs,
