@@ -1108,7 +1108,8 @@ class SessionManager:
             payload = operation_found_at_inputs.get("payload")
             payload_not_none = payload or {}
             res["info"]["payload"] = payload_not_none
-            if blueprint_builder.is_mint and operation_type in ["dmt", "ft"]:
+            # Mint operation types are "dmt", "nft", "ft", "dft". "dft" is the deploy operation.
+            if operation_type in ["dmt", "ft"]:
                 expected_output_index = 0
                 tx_out = tx.outputs[expected_output_index]
                 location = tx_hash + util.pack_le_uint32(expected_output_index)
