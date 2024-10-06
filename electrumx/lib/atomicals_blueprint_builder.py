@@ -432,9 +432,11 @@ class AtomicalsTransferBlueprintBuilder:
         # Use a simplified mapping of NFTs using FIFO to the outputs
         if sort_fifo:
             next_output_idx = 0
-            # Put the parent realm to vout:1 if the claim type is *direct*.
-            if is_subrealm_direct_minting_fixture_activated and operations_found_at_inputs.get("payload", {}).get(
-                    "args", {}).get("claim_type") == "direct":
+            # Extra handling for the sub-realm:
+            # Put the parent realm to vout:1 if the claim type is *direct* and have more than 1 output,
+            # otherwise they will be merged into vout:0.
+            claim_type = operations_found_at_inputs.get("payload", {}).get("args", {}).get("claim_type")
+            if is_subrealm_direct_minting_fixture_activated and claim_type == "direct" and len(tx.outputs) > 1:
                 next_output_idx = 1
             map_output_idxs_for_atomicals = {}
             # Build a map of input ids to NFTs
