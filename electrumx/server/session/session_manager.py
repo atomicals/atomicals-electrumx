@@ -1157,7 +1157,8 @@ class SessionManager:
                                 "index": expected_output_index,
                                 "value": tx_out.value,
                             })
-                        outputs[expected_output_index] = receives
+                        if len(receives) > 0:
+                            outputs[expected_output_index] = receives
                     res["info"] = {
                         "payload": payload,
                         "outputs": outputs,
