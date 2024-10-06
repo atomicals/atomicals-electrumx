@@ -8,7 +8,6 @@ from electrumx.lib.util_atomicals import (
     compact_to_location_id_bytes,
     is_compact_atomical_id,
     is_custom_colored_operation,
-    is_integer_num,
     is_mint_operation,
     is_op_return_dmitem_payment_marker_atomical_id,
     is_op_return_subrealm_payment_marker_atomical_id,
@@ -1025,7 +1024,7 @@ class AtomicalsTransferBlueprintBuilder:
             # There is no value defined or the expected payment is below the dust limit, or skip it
             expected_output_payment_value = expected_output_payment_value_dict.get("v", None)
             if (
-                not is_integer_num(expected_output_payment_value)
+                not isinstance(expected_output_payment_value, int)
                 or expected_output_payment_value < SUBNAME_MIN_PAYMENT_DUST_LIMIT
             ):
                 continue
