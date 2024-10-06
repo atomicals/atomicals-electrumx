@@ -318,6 +318,7 @@ class AtomicalsTransferBlueprintBuilder:
         get_atomicals_id_mint_info,
         sort_fifo,
         is_custom_coloring_activated,
+        is_subrealm_direct_minting_fixture_activated,
     ):
         self.logger = logger
         self.atomicals_spent_at_inputs = atomicals_spent_at_inputs
@@ -327,6 +328,7 @@ class AtomicalsTransferBlueprintBuilder:
         self.get_atomicals_id_mint_info = get_atomicals_id_mint_info
         self.sort_fifo = sort_fifo
         self.is_custom_coloring_activated = is_custom_coloring_activated
+        self.is_subrealm_direct_minting_fixture_activated = is_subrealm_direct_minting_fixture_activated
         (
             nft_atomicals,
             ft_atomicals,

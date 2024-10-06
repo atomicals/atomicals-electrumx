@@ -2242,6 +2242,7 @@ class BlockProcessor:
             self.get_atomicals_id_mint_info,
             self.is_dmint_activated(height),
             self.is_custom_coloring_activated(height),
+            self.is_subrealm_direct_minting_fixture_activated(height),
         )
 
         nft_output_blueprint = blueprint_builder.get_nft_output_blueprint()
@@ -3511,6 +3512,13 @@ class BlockProcessor:
             return True
         return False
 
+    def is_subrealm_direct_minting_fixture_activated(self, height):
+        if height >= self.coin.ATOMICALS_ACTIVATION_HEIGHT_SUBREALM_DIRECT_MINTING_FIXTURE:
+            return True
+        if height <= 0:
+            return True
+        return False
+
     # Builds a map of the atomicals spent at a tx
     # It uses the spend_atomicals_utxo method but with live_run == False
     def build_atomicals_spent_at_inputs_for_validation_only(self, tx):
@@ -3921,6 +3929,7 @@ class BlockProcessor:
             self.get_atomicals_id_mint_info,
             self.is_dmint_activated(height),
             self.is_custom_coloring_activated(height),
+            self.is_subrealm_direct_minting_fixture_activated(height),
         )
         if blueprint_builder.is_split_operation():
             self.logger.warning(

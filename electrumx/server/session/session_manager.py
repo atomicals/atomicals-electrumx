@@ -831,6 +831,7 @@ class SessionManager:
             self.bp.get_atomicals_id_mint_info,
             True,
             self.bp.is_custom_coloring_activated(self.bp.height),
+            self.bp.is_subrealm_direct_minting_fixture_activated(self.bp.height),
         )
         encoded_atomicals_spent_at_inputs = encode_atomical_ids_hex(atomicals_spent_at_inputs)
         ft_output_blueprint = blueprint_builder.get_ft_output_blueprint()
@@ -895,6 +896,7 @@ class SessionManager:
             self.bp.get_atomicals_id_mint_info,
             True,
             self.bp.is_custom_coloring_activated(self.bp.height),
+            self.bp.is_subrealm_direct_minting_fixture_activated(self.bp.height),
         )
         ft_output_blueprint = blueprint_builder.get_ft_output_blueprint()
         nft_output_blueprint = blueprint_builder.get_nft_output_blueprint()
@@ -1021,6 +1023,7 @@ class SessionManager:
             self.bp.get_atomicals_id_mint_info,
             self.bp.is_dmint_activated(height),
             self.bp.is_custom_coloring_activated(height),
+            self.bp.is_subrealm_direct_minting_fixture_activated(height),
         )
         is_burned = blueprint_builder.are_fts_burned
         is_cleanly_assigned = blueprint_builder.cleanly_assigned

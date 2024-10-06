@@ -33,7 +33,15 @@ def test_empty_spends():
         return None
 
     blueprint_builder = AtomicalsTransferBlueprintBuilder(
-        MockLogger(), {}, {}, tx_hash, tx, mock_mint_fetcher, True, False
+        MockLogger(),
+        {},
+        {},
+        tx_hash,
+        tx,
+        mock_mint_fetcher,
+        True,
+        False,
+        False,
     )
     assert blueprint_builder
 
@@ -159,6 +167,7 @@ def test_spends_ft_burned():
         tx,
         mock_mint_fetcher,
         True,
+        False,
         False,
     )
     nft_output_blueprint = blueprint_builder.get_nft_output_blueprint()
@@ -286,6 +295,7 @@ def test_spends_ft_valid():
         mock_mint_fetcher,
         True,
         False,
+        False,
     )
     nft_output_blueprint = blueprint_builder.get_nft_output_blueprint()
     assert len(nft_output_blueprint.outputs) == 0
@@ -412,6 +422,7 @@ def test_spends_ft_multiple_valid_collapsed():
         mock_mint_fetcher,
         True,
         False,
+        False,
     )
 
     nft_output_blueprint = blueprint_builder.get_nft_output_blueprint()
@@ -454,6 +465,7 @@ def test_spends_ft_single_burned_under():
         mock_mint_fetcher,
         True,
         False,
+        False,
     )
     nft_output_blueprint = blueprint_builder.get_nft_output_blueprint()
     assert len(nft_output_blueprint.outputs) == 0
@@ -495,6 +507,7 @@ def test_spends_ft_single_burned_over():
         mock_mint_fetcher,
         True,
         False,
+        False,
     )
     nft_output_blueprint = blueprint_builder.get_nft_output_blueprint()
     assert len(nft_output_blueprint.outputs) == 0
@@ -526,6 +539,7 @@ def test_spends_are_payments_satisfied_checks():
         tx,
         mock_mint_fetcher,
         True,
+        False,
         False,
     )
     nft_output_blueprint = blueprint_builder.get_nft_output_blueprint()
@@ -593,6 +607,7 @@ def test_spends_fts_are_payments_satisfied_checks2():
         tx,
         mock_mint_fetcher,
         True,
+        False,
         False,
     )
     nft_output_blueprint = blueprint_builder.get_nft_output_blueprint()
@@ -692,6 +707,7 @@ def test_spends_ft_single_split():
         mock_mint_fetcher,
         True,
         False,
+        False,
     )
     nft_output_blueprint = blueprint_builder.get_nft_output_blueprint()
     assert len(nft_output_blueprint.outputs) == 0
@@ -713,6 +729,7 @@ def test_spends_ft_single_split():
         tx_hash,
         tx,
         mock_mint_fetcher,
+        True,
         True,
         True,
     )
@@ -756,6 +773,7 @@ def test_spends_single_ft_partially_colored_transfer():
         tx_hash,
         tx,
         mock_mint_fetcher,
+        True,
         True,
         True,
     )
@@ -889,6 +907,7 @@ def test_spends_multiple_ft_partially_colored_merged():
         mock_mint_fetcher,
         True,
         True,
+        True,
     )
     nft_output_blueprint = blueprint_builder.get_nft_output_blueprint()
     assert len(nft_output_blueprint.outputs) == 0
@@ -943,6 +962,7 @@ def test_spends_multiple_nft_and_ft_partially_colored_merged():
         tx_hash,
         tx,
         mock_mint_fetcher,
+        True,
         True,
         True,
     )
@@ -1000,6 +1020,7 @@ def test_spends_ft_split_one_token():
         mock_mint_fetcher,
         True,
         False,
+        False,
     )
     nft_output_blueprint = blueprint_builder.get_nft_output_blueprint()
     assert len(nft_output_blueprint.outputs) == 0
@@ -1020,6 +1041,7 @@ def test_spends_ft_split_one_token():
         tx_hash,
         tx,
         mock_mint_fetcher,
+        True,
         True,
         True,
     )
@@ -1062,6 +1084,7 @@ def test_spends_ft_split_one_token():
         mock_mint_fetcher,
         True,
         False,
+        False,
     )
     nft_output_blueprint = blueprint_builder.get_nft_output_blueprint()
     assert len(nft_output_blueprint.outputs) == 0
@@ -1103,6 +1126,7 @@ def test_spends_ft_split_one_token():
         tx_hash,
         tx,
         mock_mint_fetcher,
+        True,
         True,
         True,
     )
@@ -1159,6 +1183,7 @@ def test_ft_y_split_ft_normal():
         mock_mint_fetcher,
         True,
         False,
+        False,
     )
     nft_output_blueprint = blueprint_builder.get_nft_output_blueprint()
     assert len(nft_output_blueprint.outputs) == 0
@@ -1198,6 +1223,7 @@ def test_ft_y_split_ft_normal():
         mock_mint_fetcher,
         True,
         False,
+        False,
     )
     nft_output_blueprint = blueprint_builder.get_nft_output_blueprint()
     assert len(nft_output_blueprint.outputs) == 0
@@ -1219,6 +1245,7 @@ def test_ft_y_split_ft_normal():
         tx_hash,
         tx,
         mock_mint_fetcher,
+        True,
         True,
         True,
     )
@@ -1261,6 +1288,7 @@ def test_ft_y_split_ft_normal():
         mock_mint_fetcher,
         True,
         True,
+        True,
     )
     nft_output_blueprint = blueprint_builder.get_nft_output_blueprint()
     assert len(nft_output_blueprint.outputs) == 0
@@ -1299,6 +1327,7 @@ def test_ft_y_split_ft_normal():
         tx_hash,
         tx,
         mock_mint_fetcher,
+        True,
         True,
         True,
     )
@@ -1340,6 +1369,7 @@ def test_ft_y_split_ft_normal():
         tx_hash,
         tx,
         mock_mint_fetcher,
+        True,
         True,
         True,
     )
@@ -1400,6 +1430,7 @@ def test_y_split_nft_and_ft():
         mock_mint_fetcher,
         True,
         True,
+        True,
     )
     nft_output_blueprint = blueprint_builder.get_nft_output_blueprint()
     assert len(nft_output_blueprint.outputs) == 1
@@ -1424,6 +1455,7 @@ def test_y_split_nft_and_ft():
         tx,
         mock_mint_fetcher,
         True,
+        False,
         False,
     )
     nft_output_blueprint = blueprint_builder.get_nft_output_blueprint()
@@ -1464,6 +1496,7 @@ def test_y_split_nft_and_ft():
         tx_hash,
         tx,
         mock_mint_fetcher,
+        True,
         True,
         True,
     )
@@ -1526,6 +1559,7 @@ def test_custom_colored_ft_normal():
         mock_mint_fetcher,
         True,
         True,
+        True,
     )
     nft_output_blueprint = blueprint_builder.get_nft_output_blueprint()
     assert len(nft_output_blueprint.outputs) == 0
@@ -1550,6 +1584,7 @@ def test_custom_colored_ft_normal():
         tx_hash,
         tx,
         mock_mint_fetcher,
+        True,
         True,
         True,
     )
@@ -1591,6 +1626,7 @@ def test_custom_colored_ft_normal1():
         tx_hash,
         tx,
         mock_mint_fetcher,
+        True,
         True,
         True,
     )
@@ -1643,6 +1679,7 @@ def test_custom_colored_nft_normal():
         mock_mint_fetcher,
         True,
         True,
+        True,
     )
     nft_output_blueprint = blueprint_builder.get_nft_output_blueprint()
     assert len(nft_output_blueprint.outputs) == 1
@@ -1665,6 +1702,7 @@ def test_custom_colored_nft_normal():
         mock_mint_fetcher,
         True,
         True,
+        True,
     )
     nft_output_blueprint = blueprint_builder.get_nft_output_blueprint()
     assert len(nft_output_blueprint.outputs) == 1
@@ -1683,6 +1721,7 @@ def test_custom_colored_nft_normal():
         tx_hash,
         tx,
         mock_mint_fetcher,
+        True,
         True,
         True,
     )
@@ -1726,6 +1765,7 @@ def test_partially_colored_spends_are_payments_satisfied_checks():
         tx_hash,
         tx,
         mock_mint_fetcher,
+        True,
         True,
         True,
     )
