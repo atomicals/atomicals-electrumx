@@ -350,6 +350,7 @@ class AtomicalsTransferBlueprintBuilder:
             self.operations_found_at_inputs,
             self.sort_fifo,
             self.is_custom_coloring_activated,
+            self.is_subrealm_direct_minting_fixture_activated,
         )
         self.nft_output_blueprint = nft_output_blueprint
         self.ft_output_blueprint = ft_output_blueprint
@@ -420,10 +421,22 @@ class AtomicalsTransferBlueprintBuilder:
         return input_idx_to_atomical_ids_map
 
     @classmethod
-    def calculate_nft_atomicals_regular(cls, nft_map, nft_atomicals, tx, operations_found_at_inputs, sort_fifo):
+    def calculate_nft_atomicals_regular(
+        cls,
+        nft_map,
+        nft_atomicals,
+        tx,
+        operations_found_at_inputs,
+        sort_fifo,
+        is_subrealm_direct_minting_fixture_activated,
+    ):
         # Use a simplified mapping of NFTs using FIFO to the outputs
         if sort_fifo:
             next_output_idx = 0
+            # Put the parent realm to vout:1 if the claim type is *direct*.
+            if is_subrealm_direct_minting_fixture_activated and operations_found_at_inputs.get("payload", {}).get(
+                    "args", {}).get("claim_type") == "direct":
+                next_output_idx = 1
             map_output_idxs_for_atomicals = {}
             # Build a map of input ids to NFTs
             for _input_idx, atomicals_ids_map in nft_map.items():
@@ -540,6 +553,7 @@ class AtomicalsTransferBlueprintBuilder:
         operations_found_at_inputs,
         sort_fifo,
         is_custom_coloring_activated,
+        is_subrealm_direct_minting_fixture_activated,
     ) -> AtomicalNftOutputBlueprintAssignmentSummary:
         if not nft_atomicals or len(nft_atomicals) == 0:
             return AtomicalNftOutputBlueprintAssignmentSummary({})
@@ -558,7 +572,12 @@ class AtomicalsTransferBlueprintBuilder:
             get_atomicals_id_mint_info, atomicals_spent_at_inputs
         )
         return AtomicalsTransferBlueprintBuilder.calculate_nft_atomicals_regular(
-            nft_map, nft_atomicals, tx, operations_found_at_inputs, sort_fifo
+            nft_map,
+            nft_atomicals,
+            tx,
+            operations_found_at_inputs,
+            sort_fifo,
+            is_subrealm_direct_minting_fixture_activated,
         )
 
     @classmethod
@@ -788,6 +807,7 @@ class AtomicalsTransferBlueprintBuilder:
         operations_found_at_inputs,
         sort_fifo,
         is_custom_coloring_activated,
+        is_subrealm_direct_minting_fixture_activated,
     ) -> Tuple[
         AtomicalNftOutputBlueprintAssignmentSummary,
         AtomicalFtOutputBlueprintAssignmentSummary,
@@ -800,6 +820,7 @@ class AtomicalsTransferBlueprintBuilder:
             operations_found_at_inputs,
             sort_fifo,
             is_custom_coloring_activated,
+            is_subrealm_direct_minting_fixture_activated,
         )
         ft_blueprint = AtomicalsTransferBlueprintBuilder.calculate_output_blueprint_fts(
             tx,
