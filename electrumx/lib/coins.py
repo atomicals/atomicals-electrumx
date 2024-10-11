@@ -992,6 +992,10 @@ class BitcoinTestnet(BitcoinTestnetMixin, AtomicalsCoinMixin, Coin):
         return False
 
 
+class BitcoinSegwitTestnet(BitcoinTestnet):
+    NAME = "BitcoinSegwit"  # support legacy name
+
+
 class BitcoinTestnet4(BitcoinTestnetMixin, AtomicalsCoinMixin, Coin):
     NAME = "Bitcoin"
     NET = "testnet4"
@@ -1026,10 +1030,6 @@ class BitcoinTestnet4(BitcoinTestnetMixin, AtomicalsCoinMixin, Coin):
 
 
 class BitcoinSegwitTestnet4(BitcoinTestnet4):
-    NAME = "BitcoinSegwit"  # support legacy name
-
-
-class BitcoinSegwitTestnet(BitcoinTestnet):
     NAME = "BitcoinSegwit"  # support legacy name
 
 
