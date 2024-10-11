@@ -995,11 +995,14 @@ class BitcoinTestnet(BitcoinTestnetMixin, AtomicalsCoinMixin, Coin):
 class BitcoinTestnet4(BitcoinTestnetMixin, AtomicalsCoinMixin, Coin):
     NAME = "Bitcoin"
     NET = "testnet4"
-    DESERIALIZER = lib_tx.DeserializerSegWit
-    CRASH_CLIENT_VER = (3, 2, 3)
-    PEERS = []
-    GENESIS_HASH = "00000000da84f2bafbbc53dee25a72ae" "507ff4914b867c565be350b0da8bf043"
-    RPC_PORT = 48332
+    PEERS = [
+        'blackie.c3-soft.com s57010 t57009',
+        'testnet4-electrumx.wakiyamap.dev',
+    ]
+    GENESIS_HASH = ('00000000da84f2bafbbc53dee25a72ae'
+                    '507ff4914b867c565be350b0da8bf043')
+    TX_COUNT = 1
+    TX_COUNT_HEIGHT = 1
 
     ATOMICALS_ACTIVATION_HEIGHT = 27000
     ATOMICALS_ACTIVATION_HEIGHT_DMINT = 27000
@@ -1020,6 +1023,10 @@ class BitcoinTestnet4(BitcoinTestnetMixin, AtomicalsCoinMixin, Coin):
                 "<br/><br/>"
             )
         return False
+
+
+class BitcoinSegwitTestnet4(BitcoinTestnet4):
+    NAME = "BitcoinSegwit"  # support legacy name
 
 
 class BitcoinSegwitTestnet(BitcoinTestnet):
