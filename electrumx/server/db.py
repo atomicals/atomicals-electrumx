@@ -435,12 +435,14 @@ class DB:
         assert not flush_data.op_adds
         self.history.assert_flushed()
 
-    def flush_dbs(self, flush_data, flush_utxos, estimate_txs_remaining):
+    def flush_dbs(self, flush_data, flush_utxos, estimate_txs_remaining, force=False):
         """Flush out cached state.  History is always flushed; UTXOs are
         flushed if flush_utxos."""
-        if flush_data.height == self.db_height:
+        if flush_data.height == self.db_height and not force:
             self.assert_flushed(flush_data)
             return
+        if force:
+            self.logger.warning("Force flushing dbs. Pay attention to data conflicts.")
 
         start_time = time.time()
         prior_flush = self.last_flush
