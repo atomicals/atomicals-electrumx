@@ -771,21 +771,21 @@ class SharedSession(object):
             }
         }
 
-    async def atomicals_search_tickers(self, prefix=None, reverse=False, limit=100, offset=0, is_verified_only=False):
+    def atomicals_search_tickers(self, prefix=None, reverse=False, limit=100, offset=0, is_verified_only=False):
         if isinstance(prefix, str):
             prefix = prefix.encode()
         return self._atomicals_search_name_template(
             b"tick", "ticker", None, prefix, reverse, limit, offset, is_verified_only
         )
 
-    async def atomicals_search_realms(self, prefix=None, reverse=False, limit=100, offset=0, is_verified_only=False):
+    def atomicals_search_realms(self, prefix=None, reverse=False, limit=100, offset=0, is_verified_only=False):
         if isinstance(prefix, str):
             prefix = prefix.encode()
         return self._atomicals_search_name_template(
             b"rlm", "realm", None, prefix, reverse, limit, offset, is_verified_only
         )
 
-    async def atomicals_search_subrealms(
+    def atomicals_search_subrealms(
         self,
         parent,
         prefix=None,
@@ -808,7 +808,7 @@ class SharedSession(object):
             is_verified_only,
         )
 
-    async def atomicals_search_containers(
+    def atomicals_search_containers(
         self, prefix=None, reverse=False, limit=100, offset=0, is_verified_only=False
     ):
         if isinstance(prefix, str):

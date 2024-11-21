@@ -241,10 +241,10 @@ class HttpSession(object):
         """Return the donation address as a string, empty if there is none."""
         return self.env.donation_address
 
-    async def server_features_async(self):
+    def server_features_async(self):
         return self.server_features(self.env)
 
-    async def peers_subscribe(self):
+    def peers_subscribe(self):
         """Return the server peers as a list of (ip, host, details) tuples."""
         return self.peer_mgr.on_peers_subscribe(False)
 

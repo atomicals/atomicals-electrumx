@@ -7,6 +7,7 @@ from aiorpcx import (
     NewlineFramer,
     ReplyAndDisconnect,
     Request,
+    RPCError,
     RPCSession,
     handler_invocation,
 )
@@ -119,14 +120,17 @@ class SessionBase(RPCSession):
         """Handle an incoming request.  ElectrumX doesn't receive
         notifications from client sessions.
         """
+        method = request.method
         if isinstance(request, Request):
-            handler = self.request_handlers.get(request.method)
-            method = request.method
-            args = request.args
+            handler = self.request_handlers.get(method)
         else:
             handler = None
-            method = "invalid method"
-            args = None
+        if handler is None:
+            from aiorpcx import JSONRPC
+            self.logger.error(f'Unknown handler for the method "{method}"')
+            return RPCError(JSONRPC.METHOD_NOT_FOUND, f'Unknown handler for the method "{method}"')
+
+        args = request.args
         self.logger.debug(f"Session request handling: [method] {method}, [args] {args}")
 
         # If DROP_CLIENT_UNKNOWN is enabled, check if the client identified
@@ -136,8 +140,13 @@ class SessionBase(RPCSession):
             raise ReplyAndDisconnect(BAD_REQUEST, "use server.version to identify client")
 
         self.session_mgr.method_counts[method] += 1
-        coro = handler_invocation(handler, request)()
-        if isinstance(coro, Awaitable):
-            return await coro
-        else:
-            return coro
+
+        # Wraps all internal errors without closing the session.
+        try:
+            result = handler_invocation(handler, request)()
+            if isinstance(result, Awaitable):
+                result = await result
+            return result
+        except BaseException as e:
+            self.logger.error(f"Session request error: [method] {method}, [args] {args}, [error] {e}")
+            return RPCError(-1, str(e))
