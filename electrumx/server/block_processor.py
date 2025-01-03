@@ -580,8 +580,6 @@ class BlockProcessor:
         cache = self.general_data_cache.get(key)
         if not cache:
             cache = self.db.get_general_data(key)
-            if cache:
-                self.general_data_cache[key] = cache
         return cache
 
     # Get the mint information and LRU cache it for fast retrieval
