@@ -148,12 +148,6 @@ def is_sanitized_dict_whitelist_only(d: dict, allow_bytes=False):
     return True
 
 
-def is_integer_num(n):
-    if isinstance(n, int):
-        return True
-    return False
-
-
 # Check whether the value is hex string
 def is_hex_string(value):
     if not isinstance(value, str):
@@ -1526,7 +1520,7 @@ def validate_subrealm_rules_outputs_format(outputs):
             return False  # Reject if one of the entries expects less than the minimum payment amount
         expected_output_id = expected_output_value.get("id")
         expected_output_qty = expected_output_value.get("v")
-        if not is_integer_num(expected_output_qty) or expected_output_qty < SUBNAME_MIN_PAYMENT_DUST_LIMIT:
+        if not isinstance(expected_output_qty, int) or expected_output_qty < SUBNAME_MIN_PAYMENT_DUST_LIMIT:
             print_subrealm_calculate_log("validate_subrealm_rules_outputs_format: invalid expected output value")
             return False  # Reject if one of the entries expects less than the minimum payment amount
         # If there is a type restriction on the payment type then ensure it is a valid atomical id
