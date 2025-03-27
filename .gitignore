@@ -15,3 +15,5 @@ docs/_build
 .idea/
 .env
 .venv
+*.log
+*.http

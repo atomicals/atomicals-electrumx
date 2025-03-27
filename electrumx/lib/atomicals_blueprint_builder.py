@@ -616,6 +616,9 @@ class AtomicalsTransferBlueprintBuilder:
                 # expected_value will equal to txout.value
                 if expected_value > txout.value:
                     expected_value = txout.value
+                # The coloring value cannot exceed the remaining atomical value.
+                if expected_value > remaining_value:
+                    expected_value = remaining_value
                 # set cleanly_assigned
                 if expected_value < txout.value:
                     cleanly_assigned = False

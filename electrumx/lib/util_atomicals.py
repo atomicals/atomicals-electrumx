@@ -1450,6 +1450,10 @@ def auto_encode_bytes_elements(state):
         for key, value in state.items():
             state[key] = auto_encode_bytes_elements(value)
 
+    # Handles unknown undefined type.
+    if type(state).__name__ == 'undefined_type':
+        return None
+
     return state
 
 
@@ -1467,6 +1471,10 @@ def auto_encode_bytes_items(state):
         for item in state:
             reformatted_list.append(auto_encode_bytes_elements(item))
         return reformatted_list
+
+    # Handles unknown undefined type.
+    if type(state).__name__ == 'undefined_type':
+        return None
 
     cloned_state = {}
     try:
