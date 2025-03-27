@@ -148,5 +148,7 @@ class SessionBase(RPCSession):
                 result = await result
             return result
         except BaseException as e:
-            self.logger.error(f"Session request error: [method] {method}, [args] {args}, [error] {e}")
+            import traceback
+            stack = traceback.format_exc()
+            self.logger.error(f"Session request error: [method:{method}], [args:{args}], [error:{e}], [stack:{stack}]")
             return RPCError(-1, str(e))
